@@ -65,7 +65,8 @@ function App(){
       const totalAtrasado=ps.filter(p=>p.STATUS==="atrasado").reduce((s,p)=>s+p.VALOR_PARCELA,0);
       const pagas=ps.filter(p=>p.STATUS==="pago").length;
       const atrasadas=ps.filter(p=>p.STATUS==="atrasado").length;
-      let score=70+pagas*3-atrasadas*20;
+      const antecipadas=ps.filter(p=>p.DIAS_ANTECIPACAO>0).length;
+let score=70+pagas*3-atrasadas*20+antecipadas*2;
       score=Math.max(5,Math.min(100,score));
       const status=score>=70?"bom":score>=45?"risco":"inadimplente";
       return{...cl,contratos:cs,parcelas:ps,totalPago,totalAtrasado,score,status,numContratos:cs.length};
