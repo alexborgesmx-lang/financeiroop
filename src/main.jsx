@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from "recharts";
 
-const API_URL = "/api/sheets";
+const API_URL = "https://script.google.com/macros/s/AKfycbynQKpafDbaBTT-jqs4nCSzbbx8A72MAqDyGxwy86lIt0ykZxeFT8IdlO7zjj0rJEHy7Q/exec";
 
 const BG="#0d1117",CARD="#161b22",BORDER="#30363d",TEXT="#e6edf3";
 const MUTED="#8b949e",BLUE="#58a6ff",GREEN="#3fb950",YEL="#d29922",RED="#f85149",PUR="#bc8cff";
@@ -65,11 +65,11 @@ function App(){
       const totalAtrasado=ps.filter(p=>p.STATUS==="atrasado").reduce((s,p)=>s+p.VALOR_PARCELA,0);
       const pagas=ps.filter(p=>p.STATUS==="pago").length;
       const atrasadas=ps.filter(p=>p.STATUS==="atrasado").length;
-      const antecipadas=ps.filter(p=>p.DIAS_ANTECIPACAO>0).length;
-let score=70+pagas*3-atrasadas*20+antecipadas*2;
+      const antecipadas=ps.filter(p=>parseInt(p.DIAS_ANTECIPACAO)>0).length;
+      let score=70+pagas*3-atrasadas*20+antecipadas*2;
       score=Math.max(5,Math.min(100,score));
       const status=score>=70?"bom":score>=45?"risco":"inadimplente";
-      return{...cl,contratos:cs,parcelas:ps,totalPago,totalAtrasado,score,status,numContratos:cs.length};
+      return{...cl,contratos:cs,parcelas:ps,totalPago,totalAtrasado,score,status,numContratos:cs.length,antecipadas};
     });
     const hoje=new Date();hoje.setHours(0,0,0,0);
     const mesAtual=hoje.toISOString().slice(0,7);
@@ -296,7 +296,7 @@ let score=70+pagas*3-atrasadas*20+antecipadas*2;
                     <td style={{color:GREEN}}>{R(c.totalPago)}</td>
                     <td style={{color:c.totalAtrasado>0?RED:MUTED}}>{R(c.totalAtrasado)}</td>
                     <td style={{fontSize:11}}><span style={{color:c.status==="bom"?GREEN:c.status==="risco"?YEL:RED}}>
-                      {c.status==="bom"?"✅ Liberar crédito":c.status==="risco"?"⚡ Analisar":"🚫 Bloquear"}
+                      {c.status==="bom"?(c.antecipadas>0?"⭐ Pagador antecipado":"✅ Liberar crédito"):c.status==="risco"?"⚡ Analisar":"🚫 Bloquear"}
                     </span></td>
                   </tr>
                   {selCli===c.ID_CLIENTE&&<tr><td colSpan={7} style={{padding:"0 6px 12px"}}>
@@ -406,6 +406,7 @@ let score=70+pagas*3-atrasadas*20+antecipadas*2;
             {l:"Capital Total Alocado",v:R(M.totalEmprestado),raw:null,desc:"Volume total emprestado",ideal:"—"},
             {l:"Lucro Bruto Total",v:R(M.lucroTotal),raw:M.lucroTotal,ok:1,warn:0,desc:"Juros recebidos estimados",ideal:"> R$ 0"},
             {l:"Taxa Média",v:P((M.taxaMedia||0)*100)+" /mês",raw:null,desc:"Média das taxas praticadas",ideal:"—"},
+            {l:"Pagamentos Antecipados",v:P(parcelas.filter(p=>p.STATUS==="pago"&&parseInt(p.DIAS_ANTECIPACAO)>0).length/Math.max(1,parcelas.filter(p=>p.STATUS==="pago").length)*100),raw:parcelas.filter(p=>p.STATUS==="pago"&&parseInt(p.DIAS_ANTECIPACAO)>0).length/Math.max(1,parcelas.filter(p=>p.STATUS==="pago").length)*100,ok:30,warn:15,desc:"% de pagamentos antes do vencimento",ideal:"> 30%"},
           ].map(k=>{
             const col=k.raw!=null?kpiColor(k.raw,k.ok,k.warn,k.rev):MUTED;
             const stLabel=k.raw!=null?(col===GREEN?"✅ Saudável":col===YEL?"⚡ Atenção":"🚨 Crítico"):"— Neutro";
