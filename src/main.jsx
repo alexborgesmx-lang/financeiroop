@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from "recharts";
 
-const API_URL = "https://script.google.com/macros/s/AKfycbynQKpafDbaBTT-jqs4nCSzbbx8A72MAqDyGxwy86lIt0ykZxeFT8IdlO7zjj0rJEHy7Q/exec";
+const API_URL = "/api/sheets";
 
 const BG="#0d1117",CARD="#161b22",BORDER="#30363d",TEXT="#e6edf3";
 const MUTED="#8b949e",BLUE="#58a6ff",GREEN="#3fb950",YEL="#d29922",RED="#f85149",PUR="#bc8cff";
