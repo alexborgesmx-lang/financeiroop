@@ -61,8 +61,15 @@ function NovoContrato({ clientes, contratos, onSucesso }) {
     if (!busca) return [];
     return clientes
       .filter(c => c.STATUS_CLIENTE === "ativo" && c.NOME.toLowerCase().includes(busca.toLowerCase()))
-      .slice(0, 8);
-  }, [busca, clientes]);
+      .slice(0, 8)
+      .map(c => {
+        const temAtivo = contratos.some(ct =>
+          String(ct.ID_CLIENTE) === String(c.ID_CLIENTE) &&
+          (ct.STATUS_CONTRATO === "ativo" || ct.STATUS_CONTRATO === "inadimplente")
+        );
+        return { ...c, temAtivo };
+      });
+  }, [busca, clientes, contratos]);
 
   // Simulação
   const sim = useMemo(() => {
@@ -150,12 +157,19 @@ function NovoContrato({ clientes, contratos, onSucesso }) {
           {showDrop && sugeridos.length > 0 && (
             <div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BORDER}`,borderRadius:6,zIndex:20,maxHeight:180,overflowY:"auto",marginTop:2,boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>
               {sugeridos.map(c=>(
-                <div key={c.ID_CLIENTE} onClick={()=>selCliente(c)}
-                  style={{padding:"10px 14px",cursor:"pointer",fontSize:13,borderBottom:`1px solid ${BORDER}22`}}
-                  onMouseEnter={e=>e.currentTarget.style.background="#21262d"}
-                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <div key={c.ID_CLIENTE}
+                  onClick={()=>{ if(!c.temAtivo) selCliente(c); }}
+                  style={{padding:"10px 14px",cursor:c.temAtivo?"not-allowed":"pointer",fontSize:13,
+                    borderBottom:`1px solid ${BORDER}22`,
+                    opacity:c.temAtivo?0.5:1,
+                    background:c.temAtivo?"#1a0d0d":"transparent"}}
+                  onMouseEnter={e=>{ if(!c.temAtivo) e.currentTarget.style.background="#21262d"; }}
+                  onMouseLeave={e=>{ e.currentTarget.style.background=c.temAtivo?"#1a0d0d":"transparent"; }}>
                   <strong>{c.NOME}</strong>
-                  {c.DIA_VENCIMENTO_PREFERIDO && <span style={{color:MUTED,fontSize:11,marginLeft:8}}>Venc. preferido: dia {c.DIA_VENCIMENTO_PREFERIDO}</span>}
+                  {c.temAtivo
+                    ? <span style={{color:RED,fontSize:11,marginLeft:8}}>⛔ Contrato ativo — quitação pendente</span>
+                    : c.DIA_VENCIMENTO_PREFERIDO && <span style={{color:MUTED,fontSize:11,marginLeft:8}}>Venc. preferido: dia {c.DIA_VENCIMENTO_PREFERIDO}</span>
+                  }
                 </div>
               ))}
             </div>
