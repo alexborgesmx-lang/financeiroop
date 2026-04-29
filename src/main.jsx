@@ -60,13 +60,17 @@ function NovoContrato({ clientes, contratos, onSucesso }) {
   const sugeridos = useMemo(() => {
     if (!busca) return [];
     return clientes
-      .filter(c => c.STATUS_CLIENTE === "ativo" && c.NOME.toLowerCase().includes(busca.toLowerCase()))
+      .filter(c => {
+        const st = String(c.STATUS_CLIENTE || "").trim().toLowerCase();
+        return st === "ativo" && c.NOME.toLowerCase().includes(busca.toLowerCase());
+      })
       .slice(0, 8)
       .map(c => {
-        const temAtivo = contratos.some(ct =>
-          String(ct.ID_CLIENTE) === String(c.ID_CLIENTE) &&
-          (ct.STATUS_CONTRATO === "ativo" || ct.STATUS_CONTRATO === "inadimplente")
-        );
+        const temAtivo = contratos.some(ct => {
+          const mesmo = String(ct.ID_CLIENTE).trim() === String(c.ID_CLIENTE).trim();
+          const st = String(ct.STATUS_CONTRATO || "").trim().toLowerCase();
+          return mesmo && (st === "ativo" || st === "inadimplente");
+        });
         return { ...c, temAtivo };
       });
   }, [busca, clientes, contratos]);
@@ -98,11 +102,23 @@ function NovoContrato({ clientes, contratos, onSucesso }) {
     }
   }, [cliente]);
 
+  const clienteTemAtivo = useMemo(() => {
+    if (!cliente) return false;
+    return contratos.some(ct => {
+      const mesmo = String(ct.ID_CLIENTE).trim() === String(cliente.ID_CLIENTE).trim();
+      const st = String(ct.STATUS_CONTRATO || "").trim().toLowerCase();
+      return mesmo && (st === "ativo" || st === "inadimplente");
+    });
+  }, [cliente, contratos]);
+
   const selCliente = c => { setCliente(c); setBusca(c.NOME); setShowDrop(false); setMsg(null); };
 
   const confirmar = async () => {
     if (!cliente || !principal || !parcelas || !taxa || !dtEmp || !dtVenc) {
       setMsg({ ok: false, texto: "Preencha todos os campos." }); return;
+    }
+    if (clienteTemAtivo) {
+      setMsg({ ok: false, texto: "Este cliente já possui um contrato ativo. Quite o contrato atual antes de criar um novo." }); return;
     }
     setLoading(true); setMsg(null);
     try {
@@ -175,7 +191,12 @@ function NovoContrato({ clientes, contratos, onSucesso }) {
             </div>
           )}
         </div>
-        {cliente && (
+        {cliente && clienteTemAtivo && (
+          <div style={{marginTop:8,padding:"8px 12px",background:RED+"11",border:`1px solid ${RED}44`,borderRadius:6,fontSize:12,color:RED}}>
+            ⛔ Este cliente já possui um contrato ativo. Quite o contrato atual antes de criar um novo.
+          </div>
+        )}
+        {cliente && !clienteTemAtivo && (
           <div style={{marginTop:8,padding:"8px 12px",background:GREEN+"11",border:`1px solid ${GREEN}44`,borderRadius:6,fontSize:12,color:GREEN}}>
             ✅ {cliente.NOME} selecionado
             {cliente.DIA_VENCIMENTO_PREFERIDO && <span style={{color:MUTED,marginLeft:8}}>· Vencimento preenchido automaticamente para o dia {cliente.DIA_VENCIMENTO_PREFERIDO}</span>}
@@ -237,9 +258,13 @@ function NovoContrato({ clientes, contratos, onSucesso }) {
       )}
 
       {/* Confirmar */}
-      <button onClick={confirmar} disabled={loading||!sim||!cliente}
-        style={{padding:"13px",borderRadius:6,border:"none",background:sim&&cliente?BLUE:"#21262d",
-          color:sim&&cliente?TEXT:MUTED,fontWeight:700,fontSize:14,cursor:sim&&cliente?"pointer":"not-allowed",opacity:loading?0.6:1}}>
+      <button onClick={confirmar} disabled={loading||!sim||!cliente||clienteTemAtivo}
+        style={{padding:"13px",borderRadius:6,border:"none",
+          background:sim&&cliente&&!clienteTemAtivo?BLUE:"#21262d",
+          color:sim&&cliente&&!clienteTemAtivo?TEXT:MUTED,
+          fontWeight:700,fontSize:14,
+          cursor:sim&&cliente&&!clienteTemAtivo?"pointer":"not-allowed",
+          opacity:loading?0.6:1}}>
         {loading?"Criando contrato...":"Confirmar e Gerar Parcelas"}
       </button>
 
