@@ -27,7 +27,115 @@ async function postAction(body) {
   return r.json();
 }
 
-// ── COMPONENTE NOVO CONTRATO ──────────────────────────────────────
+// ── COMPONENTE REVISÃO DE CLIENTE ────────────────────────────────
+function RevisaoCliente({ cliente, onAtivar, onFechar }) {
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg]         = useState(null);
+
+  const campos = [
+    { campo:"NOME",             label:"Nome Completo",         validar: v => /^[A-Z\s]+$/.test(v) ? "Nome todo em maiúsculas" : null },
+    { campo:"CPF",              label:"CPF",                   validar: v => /[.\-]/.test(v) ? "Contém traço ou ponto — remova" : null },
+    { campo:"RG",               label:"RG",                    validar: v => /[.\-]/.test(v) ? "Contém traço ou ponto — remova" : null },
+    { campo:"NACIONALIDADE",    label:"Nacionalidade",         validar: null },
+    { campo:"ESTADO_CIVIL",     label:"Estado Civil",          validar: null },
+    { campo:"PROFISSAO",        label:"Profissão",             validar: null },
+    { campo:"TELEFONE_WPP",     label:"WhatsApp",              validar: v => /[^0-9]/.test(v) ? "Contém caracteres não numéricos" : null },
+    { campo:"EMAIL",            label:"E-mail",                validar: v => /^[A-Z]/.test(v) ? "Começa com maiúscula" : v.includes(" ") ? "Contém espaço" : null },
+    { campo:"CEP",              label:"CEP",                   validar: v => /[.\-]/.test(v) ? "Contém traço ou ponto — remova" : null },
+    { campo:"RUA",              label:"Rua / Avenida",         validar: null },
+    { campo:"NUMERO",           label:"Número",                validar: null },
+    { campo:"QUADRA",           label:"Quadra",                validar: null },
+    { campo:"LOTE",             label:"Lote",                  validar: null },
+    { campo:"SETOR",            label:"Setor / Bairro",        validar: null },
+    { campo:"COMPLEMENTO",      label:"Complemento",           validar: null },
+    { campo:"CIDADE_ESTADO",    label:"Cidade - Estado",       validar: null },
+    { campo:"CONTATO_CONFIANCA_1", label:"Contato 1 — Nome",  validar: null },
+    { campo:"TEL_CONFIANCA_1",  label:"Contato 1 — Telefone", validar: v => v && /[^0-9]/.test(v) ? "Contém caracteres não numéricos" : null },
+    { campo:"CONTATO_CONFIANCA_2", label:"Contato 2 — Nome",  validar: null },
+    { campo:"TEL_CONFIANCA_2",  label:"Contato 2 — Telefone", validar: v => v && /[^0-9]/.test(v) ? "Contém caracteres não numéricos" : null },
+    { campo:"DIA_VENCIMENTO_PREFERIDO", label:"Dia de Vencimento Preferido", validar: null },
+    { campo:"PADRINHO",         label:"Padrinho (quem indicou)", validar: null },
+    { campo:"TEL_PADRINHO",     label:"Telefone do Padrinho", validar: v => v && /[^0-9]/.test(v) ? "Contém caracteres não numéricos" : null },
+  ];
+
+  const alertas = campos.filter(c => {
+    const v = String(cliente[c.campo] || "");
+    return c.validar && v && c.validar(v);
+  });
+
+  const ativar = async () => {
+    setLoading(true); setMsg(null);
+    try {
+      const res = await postAction({ action: "ativarCliente", idCliente: cliente.ID_CLIENTE });
+      if (res.ok) {
+        setMsg({ ok: true, texto: "Cliente ativado com sucesso!" });
+        if (onAtivar) setTimeout(onAtivar, 1200);
+      } else {
+        setMsg({ ok: false, texto: res.erro || "Erro ao ativar." });
+      }
+    } catch(e) {
+      setMsg({ ok: false, texto: e.message });
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.7)",zIndex:100,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"20px",overflowY:"auto"}}>
+      <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,width:"100%",maxWidth:580,padding:20}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <h2 style={{color:TEXT,fontSize:16,fontWeight:700,margin:0}}>Revisar Cadastro</h2>
+          <button onClick={onFechar} style={{background:"transparent",border:"none",color:MUTED,fontSize:20,cursor:"pointer"}}>✕</button>
+        </div>
+
+        {/* Alertas */}
+        {alertas.length > 0 && (
+          <div style={{background:YEL+"11",border:`1px solid ${YEL}44`,borderRadius:8,padding:"10px 14px",marginBottom:14}}>
+            <p style={{color:YEL,fontWeight:700,fontSize:12,margin:"0 0 6px"}}>⚠️ {alertas.length} campo(s) com possível erro:</p>
+            {alertas.map(a => (
+              <p key={a.campo} style={{color:YEL,fontSize:11,margin:"2px 0"}}>
+                • <strong>{a.label}</strong>: {a.validar(String(cliente[a.campo]||""))}
+              </p>
+            ))}
+          </div>
+        )}
+
+        {/* Campos */}
+        <div style={{display:"grid",gap:6,maxHeight:"55vh",overflowY:"auto",paddingRight:4}}>
+          {campos.map(c => {
+            const v = String(cliente[c.campo] || "—");
+            const erro = c.validar && cliente[c.campo] ? c.validar(String(cliente[c.campo])) : null;
+            return (
+              <div key={c.campo} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",
+                padding:"8px 10px",borderRadius:6,background:"#21262d",
+                border:`1px solid ${erro?YEL:BORDER}`}}>
+                <span style={{color:MUTED,fontSize:11,fontWeight:700,textTransform:"uppercase",flexShrink:0,width:180}}>{c.label}</span>
+                <span style={{color:erro?YEL:TEXT,fontSize:12,textAlign:"right",wordBreak:"break-all"}}>
+                  {v}
+                  {erro && <span style={{display:"block",color:YEL,fontSize:10,fontWeight:700}}>⚠ {erro}</span>}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{marginTop:14,display:"grid",gap:10}}>
+          {msg && (
+            <div style={{padding:"10px 14px",borderRadius:8,background:msg.ok?GREEN+"22":RED+"22",
+              border:`1px solid ${msg.ok?GREEN:RED}`,color:msg.ok?GREEN:RED,fontSize:13,fontWeight:600}}>
+              {msg.ok?"✅ ":"❌ "}{msg.texto}
+            </div>
+          )}
+          <p style={{color:MUTED,fontSize:11,margin:0}}>Corrija os erros diretamente no Google Sheets antes de ativar, se necessário.</p>
+          <button onClick={ativar} disabled={loading}
+            style={{padding:"12px",borderRadius:6,border:"none",background:GREEN,color:"#000",
+              fontWeight:700,fontSize:14,cursor:"pointer",opacity:loading?0.6:1}}>
+            {loading?"Ativando...":"✅ Confirmar e Ativar Cliente"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function NovoContrato({ clientes, contratos, onSucesso }) {
   const [busca, setBusca]       = useState("");
   const [showDrop, setShowDrop] = useState(false);
@@ -622,6 +730,14 @@ function App() {
   return(
     <div style={{fontFamily:"'Inter',system-ui,sans-serif",background:BG,color:TEXT,minHeight:"100vh",fontSize:13}}>
       <style>{`*{box-sizing:border-box;margin:0;padding:0}body{margin:0}`}</style>
+      {clienteRevisao && (
+        <RevisaoCliente
+          cliente={clienteRevisao}
+          onAtivar={()=>{ setClienteRevisao(null); carregar(); }}
+          onFechar={()=>setClienteRevisao(null)}
+        />
+      )}
+
       <nav style={{background:CARD,borderBottom:`1px solid ${BORDER}`,display:"flex",alignItems:"center",padding:"0 12px",gap:2,overflowX:"auto",position:"sticky",top:0,zIndex:10}}>
         <span style={{color:BLUE,fontWeight:800,fontSize:15,marginRight:12,whiteSpace:"nowrap",padding:"11px 0"}}>💰 FinanceiroOp</span>
         {TABS.map(t=>(
@@ -722,6 +838,33 @@ function App() {
 
         {/* ── CLIENTES ── */}
         {tab==="clientes"&&<div style={{display:"grid",gap:12}}>
+
+          {/* Aguardando conferência */}
+          {(()=>{
+            const aguardando = (raw?.CLIENTES||[]).filter(c=>String(c.STATUS_CLIENTE||"").trim()==="aguardando_conferencia");
+            if(!aguardando.length) return null;
+            return(
+              <div style={{...card,borderColor:YEL,background:YEL+"0a"}}>
+                <h2 style={{...h2,color:YEL}}>⏳ Aguardando Conferência ({aguardando.length})</h2>
+                {aguardando.map(c=>(
+                  <div key={c.ID_CLIENTE} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                    padding:"10px 12px",marginBottom:6,background:"#21262d",borderRadius:6,
+                    border:`1px solid ${BORDER}`}}>
+                    <div>
+                      <strong style={{fontSize:13}}>{c.NOME}</strong>
+                      <span style={{color:MUTED,fontSize:11,marginLeft:10}}>Cadastro via formulário</span>
+                    </div>
+                    <button onClick={()=>setClienteRevisao(c)}
+                      style={{padding:"7px 14px",background:YEL,color:"#000",border:"none",
+                        borderRadius:6,fontWeight:700,fontSize:12,cursor:"pointer"}}>
+                      Revisar e Ativar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
             {[{l:"Total",v:clientes.length,c:BLUE},{l:"Bons",v:clientes.filter(c=>c.status==="bom").length,c:GREEN},
               {l:"Em Risco",v:clientes.filter(c=>c.status==="risco").length,c:YEL},{l:"Inadimplentes",v:clientes.filter(c=>c.status==="inadimplente").length,c:RED}
