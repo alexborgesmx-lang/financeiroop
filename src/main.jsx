@@ -27,7 +27,220 @@ async function postAction(body) {
   return r.json();
 }
 
-// ── COMPONENTE REGISTRAR PAGAMENTO ────────────────────────────────
+// ── COMPONENTE NOVO CONTRATO ──────────────────────────────────────
+function NovoContrato({ clientes, contratos, onSucesso }) {
+  const [busca, setBusca]       = useState("");
+  const [showDrop, setShowDrop] = useState(false);
+  const [cliente, setCliente]   = useState(null);
+  const [principal, setPrincipal] = useState("");
+  const [parcelas, setParcelas] = useState("");
+  const [taxa, setTaxa]         = useState("");
+  const [dtEmp, setDtEmp]       = useState(hoje());
+  const [dtVenc, setDtVenc]     = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [msg, setMsg]           = useState(null);
+  const ref = useRef();
+
+  useEffect(() => {
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setShowDrop(false); };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+
+  // Próximo ID automático
+  const proximoId = useMemo(() => {
+    let max = 0;
+    contratos.forEach(c => {
+      const m = String(c.ID_CONTRATO).match(/(\d+)/);
+      if (m) { const n = parseInt(m[1]); if (n > max) max = n; }
+    });
+    return "PCL-Nº " + (max + 1);
+  }, [contratos]);
+
+  const sugeridos = useMemo(() => {
+    if (!busca) return [];
+    return clientes
+      .filter(c => c.STATUS_CLIENTE === "ativo" && c.NOME.toLowerCase().includes(busca.toLowerCase()))
+      .slice(0, 8);
+  }, [busca, clientes]);
+
+  // Simulação
+  const sim = useMemo(() => {
+    const p = parseFloat(principal) || 0;
+    const n = parseInt(parcelas) || 0;
+    const t = parseFloat(taxa) || 0;
+    if (!p || !n || !t) return null;
+    const jt = p * t / 100 * n;
+    const tot = p + jt;
+    const parc = tot / n;
+    const pp = p / n;
+    const jp = jt / n;
+    return { jt, tot, parc, pp, jp };
+  }, [principal, parcelas, taxa]);
+
+  // Dia de vencimento preferido do cliente
+  useEffect(() => {
+    if (cliente && cliente.DIA_VENCIMENTO_PREFERIDO) {
+      const dia = parseInt(cliente.DIA_VENCIMENTO_PREFERIDO);
+      if (dia >= 1 && dia <= 31) {
+        const d = new Date();
+        d.setMonth(d.getMonth() + 1);
+        d.setDate(dia);
+        setDtVenc(d.toISOString().split("T")[0]);
+      }
+    }
+  }, [cliente]);
+
+  const selCliente = c => { setCliente(c); setBusca(c.NOME); setShowDrop(false); setMsg(null); };
+
+  const confirmar = async () => {
+    if (!cliente || !principal || !parcelas || !taxa || !dtEmp || !dtVenc) {
+      setMsg({ ok: false, texto: "Preencha todos os campos." }); return;
+    }
+    setLoading(true); setMsg(null);
+    try {
+      const res = await postAction({
+        action: "novoContrato",
+        dados: {
+          id: proximoId,
+          idCliente: cliente.ID_CLIENTE,
+          nomeCliente: cliente.NOME,
+          principal: parseFloat(principal),
+          parcelas: parseInt(parcelas),
+          taxa: parseFloat(taxa),
+          dataEmprestimo: dtEmp,
+          dataVencimento: dtVenc,
+        }
+      });
+      if (res.ok) {
+        setMsg({ ok: true, texto: `Contrato ${proximoId} criado com ${parcelas} parcelas!` });
+        setCliente(null); setBusca(""); setPrincipal(""); setParcelas(""); setTaxa(""); setDtVenc("");
+        if (onSucesso) onSucesso();
+      } else {
+        setMsg({ ok: false, texto: res.erro || "Erro desconhecido." });
+      }
+    } catch(e) {
+      setMsg({ ok: false, texto: e.message });
+    }
+    setLoading(false);
+  };
+
+  const card = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: 16 };
+  const inp = { width:"100%", padding:"9px 12px", background:"#21262d", border:`1px solid ${BORDER}`, borderRadius:6, color:TEXT, fontSize:13, boxSizing:"border-box" };
+  const lbl = { color:MUTED, fontSize:11, fontWeight:700, textTransform:"uppercase", margin:"0 0 4px", display:"block" };
+
+  return (
+    <div style={{display:"grid",gap:12,maxWidth:600}}>
+      <h2 style={{color:TEXT,fontSize:16,fontWeight:700,margin:0}}>Novo Contrato</h2>
+
+      {/* ID automático */}
+      <div style={card}>
+        <span style={lbl}>ID do Contrato (gerado automaticamente)</span>
+        <div style={{...inp, color:BLUE, fontWeight:700, fontSize:15}}>{proximoId}</div>
+      </div>
+
+      {/* Busca cliente */}
+      <div style={card}>
+        <span style={lbl}>Cliente</span>
+        <div ref={ref} style={{position:"relative"}}>
+          <input value={busca} onChange={e=>{setBusca(e.target.value);setShowDrop(true);setCliente(null);}}
+            onFocus={()=>setShowDrop(true)}
+            placeholder="Digite o nome do cliente..."
+            style={inp}/>
+          {showDrop && sugeridos.length > 0 && (
+            <div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BORDER}`,borderRadius:6,zIndex:20,maxHeight:180,overflowY:"auto",marginTop:2,boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>
+              {sugeridos.map(c=>(
+                <div key={c.ID_CLIENTE} onClick={()=>selCliente(c)}
+                  style={{padding:"10px 14px",cursor:"pointer",fontSize:13,borderBottom:`1px solid ${BORDER}22`}}
+                  onMouseEnter={e=>e.currentTarget.style.background="#21262d"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <strong>{c.NOME}</strong>
+                  {c.DIA_VENCIMENTO_PREFERIDO && <span style={{color:MUTED,fontSize:11,marginLeft:8}}>Venc. preferido: dia {c.DIA_VENCIMENTO_PREFERIDO}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {cliente && (
+          <div style={{marginTop:8,padding:"8px 12px",background:GREEN+"11",border:`1px solid ${GREEN}44`,borderRadius:6,fontSize:12,color:GREEN}}>
+            ✅ {cliente.NOME} selecionado
+            {cliente.DIA_VENCIMENTO_PREFERIDO && <span style={{color:MUTED,marginLeft:8}}>· Vencimento preenchido automaticamente para o dia {cliente.DIA_VENCIMENTO_PREFERIDO}</span>}
+          </div>
+        )}
+      </div>
+
+      {/* Dados do contrato */}
+      <div style={card}>
+        <span style={lbl}>Dados do Contrato</span>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+          <div>
+            <span style={lbl}>Data do Empréstimo</span>
+            <input type="date" value={dtEmp} onChange={e=>setDtEmp(e.target.value)} style={inp}/>
+          </div>
+          <div>
+            <span style={lbl}>Data 1º Vencimento</span>
+            <input type="date" value={dtVenc} onChange={e=>setDtVenc(e.target.value)} style={inp}/>
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+          <div>
+            <span style={lbl}>Valor Principal (R$)</span>
+            <input type="number" min="1" step="0.01" value={principal}
+              onChange={e=>setPrincipal(e.target.value)} placeholder="5000" style={inp}/>
+          </div>
+          <div>
+            <span style={lbl}>Nº de Parcelas</span>
+            <input type="number" min="1" max="120" value={parcelas}
+              onChange={e=>setParcelas(e.target.value)} placeholder="4" style={inp}/>
+          </div>
+        </div>
+        <div>
+          <span style={lbl}>Taxa Mensal (%)</span>
+          <input type="number" min="0.1" max="100" step="0.01" value={taxa}
+            onChange={e=>setTaxa(e.target.value)} placeholder="9" style={inp}/>
+        </div>
+      </div>
+
+      {/* Simulação */}
+      {sim && (
+        <div style={{...card,borderColor:GREEN,background:GREEN+"0a"}}>
+          <span style={{...lbl,color:GREEN}}>Simulação do Contrato</span>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:6}}>
+            {[
+              {l:"Juros Totais",v:R(sim.jt),c:YEL},
+              {l:"Total Final",v:R(sim.tot),c:BLUE},
+              {l:"Valor da Parcela",v:R(sim.parc),c:GREEN,big:true},
+              {l:"Principal / Parcela",v:R(sim.pp),c:MUTED},
+              {l:"Juros / Parcela",v:R(sim.jp),c:MUTED},
+            ].map(k=>(
+              <div key={k.l} style={{padding:"10px 12px",background:"#21262d",borderRadius:6}}>
+                <p style={{color:MUTED,fontSize:10,fontWeight:700,textTransform:"uppercase",margin:"0 0 2px"}}>{k.l}</p>
+                <p style={{color:k.c,fontWeight:700,fontSize:k.big?18:14,margin:0}}>{k.v}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Confirmar */}
+      <button onClick={confirmar} disabled={loading||!sim||!cliente}
+        style={{padding:"13px",borderRadius:6,border:"none",background:sim&&cliente?BLUE:"#21262d",
+          color:sim&&cliente?TEXT:MUTED,fontWeight:700,fontSize:14,cursor:sim&&cliente?"pointer":"not-allowed",opacity:loading?0.6:1}}>
+        {loading?"Criando contrato...":"Confirmar e Gerar Parcelas"}
+      </button>
+
+      {/* Feedback */}
+      {msg && (
+        <div style={{padding:"12px 16px",borderRadius:8,
+          background:msg.ok?GREEN+"22":RED+"22",
+          border:`1px solid ${msg.ok?GREEN:RED}`,
+          color:msg.ok?GREEN:RED,fontSize:13,fontWeight:600}}>
+          {msg.ok?"✅ ":"❌ "}{msg.texto}
+        </div>
+      )}
+    </div>
+  );
+}
 function RegistrarPagamento({ clientes, parcelas, onSucesso }) {
   const [busca, setBusca]           = useState("");
   const [showDrop, setShowDrop]     = useState(false);
@@ -345,6 +558,7 @@ function App() {
 
   const TABS=[
     {id:"dashboard",l:"Dashboard"},{id:"pagamentos",l:"Pagamentos"},
+    {id:"novoContrato",l:"Novo Contrato"},
     {id:"clientes",l:"Clientes"},{id:"contratos",l:"Contratos"},
     {id:"cobranca",l:"Cobrança"},{id:"kpis",l:"KPIs"},
     {id:"analise",l:"Análise"},{id:"simulador",l:"Simulador"},
@@ -380,6 +594,11 @@ function App() {
       </nav>
 
       <div style={{padding:14,maxWidth:1100,margin:"0 auto"}}>
+
+        {/* ── NOVO CONTRATO ── */}
+        {tab==="novoContrato"&&(
+          <NovoContrato clientes={clientes} contratos={contratos} onSucesso={()=>setTimeout(carregar,2000)}/>
+        )}
 
         {/* ── PAGAMENTOS ── */}
         {tab==="pagamentos"&&(
