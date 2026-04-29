@@ -1,43 +1,238 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from "recharts";
 
-const API_URL = "https://script.google.com/macros/s/AKfycbynQKpafDbaBTT-jqs4nCSzbbx8A72MAqDyGxwy86lIt0ykZxeFT8IdlO7zjj0rJEHy7Q/exec";
+const API_URL  = "/api/sheets";
+const POST_URL = "/api/action";
 
 const BG="#0d1117",CARD="#161b22",BORDER="#30363d",TEXT="#e6edf3";
 const MUTED="#8b949e",BLUE="#58a6ff",GREEN="#3fb950",YEL="#d29922",RED="#f85149",PUR="#bc8cff";
 const R=v=>"R$ "+Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 const P=v=>Number(v).toFixed(1)+"%";
+const hoje = () => { const d=new Date(); return d.toISOString().split("T")[0]; };
 
 function parseDate(v){
-  if(!v) return null;
-  if(v instanceof Date) return v;
+  if(!v)return null;
+  if(v instanceof Date)return v;
   const d=new Date(v);
   return isNaN(d)?null:d;
 }
 
-function App(){
-  const [tab,setTab]=useState("dashboard");
-  const [raw,setRaw]=useState(null);
-  const [loading,setLoading]=useState(true);
-  const [erro,setErro]=useState(null);
-  const [selCli,setSelCli]=useState(null);
-  const [simVal,setSimVal]=useState(5000);
-  const [simInad,setSimInad]=useState(0);
-  const [simVol,setSimVol]=useState(0);
-  const [filtroStatus,setFiltroStatus]=useState("todos");
-  const [filtroBusca,setFiltroBusca]=useState("");
+async function postAction(body) {
+  const r = await fetch(POST_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return r.json();
+}
 
-  const carregar=()=>{
-    setLoading(true);setErro(null);
-    fetch(API_URL+"?acao=dados")
-      .then(r=>r.json())
-      .then(d=>{if(d.erro)throw new Error(d.erro);setRaw(d);setLoading(false);})
-      .catch(e=>{setErro(e.message);setLoading(false);});
+// ── COMPONENTE REGISTRAR PAGAMENTO ────────────────────────────────
+function RegistrarPagamento({ clientes, parcelas, onSucesso }) {
+  const [busca, setBusca]           = useState("");
+  const [showDrop, setShowDrop]     = useState(false);
+  const [cliente, setCliente]       = useState(null);
+  const [parcela, setParcela]       = useState(null);
+  const [tipo, setTipo]             = useState(null);
+  const [data, setData]             = useState(hoje());
+  const [valor, setValor]           = useState("");
+  const [loading, setLoading]       = useState(false);
+  const [msg, setMsg]               = useState(null);
+  const ref = useRef();
+
+  useEffect(() => {
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setShowDrop(false); };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+
+  const sugeridos = useMemo(() => {
+    if (!busca) return [];
+    return clientes.filter(c => c.NOME.toLowerCase().includes(busca.toLowerCase())).slice(0, 8);
+  }, [busca, clientes]);
+
+  const parcelasAbertas = useMemo(() => {
+    if (!cliente) return [];
+    return parcelas
+      .filter(p => String(p.ID_CLIENTE) === String(cliente.ID_CLIENTE) && p.STATUS !== "pago")
+      .sort((a, b) => new Date(a.DATA_VENCIMENTO) - new Date(b.DATA_VENCIMENTO));
+  }, [cliente, parcelas]);
+
+  const selCliente = c => { setCliente(c); setBusca(c.NOME); setShowDrop(false); setParcela(null); setTipo(null); setMsg(null); };
+  const selParcela = p => { setParcela(p); setTipo(null); setMsg(null); };
+
+  const confirmar = async () => {
+    if (!parcela || !data) return;
+    setLoading(true); setMsg(null);
+    try {
+      let res;
+      if (tipo === "total") {
+        res = await postAction({ action: "pagamento", idParcela: parcela.ID_PARCELA, data, valor: valor ? parseFloat(valor) : null, origem: "painel" });
+      } else {
+        res = await postAction({ action: "pagamentoParcial", idParcela: parcela.ID_PARCELA, data });
+      }
+      if (res.ok || res.msg) {
+        setMsg({ ok: true, texto: tipo === "total" ? "Pagamento registrado!" : (res.msg || "Pagamento parcial registrado!") });
+        setParcela(null); setTipo(null); setValor("");
+        if (onSucesso) onSucesso();
+      } else {
+        setMsg({ ok: false, texto: res.erro || "Erro desconhecido." });
+      }
+    } catch(e) {
+      setMsg({ ok: false, texto: e.message });
+    }
+    setLoading(false);
   };
-  useEffect(()=>{carregar();},[]);
 
-  const{clientes,contratos,parcelas,M,cobItems,mensal,projecao}=useMemo(()=>{
+  const card = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: 16 };
+  const stCol = st => st==="atrasado"?RED:st==="vencendo"?YEL:MUTED;
+  const stLabel = st => st==="atrasado"?"ATRASADA":st==="vencendo"?"VENCE EM BREVE":"PENDENTE";
+
+  return (
+    <div style={{display:"grid",gap:12,maxWidth:600}}>
+      <h2 style={{color:TEXT,fontSize:16,fontWeight:700,margin:0}}>Registrar Pagamento</h2>
+
+      {/* Busca cliente */}
+      <div style={card}>
+        <p style={{color:MUTED,fontSize:11,fontWeight:700,textTransform:"uppercase",margin:"0 0 6px"}}>Cliente</p>
+        <div ref={ref} style={{position:"relative"}}>
+          <input value={busca} onChange={e=>{setBusca(e.target.value);setShowDrop(true);setCliente(null);setParcela(null);setTipo(null);}}
+            onFocus={()=>setShowDrop(true)}
+            placeholder="Digite o nome do cliente..."
+            style={{width:"100%",padding:"9px 12px",background:"#21262d",border:`1px solid ${BORDER}`,borderRadius:6,color:TEXT,fontSize:13,boxSizing:"border-box"}}/>
+          {showDrop && sugeridos.length > 0 && (
+            <div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BORDER}`,borderRadius:6,zIndex:20,maxHeight:200,overflowY:"auto",marginTop:2,boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>
+              {sugeridos.map(c => (
+                <div key={c.ID_CLIENTE} onClick={()=>selCliente(c)}
+                  style={{padding:"10px 14px",cursor:"pointer",fontSize:13,borderBottom:`1px solid ${BORDER}22`}}
+                  onMouseEnter={e=>e.target.style.background="#21262d"}
+                  onMouseLeave={e=>e.target.style.background="transparent"}>
+                  {c.NOME}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Parcelas em aberto */}
+      {cliente && (
+        <div style={card}>
+          <p style={{color:MUTED,fontSize:11,fontWeight:700,textTransform:"uppercase",margin:"0 0 10px"}}>
+            Parcelas em aberto — {cliente.NOME}
+          </p>
+          {parcelasAbertas.length === 0
+            ? <p style={{color:MUTED,fontSize:12}}>Nenhuma parcela em aberto.</p>
+            : parcelasAbertas.map(p => (
+              <div key={p.ID_PARCELA} onClick={()=>selParcela(p)}
+                style={{padding:"12px 14px",marginBottom:6,borderRadius:6,cursor:"pointer",
+                  border:`1px solid ${parcela?.ID_PARCELA===p.ID_PARCELA?BLUE:BORDER}`,
+                  background:parcela?.ID_PARCELA===p.ID_PARCELA?"#1c2128":"#21262d",
+                  borderLeft:`3px solid ${stCol(p.STATUS)}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <strong style={{fontSize:13}}>Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS}</strong>
+                    <span style={{color:MUTED,fontSize:11,marginLeft:10}}>Venc: {parseDate(p.DATA_VENCIMENTO)?.toLocaleDateString("pt-BR")||"—"}</span>
+                  </div>
+                  <strong style={{color:BLUE,fontSize:14}}>{R(p.VALOR_PARCELA)}</strong>
+                </div>
+                <div style={{display:"flex",gap:12,marginTop:4,fontSize:11}}>
+                  <span style={{color:stCol(p.STATUS),fontWeight:700}}>{stLabel(p.STATUS)}</span>
+                  <span style={{color:MUTED}}>Juros: {R(p.VALOR_JUROS)}</span>
+                  <span style={{color:MUTED}}>Contrato: {p.ID_CONTRATO}</span>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      )}
+
+      {/* Tipo de pagamento */}
+      {parcela && (
+        <div style={card}>
+          <p style={{color:MUTED,fontSize:11,fontWeight:700,textTransform:"uppercase",margin:"0 0 10px"}}>Tipo de Pagamento</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+            <button onClick={()=>setTipo("total")}
+              style={{padding:"12px",borderRadius:6,border:`2px solid ${tipo==="total"?GREEN:BORDER}`,
+                background:tipo==="total"?GREEN+"22":"#21262d",color:tipo==="total"?GREEN:MUTED,
+                fontWeight:700,fontSize:13,cursor:"pointer"}}>
+              Pagamento Total<br/>
+              <span style={{fontSize:11,fontWeight:400}}>{R(parcela.VALOR_PARCELA)}</span>
+            </button>
+            <button onClick={()=>setTipo("parcial")}
+              style={{padding:"12px",borderRadius:6,border:`2px solid ${tipo==="parcial"?YEL:BORDER}`,
+                background:tipo==="parcial"?YEL+"22":"#21262d",color:tipo==="parcial"?YEL:MUTED,
+                fontWeight:700,fontSize:13,cursor:"pointer"}}>
+              Somente Juros<br/>
+              <span style={{fontSize:11,fontWeight:400}}>{R(parcela.VALOR_JUROS)}</span>
+            </button>
+          </div>
+
+          {tipo && (
+            <div style={{display:"grid",gap:10}}>
+              {tipo==="parcial"&&(
+                <div style={{padding:"10px 12px",background:YEL+"11",border:`1px solid ${YEL}44`,borderRadius:6,fontSize:12,color:YEL}}>
+                  O principal (R$ {R(parcela.VALOR_PRINCIPAL)}) será adicionado como nova parcela no final do contrato.
+                </div>
+              )}
+              <div>
+                <p style={{color:MUTED,fontSize:11,fontWeight:700,textTransform:"uppercase",margin:"0 0 4px"}}>Data do Pagamento</p>
+                <input type="date" value={data} onChange={e=>setData(e.target.value)}
+                  style={{width:"100%",padding:"9px 12px",background:"#21262d",border:`1px solid ${BORDER}`,borderRadius:6,color:TEXT,fontSize:13,boxSizing:"border-box"}}/>
+              </div>
+              {tipo==="total"&&(
+                <div>
+                  <p style={{color:MUTED,fontSize:11,fontWeight:700,textTransform:"uppercase",margin:"0 0 4px"}}>Valor Pago — opcional</p>
+                  <input type="number" step="0.01" value={valor} onChange={e=>setValor(e.target.value)}
+                    placeholder={`Deixe vazio se igual ao boleto (${R(parcela.VALOR_PARCELA)})`}
+                    style={{width:"100%",padding:"9px 12px",background:"#21262d",border:`1px solid ${BORDER}`,borderRadius:6,color:TEXT,fontSize:13,boxSizing:"border-box"}}/>
+                </div>
+              )}
+              <button onClick={confirmar} disabled={loading}
+                style={{padding:"12px",borderRadius:6,border:"none",
+                  background:tipo==="total"?GREEN:YEL,color:"#000",
+                  fontWeight:700,fontSize:13,cursor:"pointer",opacity:loading?0.6:1}}>
+                {loading?"Registrando...":`Confirmar ${tipo==="total"?"Pagamento Total":"Pagamento Parcial"}`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Feedback */}
+      {msg && (
+        <div style={{padding:"12px 16px",borderRadius:8,background:msg.ok?GREEN+"22":RED+"22",
+          border:`1px solid ${msg.ok?GREEN:RED}`,color:msg.ok?GREEN:RED,fontSize:13,fontWeight:600}}>
+          {msg.ok?"✅ ":""}{msg.texto}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── APP PRINCIPAL ─────────────────────────────────────────────────
+function App() {
+  const [tab,setTab]       = useState("dashboard");
+  const [raw,setRaw]       = useState(null);
+  const [loading,setLoading] = useState(true);
+  const [erro,setErro]     = useState(null);
+  const [selCli,setSelCli] = useState(null);
+  const [simVal,setSimVal] = useState(5000);
+  const [simInad,setSimInad] = useState(0);
+  const [simVol,setSimVol] = useState(0);
+  const [filtroStatus,setFiltroStatus] = useState("todos");
+  const [filtroBusca,setFiltroBusca]   = useState("");
+
+  const carregar = () => {
+    setLoading(true); setErro(null);
+    fetch(API_URL)
+      .then(r=>r.json())
+      .then(d=>{ if(d.erro)throw new Error(d.erro); setRaw(d); setLoading(false); })
+      .catch(e=>{ setErro(e.message); setLoading(false); });
+  };
+  useEffect(()=>{ carregar(); },[]);
+
+  const {clientes,contratos,parcelas,M,cobItems,mensal,projecao} = useMemo(()=>{
     if(!raw)return{clientes:[],contratos:[],parcelas:[],M:{},cobItems:[],mensal:[],projecao:[]};
     const parcelas=(raw.PARCELAS||[]).map(p=>({...p,
       DATA_VENCIMENTO:parseDate(p.DATA_VENCIMENTO),
@@ -141,20 +336,25 @@ function App(){
   const sCol=st=>st==="bom"?GREEN:st==="risco"?YEL:RED;
   const Delta=({v})=><span style={{fontSize:10,color:v>=0?GREEN:RED,marginLeft:4}}>{v>=0?"▲":"▼"}{Math.abs(v).toFixed(1)}%</span>;
   const TT=({...p})=><Tooltip {...p} contentStyle={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:6,fontSize:12}}/>;
-  const TABS=[{id:"dashboard",l:"⬛ Dashboard"},{id:"clientes",l:"👥 Clientes"},
-    {id:"contratos",l:"📄 Contratos"},{id:"cobranca",l:"🔔 Cobrança"},
-    {id:"kpis",l:"📊 KPIs"},{id:"analise",l:"🔍 Análise"},{id:"simulador",l:"🧮 Simulador"}];
+
   const clientesFiltrados=clientes.filter(c=>{
     const sok=filtroStatus==="todos"||c.status===filtroStatus;
     const bok=!filtroBusca||c.NOME.toLowerCase().includes(filtroBusca.toLowerCase());
     return sok&&bok;
   });
 
+  const TABS=[
+    {id:"dashboard",l:"Dashboard"},{id:"pagamentos",l:"Pagamentos"},
+    {id:"clientes",l:"Clientes"},{id:"contratos",l:"Contratos"},
+    {id:"cobranca",l:"Cobrança"},{id:"kpis",l:"KPIs"},
+    {id:"analise",l:"Análise"},{id:"simulador",l:"Simulador"},
+  ];
+
   if(loading)return(
     <div style={{background:BG,minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <div style={{width:40,height:40,border:`3px solid ${BORDER}`,borderTop:`3px solid ${BLUE}`,borderRadius:"50%",animation:"spin 1s linear infinite"}}/>
-      <p style={{color:MUTED,fontSize:13}}>Carregando dados do Sheets...</p>
+      <p style={{color:MUTED,fontSize:13}}>Carregando dados...</p>
     </div>
   );
   if(erro)return(
@@ -168,7 +368,7 @@ function App(){
 
   return(
     <div style={{fontFamily:"'Inter',system-ui,sans-serif",background:BG,color:TEXT,minHeight:"100vh",fontSize:13}}>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0} body{margin:0}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}body{margin:0}`}</style>
       <nav style={{background:CARD,borderBottom:`1px solid ${BORDER}`,display:"flex",alignItems:"center",padding:"0 12px",gap:2,overflowX:"auto",position:"sticky",top:0,zIndex:10}}>
         <span style={{color:BLUE,fontWeight:800,fontSize:15,marginRight:12,whiteSpace:"nowrap",padding:"11px 0"}}>💰 FinanceiroOp</span>
         {TABS.map(t=>(
@@ -176,12 +376,17 @@ function App(){
             color:tab===t.id?BLUE:MUTED,padding:"10px 10px",cursor:"pointer",borderRadius:6,fontSize:11.5,
             fontWeight:tab===t.id?700:400,whiteSpace:"nowrap",borderBottom:tab===t.id?`2px solid ${BLUE}`:"2px solid transparent"}}>{t.l}</button>
         ))}
-        <span style={{marginLeft:"auto",color:MUTED,fontSize:10,whiteSpace:"nowrap",paddingLeft:8}}>
-          {new Date().toLocaleDateString("pt-BR")} · {contratos.length} contratos
-        </span>
+        <button onClick={carregar} style={{marginLeft:"auto",background:"transparent",border:`1px solid ${BORDER}`,color:MUTED,borderRadius:6,padding:"5px 10px",cursor:"pointer",fontSize:11,whiteSpace:"nowrap"}}>↻ Atualizar</button>
       </nav>
+
       <div style={{padding:14,maxWidth:1100,margin:"0 auto"}}>
 
+        {/* ── PAGAMENTOS ── */}
+        {tab==="pagamentos"&&(
+          <RegistrarPagamento clientes={clientes} parcelas={parcelas} onSucesso={()=>setTimeout(carregar,2000)}/>
+        )}
+
+        {/* ── DASHBOARD ── */}
         {tab==="dashboard"&&<div style={{display:"grid",gap:12}}>
           {M.taxaInad>25&&<div style={{...card,borderColor:RED,background:"#1a0d0d",display:"flex",gap:10,alignItems:"center"}}>
             <span style={{fontSize:20}}>⚠️</span>
@@ -257,6 +462,7 @@ function App(){
           </div>
         </div>}
 
+        {/* ── CLIENTES ── */}
         {tab==="clientes"&&<div style={{display:"grid",gap:12}}>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
             {[{l:"Total",v:clientes.length,c:BLUE},{l:"Bons",v:clientes.filter(c=>c.status==="bom").length,c:GREEN},
@@ -264,7 +470,7 @@ function App(){
             ].map(x=><div key={x.l} style={{...card,textAlign:"center"}}><p style={h3s}>{x.l}</p><p style={{fontSize:22,fontWeight:700,color:x.c,margin:"4px 0 0"}}>{x.v}</p></div>)}
           </div>
           <div style={{display:"flex",gap:10}}>
-            <input placeholder="🔍 Buscar cliente..." value={filtroBusca} onChange={e=>setFiltroBusca(e.target.value)}
+            <input placeholder="Buscar cliente..." value={filtroBusca} onChange={e=>setFiltroBusca(e.target.value)}
               style={{flex:1,padding:"8px 12px",background:CARD,border:`1px solid ${BORDER}`,borderRadius:6,color:TEXT,fontSize:13}}/>
             <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)}
               style={{padding:"8px 12px",background:CARD,border:`1px solid ${BORDER}`,borderRadius:6,color:TEXT,fontSize:13}}>
@@ -324,10 +530,12 @@ function App(){
           </div>
         </div>}
 
+        {/* ── CONTRATOS ── */}
         {tab==="contratos"&&<div style={{display:"grid",gap:10}}>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
             {[{l:"Total",v:contratos.length,c:BLUE},{l:"Ativos",v:contratos.filter(c=>c.STATUS_CONTRATO==="ativo").length,c:GREEN},
-              {l:"Quitados",v:contratos.filter(c=>c.STATUS_CONTRATO==="quitado").length,c:MUTED},{l:"Inadimplentes",v:contratos.filter(c=>c.STATUS_CONTRATO==="inadimplente").length,c:RED}
+              {l:"Quitados",v:contratos.filter(c=>c.STATUS_CONTRATO==="quitado"||c.STATUS_CONTRATO==="quitado_acordo").length,c:MUTED},
+              {l:"Inadimplentes",v:contratos.filter(c=>c.STATUS_CONTRATO==="inadimplente").length,c:RED}
             ].map(x=><div key={x.l} style={{...card,textAlign:"center"}}><p style={h3s}>{x.l}</p><p style={{fontSize:22,fontWeight:700,color:x.c,margin:"4px 0 0"}}>{x.v}</p></div>)}
           </div>
           {contratos.filter(c=>c.STATUS_CONTRATO==="ativo"||c.STATUS_CONTRATO==="inadimplente").map(c=>{
@@ -365,6 +573,7 @@ function App(){
           })}
         </div>}
 
+        {/* ── COBRANÇA ── */}
         {tab==="cobranca"&&<div style={{display:"grid",gap:12}}>
           <h2 style={{...h2,fontSize:17}}>Central de Cobrança</h2>
           {cobItems.length===0&&<div style={{...card,textAlign:"center",color:GREEN,padding:36,fontSize:15}}>✅ Nenhuma pendência!</div>}
@@ -395,6 +604,7 @@ function App(){
           })}
         </div>}
 
+        {/* ── KPIs ── */}
         {tab==="kpis"&&<div style={{display:"grid",gap:10}}>
           <h2 style={{...h2,fontSize:17}}>Indicadores de Performance</h2>
           {[
@@ -406,7 +616,9 @@ function App(){
             {l:"Capital Total Alocado",v:R(M.totalEmprestado),raw:null,desc:"Volume total emprestado",ideal:"—"},
             {l:"Lucro Bruto Total",v:R(M.lucroTotal),raw:M.lucroTotal,ok:1,warn:0,desc:"Juros recebidos estimados",ideal:"> R$ 0"},
             {l:"Taxa Média",v:P((M.taxaMedia||0)*100)+" /mês",raw:null,desc:"Média das taxas praticadas",ideal:"—"},
-            {l:"Pagamentos Antecipados",v:P(parcelas.filter(p=>p.STATUS==="pago"&&parseInt(p.DIAS_ANTECIPACAO)>0).length/Math.max(1,parcelas.filter(p=>p.STATUS==="pago").length)*100),raw:parcelas.filter(p=>p.STATUS==="pago"&&parseInt(p.DIAS_ANTECIPACAO)>0).length/Math.max(1,parcelas.filter(p=>p.STATUS==="pago").length)*100,ok:30,warn:15,desc:"% de pagamentos antes do vencimento",ideal:"> 30%"},
+            {l:"Pagamentos Antecipados",v:P(parcelas.filter(p=>p.STATUS==="pago"&&parseInt(p.DIAS_ANTECIPACAO)>0).length/Math.max(1,parcelas.filter(p=>p.STATUS==="pago").length)*100),
+              raw:parcelas.filter(p=>p.STATUS==="pago"&&parseInt(p.DIAS_ANTECIPACAO)>0).length/Math.max(1,parcelas.filter(p=>p.STATUS==="pago").length)*100,
+              ok:30,warn:15,desc:"% de pagamentos antes do vencimento",ideal:"> 30%"},
           ].map(k=>{
             const col=k.raw!=null?kpiColor(k.raw,k.ok,k.warn,k.rev):MUTED;
             const stLabel=k.raw!=null?(col===GREEN?"✅ Saudável":col===YEL?"⚡ Atenção":"🚨 Crítico"):"— Neutro";
@@ -418,6 +630,7 @@ function App(){
           })}
         </div>}
 
+        {/* ── ANÁLISE ── */}
         {tab==="analise"&&(()=>{
           const bons=clientes.filter(c=>c.status==="bom");
           const inad=clientes.filter(c=>c.status==="inadimplente");
@@ -448,6 +661,7 @@ function App(){
           </div>;
         })()}
 
+        {/* ── SIMULADOR ── */}
         {tab==="simulador"&&<div style={{display:"grid",gap:12}}>
           <h2 style={{...h2,fontSize:17}}>Simulador de Decisão</h2>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -481,17 +695,6 @@ function App(){
                   <span style={{color:MUTED,fontSize:12}}>{r.l}</span>
                   <strong style={{color:r.c,fontSize:15}}>{r.v}</strong>
                 </div>)}
-              </div>
-              <div style={card}>
-                <p style={{color:sim.risco==="crítico"?RED:sim.risco==="atenção"?YEL:GREEN,fontWeight:700,fontSize:13,margin:"0 0 8px"}}>
-                  {sim.risco==="crítico"?"🚫 Alto risco — não recomendado":sim.risco==="atenção"?"⚡ Prossiga com cautela":"✅ Cenário favorável"}
-                </p>
-                <p style={{color:MUTED,fontSize:12,lineHeight:1.7,margin:0}}>
-                  {simVal>0&&`Novo empréstimo de ${R(simVal)} adiciona volume. `}
-                  {simInad>5&&`Inadimplência +${simInad}% causaria impacto significativo. `}
-                  {simInad<=5&&"Inadimplência sob controle. "}
-                  {simVol>20&&`Crescer ${simVol}% exige capital e cobrança robusta.`}
-                </p>
               </div>
             </div>
           </div>
