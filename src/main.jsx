@@ -23,86 +23,182 @@ async function postAction(body){
   return r.json();
 }
 
-// ── REVISÃO DE CLIENTE ────────────────────────────────────────────
+// ── REVISÃO DE CLIENTE (editável) ─────────────────────────────────
 function RevisaoCliente({cliente,onAtivar,onFechar}){
-  const [loading,setLoading]=useState(false);
+  const [form,setForm]=useState({
+    NOME:                    cliente.NOME||"",
+    CPF:                     cliente.CPF||"",
+    RG:                      cliente.RG||"",
+    NACIONALIDADE:           cliente.NACIONALIDADE||"",
+    ESTADO_CIVIL:            cliente.ESTADO_CIVIL||"",
+    PROFISSAO:               cliente.PROFISSAO||"",
+    TELEFONE_WPP:            cliente.TELEFONE_WPP||"",
+    EMAIL:                   cliente.EMAIL||"",
+    CEP:                     cliente.CEP||"",
+    RUA:                     cliente.RUA||"",
+    NUMERO:                  cliente.NUMERO||"",
+    QUADRA:                  cliente.QUADRA||"",
+    LOTE:                    cliente.LOTE||"",
+    SETOR:                   cliente.SETOR||"",
+    COMPLEMENTO:             cliente.COMPLEMENTO||"",
+    CIDADE_ESTADO:           cliente.CIDADE_ESTADO||"",
+    CONTATO_CONFIANCA_1:     cliente.CONTATO_CONFIANCA_1||"",
+    TEL_CONFIANCA_1:         cliente.TEL_CONFIANCA_1||"",
+    CONTATO_CONFIANCA_2:     cliente.CONTATO_CONFIANCA_2||"",
+    TEL_CONFIANCA_2:         cliente.TEL_CONFIANCA_2||"",
+    DIA_VENCIMENTO_PREFERIDO:cliente.DIA_VENCIMENTO_PREFERIDO||"",
+    PADRINHO:                cliente.PADRINHO||"",
+    TEL_PADRINHO:            cliente.TEL_PADRINHO||"",
+    OBSERVACOES:             cliente.OBSERVACOES||"",
+  });
+  const [salvando,setSalvando]=useState(false);
   const [msg,setMsg]=useState(null);
 
-  const campos=[
-    {campo:"NOME",label:"Nome Completo",validar:v=>/^[A-Z\s]+$/.test(v)?"Nome todo em maiúsculas":null},
-    {campo:"CPF",label:"CPF",validar:v=>/[.\-]/.test(v)?"Contém traço ou ponto — remova":null},
-    {campo:"RG",label:"RG",validar:v=>/[.\-]/.test(v)?"Contém traço ou ponto — remova":null},
-    {campo:"NACIONALIDADE",label:"Nacionalidade",validar:null},
-    {campo:"ESTADO_CIVIL",label:"Estado Civil",validar:null},
-    {campo:"PROFISSAO",label:"Profissão",validar:null},
-    {campo:"TELEFONE_WPP",label:"WhatsApp",validar:v=>/[^0-9]/.test(v)?"Contém caracteres não numéricos":null},
-    {campo:"EMAIL",label:"E-mail",validar:v=>/^[A-Z]/.test(v)?"Começa com maiúscula":v.includes(" ")?"Contém espaço":null},
-    {campo:"CEP",label:"CEP",validar:v=>/[.\-]/.test(v)?"Contém traço ou ponto — remova":null},
-    {campo:"RUA",label:"Rua / Avenida",validar:null},
-    {campo:"NUMERO",label:"Número",validar:null},
-    {campo:"QUADRA",label:"Quadra",validar:null},
-    {campo:"LOTE",label:"Lote",validar:null},
-    {campo:"SETOR",label:"Setor / Bairro",validar:null},
-    {campo:"COMPLEMENTO",label:"Complemento",validar:null},
-    {campo:"CIDADE_ESTADO",label:"Cidade - Estado",validar:null},
-    {campo:"CONTATO_CONFIANCA_1",label:"Contato 1 — Nome",validar:null},
-    {campo:"TEL_CONFIANCA_1",label:"Contato 1 — Telefone",validar:v=>v&&/[^0-9]/.test(v)?"Contém caracteres não numéricos":null},
-    {campo:"CONTATO_CONFIANCA_2",label:"Contato 2 — Nome",validar:null},
-    {campo:"TEL_CONFIANCA_2",label:"Contato 2 — Telefone",validar:v=>v&&/[^0-9]/.test(v)?"Contém caracteres não numéricos":null},
-    {campo:"DIA_VENCIMENTO_PREFERIDO",label:"Dia de Vencimento Preferido",validar:null},
-    {campo:"PADRINHO",label:"Padrinho (quem indicou)",validar:null},
-    {campo:"TEL_PADRINHO",label:"Telefone do Padrinho",validar:v=>v&&/[^0-9]/.test(v)?"Contém caracteres não numéricos":null},
-  ];
+  function upd(campo,valor){setForm(prev=>({...prev,[campo]:valor}));}
 
-  const alertas=campos.filter(c=>{
-    const v=String(cliente[c.campo]||"");
-    return c.validar&&v&&c.validar(v);
-  });
+  function alerta(campo){
+    const v=form[campo]||"";
+    if(campo==="CPF"&&/[.\-]/.test(v))return"Remova pontos e traços";
+    if(campo==="RG"&&/[.\-]/.test(v))return"Remova pontos e traços";
+    if(campo==="TELEFONE_WPP"&&v&&/\D/.test(v))return"Somente números";
+    if(campo==="TEL_CONFIANCA_1"&&v&&/\D/.test(v))return"Somente números";
+    if(campo==="TEL_CONFIANCA_2"&&v&&/\D/.test(v))return"Somente números";
+    if(campo==="TEL_PADRINHO"&&v&&/\D/.test(v))return"Somente números";
+    if(campo==="EMAIL"&&/[A-Z]/.test(v))return"Use letras minúsculas";
+    if(campo==="CEP"&&v&&/[.\-]/.test(v))return"Remova traços";
+    return null;
+  }
 
-  const ativar=async()=>{
-    setLoading(true);setMsg(null);
+  const totalAlertas=Object.keys(form).filter(k=>alerta(k)).length;
+
+  const salvarEAtivar=async()=>{
+    setSalvando(true);setMsg(null);
     try{
-      const res=await postAction({action:"ativarCliente",idCliente:cliente.ID_CLIENTE});
-      if(res.ok){setMsg({ok:true,texto:"Cliente ativado com sucesso!"});if(onAtivar)setTimeout(onAtivar,1200);}
-      else setMsg({ok:false,texto:res.erro||"Erro ao ativar."});
+      const res=await postAction({action:"atualizarCliente",idCliente:cliente.ID_CLIENTE,campos:{...form,STATUS_CLIENTE:"ativo"}});
+      if(res.ok){setMsg({ok:true,texto:"Cliente atualizado e ativado!"});setTimeout(onAtivar,1200);}
+      else setMsg({ok:false,texto:res.erro||"Erro ao salvar."});
     }catch(e){setMsg({ok:false,texto:e.message});}
-    setLoading(false);
+    setSalvando(false);
   };
 
+  const inp=(campo)=>({width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${alerta(campo)?YEL:BORDER}`,borderRadius:5,color:alerta(campo)?YEL:TEXT,fontSize:12,boxSizing:"border-box",marginTop:2});
+  const lbl={color:MUTED,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:1};
+
+  function Campo({label,campo,type}){
+    const av=alerta(campo);
+    return(
+      <div>
+        <span style={lbl}>{label}{av&&<span style={{color:YEL,marginLeft:6,fontWeight:400,textTransform:"none",fontSize:10}}>⚠ {av}</span>}</span>
+        <input type={type||"text"} value={form[campo]} onChange={e=>upd(campo,e.target.value)} style={inp(campo)}/>
+      </div>
+    );
+  }
+
+  function Sel({label,campo,opcoes}){
+    return(
+      <div>
+        <span style={lbl}>{label}</span>
+        <select value={form[campo]} onChange={e=>upd(campo,e.target.value)} style={{...inp(campo),cursor:"pointer"}}>
+          <option value="">Selecione...</option>
+          {opcoes.map(o=><option key={o} value={o}>{o}</option>)}
+        </select>
+      </div>
+    );
+  }
+
+  const sec=(title)=><div style={{fontSize:10,fontWeight:700,color:BLUE,textTransform:"uppercase",letterSpacing:"0.08em",margin:"16px 0 8px",borderBottom:`1px solid ${BORDER}`,paddingBottom:4}}>{title}</div>;
+
   return(
-    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.75)",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:20,overflowY:"auto"}}>
-      <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,width:"100%",maxWidth:580,padding:20,marginTop:20}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-          <h2 style={{color:TEXT,fontSize:16,fontWeight:700,margin:0}}>Revisar Cadastro</h2>
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.85)",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:16,overflowY:"auto"}}>
+      <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,width:"100%",maxWidth:640,padding:20,marginTop:16,marginBottom:16}}>
+
+        {/* Cabeçalho */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+          <div>
+            <h2 style={{color:TEXT,fontSize:16,fontWeight:700,margin:0}}>Revisão de Cadastro</h2>
+            <p style={{color:MUTED,fontSize:11,margin:"2px 0 0"}}>ID {cliente.ID_CLIENTE} — edite e corrija os campos antes de ativar</p>
+          </div>
           <button onClick={onFechar} style={{background:"transparent",border:"none",color:MUTED,fontSize:22,cursor:"pointer",lineHeight:1}}>✕</button>
         </div>
-        {alertas.length>0&&(
-          <div style={{background:YEL+"11",border:`1px solid ${YEL}44`,borderRadius:8,padding:"10px 14px",marginBottom:14}}>
-            <p style={{color:YEL,fontWeight:700,fontSize:12,margin:"0 0 6px"}}>⚠️ {alertas.length} campo(s) com possível erro:</p>
-            {alertas.map(a=><p key={a.campo} style={{color:YEL,fontSize:11,margin:"2px 0"}}>• <strong>{a.label}</strong>: {a.validar(String(cliente[a.campo]||""))}</p>)}
+
+        {totalAlertas>0&&(
+          <div style={{background:YEL+"11",border:`1px solid ${YEL}44`,borderRadius:6,padding:"8px 12px",margin:"12px 0"}}>
+            <p style={{color:YEL,fontWeight:700,fontSize:11,margin:0}}>⚠️ {totalAlertas} campo(s) com possível erro — corrija antes de ativar</p>
           </div>
         )}
-        <div style={{display:"grid",gap:5,maxHeight:"55vh",overflowY:"auto",paddingRight:4}}>
-          {campos.map(c=>{
-            const v=String(cliente[c.campo]||"—");
-            const erro=c.validar&&cliente[c.campo]?c.validar(String(cliente[c.campo])):null;
-            return(
-              <div key={c.campo} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:"8px 10px",borderRadius:6,background:"#21262d",border:`1px solid ${erro?YEL:BORDER}`}}>
-                <span style={{color:MUTED,fontSize:11,fontWeight:700,textTransform:"uppercase",flexShrink:0,width:180}}>{c.label}</span>
-                <span style={{color:erro?YEL:TEXT,fontSize:12,textAlign:"right",wordBreak:"break-all"}}>
-                  {v}{erro&&<span style={{display:"block",color:YEL,fontSize:10,fontWeight:700}}>⚠ {erro}</span>}
-                </span>
-              </div>
-            );
-          })}
+
+        {/* Formulário */}
+        <div style={{maxHeight:"62vh",overflowY:"auto",paddingRight:4}}>
+
+          {sec("Dados Pessoais")}
+          <div style={{display:"grid",gap:8}}>
+            <Campo label="Nome completo" campo="NOME"/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <Campo label="CPF" campo="CPF"/>
+              <Campo label="RG" campo="RG"/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <Sel label="Nacionalidade" campo="NACIONALIDADE" opcoes={["Brasileiro","Estrangeiro"]}/>
+              <Sel label="Estado civil" campo="ESTADO_CIVIL" opcoes={["Solteiro","Casado","Divorciado","Viúvo","União Estável"]}/>
+            </div>
+            <Campo label="Profissão" campo="PROFISSAO"/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <Campo label="WhatsApp (somente números)" campo="TELEFONE_WPP"/>
+              <Campo label="E-mail" campo="EMAIL" type="email"/>
+            </div>
+          </div>
+
+          {sec("Endereço")}
+          <div style={{display:"grid",gap:8}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              <Campo label="CEP" campo="CEP"/>
+              <Campo label="Número" campo="NUMERO"/>
+              <Campo label="Complemento" campo="COMPLEMENTO"/>
+            </div>
+            <Campo label="Rua / Avenida" campo="RUA"/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              <Campo label="Quadra" campo="QUADRA"/>
+              <Campo label="Lote" campo="LOTE"/>
+              <Campo label="Setor / Bairro" campo="SETOR"/>
+            </div>
+            <Campo label="Cidade - Estado" campo="CIDADE_ESTADO"/>
+          </div>
+
+          {sec("Contatos de Confiança")}
+          <div style={{display:"grid",gap:8}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <Campo label="Contato 1 — Nome" campo="CONTATO_CONFIANCA_1"/>
+              <Campo label="Contato 1 — Telefone" campo="TEL_CONFIANCA_1"/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <Campo label="Contato 2 — Nome" campo="CONTATO_CONFIANCA_2"/>
+              <Campo label="Contato 2 — Telefone" campo="TEL_CONFIANCA_2"/>
+            </div>
+          </div>
+
+          {sec("Padrinho e Vencimento")}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+            <Campo label="Padrinho (nome)" campo="PADRINHO"/>
+            <Campo label="Padrinho (telefone)" campo="TEL_PADRINHO"/>
+            <Campo label="Dia vencimento preferido" campo="DIA_VENCIMENTO_PREFERIDO"/>
+          </div>
+
+          {sec("Observações")}
+          <textarea value={form.OBSERVACOES} onChange={e=>upd("OBSERVACOES",e.target.value)} rows={2}
+            style={{...inp("OBSERVACOES"),resize:"vertical"}}/>
         </div>
-        <div style={{marginTop:14,display:"grid",gap:10}}>
-          {msg&&<div style={{padding:"10px 14px",borderRadius:8,background:msg.ok?GREEN+"22":RED+"22",border:`1px solid ${msg.ok?GREEN:RED}`,color:msg.ok?GREEN:RED,fontSize:13,fontWeight:600}}>{msg.ok?"✅ ":"❌ "}{msg.texto}</div>}
-          <p style={{color:MUTED,fontSize:11,margin:0}}>Corrija erros no Google Sheets antes de ativar, se necessário.</p>
-          <button onClick={ativar} disabled={loading} style={{padding:12,borderRadius:6,border:"none",background:GREEN,color:"#000",fontWeight:700,fontSize:14,cursor:"pointer",opacity:loading?0.6:1}}>
-            {loading?"Ativando...":"✅ Confirmar e Ativar Cliente"}
-          </button>
+
+        {/* Botões */}
+        <div style={{marginTop:14,display:"grid",gap:8}}>
+          {msg&&<div style={{padding:"10px 14px",borderRadius:6,background:msg.ok?GREEN+"22":RED+"22",border:`1px solid ${msg.ok?GREEN:RED}`,color:msg.ok?GREEN:RED,fontSize:13,fontWeight:600}}>{msg.ok?"✅ ":"❌ "}{msg.texto}</div>}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:8}}>
+            <button onClick={onFechar} style={{padding:12,borderRadius:6,border:`1px solid ${BORDER}`,background:"transparent",color:MUTED,fontWeight:600,fontSize:13,cursor:"pointer"}}>Cancelar</button>
+            <button onClick={salvarEAtivar} disabled={salvando} style={{padding:12,borderRadius:6,border:"none",background:salvando?BORDER:GREEN,color:"#000",fontWeight:700,fontSize:13,cursor:salvando?"not-allowed":"pointer",opacity:salvando?0.7:1}}>
+              {salvando?"Salvando...":"✅ Salvar e Ativar Cliente"}
+            </button>
+          </div>
         </div>
+
       </div>
     </div>
   );
@@ -368,7 +464,7 @@ function NovoContrato({clientes,contratos,onSucesso}){
         <input type="number" min="0.1" max="100" step="0.01" value={taxa} onChange={e=>setTaxa(e.target.value)} placeholder="9" style={inp}/>
       </div>
       {sim&&(
-        <div style={{background:CARD,border:`1px solid ${GREEN}`,borderRadius:8,padding:16,background:GREEN+"0a"}}>
+        <div style={{background:GREEN+"0a",border:`1px solid ${GREEN}`,borderRadius:8,padding:16}}>
           <span style={{...lbl,color:GREEN}}>Simulação do Contrato</span>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:6}}>
             {[{l:"Juros Totais",v:R(sim.jt),c:YEL},{l:"Total Final",v:R(sim.tot),c:BLUE},{l:"Valor da Parcela",v:R(sim.parc),c:GREEN,big:true},{l:"Principal / Parcela",v:R(sim.pp),c:MUTED},{l:"Juros / Parcela",v:R(sim.jp),c:MUTED}].map(k=>(
