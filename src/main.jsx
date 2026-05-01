@@ -18,45 +18,90 @@ function parseDate(v){
   return isNaN(d)?null:d;
 }
 
+// Extrai apenas a parte da data de strings ISO (ex: 2026-05-15T03:00:00.000Z → 2026-05-15)
+function limparData(v){
+  if(!v)return"";
+  const s=String(v).trim();
+  if(s.includes("T"))return s.split("T")[0];
+  return s;
+}
+
 async function postAction(body){
   const r=await fetch(POST_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
   return r.json();
 }
 
-// Estilos reutilizáveis para o formulário de revisão
-const IS={width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${BORDER}`,borderRadius:5,color:TEXT,fontSize:12,boxSizing:"border-box"};
-const IW={width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${YEL}`,borderRadius:5,color:YEL,fontSize:12,boxSizing:"border-box"};
-const LS={color:MUTED,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:2};
-const SS={fontSize:10,fontWeight:700,color:BLUE,textTransform:"uppercase",letterSpacing:"0.08em",margin:"16px 0 8px",borderBottom:`1px solid ${BORDER}`,paddingBottom:4};
+// Estilos base
+const IS ={width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${BORDER}`,borderRadius:5,color:TEXT,fontSize:12,boxSizing:"border-box"};
+const IW ={width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${YEL}`,borderRadius:5,color:TEXT,fontSize:12,boxSizing:"border-box"};
+const LS ={color:MUTED,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:2};
+const WS ={color:YEL,fontSize:10,fontWeight:600,display:"block",marginTop:2};
+const SS ={fontSize:10,fontWeight:700,color:BLUE,textTransform:"uppercase",letterSpacing:"0.08em",margin:"16px 0 8px",borderBottom:`1px solid ${BORDER}`,paddingBottom:4};
+
+// Validações por campo
+function somenteletras(v){return v&&/[^a-zA-ZÀ-ÿ\s]/.test(v)?"⚠ Somente letras (sem números ou símbolos)":null;}
+function somentenumeros(v){return v&&/[^\d]/.test(v)?"⚠ Somente números (sem pontos, traços ou espaços)":null;}
+function validarEmail(v){
+  if(!v)return null;
+  if(/[A-Z]/.test(v))return"⚠ Use somente letras minúsculas";
+  if(!/^[^@]+@[^@]+\.[^@]+$/.test(v))return"⚠ Formato inválido (ex: nome@email.com)";
+  return null;
+}
+function validarNumero(v){
+  if(!v)return null;
+  const lower=v.toLowerCase().trim();
+  if(lower==="sem numero"||lower==="s/n"||lower==="sn"||lower==="sem número")return null;
+  if(/[^\d]/.test(v))return"⚠ Somente números (ou escreva 'Sem Número')";
+  return null;
+}
 
 // ── REVISÃO DE CLIENTE ────────────────────────────────────────────
 function RevisaoCliente({cliente,onAtivar,onFechar}){
-  const [nome,setNome]=useState(String(cliente.NOME||""));
-  const [cpf,setCpf]=useState(String(cliente.CPF||""));
-  const [rg,setRg]=useState(String(cliente.RG||""));
-  const [nac,setNac]=useState(String(cliente.NACIONALIDADE||""));
-  const [ecivil,setEcivil]=useState(String(cliente.ESTADO_CIVIL||""));
-  const [prof,setProf]=useState(String(cliente.PROFISSAO||""));
-  const [wpp,setWpp]=useState(String(cliente.TELEFONE_WPP||""));
-  const [email,setEmail]=useState(String(cliente.EMAIL||""));
-  const [cep,setCep]=useState(String(cliente.CEP||""));
-  const [rua,setRua]=useState(String(cliente.RUA||""));
-  const [numero,setNumero]=useState(String(cliente.NUMERO||""));
-  const [quadra,setQuadra]=useState(String(cliente.QUADRA||""));
-  const [lote,setLote]=useState(String(cliente.LOTE||""));
-  const [setor,setSetor]=useState(String(cliente.SETOR||""));
-  const [comp,setComp]=useState(String(cliente.COMPLEMENTO||""));
-  const [cidade,setCidade]=useState(String(cliente.CIDADE_ESTADO||""));
-  const [cont1,setCont1]=useState(String(cliente.CONTATO_CONFIANCA_1||""));
-  const [tel1,setTel1]=useState(String(cliente.TEL_CONFIANCA_1||""));
-  const [cont2,setCont2]=useState(String(cliente.CONTATO_CONFIANCA_2||""));
-  const [tel2,setTel2]=useState(String(cliente.TEL_CONFIANCA_2||""));
-  const [diavenc,setDiavenc]=useState(String(cliente.DIA_VENCIMENTO_PREFERIDO||""));
+  const [nome,   setNome]   =useState(String(cliente.NOME||""));
+  const [cpf,    setCpf]    =useState(String(cliente.CPF||""));
+  const [rg,     setRg]     =useState(String(cliente.RG||""));
+  const [nac,    setNac]    =useState(String(cliente.NACIONALIDADE||""));
+  const [ecivil, setEcivil] =useState(String(cliente.ESTADO_CIVIL||""));
+  const [prof,   setProf]   =useState(String(cliente.PROFISSAO||""));
+  const [wpp,    setWpp]    =useState(String(cliente.TELEFONE_WPP||""));
+  const [email,  setEmail]  =useState(String(cliente.EMAIL||""));
+  const [cep,    setCep]    =useState(String(cliente.CEP||""));
+  const [rua,    setRua]    =useState(String(cliente.RUA||""));
+  const [numero, setNumero] =useState(String(cliente.NUMERO||""));
+  const [quadra, setQuadra] =useState(String(cliente.QUADRA||""));
+  const [lote,   setLote]   =useState(String(cliente.LOTE||""));
+  const [setor,  setSetor]  =useState(String(cliente.SETOR||""));
+  const [comp,   setComp]   =useState(String(cliente.COMPLEMENTO||""));
+  const [cidade, setCidade] =useState(String(cliente.CIDADE_ESTADO||""));
+  const [cont1,  setCont1]  =useState(String(cliente.CONTATO_CONFIANCA_1||""));
+  const [tel1,   setTel1]   =useState(String(cliente.TEL_CONFIANCA_1||""));
+  const [cont2,  setCont2]  =useState(String(cliente.CONTATO_CONFIANCA_2||""));
+  const [tel2,   setTel2]   =useState(String(cliente.TEL_CONFIANCA_2||""));
+  const [diavenc,setDiavenc]=useState(limparData(cliente.DIA_VENCIMENTO_PREFERIDO));
   const [padrinho,setPadrinho]=useState(String(cliente.PADRINHO||""));
-  const [telpad,setTelpad]=useState(String(cliente.TEL_PADRINHO||""));
-  const [obs,setObs]=useState(String(cliente.OBSERVACOES||""));
+  const [telpad, setTelpad] =useState(String(cliente.TEL_PADRINHO||""));
+  const [obs,    setObs]    =useState(String(cliente.OBSERVACOES||""));
   const [salvando,setSalvando]=useState(false);
-  const [msg,setMsg]=useState(null);
+  const [msg,    setMsg]    =useState(null);
+
+  // Mapa de alertas por campo
+  const alertas={
+    nome:    somenteletras(nome),
+    cpf:     somentenumeros(cpf),
+    rg:      somentenumeros(rg),
+    prof:    somenteletras(prof),
+    wpp:     somentenumeros(wpp),
+    email:   validarEmail(email),
+    cep:     somentenumeros(cep),
+    numero:  validarNumero(numero),
+    cont1:   somenteletras(cont1),
+    tel1:    somentenumeros(tel1),
+    cont2:   somenteletras(cont2),
+    tel2:    somentenumeros(tel2),
+    padrinho:somenteletras(padrinho),
+    telpad:  somentenumeros(telpad),
+  };
+  const totalAlertas=Object.values(alertas).filter(Boolean).length;
 
   const salvarEAtivar=async()=>{
     setSalvando(true);setMsg(null);
@@ -77,85 +122,109 @@ function RevisaoCliente({cliente,onAtivar,onFechar}){
     setSalvando(false);
   };
 
+  // Helper para renderizar um campo de texto com alerta opcional
+  function Campo({label,value,onChange,alerta,type}){
+    return(
+      <div>
+        <span style={LS}>{label}</span>
+        <input type={type||"text"} value={value} onChange={e=>onChange(e.target.value)} style={alerta?IW:IS}/>
+        {alerta&&<span style={WS}>{alerta}</span>}
+      </div>
+    );
+  }
+
   return(
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.85)",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"16px",overflow:"hidden"}}>
-      <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,width:"100%",maxWidth:640,display:"flex",flexDirection:"column",maxHeight:"calc(100vh - 32px)",marginTop:0}}>
+      <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,width:"100%",maxWidth:640,display:"flex",flexDirection:"column",maxHeight:"calc(100vh - 32px)"}}>
 
-        {/* Cabeçalho fixo */}
-        <div style={{padding:"20px 20px 0",flexShrink:0}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        {/* Cabeçalho */}
+        <div style={{padding:"20px 20px 12px",flexShrink:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div>
               <h2 style={{color:TEXT,fontSize:16,fontWeight:700,margin:0}}>Revisão de Cadastro</h2>
-              <p style={{color:MUTED,fontSize:11,margin:"2px 0 0"}}>ID {cliente.ID_CLIENTE} — edite e corrija os campos antes de ativar</p>
+              <p style={{color:MUTED,fontSize:11,margin:"2px 0 0"}}>ID {cliente.ID_CLIENTE} — confira e corrija antes de ativar</p>
             </div>
             <button onClick={onFechar} style={{background:"transparent",border:"none",color:MUTED,fontSize:22,cursor:"pointer",lineHeight:1,flexShrink:0}}>✕</button>
           </div>
+          {totalAlertas>0&&(
+            <div style={{background:YEL+"11",border:`1px solid ${YEL}44`,borderRadius:6,padding:"8px 12px",marginTop:10}}>
+              <p style={{color:YEL,fontWeight:700,fontSize:11,margin:0}}>⚠️ {totalAlertas} campo(s) com informação a corrigir — veja os destaques abaixo</p>
+            </div>
+          )}
         </div>
 
         {/* Formulário rolável */}
         <div style={{overflowY:"auto",padding:"0 20px",flex:1}}>
 
           <div style={SS}>Dados Pessoais</div>
-          <div style={{display:"grid",gap:8}}>
-            <div><span style={LS}>Nome completo</span><input value={nome} onChange={e=>setNome(e.target.value)} style={IS}/></div>
+          <div style={{display:"grid",gap:10}}>
+            <Campo label="Nome completo" value={nome} onChange={setNome} alerta={alertas.nome}/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <div><span style={LS}>CPF{/[.\-]/.test(cpf)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Remova pontos e traços</span>}</span><input value={cpf} onChange={e=>setCpf(e.target.value)} style={/[.\-]/.test(cpf)?IW:IS}/></div>
-              <div><span style={LS}>RG{/[.\-]/.test(rg)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Remova pontos e traços</span>}</span><input value={rg} onChange={e=>setRg(e.target.value)} style={/[.\-]/.test(rg)?IW:IS}/></div>
+              <Campo label="CPF (somente números)" value={cpf} onChange={setCpf} alerta={alertas.cpf}/>
+              <Campo label="RG (somente números)" value={rg} onChange={setRg} alerta={alertas.rg}/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <div><span style={LS}>Nacionalidade</span>
-                <select value={nac} onChange={e=>setNac(e.target.value)} style={{...IS,cursor:"pointer"}}>
-                  <option value="">Selecione...</option>
-                  <option>Brasileiro</option><option>Estrangeiro</option>
-                </select>
+              <div>
+                <span style={LS}>Nacionalidade</span>
+                <input value={nac} onChange={e=>setNac(e.target.value)} style={IS} placeholder="Ex: Brasileiro"/>
               </div>
-              <div><span style={LS}>Estado civil</span>
-                <select value={ecivil} onChange={e=>setEcivil(e.target.value)} style={{...IS,cursor:"pointer"}}>
-                  <option value="">Selecione...</option>
-                  <option>Solteiro</option><option>Casado</option><option>Divorciado</option><option>Viúvo</option><option>União Estável</option>
-                </select>
+              <div>
+                <span style={LS}>Estado civil</span>
+                <input value={ecivil} onChange={e=>setEcivil(e.target.value)} style={IS} placeholder="Ex: Solteiro"/>
               </div>
             </div>
-            <div><span style={LS}>Profissão</span><input value={prof} onChange={e=>setProf(e.target.value)} style={IS}/></div>
+            <Campo label="Profissão (somente letras)" value={prof} onChange={setProf} alerta={alertas.prof}/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <div><span style={LS}>WhatsApp{wpp&&/\D/.test(wpp)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Somente números</span>}</span><input value={wpp} onChange={e=>setWpp(e.target.value)} style={wpp&&/\D/.test(wpp)?IW:IS}/></div>
-              <div><span style={LS}>E-mail{/[A-Z]/.test(email)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Use minúsculas</span>}</span><input type="email" value={email} onChange={e=>setEmail(e.target.value)} style={/[A-Z]/.test(email)?IW:IS}/></div>
+              <Campo label="WhatsApp (somente números)" value={wpp} onChange={setWpp} alerta={alertas.wpp}/>
+              <Campo label="E-mail (letras minúsculas)" value={email} onChange={setEmail} alerta={alertas.email} type="email"/>
             </div>
           </div>
 
           <div style={SS}>Endereço</div>
-          <div style={{display:"grid",gap:8}}>
+          <div style={{display:"grid",gap:10}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-              <div><span style={LS}>CEP{cep&&/[.\-]/.test(cep)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Remova traços</span>}</span><input value={cep} onChange={e=>setCep(e.target.value)} style={cep&&/[.\-]/.test(cep)?IW:IS}/></div>
-              <div><span style={LS}>Número</span><input value={numero} onChange={e=>setNumero(e.target.value)} style={IS}/></div>
-              <div><span style={LS}>Complemento</span><input value={comp} onChange={e=>setComp(e.target.value)} style={IS}/></div>
+              <Campo label="CEP (somente números)" value={cep} onChange={setCep} alerta={alertas.cep}/>
+              <Campo label="Número (ou 'Sem Número')" value={numero} onChange={setNumero} alerta={alertas.numero}/>
+              <div>
+                <span style={LS}>Complemento</span>
+                <input value={comp} onChange={e=>setComp(e.target.value)} style={IS}/>
+              </div>
             </div>
-            <div><span style={LS}>Rua / Avenida</span><input value={rua} onChange={e=>setRua(e.target.value)} style={IS}/></div>
+            <div>
+              <span style={LS}>Rua / Avenida</span>
+              <input value={rua} onChange={e=>setRua(e.target.value)} style={IS}/>
+            </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
               <div><span style={LS}>Quadra</span><input value={quadra} onChange={e=>setQuadra(e.target.value)} style={IS}/></div>
               <div><span style={LS}>Lote</span><input value={lote} onChange={e=>setLote(e.target.value)} style={IS}/></div>
               <div><span style={LS}>Setor / Bairro</span><input value={setor} onChange={e=>setSetor(e.target.value)} style={IS}/></div>
             </div>
-            <div><span style={LS}>Cidade - Estado</span><input value={cidade} onChange={e=>setCidade(e.target.value)} style={IS}/></div>
+            <div>
+              <span style={LS}>Cidade - Estado</span>
+              <input value={cidade} onChange={e=>setCidade(e.target.value)} style={IS}/>
+            </div>
           </div>
 
           <div style={SS}>Contatos de Confiança</div>
-          <div style={{display:"grid",gap:8}}>
+          <div style={{display:"grid",gap:10}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <div><span style={LS}>Contato 1 — Nome</span><input value={cont1} onChange={e=>setCont1(e.target.value)} style={IS}/></div>
-              <div><span style={LS}>Contato 1 — Telefone{tel1&&/\D/.test(tel1)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Somente números</span>}</span><input value={tel1} onChange={e=>setTel1(e.target.value)} style={tel1&&/\D/.test(tel1)?IW:IS}/></div>
+              <Campo label="Contato 1 — Nome (letras)" value={cont1} onChange={setCont1} alerta={alertas.cont1}/>
+              <Campo label="Contato 1 — Telefone (números)" value={tel1} onChange={setTel1} alerta={alertas.tel1}/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <div><span style={LS}>Contato 2 — Nome</span><input value={cont2} onChange={e=>setCont2(e.target.value)} style={IS}/></div>
-              <div><span style={LS}>Contato 2 — Telefone{tel2&&/\D/.test(tel2)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Somente números</span>}</span><input value={tel2} onChange={e=>setTel2(e.target.value)} style={tel2&&/\D/.test(tel2)?IW:IS}/></div>
+              <Campo label="Contato 2 — Nome (letras)" value={cont2} onChange={setCont2} alerta={alertas.cont2}/>
+              <Campo label="Contato 2 — Telefone (números)" value={tel2} onChange={setTel2} alerta={alertas.tel2}/>
             </div>
           </div>
 
           <div style={SS}>Padrinho e Vencimento</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-            <div><span style={LS}>Padrinho (nome)</span><input value={padrinho} onChange={e=>setPadrinho(e.target.value)} style={IS}/></div>
-            <div><span style={LS}>Padrinho (telefone){telpad&&/\D/.test(telpad)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Somente números</span>}</span><input value={telpad} onChange={e=>setTelpad(e.target.value)} style={telpad&&/\D/.test(telpad)?IW:IS}/></div>
-            <div><span style={LS}>Dia vencimento</span><input value={diavenc} onChange={e=>setDiavenc(e.target.value)} style={IS}/></div>
+            <Campo label="Padrinho (nome — letras)" value={padrinho} onChange={setPadrinho} alerta={alertas.padrinho}/>
+            <Campo label="Padrinho (telefone — números)" value={telpad} onChange={setTelpad} alerta={alertas.telpad}/>
+            <div>
+              <span style={LS}>Data 1ª parcela</span>
+              <input type="date" value={diavenc} onChange={e=>setDiavenc(e.target.value)} style={IS}/>
+            </div>
           </div>
 
           <div style={SS}>Observações</div>
@@ -164,7 +233,7 @@ function RevisaoCliente({cliente,onAtivar,onFechar}){
           <div style={{height:8}}/>
         </div>
 
-        {/* Botões fixos no fundo */}
+        {/* Botões fixos */}
         <div style={{padding:"12px 20px 20px",flexShrink:0,borderTop:`1px solid ${BORDER}`}}>
           {msg&&<div style={{padding:"10px 14px",borderRadius:6,background:msg.ok?GREEN+"22":RED+"22",border:`1px solid ${msg.ok?GREEN:RED}`,color:msg.ok?GREEN:RED,fontSize:13,fontWeight:600,marginBottom:10}}>{msg.ok?"✅ ":"❌ "}{msg.texto}</div>}
           <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:8}}>
@@ -372,8 +441,8 @@ function NovoContrato({clientes,contratos,onSucesso}){
 
   useEffect(()=>{
     if(cliente&&cliente.DIA_VENCIMENTO_PREFERIDO){
-      const dia=parseInt(cliente.DIA_VENCIMENTO_PREFERIDO);
-      if(dia>=1&&dia<=31){const d=new Date();d.setMonth(d.getMonth()+1);d.setDate(dia);setDtVenc(d.toISOString().split("T")[0]);}
+      const raw=limparData(cliente.DIA_VENCIMENTO_PREFERIDO);
+      setDtVenc(raw);
     }
   },[cliente]);
 
@@ -424,7 +493,7 @@ function NovoContrato({clientes,contratos,onSucesso}){
           )}
         </div>
         {cliente&&clienteTemAtivo&&<div style={{marginTop:8,padding:"8px 12px",background:RED+"11",border:`1px solid ${RED}44`,borderRadius:6,fontSize:12,color:RED}}>⛔ Cliente com contrato ativo — quite antes de criar novo.</div>}
-        {cliente&&!clienteTemAtivo&&<div style={{marginTop:8,padding:"8px 12px",background:GREEN+"11",border:`1px solid ${GREEN}44`,borderRadius:6,fontSize:12,color:GREEN}}>✅ {cliente.NOME} selecionado{cliente.DIA_VENCIMENTO_PREFERIDO&&<span style={{color:MUTED,marginLeft:8}}>· Vencimento preenchido para dia {cliente.DIA_VENCIMENTO_PREFERIDO}</span>}</div>}
+        {cliente&&!clienteTemAtivo&&<div style={{marginTop:8,padding:"8px 12px",background:GREEN+"11",border:`1px solid ${GREEN}44`,borderRadius:6,fontSize:12,color:GREEN}}>✅ {cliente.NOME} selecionado{cliente.DIA_VENCIMENTO_PREFERIDO&&<span style={{color:MUTED,marginLeft:8}}>· Data da 1ª parcela preenchida</span>}</div>}
       </div>
       <div style={card}>
         <span style={lbl}>Dados do Contrato</span>
