@@ -18,12 +18,10 @@ function parseDate(v){
   return isNaN(d)?null:d;
 }
 
-// Extrai apenas a parte da data de strings ISO (ex: 2026-05-15T03:00:00.000Z → 2026-05-15)
 function limparData(v){
   if(!v)return"";
   const s=String(v).trim();
-  if(s.includes("T"))return s.split("T")[0];
-  return s;
+  return s.includes("T")?s.split("T")[0]:s;
 }
 
 async function postAction(body){
@@ -31,114 +29,117 @@ async function postAction(body){
   return r.json();
 }
 
-// Estilos base
-const IS ={width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${BORDER}`,borderRadius:5,color:TEXT,fontSize:12,boxSizing:"border-box"};
-const IW ={width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${YEL}`,borderRadius:5,color:TEXT,fontSize:12,boxSizing:"border-box"};
-const LS ={color:MUTED,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:2};
-const WS ={color:YEL,fontSize:10,fontWeight:600,display:"block",marginTop:2};
-const SS ={fontSize:10,fontWeight:700,color:BLUE,textTransform:"uppercase",letterSpacing:"0.08em",margin:"16px 0 8px",borderBottom:`1px solid ${BORDER}`,paddingBottom:4};
-
-// Validações por campo
-function somenteletras(v){return v&&/[^a-zA-ZÀ-ÿ\s]/.test(v)?"⚠ Somente letras (sem números ou símbolos)":null;}
-function somentenumeros(v){return v&&/[^\d]/.test(v)?"⚠ Somente números (sem pontos, traços ou espaços)":null;}
-function validarEmail(v){
+// ── VALIDAÇÕES (escopo do módulo) ────────────────────────────────
+function vLetras(v){return v&&/[^a-zA-ZÀ-ÿ\s]/.test(v)?"⚠ Somente letras":null;}
+function vNumeros(v){return v&&/[^\d]/.test(v)?"⚠ Somente números (sem pontos, traços ou espaços)":null;}
+function vEmail(v){
   if(!v)return null;
   if(/[A-Z]/.test(v))return"⚠ Use somente letras minúsculas";
   if(!/^[^@]+@[^@]+\.[^@]+$/.test(v))return"⚠ Formato inválido (ex: nome@email.com)";
   return null;
 }
-function validarNumero(v){
+function vNumeroEnd(v){
   if(!v)return null;
-  const lower=v.toLowerCase().trim();
-  if(lower==="sem numero"||lower==="s/n"||lower==="sn"||lower==="sem número")return null;
-  if(/[^\d]/.test(v))return"⚠ Somente números (ou escreva 'Sem Número')";
-  return null;
+  const l=v.toLowerCase().trim();
+  if(l==="sem numero"||l==="sem número"||l==="s/n"||l==="sn")return null;
+  return/[^\d]/.test(v)?"⚠ Somente números (ou escreva Sem Número)":null;
 }
 
-// ── REVISÃO DE CLIENTE ────────────────────────────────────────────
-function RevisaoCliente({cliente,onAtivar,onFechar}){
-  const [nome,   setNome]   =useState(String(cliente.NOME||""));
-  const [cpf,    setCpf]    =useState(String(cliente.CPF||""));
-  const [rg,     setRg]     =useState(String(cliente.RG||""));
-  const [nac,    setNac]    =useState(String(cliente.NACIONALIDADE||""));
-  const [ecivil, setEcivil] =useState(String(cliente.ESTADO_CIVIL||""));
-  const [prof,   setProf]   =useState(String(cliente.PROFISSAO||""));
-  const [wpp,    setWpp]    =useState(String(cliente.TELEFONE_WPP||""));
-  const [email,  setEmail]  =useState(String(cliente.EMAIL||""));
-  const [cep,    setCep]    =useState(String(cliente.CEP||""));
-  const [rua,    setRua]    =useState(String(cliente.RUA||""));
-  const [numero, setNumero] =useState(String(cliente.NUMERO||""));
-  const [quadra, setQuadra] =useState(String(cliente.QUADRA||""));
-  const [lote,   setLote]   =useState(String(cliente.LOTE||""));
-  const [setor,  setSetor]  =useState(String(cliente.SETOR||""));
-  const [comp,   setComp]   =useState(String(cliente.COMPLEMENTO||""));
-  const [cidade, setCidade] =useState(String(cliente.CIDADE_ESTADO||""));
-  const [cont1,  setCont1]  =useState(String(cliente.CONTATO_CONFIANCA_1||""));
-  const [tel1,   setTel1]   =useState(String(cliente.TEL_CONFIANCA_1||""));
-  const [cont2,  setCont2]  =useState(String(cliente.CONTATO_CONFIANCA_2||""));
-  const [tel2,   setTel2]   =useState(String(cliente.TEL_CONFIANCA_2||""));
-  const [diavenc,setDiavenc]=useState(limparData(cliente.DIA_VENCIMENTO_PREFERIDO));
-  const [padrinho,setPadrinho]=useState(String(cliente.PADRINHO||""));
-  const [telpad, setTelpad] =useState(String(cliente.TEL_PADRINHO||""));
-  const [obs,    setObs]    =useState(String(cliente.OBSERVACOES||""));
-  const [salvando,setSalvando]=useState(false);
-  const [msg,    setMsg]    =useState(null);
+// ── ESTILOS BASE (escopo do módulo) ─────────────────────────────
+const IS={width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${BORDER}`,borderRadius:5,color:TEXT,fontSize:12,boxSizing:"border-box"};
+const IW={width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${YEL}`,borderRadius:5,color:TEXT,fontSize:12,boxSizing:"border-box"};
+const LS={color:MUTED,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:2};
+const WS={color:YEL,fontSize:10,fontWeight:600,display:"block",marginTop:3};
+const SEC={fontSize:10,fontWeight:700,color:BLUE,textTransform:"uppercase",letterSpacing:"0.08em",margin:"16px 0 8px",borderBottom:`1px solid ${BORDER}`,paddingBottom:4};
 
-  // Mapa de alertas por campo
-  const alertas={
-    nome:    somenteletras(nome),
-    cpf:     somentenumeros(cpf),
-    rg:      somentenumeros(rg),
-    prof:    somenteletras(prof),
-    wpp:     somentenumeros(wpp),
-    email:   validarEmail(email),
-    cep:     somentenumeros(cep),
-    numero:  validarNumero(numero),
-    cont1:   somenteletras(cont1),
-    tel1:    somentenumeros(tel1),
-    cont2:   somenteletras(cont2),
-    tel2:    somentenumeros(tel2),
-    padrinho:somenteletras(padrinho),
-    telpad:  somentenumeros(telpad),
+// ── CAMPO DE TEXTO (escopo do módulo — NUNCA dentro de outro componente) ──
+function CampoTexto({label,value,onChange,alerta,type}){
+  return(
+    <div>
+      <span style={LS}>{label}</span>
+      <input
+        type={type||"text"}
+        value={value}
+        onChange={e=>onChange(e.target.value)}
+        style={alerta?IW:IS}
+      />
+      {alerta&&<span style={WS}>{alerta}</span>}
+    </div>
+  );
+}
+
+// ── REVISÃO DE CLIENTE ───────────────────────────────────────────
+function RevisaoCliente({cliente,onAtivar,onFechar}){
+  const [nome,    setNome]    =useState(String(cliente.NOME||""));
+  const [cpf,     setCpf]     =useState(String(cliente.CPF||""));
+  const [rg,      setRg]      =useState(String(cliente.RG||""));
+  const [nac,     setNac]     =useState(String(cliente.NACIONALIDADE||""));
+  const [ecivil,  setEcivil]  =useState(String(cliente.ESTADO_CIVIL||""));
+  const [prof,    setProf]    =useState(String(cliente.PROFISSAO||""));
+  const [wpp,     setWpp]     =useState(String(cliente.TELEFONE_WPP||""));
+  const [email,   setEmail]   =useState(String(cliente.EMAIL||""));
+  const [cep,     setCep]     =useState(String(cliente.CEP||""));
+  const [rua,     setRua]     =useState(String(cliente.RUA||""));
+  const [numero,  setNumero]  =useState(String(cliente.NUMERO||""));
+  const [quadra,  setQuadra]  =useState(String(cliente.QUADRA||""));
+  const [lote,    setLote]    =useState(String(cliente.LOTE||""));
+  const [setor,   setSetor]   =useState(String(cliente.SETOR||""));
+  const [comp,    setComp]    =useState(String(cliente.COMPLEMENTO||""));
+  const [cidade,  setCidade]  =useState(String(cliente.CIDADE_ESTADO||""));
+  const [cont1,   setCont1]   =useState(String(cliente.CONTATO_CONFIANCA_1||""));
+  const [tel1,    setTel1]    =useState(String(cliente.TEL_CONFIANCA_1||""));
+  const [cont2,   setCont2]   =useState(String(cliente.CONTATO_CONFIANCA_2||""));
+  const [tel2,    setTel2]    =useState(String(cliente.TEL_CONFIANCA_2||""));
+  const [diavenc, setDiavenc] =useState(limparData(cliente.DIA_VENCIMENTO_PREFERIDO));
+  const [padrinho,setPadrinho]=useState(String(cliente.PADRINHO||""));
+  const [telpad,  setTelpad]  =useState(String(cliente.TEL_PADRINHO||""));
+  const [obs,     setObs]     =useState(String(cliente.OBSERVACOES||""));
+  const [salvando,setSalvando]=useState(false);
+  const [msg,     setMsg]     =useState(null);
+
+  // Alertas calculados em tempo real
+  const al={
+    nome:    vLetras(nome),
+    cpf:     vNumeros(cpf),
+    rg:      vNumeros(rg),
+    prof:    vLetras(prof),
+    wpp:     vNumeros(wpp),
+    email:   vEmail(email),
+    cep:     vNumeros(cep),
+    numero:  vNumeroEnd(numero),
+    cont1:   vLetras(cont1),
+    tel1:    vNumeros(tel1),
+    cont2:   vLetras(cont2),
+    tel2:    vNumeros(tel2),
+    padrinho:vLetras(padrinho),
+    telpad:  vNumeros(telpad),
   };
-  const totalAlertas=Object.values(alertas).filter(Boolean).length;
+  const totalAlertas=Object.values(al).filter(Boolean).length;
 
   const salvarEAtivar=async()=>{
     setSalvando(true);setMsg(null);
-    const campos={
-      NOME:nome,CPF:cpf,RG:rg,NACIONALIDADE:nac,ESTADO_CIVIL:ecivil,PROFISSAO:prof,
-      TELEFONE_WPP:wpp,EMAIL:email,CEP:cep,RUA:rua,NUMERO:numero,QUADRA:quadra,
-      LOTE:lote,SETOR:setor,COMPLEMENTO:comp,CIDADE_ESTADO:cidade,
-      CONTATO_CONFIANCA_1:cont1,TEL_CONFIANCA_1:tel1,
-      CONTATO_CONFIANCA_2:cont2,TEL_CONFIANCA_2:tel2,
-      DIA_VENCIMENTO_PREFERIDO:diavenc,PADRINHO:padrinho,TEL_PADRINHO:telpad,
-      OBSERVACOES:obs,STATUS_CLIENTE:"ativo"
-    };
     try{
-      const res=await postAction({action:"atualizarCliente",idCliente:cliente.ID_CLIENTE,campos});
+      const res=await postAction({action:"atualizarCliente",idCliente:cliente.ID_CLIENTE,campos:{
+        NOME:nome,CPF:cpf,RG:rg,NACIONALIDADE:nac,ESTADO_CIVIL:ecivil,PROFISSAO:prof,
+        TELEFONE_WPP:wpp,EMAIL:email,CEP:cep,RUA:rua,NUMERO:numero,QUADRA:quadra,
+        LOTE:lote,SETOR:setor,COMPLEMENTO:comp,CIDADE_ESTADO:cidade,
+        CONTATO_CONFIANCA_1:cont1,TEL_CONFIANCA_1:tel1,
+        CONTATO_CONFIANCA_2:cont2,TEL_CONFIANCA_2:tel2,
+        DIA_VENCIMENTO_PREFERIDO:diavenc,PADRINHO:padrinho,TEL_PADRINHO:telpad,
+        OBSERVACOES:obs,STATUS_CLIENTE:"ativo"
+      }});
       if(res.ok){setMsg({ok:true,texto:"Cliente atualizado e ativado!"});setTimeout(onAtivar,1200);}
       else setMsg({ok:false,texto:res.erro||"Erro ao salvar."});
     }catch(e){setMsg({ok:false,texto:e.message});}
     setSalvando(false);
   };
 
-  // Helper para renderizar um campo de texto com alerta opcional
-  function Campo({label,value,onChange,alerta,type}){
-    return(
-      <div>
-        <span style={LS}>{label}</span>
-        <input type={type||"text"} value={value} onChange={e=>onChange(e.target.value)} style={alerta?IW:IS}/>
-        {alerta&&<span style={WS}>{alerta}</span>}
-      </div>
-    );
-  }
-
   return(
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.85)",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"16px",overflow:"hidden"}}>
       <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,width:"100%",maxWidth:640,display:"flex",flexDirection:"column",maxHeight:"calc(100vh - 32px)"}}>
 
-        {/* Cabeçalho */}
-        <div style={{padding:"20px 20px 12px",flexShrink:0}}>
+        {/* Cabeçalho fixo */}
+        <div style={{padding:"18px 20px 10px",flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div>
               <h2 style={{color:TEXT,fontSize:16,fontWeight:700,margin:0}}>Revisão de Cadastro</h2>
@@ -156,12 +157,12 @@ function RevisaoCliente({cliente,onAtivar,onFechar}){
         {/* Formulário rolável */}
         <div style={{overflowY:"auto",padding:"0 20px",flex:1}}>
 
-          <div style={SS}>Dados Pessoais</div>
+          <div style={SEC}>Dados Pessoais</div>
           <div style={{display:"grid",gap:10}}>
-            <Campo label="Nome completo" value={nome} onChange={setNome} alerta={alertas.nome}/>
+            <CampoTexto label="Nome completo (somente letras)" value={nome} onChange={setNome} alerta={al.nome}/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <Campo label="CPF (somente números)" value={cpf} onChange={setCpf} alerta={alertas.cpf}/>
-              <Campo label="RG (somente números)" value={rg} onChange={setRg} alerta={alertas.rg}/>
+              <CampoTexto label="CPF (somente números)" value={cpf} onChange={setCpf} alerta={al.cpf}/>
+              <CampoTexto label="RG (somente números)" value={rg} onChange={setRg} alerta={al.rg}/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
               <div>
@@ -173,63 +174,53 @@ function RevisaoCliente({cliente,onAtivar,onFechar}){
                 <input value={ecivil} onChange={e=>setEcivil(e.target.value)} style={IS} placeholder="Ex: Solteiro"/>
               </div>
             </div>
-            <Campo label="Profissão (somente letras)" value={prof} onChange={setProf} alerta={alertas.prof}/>
+            <CampoTexto label="Profissão (somente letras)" value={prof} onChange={setProf} alerta={al.prof}/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <Campo label="WhatsApp (somente números)" value={wpp} onChange={setWpp} alerta={alertas.wpp}/>
-              <Campo label="E-mail (letras minúsculas)" value={email} onChange={setEmail} alerta={alertas.email} type="email"/>
+              <CampoTexto label="WhatsApp (somente números)" value={wpp} onChange={setWpp} alerta={al.wpp}/>
+              <CampoTexto label="E-mail (letras minúsculas)" value={email} onChange={setEmail} alerta={al.email} type="email"/>
             </div>
           </div>
 
-          <div style={SS}>Endereço</div>
+          <div style={SEC}>Endereço</div>
           <div style={{display:"grid",gap:10}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-              <Campo label="CEP (somente números)" value={cep} onChange={setCep} alerta={alertas.cep}/>
-              <Campo label="Número (ou 'Sem Número')" value={numero} onChange={setNumero} alerta={alertas.numero}/>
-              <div>
-                <span style={LS}>Complemento</span>
-                <input value={comp} onChange={e=>setComp(e.target.value)} style={IS}/>
-              </div>
+              <CampoTexto label="CEP (somente números)" value={cep} onChange={setCep} alerta={al.cep}/>
+              <CampoTexto label="Número (ou Sem Número)" value={numero} onChange={setNumero} alerta={al.numero}/>
+              <div><span style={LS}>Complemento</span><input value={comp} onChange={e=>setComp(e.target.value)} style={IS}/></div>
             </div>
-            <div>
-              <span style={LS}>Rua / Avenida</span>
-              <input value={rua} onChange={e=>setRua(e.target.value)} style={IS}/>
-            </div>
+            <div><span style={LS}>Rua / Avenida</span><input value={rua} onChange={e=>setRua(e.target.value)} style={IS}/></div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
               <div><span style={LS}>Quadra</span><input value={quadra} onChange={e=>setQuadra(e.target.value)} style={IS}/></div>
               <div><span style={LS}>Lote</span><input value={lote} onChange={e=>setLote(e.target.value)} style={IS}/></div>
               <div><span style={LS}>Setor / Bairro</span><input value={setor} onChange={e=>setSetor(e.target.value)} style={IS}/></div>
             </div>
-            <div>
-              <span style={LS}>Cidade - Estado</span>
-              <input value={cidade} onChange={e=>setCidade(e.target.value)} style={IS}/>
-            </div>
+            <div><span style={LS}>Cidade - Estado</span><input value={cidade} onChange={e=>setCidade(e.target.value)} style={IS}/></div>
           </div>
 
-          <div style={SS}>Contatos de Confiança</div>
+          <div style={SEC}>Contatos de Confiança</div>
           <div style={{display:"grid",gap:10}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <Campo label="Contato 1 — Nome (letras)" value={cont1} onChange={setCont1} alerta={alertas.cont1}/>
-              <Campo label="Contato 1 — Telefone (números)" value={tel1} onChange={setTel1} alerta={alertas.tel1}/>
+              <CampoTexto label="Contato 1 — Nome (letras)" value={cont1} onChange={setCont1} alerta={al.cont1}/>
+              <CampoTexto label="Contato 1 — Telefone (números)" value={tel1} onChange={setTel1} alerta={al.tel1}/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <Campo label="Contato 2 — Nome (letras)" value={cont2} onChange={setCont2} alerta={alertas.cont2}/>
-              <Campo label="Contato 2 — Telefone (números)" value={tel2} onChange={setTel2} alerta={alertas.tel2}/>
+              <CampoTexto label="Contato 2 — Nome (letras)" value={cont2} onChange={setCont2} alerta={al.cont2}/>
+              <CampoTexto label="Contato 2 — Telefone (números)" value={tel2} onChange={setTel2} alerta={al.tel2}/>
             </div>
           </div>
 
-          <div style={SS}>Padrinho e Vencimento</div>
+          <div style={SEC}>Padrinho e Vencimento</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-            <Campo label="Padrinho (nome — letras)" value={padrinho} onChange={setPadrinho} alerta={alertas.padrinho}/>
-            <Campo label="Padrinho (telefone — números)" value={telpad} onChange={setTelpad} alerta={alertas.telpad}/>
+            <CampoTexto label="Padrinho — Nome (letras)" value={padrinho} onChange={setPadrinho} alerta={al.padrinho}/>
+            <CampoTexto label="Padrinho — Telefone (números)" value={telpad} onChange={setTelpad} alerta={al.telpad}/>
             <div>
-              <span style={LS}>Data 1ª parcela</span>
+              <span style={LS}>Data da 1ª parcela</span>
               <input type="date" value={diavenc} onChange={e=>setDiavenc(e.target.value)} style={IS}/>
             </div>
           </div>
 
-          <div style={SS}>Observações</div>
+          <div style={SEC}>Observações</div>
           <textarea value={obs} onChange={e=>setObs(e.target.value)} rows={2} style={{...IS,resize:"vertical"}}/>
-
           <div style={{height:8}}/>
         </div>
 
@@ -441,8 +432,7 @@ function NovoContrato({clientes,contratos,onSucesso}){
 
   useEffect(()=>{
     if(cliente&&cliente.DIA_VENCIMENTO_PREFERIDO){
-      const raw=limparData(cliente.DIA_VENCIMENTO_PREFERIDO);
-      setDtVenc(raw);
+      setDtVenc(limparData(cliente.DIA_VENCIMENTO_PREFERIDO));
     }
   },[cliente]);
 
@@ -486,14 +476,14 @@ function NovoContrato({clientes,contratos,onSucesso}){
                   onMouseLeave={e=>{e.currentTarget.style.background=c.temAtivo?"#1a0d0d":"transparent";}}>
                   <strong>{c.NOME}</strong>
                   {c.temAtivo?<span style={{color:RED,fontSize:11,marginLeft:8}}>⛔ Contrato ativo</span>
-                    :c.DIA_VENCIMENTO_PREFERIDO&&<span style={{color:MUTED,fontSize:11,marginLeft:8}}>Venc. dia {c.DIA_VENCIMENTO_PREFERIDO}</span>}
+                    :c.DIA_VENCIMENTO_PREFERIDO&&<span style={{color:MUTED,fontSize:11,marginLeft:8}}>Venc. dia {limparData(c.DIA_VENCIMENTO_PREFERIDO)}</span>}
                 </div>
               ))}
             </div>
           )}
         </div>
         {cliente&&clienteTemAtivo&&<div style={{marginTop:8,padding:"8px 12px",background:RED+"11",border:`1px solid ${RED}44`,borderRadius:6,fontSize:12,color:RED}}>⛔ Cliente com contrato ativo — quite antes de criar novo.</div>}
-        {cliente&&!clienteTemAtivo&&<div style={{marginTop:8,padding:"8px 12px",background:GREEN+"11",border:`1px solid ${GREEN}44`,borderRadius:6,fontSize:12,color:GREEN}}>✅ {cliente.NOME} selecionado{cliente.DIA_VENCIMENTO_PREFERIDO&&<span style={{color:MUTED,marginLeft:8}}>· Data da 1ª parcela preenchida</span>}</div>}
+        {cliente&&!clienteTemAtivo&&<div style={{marginTop:8,padding:"8px 12px",background:GREEN+"11",border:`1px solid ${GREEN}44`,borderRadius:6,fontSize:12,color:GREEN}}>✅ {cliente.NOME} selecionado — data da 1ª parcela preenchida automaticamente</div>}
       </div>
       <div style={card}>
         <span style={lbl}>Dados do Contrato</span>
