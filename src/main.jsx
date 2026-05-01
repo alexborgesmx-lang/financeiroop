@@ -23,106 +23,54 @@ async function postAction(body){
   return r.json();
 }
 
-// ─── HELPERS GLOBAIS (fora de qualquer componente) ────────────────
-function getAlerta(campo,form){
-  const v=String(form[campo]||"");
-  if(campo==="CPF"&&/[.\-]/.test(v))return"Remova pontos e traços";
-  if(campo==="RG"&&/[.\-]/.test(v))return"Remova pontos e traços";
-  if(campo==="TELEFONE_WPP"&&v&&/\D/.test(v))return"Somente números";
-  if(campo==="TEL_CONFIANCA_1"&&v&&/\D/.test(v))return"Somente números";
-  if(campo==="TEL_CONFIANCA_2"&&v&&/\D/.test(v))return"Somente números";
-  if(campo==="TEL_PADRINHO"&&v&&/\D/.test(v))return"Somente números";
-  if(campo==="EMAIL"&&/[A-Z]/.test(v))return"Use letras minúsculas";
-  if(campo==="CEP"&&v&&/[.\-]/.test(v))return"Remova traços";
-  return null;
-}
-
-// Componentes de campo definidos no escopo do módulo — nunca recriados
-function FInput({label,campo,type,form,onChange}){
-  const av=getAlerta(campo,form);
-  const borda=av?YEL:BORDER;
-  const cor=av?YEL:TEXT;
-  return(
-    <div>
-      <span style={{color:MUTED,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:2}}>
-        {label}{av&&<span style={{color:YEL,marginLeft:6,fontWeight:400,textTransform:"none",fontSize:10}}>⚠ {av}</span>}
-      </span>
-      <input
-        type={type||"text"}
-        value={form[campo]||""}
-        onChange={e=>onChange(campo,e.target.value)}
-        style={{width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${borda}`,borderRadius:5,color:cor,fontSize:12,boxSizing:"border-box"}}
-      />
-    </div>
-  );
-}
-
-function FSelect({label,campo,opcoes,form,onChange}){
-  return(
-    <div>
-      <span style={{color:MUTED,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:2}}>{label}</span>
-      <select
-        value={form[campo]||""}
-        onChange={e=>onChange(campo,e.target.value)}
-        style={{width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${BORDER}`,borderRadius:5,color:TEXT,fontSize:12,boxSizing:"border-box",cursor:"pointer"}}
-      >
-        <option value="">Selecione...</option>
-        {opcoes.map(o=><option key={o} value={o}>{o}</option>)}
-      </select>
-    </div>
-  );
-}
-
-function FSec({title}){
-  return(
-    <div style={{fontSize:10,fontWeight:700,color:BLUE,textTransform:"uppercase",letterSpacing:"0.08em",margin:"16px 0 8px",borderBottom:`1px solid ${BORDER}`,paddingBottom:4}}>
-      {title}
-    </div>
-  );
-}
+// Estilos reutilizáveis para o formulário de revisão
+const IS={width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${BORDER}`,borderRadius:5,color:TEXT,fontSize:12,boxSizing:"border-box"};
+const IW={width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${YEL}`,borderRadius:5,color:YEL,fontSize:12,boxSizing:"border-box"};
+const LS={color:MUTED,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:2};
+const SS={fontSize:10,fontWeight:700,color:BLUE,textTransform:"uppercase",letterSpacing:"0.08em",margin:"16px 0 8px",borderBottom:`1px solid ${BORDER}`,paddingBottom:4};
 
 // ── REVISÃO DE CLIENTE ────────────────────────────────────────────
 function RevisaoCliente({cliente,onAtivar,onFechar}){
-  const [form,setForm]=useState({
-    NOME:                    String(cliente.NOME||""),
-    CPF:                     String(cliente.CPF||""),
-    RG:                      String(cliente.RG||""),
-    NACIONALIDADE:           String(cliente.NACIONALIDADE||""),
-    ESTADO_CIVIL:            String(cliente.ESTADO_CIVIL||""),
-    PROFISSAO:               String(cliente.PROFISSAO||""),
-    TELEFONE_WPP:            String(cliente.TELEFONE_WPP||""),
-    EMAIL:                   String(cliente.EMAIL||""),
-    CEP:                     String(cliente.CEP||""),
-    RUA:                     String(cliente.RUA||""),
-    NUMERO:                  String(cliente.NUMERO||""),
-    QUADRA:                  String(cliente.QUADRA||""),
-    LOTE:                    String(cliente.LOTE||""),
-    SETOR:                   String(cliente.SETOR||""),
-    COMPLEMENTO:             String(cliente.COMPLEMENTO||""),
-    CIDADE_ESTADO:           String(cliente.CIDADE_ESTADO||""),
-    CONTATO_CONFIANCA_1:     String(cliente.CONTATO_CONFIANCA_1||""),
-    TEL_CONFIANCA_1:         String(cliente.TEL_CONFIANCA_1||""),
-    CONTATO_CONFIANCA_2:     String(cliente.CONTATO_CONFIANCA_2||""),
-    TEL_CONFIANCA_2:         String(cliente.TEL_CONFIANCA_2||""),
-    DIA_VENCIMENTO_PREFERIDO:String(cliente.DIA_VENCIMENTO_PREFERIDO||""),
-    PADRINHO:                String(cliente.PADRINHO||""),
-    TEL_PADRINHO:            String(cliente.TEL_PADRINHO||""),
-    OBSERVACOES:             String(cliente.OBSERVACOES||""),
-  });
+  const [nome,setNome]=useState(String(cliente.NOME||""));
+  const [cpf,setCpf]=useState(String(cliente.CPF||""));
+  const [rg,setRg]=useState(String(cliente.RG||""));
+  const [nac,setNac]=useState(String(cliente.NACIONALIDADE||""));
+  const [ecivil,setEcivil]=useState(String(cliente.ESTADO_CIVIL||""));
+  const [prof,setProf]=useState(String(cliente.PROFISSAO||""));
+  const [wpp,setWpp]=useState(String(cliente.TELEFONE_WPP||""));
+  const [email,setEmail]=useState(String(cliente.EMAIL||""));
+  const [cep,setCep]=useState(String(cliente.CEP||""));
+  const [rua,setRua]=useState(String(cliente.RUA||""));
+  const [numero,setNumero]=useState(String(cliente.NUMERO||""));
+  const [quadra,setQuadra]=useState(String(cliente.QUADRA||""));
+  const [lote,setLote]=useState(String(cliente.LOTE||""));
+  const [setor,setSetor]=useState(String(cliente.SETOR||""));
+  const [comp,setComp]=useState(String(cliente.COMPLEMENTO||""));
+  const [cidade,setCidade]=useState(String(cliente.CIDADE_ESTADO||""));
+  const [cont1,setCont1]=useState(String(cliente.CONTATO_CONFIANCA_1||""));
+  const [tel1,setTel1]=useState(String(cliente.TEL_CONFIANCA_1||""));
+  const [cont2,setCont2]=useState(String(cliente.CONTATO_CONFIANCA_2||""));
+  const [tel2,setTel2]=useState(String(cliente.TEL_CONFIANCA_2||""));
+  const [diavenc,setDiavenc]=useState(String(cliente.DIA_VENCIMENTO_PREFERIDO||""));
+  const [padrinho,setPadrinho]=useState(String(cliente.PADRINHO||""));
+  const [telpad,setTelpad]=useState(String(cliente.TEL_PADRINHO||""));
+  const [obs,setObs]=useState(String(cliente.OBSERVACOES||""));
   const [salvando,setSalvando]=useState(false);
   const [msg,setMsg]=useState(null);
 
-  // updForm é estável — não recria componentes filhos
-  const updForm=React.useCallback((campo,valor)=>{
-    setForm(prev=>({...prev,[campo]:valor}));
-  },[]);
-
-  const totalAlertas=Object.keys(form).filter(k=>getAlerta(k,form)).length;
-
   const salvarEAtivar=async()=>{
     setSalvando(true);setMsg(null);
+    const campos={
+      NOME:nome,CPF:cpf,RG:rg,NACIONALIDADE:nac,ESTADO_CIVIL:ecivil,PROFISSAO:prof,
+      TELEFONE_WPP:wpp,EMAIL:email,CEP:cep,RUA:rua,NUMERO:numero,QUADRA:quadra,
+      LOTE:lote,SETOR:setor,COMPLEMENTO:comp,CIDADE_ESTADO:cidade,
+      CONTATO_CONFIANCA_1:cont1,TEL_CONFIANCA_1:tel1,
+      CONTATO_CONFIANCA_2:cont2,TEL_CONFIANCA_2:tel2,
+      DIA_VENCIMENTO_PREFERIDO:diavenc,PADRINHO:padrinho,TEL_PADRINHO:telpad,
+      OBSERVACOES:obs,STATUS_CLIENTE:"ativo"
+    };
     try{
-      const res=await postAction({action:"atualizarCliente",idCliente:cliente.ID_CLIENTE,campos:{...form,STATUS_CLIENTE:"ativo"}});
+      const res=await postAction({action:"atualizarCliente",idCliente:cliente.ID_CLIENTE,campos});
       if(res.ok){setMsg({ok:true,texto:"Cliente atualizado e ativado!"});setTimeout(onAtivar,1200);}
       else setMsg({ok:false,texto:res.erro||"Erro ao salvar."});
     }catch(e){setMsg({ok:false,texto:e.message});}
@@ -130,89 +78,95 @@ function RevisaoCliente({cliente,onAtivar,onFechar}){
   };
 
   return(
-    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.85)",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:16,overflowY:"auto"}}>
-      <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,width:"100%",maxWidth:640,padding:20,marginTop:16,marginBottom:16}}>
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.85)",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"16px",overflow:"hidden"}}>
+      <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,width:"100%",maxWidth:640,display:"flex",flexDirection:"column",maxHeight:"calc(100vh - 32px)",marginTop:0}}>
 
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-          <div>
-            <h2 style={{color:TEXT,fontSize:16,fontWeight:700,margin:0}}>Revisão de Cadastro</h2>
-            <p style={{color:MUTED,fontSize:11,margin:"2px 0 0"}}>ID {cliente.ID_CLIENTE} — edite e corrija os campos antes de ativar</p>
+        {/* Cabeçalho fixo */}
+        <div style={{padding:"20px 20px 0",flexShrink:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div>
+              <h2 style={{color:TEXT,fontSize:16,fontWeight:700,margin:0}}>Revisão de Cadastro</h2>
+              <p style={{color:MUTED,fontSize:11,margin:"2px 0 0"}}>ID {cliente.ID_CLIENTE} — edite e corrija os campos antes de ativar</p>
+            </div>
+            <button onClick={onFechar} style={{background:"transparent",border:"none",color:MUTED,fontSize:22,cursor:"pointer",lineHeight:1,flexShrink:0}}>✕</button>
           </div>
-          <button onClick={onFechar} style={{background:"transparent",border:"none",color:MUTED,fontSize:22,cursor:"pointer",lineHeight:1}}>✕</button>
         </div>
 
-        {totalAlertas>0&&(
-          <div style={{background:YEL+"11",border:`1px solid ${YEL}44`,borderRadius:6,padding:"8px 12px",margin:"12px 0"}}>
-            <p style={{color:YEL,fontWeight:700,fontSize:11,margin:0}}>⚠️ {totalAlertas} campo(s) com possível erro — corrija antes de ativar</p>
-          </div>
-        )}
+        {/* Formulário rolável */}
+        <div style={{overflowY:"auto",padding:"0 20px",flex:1}}>
 
-        <div style={{maxHeight:"62vh",overflowY:"auto",paddingRight:4}}>
-
-          <FSec title="Dados Pessoais"/>
+          <div style={SS}>Dados Pessoais</div>
           <div style={{display:"grid",gap:8}}>
-            <FInput label="Nome completo" campo="NOME" form={form} onChange={updForm}/>
+            <div><span style={LS}>Nome completo</span><input value={nome} onChange={e=>setNome(e.target.value)} style={IS}/></div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <FInput label="CPF" campo="CPF" form={form} onChange={updForm}/>
-              <FInput label="RG" campo="RG" form={form} onChange={updForm}/>
+              <div><span style={LS}>CPF{/[.\-]/.test(cpf)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Remova pontos e traços</span>}</span><input value={cpf} onChange={e=>setCpf(e.target.value)} style={/[.\-]/.test(cpf)?IW:IS}/></div>
+              <div><span style={LS}>RG{/[.\-]/.test(rg)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Remova pontos e traços</span>}</span><input value={rg} onChange={e=>setRg(e.target.value)} style={/[.\-]/.test(rg)?IW:IS}/></div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <FSelect label="Nacionalidade" campo="NACIONALIDADE" opcoes={["Brasileiro","Estrangeiro"]} form={form} onChange={updForm}/>
-              <FSelect label="Estado civil" campo="ESTADO_CIVIL" opcoes={["Solteiro","Casado","Divorciado","Viúvo","União Estável"]} form={form} onChange={updForm}/>
+              <div><span style={LS}>Nacionalidade</span>
+                <select value={nac} onChange={e=>setNac(e.target.value)} style={{...IS,cursor:"pointer"}}>
+                  <option value="">Selecione...</option>
+                  <option>Brasileiro</option><option>Estrangeiro</option>
+                </select>
+              </div>
+              <div><span style={LS}>Estado civil</span>
+                <select value={ecivil} onChange={e=>setEcivil(e.target.value)} style={{...IS,cursor:"pointer"}}>
+                  <option value="">Selecione...</option>
+                  <option>Solteiro</option><option>Casado</option><option>Divorciado</option><option>Viúvo</option><option>União Estável</option>
+                </select>
+              </div>
             </div>
-            <FInput label="Profissão" campo="PROFISSAO" form={form} onChange={updForm}/>
+            <div><span style={LS}>Profissão</span><input value={prof} onChange={e=>setProf(e.target.value)} style={IS}/></div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <FInput label="WhatsApp (somente números)" campo="TELEFONE_WPP" form={form} onChange={updForm}/>
-              <FInput label="E-mail" campo="EMAIL" type="email" form={form} onChange={updForm}/>
+              <div><span style={LS}>WhatsApp{wpp&&/\D/.test(wpp)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Somente números</span>}</span><input value={wpp} onChange={e=>setWpp(e.target.value)} style={wpp&&/\D/.test(wpp)?IW:IS}/></div>
+              <div><span style={LS}>E-mail{/[A-Z]/.test(email)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Use minúsculas</span>}</span><input type="email" value={email} onChange={e=>setEmail(e.target.value)} style={/[A-Z]/.test(email)?IW:IS}/></div>
             </div>
           </div>
 
-          <FSec title="Endereço"/>
+          <div style={SS}>Endereço</div>
           <div style={{display:"grid",gap:8}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-              <FInput label="CEP" campo="CEP" form={form} onChange={updForm}/>
-              <FInput label="Número" campo="NUMERO" form={form} onChange={updForm}/>
-              <FInput label="Complemento" campo="COMPLEMENTO" form={form} onChange={updForm}/>
+              <div><span style={LS}>CEP{cep&&/[.\-]/.test(cep)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Remova traços</span>}</span><input value={cep} onChange={e=>setCep(e.target.value)} style={cep&&/[.\-]/.test(cep)?IW:IS}/></div>
+              <div><span style={LS}>Número</span><input value={numero} onChange={e=>setNumero(e.target.value)} style={IS}/></div>
+              <div><span style={LS}>Complemento</span><input value={comp} onChange={e=>setComp(e.target.value)} style={IS}/></div>
             </div>
-            <FInput label="Rua / Avenida" campo="RUA" form={form} onChange={updForm}/>
+            <div><span style={LS}>Rua / Avenida</span><input value={rua} onChange={e=>setRua(e.target.value)} style={IS}/></div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-              <FInput label="Quadra" campo="QUADRA" form={form} onChange={updForm}/>
-              <FInput label="Lote" campo="LOTE" form={form} onChange={updForm}/>
-              <FInput label="Setor / Bairro" campo="SETOR" form={form} onChange={updForm}/>
+              <div><span style={LS}>Quadra</span><input value={quadra} onChange={e=>setQuadra(e.target.value)} style={IS}/></div>
+              <div><span style={LS}>Lote</span><input value={lote} onChange={e=>setLote(e.target.value)} style={IS}/></div>
+              <div><span style={LS}>Setor / Bairro</span><input value={setor} onChange={e=>setSetor(e.target.value)} style={IS}/></div>
             </div>
-            <FInput label="Cidade - Estado" campo="CIDADE_ESTADO" form={form} onChange={updForm}/>
+            <div><span style={LS}>Cidade - Estado</span><input value={cidade} onChange={e=>setCidade(e.target.value)} style={IS}/></div>
           </div>
 
-          <FSec title="Contatos de Confiança"/>
+          <div style={SS}>Contatos de Confiança</div>
           <div style={{display:"grid",gap:8}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <FInput label="Contato 1 — Nome" campo="CONTATO_CONFIANCA_1" form={form} onChange={updForm}/>
-              <FInput label="Contato 1 — Telefone" campo="TEL_CONFIANCA_1" form={form} onChange={updForm}/>
+              <div><span style={LS}>Contato 1 — Nome</span><input value={cont1} onChange={e=>setCont1(e.target.value)} style={IS}/></div>
+              <div><span style={LS}>Contato 1 — Telefone{tel1&&/\D/.test(tel1)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Somente números</span>}</span><input value={tel1} onChange={e=>setTel1(e.target.value)} style={tel1&&/\D/.test(tel1)?IW:IS}/></div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <FInput label="Contato 2 — Nome" campo="CONTATO_CONFIANCA_2" form={form} onChange={updForm}/>
-              <FInput label="Contato 2 — Telefone" campo="TEL_CONFIANCA_2" form={form} onChange={updForm}/>
+              <div><span style={LS}>Contato 2 — Nome</span><input value={cont2} onChange={e=>setCont2(e.target.value)} style={IS}/></div>
+              <div><span style={LS}>Contato 2 — Telefone{tel2&&/\D/.test(tel2)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Somente números</span>}</span><input value={tel2} onChange={e=>setTel2(e.target.value)} style={tel2&&/\D/.test(tel2)?IW:IS}/></div>
             </div>
           </div>
 
-          <FSec title="Padrinho e Vencimento"/>
+          <div style={SS}>Padrinho e Vencimento</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-            <FInput label="Padrinho (nome)" campo="PADRINHO" form={form} onChange={updForm}/>
-            <FInput label="Padrinho (telefone)" campo="TEL_PADRINHO" form={form} onChange={updForm}/>
-            <FInput label="Dia vencimento preferido" campo="DIA_VENCIMENTO_PREFERIDO" form={form} onChange={updForm}/>
+            <div><span style={LS}>Padrinho (nome)</span><input value={padrinho} onChange={e=>setPadrinho(e.target.value)} style={IS}/></div>
+            <div><span style={LS}>Padrinho (telefone){telpad&&/\D/.test(telpad)&&<span style={{color:YEL,marginLeft:6,fontSize:10,fontWeight:400,textTransform:"none"}}>⚠ Somente números</span>}</span><input value={telpad} onChange={e=>setTelpad(e.target.value)} style={telpad&&/\D/.test(telpad)?IW:IS}/></div>
+            <div><span style={LS}>Dia vencimento</span><input value={diavenc} onChange={e=>setDiavenc(e.target.value)} style={IS}/></div>
           </div>
 
-          <FSec title="Observações"/>
-          <textarea
-            value={form.OBSERVACOES}
-            onChange={e=>updForm("OBSERVACOES",e.target.value)}
-            rows={2}
-            style={{width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${BORDER}`,borderRadius:5,color:TEXT,fontSize:12,boxSizing:"border-box",resize:"vertical"}}
-          />
+          <div style={SS}>Observações</div>
+          <textarea value={obs} onChange={e=>setObs(e.target.value)} rows={2} style={{...IS,resize:"vertical"}}/>
+
+          <div style={{height:8}}/>
         </div>
 
-        <div style={{marginTop:14,display:"grid",gap:8}}>
-          {msg&&<div style={{padding:"10px 14px",borderRadius:6,background:msg.ok?GREEN+"22":RED+"22",border:`1px solid ${msg.ok?GREEN:RED}`,color:msg.ok?GREEN:RED,fontSize:13,fontWeight:600}}>{msg.ok?"✅ ":"❌ "}{msg.texto}</div>}
+        {/* Botões fixos no fundo */}
+        <div style={{padding:"12px 20px 20px",flexShrink:0,borderTop:`1px solid ${BORDER}`}}>
+          {msg&&<div style={{padding:"10px 14px",borderRadius:6,background:msg.ok?GREEN+"22":RED+"22",border:`1px solid ${msg.ok?GREEN:RED}`,color:msg.ok?GREEN:RED,fontSize:13,fontWeight:600,marginBottom:10}}>{msg.ok?"✅ ":"❌ "}{msg.texto}</div>}
           <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:8}}>
             <button onClick={onFechar} style={{padding:12,borderRadius:6,border:`1px solid ${BORDER}`,background:"transparent",color:MUTED,fontWeight:600,fontSize:13,cursor:"pointer"}}>Cancelar</button>
             <button onClick={salvarEAtivar} disabled={salvando} style={{padding:12,borderRadius:6,border:"none",background:salvando?BORDER:GREEN,color:"#000",fontWeight:700,fontSize:13,cursor:salvando?"not-allowed":"pointer",opacity:salvando?0.7:1}}>
@@ -427,7 +381,7 @@ function NovoContrato({clientes,contratos,onSucesso}){
 
   const confirmar=async()=>{
     if(!cliente||!principal||!parcelas||!taxa||!dtEmp||!dtVenc){setMsg({ok:false,texto:"Preencha todos os campos."});return;}
-    if(clienteTemAtivo){setMsg({ok:false,texto:"Este cliente já possui contrato ativo. Quite antes de criar um novo."});return;}
+    if(clienteTemAtivo){setMsg({ok:false,texto:"Este cliente já possui contrato ativo."});return;}
     setLoading(true);setMsg(null);
     try{
       const res=await postAction({action:"novoContrato",dados:{id:proximoId,idCliente:cliente.ID_CLIENTE,nomeCliente:cliente.NOME,principal:parseFloat(principal),parcelas:parseInt(parcelas),taxa:parseFloat(taxa),dataEmprestimo:dtEmp,dataVencimento:dtVenc}});
