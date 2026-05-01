@@ -23,11 +23,9 @@ async function postAction(body){
   return r.json();
 }
 
-// ── HELPERS DO FORMULÁRIO DE REVISÃO ─────────────────────────────
-// ATENÇÃO: definidos FORA do RevisaoCliente para evitar remontagem a cada keystroke
-
-function alertaCampo(campo,form){
-  const v=form[campo]||"";
+// ─── HELPERS GLOBAIS (fora de qualquer componente) ────────────────
+function getAlerta(campo,form){
+  const v=String(form[campo]||"");
   if(campo==="CPF"&&/[.\-]/.test(v))return"Remova pontos e traços";
   if(campo==="RG"&&/[.\-]/.test(v))return"Remova pontos e traços";
   if(campo==="TELEFONE_WPP"&&v&&/\D/.test(v))return"Somente números";
@@ -39,27 +37,35 @@ function alertaCampo(campo,form){
   return null;
 }
 
-const lblStyle={color:MUTED,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:1};
-
-function inpStyle(temAlerta){
-  return{width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${temAlerta?YEL:BORDER}`,borderRadius:5,color:temAlerta?YEL:TEXT,fontSize:12,boxSizing:"border-box",marginTop:2};
-}
-
-function CampoInput({label,campo,type,form,onChange}){
-  const av=alertaCampo(campo,form);
+// Componentes de campo definidos no escopo do módulo — nunca recriados
+function FInput({label,campo,type,form,onChange}){
+  const av=getAlerta(campo,form);
+  const borda=av?YEL:BORDER;
+  const cor=av?YEL:TEXT;
   return(
     <div>
-      <span style={lblStyle}>{label}{av&&<span style={{color:YEL,marginLeft:6,fontWeight:400,textTransform:"none",fontSize:10}}>⚠ {av}</span>}</span>
-      <input type={type||"text"} value={form[campo]||""} onChange={e=>onChange(campo,e.target.value)} style={inpStyle(!!av)}/>
+      <span style={{color:MUTED,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:2}}>
+        {label}{av&&<span style={{color:YEL,marginLeft:6,fontWeight:400,textTransform:"none",fontSize:10}}>⚠ {av}</span>}
+      </span>
+      <input
+        type={type||"text"}
+        value={form[campo]||""}
+        onChange={e=>onChange(campo,e.target.value)}
+        style={{width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${borda}`,borderRadius:5,color:cor,fontSize:12,boxSizing:"border-box"}}
+      />
     </div>
   );
 }
 
-function CampoSelect({label,campo,opcoes,form,onChange}){
+function FSelect({label,campo,opcoes,form,onChange}){
   return(
     <div>
-      <span style={lblStyle}>{label}</span>
-      <select value={form[campo]||""} onChange={e=>onChange(campo,e.target.value)} style={{...inpStyle(false),cursor:"pointer"}}>
+      <span style={{color:MUTED,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:2}}>{label}</span>
+      <select
+        value={form[campo]||""}
+        onChange={e=>onChange(campo,e.target.value)}
+        style={{width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${BORDER}`,borderRadius:5,color:TEXT,fontSize:12,boxSizing:"border-box",cursor:"pointer"}}
+      >
         <option value="">Selecione...</option>
         {opcoes.map(o=><option key={o} value={o}>{o}</option>)}
       </select>
@@ -67,7 +73,7 @@ function CampoSelect({label,campo,opcoes,form,onChange}){
   );
 }
 
-function SecTitle({title}){
+function FSec({title}){
   return(
     <div style={{fontSize:10,fontWeight:700,color:BLUE,textTransform:"uppercase",letterSpacing:"0.08em",margin:"16px 0 8px",borderBottom:`1px solid ${BORDER}`,paddingBottom:4}}>
       {title}
@@ -78,37 +84,40 @@ function SecTitle({title}){
 // ── REVISÃO DE CLIENTE ────────────────────────────────────────────
 function RevisaoCliente({cliente,onAtivar,onFechar}){
   const [form,setForm]=useState({
-    NOME:                    cliente.NOME||"",
-    CPF:                     cliente.CPF||"",
-    RG:                      cliente.RG||"",
-    NACIONALIDADE:           cliente.NACIONALIDADE||"",
-    ESTADO_CIVIL:            cliente.ESTADO_CIVIL||"",
-    PROFISSAO:               cliente.PROFISSAO||"",
-    TELEFONE_WPP:            cliente.TELEFONE_WPP||"",
-    EMAIL:                   cliente.EMAIL||"",
-    CEP:                     cliente.CEP||"",
-    RUA:                     cliente.RUA||"",
-    NUMERO:                  cliente.NUMERO||"",
-    QUADRA:                  cliente.QUADRA||"",
-    LOTE:                    cliente.LOTE||"",
-    SETOR:                   cliente.SETOR||"",
-    COMPLEMENTO:             cliente.COMPLEMENTO||"",
-    CIDADE_ESTADO:           cliente.CIDADE_ESTADO||"",
-    CONTATO_CONFIANCA_1:     cliente.CONTATO_CONFIANCA_1||"",
-    TEL_CONFIANCA_1:         cliente.TEL_CONFIANCA_1||"",
-    CONTATO_CONFIANCA_2:     cliente.CONTATO_CONFIANCA_2||"",
-    TEL_CONFIANCA_2:         cliente.TEL_CONFIANCA_2||"",
-    DIA_VENCIMENTO_PREFERIDO:cliente.DIA_VENCIMENTO_PREFERIDO||"",
-    PADRINHO:                cliente.PADRINHO||"",
-    TEL_PADRINHO:            cliente.TEL_PADRINHO||"",
-    OBSERVACOES:             cliente.OBSERVACOES||"",
+    NOME:                    String(cliente.NOME||""),
+    CPF:                     String(cliente.CPF||""),
+    RG:                      String(cliente.RG||""),
+    NACIONALIDADE:           String(cliente.NACIONALIDADE||""),
+    ESTADO_CIVIL:            String(cliente.ESTADO_CIVIL||""),
+    PROFISSAO:               String(cliente.PROFISSAO||""),
+    TELEFONE_WPP:            String(cliente.TELEFONE_WPP||""),
+    EMAIL:                   String(cliente.EMAIL||""),
+    CEP:                     String(cliente.CEP||""),
+    RUA:                     String(cliente.RUA||""),
+    NUMERO:                  String(cliente.NUMERO||""),
+    QUADRA:                  String(cliente.QUADRA||""),
+    LOTE:                    String(cliente.LOTE||""),
+    SETOR:                   String(cliente.SETOR||""),
+    COMPLEMENTO:             String(cliente.COMPLEMENTO||""),
+    CIDADE_ESTADO:           String(cliente.CIDADE_ESTADO||""),
+    CONTATO_CONFIANCA_1:     String(cliente.CONTATO_CONFIANCA_1||""),
+    TEL_CONFIANCA_1:         String(cliente.TEL_CONFIANCA_1||""),
+    CONTATO_CONFIANCA_2:     String(cliente.CONTATO_CONFIANCA_2||""),
+    TEL_CONFIANCA_2:         String(cliente.TEL_CONFIANCA_2||""),
+    DIA_VENCIMENTO_PREFERIDO:String(cliente.DIA_VENCIMENTO_PREFERIDO||""),
+    PADRINHO:                String(cliente.PADRINHO||""),
+    TEL_PADRINHO:            String(cliente.TEL_PADRINHO||""),
+    OBSERVACOES:             String(cliente.OBSERVACOES||""),
   });
   const [salvando,setSalvando]=useState(false);
   const [msg,setMsg]=useState(null);
 
-  function upd(campo,valor){setForm(prev=>({...prev,[campo]:valor}));}
+  // updForm é estável — não recria componentes filhos
+  const updForm=React.useCallback((campo,valor)=>{
+    setForm(prev=>({...prev,[campo]:valor}));
+  },[]);
 
-  const totalAlertas=Object.keys(form).filter(k=>alertaCampo(k,form)).length;
+  const totalAlertas=Object.keys(form).filter(k=>getAlerta(k,form)).length;
 
   const salvarEAtivar=async()=>{
     setSalvando(true);setMsg(null);
@@ -119,10 +128,6 @@ function RevisaoCliente({cliente,onAtivar,onFechar}){
     }catch(e){setMsg({ok:false,texto:e.message});}
     setSalvando(false);
   };
-
-  // Atalhos com form e onChange já injetados
-  const C=(props)=><CampoInput {...props} form={form} onChange={upd}/>;
-  const S=(props)=><CampoSelect {...props} form={form} onChange={upd}/>;
 
   return(
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.85)",zIndex:200,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:16,overflowY:"auto"}}>
@@ -143,62 +148,67 @@ function RevisaoCliente({cliente,onAtivar,onFechar}){
         )}
 
         <div style={{maxHeight:"62vh",overflowY:"auto",paddingRight:4}}>
-          <SecTitle title="Dados Pessoais"/>
+
+          <FSec title="Dados Pessoais"/>
           <div style={{display:"grid",gap:8}}>
-            <C label="Nome completo" campo="NOME"/>
+            <FInput label="Nome completo" campo="NOME" form={form} onChange={updForm}/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <C label="CPF" campo="CPF"/>
-              <C label="RG" campo="RG"/>
+              <FInput label="CPF" campo="CPF" form={form} onChange={updForm}/>
+              <FInput label="RG" campo="RG" form={form} onChange={updForm}/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <S label="Nacionalidade" campo="NACIONALIDADE" opcoes={["Brasileiro","Estrangeiro"]}/>
-              <S label="Estado civil" campo="ESTADO_CIVIL" opcoes={["Solteiro","Casado","Divorciado","Viúvo","União Estável"]}/>
+              <FSelect label="Nacionalidade" campo="NACIONALIDADE" opcoes={["Brasileiro","Estrangeiro"]} form={form} onChange={updForm}/>
+              <FSelect label="Estado civil" campo="ESTADO_CIVIL" opcoes={["Solteiro","Casado","Divorciado","Viúvo","União Estável"]} form={form} onChange={updForm}/>
             </div>
-            <C label="Profissão" campo="PROFISSAO"/>
+            <FInput label="Profissão" campo="PROFISSAO" form={form} onChange={updForm}/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <C label="WhatsApp (somente números)" campo="TELEFONE_WPP"/>
-              <C label="E-mail" campo="EMAIL" type="email"/>
+              <FInput label="WhatsApp (somente números)" campo="TELEFONE_WPP" form={form} onChange={updForm}/>
+              <FInput label="E-mail" campo="EMAIL" type="email" form={form} onChange={updForm}/>
             </div>
           </div>
 
-          <SecTitle title="Endereço"/>
+          <FSec title="Endereço"/>
           <div style={{display:"grid",gap:8}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-              <C label="CEP" campo="CEP"/>
-              <C label="Número" campo="NUMERO"/>
-              <C label="Complemento" campo="COMPLEMENTO"/>
+              <FInput label="CEP" campo="CEP" form={form} onChange={updForm}/>
+              <FInput label="Número" campo="NUMERO" form={form} onChange={updForm}/>
+              <FInput label="Complemento" campo="COMPLEMENTO" form={form} onChange={updForm}/>
             </div>
-            <C label="Rua / Avenida" campo="RUA"/>
+            <FInput label="Rua / Avenida" campo="RUA" form={form} onChange={updForm}/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-              <C label="Quadra" campo="QUADRA"/>
-              <C label="Lote" campo="LOTE"/>
-              <C label="Setor / Bairro" campo="SETOR"/>
+              <FInput label="Quadra" campo="QUADRA" form={form} onChange={updForm}/>
+              <FInput label="Lote" campo="LOTE" form={form} onChange={updForm}/>
+              <FInput label="Setor / Bairro" campo="SETOR" form={form} onChange={updForm}/>
             </div>
-            <C label="Cidade - Estado" campo="CIDADE_ESTADO"/>
+            <FInput label="Cidade - Estado" campo="CIDADE_ESTADO" form={form} onChange={updForm}/>
           </div>
 
-          <SecTitle title="Contatos de Confiança"/>
+          <FSec title="Contatos de Confiança"/>
           <div style={{display:"grid",gap:8}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <C label="Contato 1 — Nome" campo="CONTATO_CONFIANCA_1"/>
-              <C label="Contato 1 — Telefone" campo="TEL_CONFIANCA_1"/>
+              <FInput label="Contato 1 — Nome" campo="CONTATO_CONFIANCA_1" form={form} onChange={updForm}/>
+              <FInput label="Contato 1 — Telefone" campo="TEL_CONFIANCA_1" form={form} onChange={updForm}/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <C label="Contato 2 — Nome" campo="CONTATO_CONFIANCA_2"/>
-              <C label="Contato 2 — Telefone" campo="TEL_CONFIANCA_2"/>
+              <FInput label="Contato 2 — Nome" campo="CONTATO_CONFIANCA_2" form={form} onChange={updForm}/>
+              <FInput label="Contato 2 — Telefone" campo="TEL_CONFIANCA_2" form={form} onChange={updForm}/>
             </div>
           </div>
 
-          <SecTitle title="Padrinho e Vencimento"/>
+          <FSec title="Padrinho e Vencimento"/>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-            <C label="Padrinho (nome)" campo="PADRINHO"/>
-            <C label="Padrinho (telefone)" campo="TEL_PADRINHO"/>
-            <C label="Dia vencimento preferido" campo="DIA_VENCIMENTO_PREFERIDO"/>
+            <FInput label="Padrinho (nome)" campo="PADRINHO" form={form} onChange={updForm}/>
+            <FInput label="Padrinho (telefone)" campo="TEL_PADRINHO" form={form} onChange={updForm}/>
+            <FInput label="Dia vencimento preferido" campo="DIA_VENCIMENTO_PREFERIDO" form={form} onChange={updForm}/>
           </div>
 
-          <SecTitle title="Observações"/>
-          <textarea value={form.OBSERVACOES} onChange={e=>upd("OBSERVACOES",e.target.value)} rows={2}
-            style={{...inpStyle(false),resize:"vertical",width:"100%"}}/>
+          <FSec title="Observações"/>
+          <textarea
+            value={form.OBSERVACOES}
+            onChange={e=>updForm("OBSERVACOES",e.target.value)}
+            rows={2}
+            style={{width:"100%",padding:"8px 10px",background:"#21262d",border:`1px solid ${BORDER}`,borderRadius:5,color:TEXT,fontSize:12,boxSizing:"border-box",resize:"vertical"}}
+          />
         </div>
 
         <div style={{marginTop:14,display:"grid",gap:8}}>
@@ -210,6 +220,7 @@ function RevisaoCliente({cliente,onAtivar,onFechar}){
             </button>
           </div>
         </div>
+
       </div>
     </div>
   );
