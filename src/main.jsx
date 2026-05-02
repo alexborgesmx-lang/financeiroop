@@ -359,8 +359,9 @@ function App(){
     const receitaMes=pagamentos.filter(p=>p.DATA_PAGAMENTO&&p.DATA_PAGAMENTO.toISOString().slice(0,7)===mesAtual).reduce((s,p)=>s+p.VALOR_PAGO,0);
     const receitaAnt=pagamentos.filter(p=>p.DATA_PAGAMENTO&&p.DATA_PAGAMENTO.toISOString().slice(0,7)===mesAnt).reduce((s,p)=>s+p.VALOR_PAGO,0);
     // Receita extra por atraso (total acumulado e no mês)
-    const receitaExtraTotal=pagamentos.reduce((s,p)=>s+p.RECEITA_EXTRA_ATRASO,0);
-    const receitaExtraMes=pagamentos.filter(p=>p.DATA_PAGAMENTO&&p.DATA_PAGAMENTO.toISOString().slice(0,7)===mesAtual).reduce((s,p)=>s+p.RECEITA_EXTRA_ATRASO,0);
+    // Receita extra lida de PARCELAS.DIFERENCA_PAGA — fonte mais confiável
+    const receitaExtraTotal=parcelas.filter(p=>p.STATUS==="pago").reduce((s,p)=>s+(p.DIFERENCA_PAGA||0),0);
+    const receitaExtraMes=parcelas.filter(p=>p.STATUS==="pago"&&p.DATA_PAGAMENTO&&p.DATA_PAGAMENTO.toISOString().slice(0,7)===mesAtual).reduce((s,p)=>s+(p.DIFERENCA_PAGA||0),0);
     // Parcelas prorrogadas (geradas por pagamento de juros)
     const parcelasProrrogadas=parcelas.filter(p=>p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros");
     const totalProrrogado=parcelasProrrogadas.reduce((s,p)=>s+p.VALOR_PARCELA,0);
