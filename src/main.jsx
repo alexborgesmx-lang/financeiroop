@@ -479,6 +479,7 @@ function App(){
   const [filtroStatus,setFiltroStatus]=useState("todos");const [filtroBusca,setFiltroBusca]=useState("");
   const [filtroPerdas,setFiltroPerdas]=useState("todos");
   const [busca,setBusca]=useState("");
+  const [periodo,setPeriodo]=useState("tudo");
 
   const carregar=()=>{setLoading(true);setErro(null);fetch(API_URL).then(r=>r.json()).then(d=>{if(d.erro)throw new Error(d.erro);setRaw(d);setLoading(false);}).catch(e=>{setErro(e.message);setLoading(false);});};
   useEffect(()=>{carregar();},[]);
@@ -527,20 +528,53 @@ function App(){
     const hoje=new Date();hoje.setHours(0,0,0,0);
     const mesAtual=hoje.toISOString().slice(0,7);
 
-    // Contratos saudáveis (excluídos da carteira normal se baixados)
-    const contratosAtivos=contratos.filter(c=>!["baixado_como_prejuizo","encerrado_sem_recuperacao"].includes(String(c.STATUS_CONTRATO||"").toLowerCase()));
+    // ── Status ativos reais (exclui quitado, cancelado, baixado, encerrado)
+    const ST_ATIVOS=["ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente"];
+    const contratosAtivos=contratos.filter(c=>ST_ATIVOS.includes(String(c.STATUS_CONTRATO||"").toLowerCase()));
+    const idsAtivos=new Set(contratosAtivos.map(c=>String(c.ID_CONTRATO)));
 
-    const totalEmprestado=contratosAtivos.reduce((s,c)=>s+c.VALOR_PRINCIPAL,0);
-    const totalAtrasado=parcelas.filter(p=>p.STATUS==="atrasado").reduce((s,p)=>s+p.VALOR_PARCELA,0);
-    const totalPendente=parcelas.filter(p=>p.STATUS==="pendente").reduce((s,p)=>s+p.VALOR_PARCELA,0);
-    const totalAReceber=totalAtrasado+totalPendente;
+    // CARD A — Saldo Devedor Real: parcelas pendente+atrasado de contratos ativos
+    const totalAtrasado=parcelas.filter(p=>p.STATUS==="atrasado"&&idsAtivos.has(String(p.ID_CONTRATO))).reduce((s,p)=>s+p.VALOR_PARCELA,0);
+    const totalPendente=parcelas.filter(p=>p.STATUS==="pendente"&&idsAtivos.has(String(p.ID_CONTRATO))).reduce((s,p)=>s+p.VALOR_PARCELA,0);
+    const saldoDevedor=totalAtrasado+totalPendente;
+
+    // ── Helper de corte de data por período
+    function cortePeriodo(p){
+      if(!p||p==="tudo") return null;
+      const d=new Date(hoje);
+      if(p==="7d")  d.setDate(d.getDate()-7);
+      if(p==="30d") d.setDate(d.getDate()-30);
+      if(p==="3m")  d.setMonth(d.getMonth()-3);
+      if(p==="6m")  d.setMonth(d.getMonth()-6);
+      if(p==="1a")  d.setFullYear(d.getFullYear()-1);
+      return d;
+    }
+
+    // CARD B — Lucro Realizado: juros recebidos + extra (multa/atraso), filtrado por período
+    // Juros recebidos = VALOR_JUROS das parcelas pagas (exclui somente_juros puro = capital ainda não voltou)
+    // Extra = DIFERENCA_PAGA das parcelas pagas
+    const parcelasPagas=parcelas.filter(p=>p.STATUS==="pago");
+    const jurosRecebidos=parcelasPagas.reduce((s,p)=>s+(p.VALOR_JUROS||0),0);
+    const extraRecebido=parcelasPagas.reduce((s,p)=>s+(p.DIFERENCA_PAGA||0),0);
+    const lucroTotal=jurosRecebidos+extraRecebido;
+
+    // Versão filtrada por período (para o card interativo)
+    function lucroNoPeriodo(per){
+      const corte=cortePeriodo(per);
+      return parcelasPagas.filter(p=>{
+        if(!corte) return true;
+        const dtP=p.DATA_PAGAMENTO;
+        return dtP&&dtP>=corte;
+      }).reduce((s,p)=>s+(p.VALOR_JUROS||0)+(p.DIFERENCA_PAGA||0),0);
+    }
+
     const totalPago=pagamentos.filter(p=>p.TIPO_PAGAMENTO!=="recuperacao_apos_baixa").reduce((s,p)=>s+p.VALOR_PAGO,0);
-    const receitaExtraTotal=parcelas.filter(p=>p.STATUS==="pago").reduce((s,p)=>s+(p.DIFERENCA_PAGA||0),0);
+    const receitaExtraTotal=parcelasPagas.reduce((s,p)=>s+(p.DIFERENCA_PAGA||0),0);
     const qtyProrrogadas=parcelas.filter(p=>p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros").length;
     const pagNormais=pagamentos.filter(p=>p.TIPO_PAGAMENTO==="pagamento_normal").length;
     const pagAtraso=pagamentos.filter(p=>p.TIPO_PAGAMENTO==="pagamento_com_atraso").length;
     const pagJuros=pagamentos.filter(p=>p.TIPO_PAGAMENTO==="somente_juros").length;
-    const taxaInad=totalAReceber>0?(totalAtrasado/totalAReceber)*100:0;
+    const taxaInad=saldoDevedor>0?(totalAtrasado/saldoDevedor)*100:0;
     const taxaMedia=contratosAtivos.length?contratosAtivos.reduce((s,c)=>s+c["TAXA_MENSAL_%"],0)/contratosAtivos.length:0;
 
     // Perdas
@@ -557,9 +591,9 @@ function App(){
     const perdas={cBaixados,cEmCobranca,cPrePrejuizo,cRecuperacao,capitalBaixado,prejuizoTotal,jurosNaoRealizados,recuperadoAposBaixa,txRecuperacao};
 
     const receitaMes=pagamentos.filter(p=>p.DATA_PAGAMENTO&&p.DATA_PAGAMENTO.toISOString().slice(0,7)===mesAtual&&p.TIPO_PAGAMENTO!=="recuperacao_apos_baixa").reduce((s,p)=>s+p.VALOR_PAGO,0);
-    const lucroMes=receitaMes*(taxaMedia/(1+taxaMedia));
+    const lucroMes=lucroNoPeriodo("30d");
 
-    const M={totalEmprestado,totalAtrasado,totalPendente,totalAReceber,totalPago,receitaExtraTotal,qtyProrrogadas,pagNormais,pagAtraso,pagJuros,taxaInad,taxaMedia,receitaMes,lucroMes};
+    const M={saldoDevedor,totalAtrasado,totalPendente,totalAReceber:saldoDevedor,totalPago,lucroTotal,lucroNoPeriodo,jurosRecebidos,extraRecebido,receitaExtraTotal,qtyProrrogadas,pagNormais,pagAtraso,pagJuros,taxaInad,taxaMedia,receitaMes,lucroMes};
 
     const cobItems=parcelas.filter(p=>p.STATUS==="atrasado"||p.STATUS==="vencendo").map(p=>{
       const dtV=new Date(p.DATA_VENCIMENTO);dtV.setHours(0,0,0,0);
@@ -577,7 +611,7 @@ function App(){
     });
 
     return{clientes,contratos,parcelas,pagamentos,M,cobItems,mensal,perdas,promessas};
-  },[raw]);
+  },[raw,periodo]);
 
   const aguardando=(raw?.CLIENTES||[]).filter(c=>String(c.STATUS_CLIENTE||"").trim()==="aguardando_conferencia");
   const hoje=new Date();hoje.setHours(0,0,0,0);
@@ -658,21 +692,73 @@ function App(){
 
           {/* ── DASHBOARD ── */}
           {tab==="dashboard"&&<div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:16}}>
-              {[
-                {icon:"🏦",label:"Carteira Ativa",val:fmtR(M.totalEmprestado),c:BLU,bg:"#EFF6FF"},
-                {icon:"💰",label:"Total a Receber",val:fmtR(M.totalAReceber),c:GRN,bg:"#ECFDF5"},
-                {icon:"⚠️",label:"Inadimplência",val:fmtP(M.taxaInad),c:M.taxaInad>15?RED:GRN,bg:M.taxaInad>15?"#FEF2F2":"#ECFDF5"},
-                {icon:"🚨",label:"Baixados Prejuízo",val:perdas.cBaixados?.length||0,c:RED,bg:"#FEF2F2"},
-              ].map(k=>(
-                <div key={k.label} style={{background:CARD,borderRadius:10,padding:18,border:`1px solid ${BD}`,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                    <div style={{width:36,height:36,background:k.bg,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{k.icon}</div>
-                    <p style={{color:MUTED,fontSize:11,fontWeight:500,margin:0}}>{k.label}</p>
-                  </div>
-                  <p style={{fontSize:20,fontWeight:700,color:TEXT,margin:0}}>{k.val}</p>
-                </div>
+
+            {/* Filtro de Período — afeta Lucro Realizado e Receita Extra */}
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+              <span style={{color:MUTED,fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Período:</span>
+              {[["7d","7 dias"],["30d","30 dias"],["3m","3 meses"],["6m","6 meses"],["1a","1 ano"],["tudo","Tudo"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setPeriodo(v)} style={{padding:"5px 14px",borderRadius:20,border:`1px solid ${periodo===v?BLU:BD}`,background:periodo===v?BLU:CARD,color:periodo===v?"#fff":MUTED,fontSize:12,fontWeight:periodo===v?700:400,cursor:"pointer",transition:"all 0.15s"}}>{l}</button>
               ))}
+              {periodo!=="tudo"&&<span style={{color:MUTED,fontSize:11,marginLeft:4}}>— cards de lucro filtrados por este período</span>}
+            </div>
+
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:16}}>
+
+              {/* Card A — Saldo Devedor Real */}
+              <div style={{background:CARD,borderRadius:10,padding:18,border:`1px solid ${BD}`,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                  <div style={{width:36,height:36,background:"#EFF6FF",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🏦</div>
+                  <p style={{color:MUTED,fontSize:11,fontWeight:500,margin:0}}>Saldo Devedor</p>
+                </div>
+                <p style={{fontSize:20,fontWeight:700,color:TEXT,margin:"0 0 3px"}}>{fmtR(M.saldoDevedor)}</p>
+                <p style={{fontSize:10,color:MUTED,margin:0}}>capital + juros a receber (contratos ativos)</p>
+                <div style={{marginTop:8,display:"flex",gap:10}}>
+                  <span style={{fontSize:10,color:RED}}>⚠ {fmtR(M.totalAtrasado)} atrasado</span>
+                  <span style={{fontSize:10,color:GRN}}>📅 {fmtR(M.totalPendente)} a vencer</span>
+                </div>
+              </div>
+
+              {/* Card B — Lucro Realizado (filtrado por período) */}
+              <div style={{background:CARD,borderRadius:10,padding:18,border:`1px solid ${BD}`,boxShadow:"0 1px 4px rgba(0,0,0,0.05)",position:"relative"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                  <div style={{width:36,height:36,background:"#ECFDF5",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>💸</div>
+                  <p style={{color:MUTED,fontSize:11,fontWeight:500,margin:0}}>Lucro Realizado</p>
+                </div>
+                <p style={{fontSize:20,fontWeight:700,color:GRN,margin:"0 0 3px"}}>{fmtR(M.lucroNoPeriodo(periodo))}</p>
+                <p style={{fontSize:10,color:MUTED,margin:0}}>juros recebidos + multa/atraso</p>
+                <div style={{marginTop:8,display:"flex",gap:10}}>
+                  <span style={{fontSize:10,color:BLU}}>📊 {fmtR(M.jurosRecebidos)} juros</span>
+                  <span style={{fontSize:10,color:ORG}}>⚡ {fmtR(M.extraRecebido)} extra</span>
+                </div>
+                {periodo!=="tudo"&&<div style={{position:"absolute",top:8,right:10,background:BLU,color:"#fff",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10}}>{periodo}</div>}
+              </div>
+
+              {/* Card C — Inadimplência */}
+              <div style={{background:CARD,borderRadius:10,padding:18,border:`1px solid ${BD}`,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                  <div style={{width:36,height:36,background:M.taxaInad>15?"#FEF2F2":"#ECFDF5",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>⚠️</div>
+                  <p style={{color:MUTED,fontSize:11,fontWeight:500,margin:0}}>Inadimplência</p>
+                </div>
+                <p style={{fontSize:20,fontWeight:700,color:M.taxaInad>15?RED:GRN,margin:"0 0 3px"}}>{fmtP(M.taxaInad)}</p>
+                <p style={{fontSize:10,color:MUTED,margin:0}}>atrasado ÷ saldo devedor total</p>
+                <div style={{marginTop:8}}>
+                  <div style={{height:4,background:BD,borderRadius:2}}><div style={{width:`${Math.min(100,M.taxaInad)}%`,height:"100%",borderRadius:2,background:M.taxaInad>20?RED:M.taxaInad>10?YEL:GRN}}/></div>
+                </div>
+              </div>
+
+              {/* Card D — Baixados Prejuízo */}
+              <div style={{background:CARD,borderRadius:10,padding:18,border:`1px solid ${BD}`,boxShadow:"0 1px 4px rgba(0,0,0,0.05)",cursor:"pointer"}} onClick={()=>setTab("perdas")}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                  <div style={{width:36,height:36,background:"#FEF2F2",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🚨</div>
+                  <p style={{color:MUTED,fontSize:11,fontWeight:500,margin:0}}>Baixados Prejuízo</p>
+                </div>
+                <p style={{fontSize:20,fontWeight:700,color:RED,margin:"0 0 3px"}}>{perdas.cBaixados?.length||0}</p>
+                <p style={{fontSize:10,color:MUTED,margin:0}}>contratos write-off — clique para detalhar</p>
+                <div style={{marginTop:8}}>
+                  <span style={{fontSize:10,color:RED}}>💀 {fmtR(perdas.prejuizoTotal)} capital perdido</span>
+                </div>
+              </div>
+
             </div>
             {/* Cards de perdas resumo */}
             {(perdas.cBaixados?.length>0||perdas.cPrePrejuizo?.length>0||perdas.cEmCobranca?.length>0)&&(
@@ -1056,8 +1142,8 @@ function App(){
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
               {[
                 {l:"Inadimplência",v:fmtP(M.taxaInad),raw:M.taxaInad,ok:10,warn:20,rev:true,desc:"Atrasado / total a receber",ideal:"< 10%",icon:"⚠️"},
-                {l:"Carteira Ativa",v:fmtR(M.totalEmprestado),raw:null,desc:"Volume em contratos ativos",ideal:"—",icon:"🏦"},
-                {l:"Total a Receber",v:fmtR(M.totalAReceber),raw:null,desc:"Pendente + atrasado",ideal:"—",icon:"💰"},
+                {l:"Saldo Devedor",v:fmtR(M.saldoDevedor),raw:null,desc:"Capital + juros a receber (contratos ativos)",ideal:"—",icon:"🏦"},
+                {l:"Lucro Realizado (total)",v:fmtR(M.lucroTotal),raw:null,desc:"Juros + extra recebidos — excluído o capital",ideal:"—",icon:"💸"},
                 {l:"Contratos em Cobrança",v:perdas.cEmCobranca?.length||0,raw:null,desc:"",ideal:"—",icon:"📞"},
                 {l:"Capital em Prejuízo",v:fmtR(perdas.capitalBaixado),raw:null,desc:"Contratos baixados",ideal:"0",icon:"📉"},
                 {l:"Prejuízo Real",v:fmtR(perdas.prejuizoTotal),raw:null,desc:"Capital não recuperado",ideal:"0",icon:"🔻"},
@@ -1079,7 +1165,7 @@ function App(){
           {/* ── SIMULADOR ── */}
           {tab==="simulador"&&(()=>{
             const inadPct=((M.taxaInad||0)+simInad)/100;
-            const novaCarteira=(M.totalAReceber||0)+simVal;
+            const novaCarteira=(M.saldoDevedor||0)+simVal;
             const perdaExtra=novaCarteira*inadPct;
             const lucroProj=(M.lucroMes||0)*(1+simVol/100)-perdaExtra*0.08;
             const risco=inadPct>0.3?"crítico":inadPct>0.15?"atenção":"saudável";
