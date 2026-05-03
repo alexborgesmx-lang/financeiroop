@@ -480,9 +480,20 @@ function App(){
   const [filtroPerdas,setFiltroPerdas]=useState("todos");
   const [busca,setBusca]=useState("");
   const [periodo,setPeriodo]=useState("tudo");
+  const [customDe,setCustomDe]=useState(null);
+  const [customAte,setCustomAte]=useState(null);
+  const [calOpen,setCalOpen]=useState(false);
+  const [calMes,setCalMes]=useState(()=>{const d=new Date();d.setDate(1);return d;});
+  const [rangeStep,setRangeStep]=useState(0); // 0=aguardando início, 1=aguardando fim
 
   const carregar=()=>{setLoading(true);setErro(null);fetch(API_URL).then(r=>r.json()).then(d=>{if(d.erro)throw new Error(d.erro);setRaw(d);setLoading(false);}).catch(e=>{setErro(e.message);setLoading(false);});};
   useEffect(()=>{carregar();},[]);
+  useEffect(()=>{
+    if(!calOpen) return;
+    const fn=e=>{setCalOpen(false);};
+    document.addEventListener("mousedown",fn);
+    return()=>document.removeEventListener("mousedown",fn);
+  },[calOpen]);
 
   const {clientes,contratos,parcelas,pagamentos,M,cobItems,mensal,perdas,promessas} = useMemo(()=>{
     if(!raw) return {clientes:[],contratos:[],parcelas:[],pagamentos:[],M:{},cobItems:[],mensal:[],perdas:{},promessas:[]};
@@ -540,7 +551,7 @@ function App(){
 
     // ── Helper de corte de data por período
     function cortePeriodo(p){
-      if(!p||p==="tudo") return null;
+      if(!p||p==="tudo"||p==="custom") return null;
       const d=new Date(hoje);
       if(p==="7d")  d.setDate(d.getDate()-7);
       if(p==="30d") d.setDate(d.getDate()-30);
@@ -558,8 +569,18 @@ function App(){
     const extraRecebido=parcelasPagas.reduce((s,p)=>s+(p.DIFERENCA_PAGA||0),0);
     const lucroTotal=jurosRecebidos+extraRecebido;
 
-    // Versão filtrada por período (para o card interativo)
+    // Versão filtrada por período (preset ou range customizado)
     function lucroNoPeriodo(per){
+      if(per==="custom"){
+        const de=customDe; const ate=customAte||hoje;
+        return parcelasPagas.filter(p=>{
+          const dtP=p.DATA_PAGAMENTO;
+          if(!dtP) return false;
+          const d=new Date(dtP); d.setHours(0,0,0,0);
+          const ateF=new Date(ate); ateF.setHours(23,59,59,999);
+          return d>=de&&d<=ateF;
+        }).reduce((s,p)=>s+(p.VALOR_JUROS||0)+(p.DIFERENCA_PAGA||0),0);
+      }
       const corte=cortePeriodo(per);
       return parcelasPagas.filter(p=>{
         if(!corte) return true;
@@ -611,7 +632,7 @@ function App(){
     });
 
     return{clientes,contratos,parcelas,pagamentos,M,cobItems,mensal,perdas,promessas};
-  },[raw,periodo]);
+  },[raw,periodo,customDe,customAte]);
 
   const aguardando=(raw?.CLIENTES||[]).filter(c=>String(c.STATUS_CLIENTE||"").trim()==="aguardando_conferencia");
   const hoje=new Date();hoje.setHours(0,0,0,0);
@@ -691,15 +712,114 @@ function App(){
         <main style={{flex:1,padding:"24px 28px",overflowY:"auto"}}>
 
           {/* ── DASHBOARD ── */}
-          {tab==="dashboard"&&<div>
+          {tab==="dashboard"&&(()=>{
+            // ── Helpers locais do calendário ───────────────────────────────
+            const DIAS_SEM=["D","S","T","Q","Q","S","S"];
+            const MESES_PT=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+            function diasDoMes(ano,mes){return new Date(ano,mes+1,0).getDate();}
+            function primeiroDiaSem(ano,mes){return new Date(ano,mes,1).getDay();}
+            function dStr(d){if(!d)return"";return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"});}
+            const periodoLabel={
+              "tudo":"Todo período","7d":"Últimos 7 dias","30d":"Últimos 30 dias",
+              "3m":"Últimos 3 meses","6m":"Últimos 6 meses","1a":"Último ano",
+              "custom":customDe&&customAte?`${dStr(customDe)} → ${dStr(customAte)}`:customDe?`A partir de ${dStr(customDe)}`:"Personalizado"
+            };
+            const periodoAtivo=periodo==="custom"&&!customDe?"tudo":periodo;
+            const lucroAtual=M.lucroNoPeriodo(periodoAtivo);
 
-            {/* Filtro de Período — afeta Lucro Realizado e Receita Extra */}
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
-              <span style={{color:MUTED,fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Período:</span>
-              {[["7d","7 dias"],["30d","30 dias"],["3m","3 meses"],["6m","6 meses"],["1a","1 ano"],["tudo","Tudo"]].map(([v,l])=>(
-                <button key={v} onClick={()=>setPeriodo(v)} style={{padding:"5px 14px",borderRadius:20,border:`1px solid ${periodo===v?BLU:BD}`,background:periodo===v?BLU:CARD,color:periodo===v?"#fff":MUTED,fontSize:12,fontWeight:periodo===v?700:400,cursor:"pointer",transition:"all 0.15s"}}>{l}</button>
+            function clicarDia(d){
+              if(rangeStep===0){setCustomDe(d);setCustomAte(null);setRangeStep(1);}
+              else{
+                if(d<customDe){setCustomDe(d);setCustomAte(customDe);}
+                else{setCustomAte(d);}
+                setRangeStep(0);setPeriodo("custom");setCalOpen(false);
+              }
+            }
+            function dentroRange(d){
+              if(!customDe||!customAte) return false;
+              return d>=customDe&&d<=customAte;
+            }
+            function ehInicio(d){return customDe&&d.getTime()===customDe.getTime();}
+            function ehFim(d){return customAte&&d.getTime()===customAte.getTime();}
+            function ehHoje(d){return d.getTime()===hoje.getTime();}
+
+            // Renderiza os dias do calendário (um mês)
+            const ano=calMes.getFullYear(), mes=calMes.getMonth();
+            const totalDias=diasDoMes(ano,mes), primDia=primeiroDiaSem(ano,mes);
+            const celulas=[];
+            for(let i=0;i<primDia;i++) celulas.push(null);
+            for(let i=1;i<=totalDias;i++) celulas.push(new Date(ano,mes,i));
+
+            return <div>
+
+            {/* ── Barra de filtro de período ── */}
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+              <span style={{color:MUTED,fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginRight:2}}>Período:</span>
+              {[["tudo","Tudo"],["7d","7d"],["30d","30d"],["3m","3m"],["6m","6m"],["1a","1 ano"]].map(([v,l])=>(
+                <button key={v} onClick={()=>{setPeriodo(v);setCustomDe(null);setCustomAte(null);setCalOpen(false);}}
+                  style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${periodoAtivo===v?BLU:BD}`,background:periodoAtivo===v?BLU:CARD,color:periodoAtivo===v?"#fff":MUTED,fontSize:12,fontWeight:periodoAtivo===v?700:400,cursor:"pointer",transition:"all 0.15s"}}>
+                  {l}
+                </button>
               ))}
-              {periodo!=="tudo"&&<span style={{color:MUTED,fontSize:11,marginLeft:4}}>— cards de lucro filtrados por este período</span>}
+
+              {/* Botão abre calendário */}
+              <div style={{position:"relative"}}>
+                <button onClick={()=>{setCalOpen(o=>!o);setRangeStep(0);}}
+                  style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:20,border:`1px solid ${periodo==="custom"&&customDe?BLU:BD}`,background:periodo==="custom"&&customDe?BLU:CARD,color:periodo==="custom"&&customDe?"#fff":MUTED,fontSize:12,fontWeight:periodo==="custom"&&customDe?700:400,cursor:"pointer",transition:"all 0.15s"}}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  {periodo==="custom"&&customDe ? periodoLabel["custom"] : "Personalizado"}
+                </button>
+
+                {/* Popover calendário */}
+                {calOpen&&<div style={{position:"absolute",top:"calc(100% + 8px)",left:0,zIndex:200,background:CARD,border:`1px solid ${BD}`,borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.14)",padding:16,minWidth:300}} onClick={e=>e.stopPropagation()}>
+
+                  {/* Instruções */}
+                  <p style={{color:rangeStep===0?BLU:GRN,fontSize:11,fontWeight:600,margin:"0 0 10px",textAlign:"center"}}>
+                    {rangeStep===0?"Clique para selecionar a data inicial":"Clique para selecionar a data final"}
+                  </p>
+
+                  {/* Header do mês */}
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                    <button onClick={()=>{const d=new Date(calMes);d.setMonth(d.getMonth()-1);setCalMes(d);}} style={{width:28,height:28,borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:MUTED}}>‹</button>
+                    <span style={{fontWeight:700,fontSize:13,color:TEXT}}>{MESES_PT[mes]} {ano}</span>
+                    <button onClick={()=>{const d=new Date(calMes);d.setMonth(d.getMonth()+1);setCalMes(d);}} style={{width:28,height:28,borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:MUTED}}>›</button>
+                  </div>
+
+                  {/* Cabeçalho dias da semana */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:4}}>
+                    {DIAS_SEM.map((d,i)=><div key={i} style={{textAlign:"center",fontSize:10,fontWeight:700,color:MUTED,padding:"2px 0"}}>{d}</div>)}
+                  </div>
+
+                  {/* Grade de dias */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+                    {celulas.map((d,i)=>{
+                      if(!d) return <div key={i}/>;
+                      const ini=ehInicio(d), fim2=ehFim(d), dentro=dentroRange(d), hj=ehHoje(d);
+                      const ativo=ini||fim2;
+                      return(
+                        <button key={i} onClick={()=>clicarDia(d)}
+                          style={{width:"100%",aspectRatio:"1",borderRadius:ini?"6px 0 0 6px":fim2?"0 6px 6px 0":dentro?"0":"6px",border:"none",background:ativo?BLU:dentro?"#DBEAFE":CARD,color:ativo?"#fff":hj?BLU:TEXT,fontWeight:ativo||hj?700:400,fontSize:12,cursor:"pointer",position:"relative",outline:"none"}}
+                          onMouseEnter={e=>{if(!ativo&&!dentro)e.currentTarget.style.background=BG;}}
+                          onMouseLeave={e=>{if(!ativo&&!dentro)e.currentTarget.style.background=CARD;}}>
+                          {d.getDate()}
+                          {hj&&<span style={{position:"absolute",bottom:2,left:"50%",transform:"translateX(-50%)",width:3,height:3,borderRadius:"50%",background:ativo?"#fff":BLU}}/>}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Footer: range selecionado + limpar */}
+                  {(customDe||customAte)&&<div style={{marginTop:12,paddingTop:10,borderTop:`1px solid ${BD}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <span style={{fontSize:11,color:MUTED}}>{customDe&&dStr(customDe)}{customAte&&` → ${dStr(customAte)}`}</span>
+                    <button onClick={()=>{setCustomDe(null);setCustomAte(null);setPeriodo("tudo");setRangeStep(0);setCalOpen(false);}}
+                      style={{fontSize:11,color:RED,background:"none",border:"none",cursor:"pointer",fontWeight:600}}>Limpar</button>
+                  </div>}
+
+                </div>}
+              </div>
+
+              {(periodo!=="tudo"||(periodo==="custom"&&customDe))&&
+                <span style={{color:MUTED,fontSize:11,marginLeft:4}}>— lucro filtrado por: <strong style={{color:BLU}}>{periodoLabel[periodoAtivo]||periodoLabel[periodo]}</strong></span>}
             </div>
 
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:16}}>
@@ -724,13 +844,13 @@ function App(){
                   <div style={{width:36,height:36,background:"#ECFDF5",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>💸</div>
                   <p style={{color:MUTED,fontSize:11,fontWeight:500,margin:0}}>Lucro Realizado</p>
                 </div>
-                <p style={{fontSize:20,fontWeight:700,color:GRN,margin:"0 0 3px"}}>{fmtR(M.lucroNoPeriodo(periodo))}</p>
+                <p style={{fontSize:20,fontWeight:700,color:GRN,margin:"0 0 3px"}}>{fmtR(lucroAtual)}</p>
                 <p style={{fontSize:10,color:MUTED,margin:0}}>juros recebidos + multa/atraso</p>
                 <div style={{marginTop:8,display:"flex",gap:10}}>
                   <span style={{fontSize:10,color:BLU}}>📊 {fmtR(M.jurosRecebidos)} juros</span>
                   <span style={{fontSize:10,color:ORG}}>⚡ {fmtR(M.extraRecebido)} extra</span>
                 </div>
-                {periodo!=="tudo"&&<div style={{position:"absolute",top:8,right:10,background:BLU,color:"#fff",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10}}>{periodo}</div>}
+                {periodoAtivo!=="tudo"&&<div style={{position:"absolute",top:8,right:10,background:BLU,color:"#fff",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{periodo==="custom"?`${dStr(customDe)?.slice(0,5)}…`:periodoAtivo}</div>}
               </div>
 
               {/* Card C — Inadimplência */}
@@ -817,7 +937,7 @@ function App(){
                 </div>
               ))}
             </div>
-          </div>}
+          </div>; })()}
 
           {tab==="pagamentos"&&<RegistrarPagamento clientes={clientes} parcelas={parcelas} onSucesso={()=>setTimeout(carregar,2000)}/>}
           {tab==="novoContrato"&&<NovoContrato clientes={clientes} contratos={contratos} onSucesso={()=>setTimeout(carregar,2000)}/>}
