@@ -488,12 +488,6 @@ function App(){
 
   const carregar=()=>{setLoading(true);setErro(null);fetch(API_URL).then(r=>r.json()).then(d=>{if(d.erro)throw new Error(d.erro);setRaw(d);setLoading(false);}).catch(e=>{setErro(e.message);setLoading(false);});};
   useEffect(()=>{carregar();},[]);
-  useEffect(()=>{
-    if(!calOpen) return;
-    const fn=e=>{setCalOpen(false);};
-    document.addEventListener("mousedown",fn);
-    return()=>document.removeEventListener("mousedown",fn);
-  },[calOpen]);
 
   const {clientes,contratos,parcelas,pagamentos,M,cobItems,mensal,perdas,promessas} = useMemo(()=>{
     if(!raw) return {clientes:[],contratos:[],parcelas:[],pagamentos:[],M:{},cobItems:[],mensal:[],perdas:{},promessas:[]};
@@ -663,6 +657,8 @@ function App(){
       {clienteRevisao&&<RevisaoCliente cliente={clienteRevisao} onAtivar={()=>{setClienteRevisao(null);carregar();}} onFechar={()=>setClienteRevisao(null)}/>}
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas} pagamentos={pagamentos} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {recuperacaoModal&&<RecuperacaoModal contrato={recuperacaoModal} onConfirmar={()=>{setRecuperacaoModal(null);carregar();}} onFechar={()=>setRecuperacaoModal(null)}/>}
+
+      {calOpen&&<div onClick={()=>setCalOpen(false)} style={{position:"fixed",inset:0,zIndex:199,background:"transparent"}}/>}
 
       {/* SIDEBAR */}
       <aside style={{width:SW,background:CARD,borderRight:`1px solid ${BD}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:100}}>
