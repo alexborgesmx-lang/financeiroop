@@ -30,7 +30,6 @@ const LS = {color:MUTED,fontSize:11,fontWeight:600,textTransform:"uppercase",let
 const WS = {color:YEL,fontSize:11,display:"block",marginTop:3};
 const SEC= {fontSize:11,fontWeight:700,color:BLU,textTransform:"uppercase",margin:"16px 0 8px",borderBottom:`1px solid ${BD}`,paddingBottom:4};
 
-// STATUS helpers
 const STATUS_LABEL = {
   ativo_em_dia:"Em Dia", ativo_em_atraso:"Em Atraso", em_cobranca:"Em Cobrança",
   pre_prejuizo:"Pré-Prejuízo", baixado_como_prejuizo:"Baixado (Prejuízo)",
@@ -56,7 +55,6 @@ const Ico = {
   loss:  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
   novo:  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>,
   kpi:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
-  rel:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>,
   sim:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>,
   bell:  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
   srch:  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
@@ -67,7 +65,12 @@ const Ico = {
 
 function Badge({c,children}){ return <span style={{display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:20,fontSize:10,fontWeight:600,background:c+"18",color:c,border:`1px solid ${c}30`}}>{children}</span>; }
 
-// ── MODAL BAIXA COMO PREJUÍZO ──────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
+// MODAL BAIXA COMO PREJUÍZO
+// ATUALIZADO: calcula prejuízo baseado nas parcelas em aberto,
+// não no contrato inteiro. Parcelas pagas são preservadas.
+// ─────────────────────────────────────────────────────────────────
+
 function BaixaModal({contrato, parcelas, pagamentos, onConfirmar, onFechar}){
   const [dados, setDados] = useState({
     substatus:"CLIENTE_DESAPARECIDO", motivo:"", observacao:"",
@@ -76,74 +79,152 @@ function BaixaModal({contrato, parcelas, pagamentos, onConfirmar, onFechar}){
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
 
+  // Parcelas do contrato, separadas por status
   const ps = parcelas.filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
-  const pgs = pagamentos.filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
+  const parcelasPagas   = ps.filter(p=>String(p.STATUS||"").toLowerCase()==="pago");
+  const parcelasABaixar = ps.filter(p=>{
+    const st = String(p.STATUS||"").toLowerCase();
+    return st!=="pago" && st!=="cancelado" && st!=="baixado_como_prejuizo";
+  });
 
-  const valPrincipal   = parseFloat(contrato.VALOR_PRINCIPAL||0);
-  const valTotal       = parseFloat(contrato.VALOR_TOTAL||0);
-  const totalPago      = pgs.reduce((s,p)=>s+(parseFloat(p.VALOR_PAGO)||0),0);
-  const jurosRecebidos = pgs.reduce((s,p)=>s+(parseFloat(p.RECEITA_EXTRA_ATRASO)||0),0);
-  const capitalRecuperado = Math.min(totalPago, valPrincipal);
-  const prejuizoCapital   = Math.max(0, valPrincipal - capitalRecuperado);
-  const jurosNaoReal      = Math.max(0, (valTotal - valPrincipal) - jurosRecebidos);
-  const pctRecuperado     = valPrincipal>0 ? (capitalRecuperado/valPrincipal*100) : 0;
-  const diasAtraso        = ps.filter(p=>p.STATUS==="atrasado").length > 0
-    ? Math.max(...ps.filter(p=>p.STATUS==="atrasado").map(p=>{ const dv=parseDate(p.DATA_VENCIMENTO); if(!dv)return 0; const d=Math.round((new Date()-dv)/86400000); return d>0?d:0; }))
+  // Cálculo correto: baseado nas parcelas em aberto, não no contrato inteiro
+  const capitalRecuperado = parcelasPagas.reduce((s,p)=>s+(parseFloat(p.VALOR_PRINCIPAL)||0),0);
+  const jurosRecebidos    = parcelasPagas.reduce((s,p)=>s+(parseFloat(p.VALOR_JUROS)||0),0);
+  const totalPagoReal     = parcelasPagas.reduce((s,p)=>s+(parseFloat(p.VALOR_PAGO)||parseFloat(p.VALOR_PARCELA)||0),0);
+  const prejuizoCapital   = parcelasABaixar.reduce((s,p)=>s+(parseFloat(p.VALOR_PRINCIPAL)||0),0);
+  const jurosNaoReal      = parcelasABaixar.reduce((s,p)=>s+(parseFloat(p.VALOR_JUROS)||0),0);
+  const valorTotalBaixado = parcelasABaixar.reduce((s,p)=>s+(parseFloat(p.VALOR_PARCELA)||0),0);
+  const valPrincipal      = parseFloat(contrato.VALOR_PRINCIPAL||0);
+  const pctRecuperado     = valPrincipal>0?(capitalRecuperado/valPrincipal*100):0;
+
+  const diasAtraso = parcelasABaixar.length>0
+    ? Math.max(...parcelasABaixar.map(p=>{
+        const dv=parseDate(p.DATA_VENCIMENTO); if(!dv)return 0;
+        const d=Math.round((new Date()-dv)/86400000); return d>0?d:0;
+      }))
     : 0;
 
   const confirmar = async () => {
-    if (!dados.motivo){ setMsg({ok:false,texto:"Informe o motivo da baixa."}); return; }
+    if(!dados.motivo){setMsg({ok:false,texto:"Informe o motivo da baixa."});return;}
+    if(parcelasABaixar.length===0){setMsg({ok:false,texto:"Nenhuma parcela em aberto para baixar."});return;}
     setLoading(true); setMsg(null);
     const res = await postAction({
-      action:"baixarContrato", idContrato: contrato.ID_CONTRATO,
-      dados:{ ...dados, diasAtraso, valorRecuperadoAntesBaixa: capitalRecuperado, jurosJaRecebidos: jurosRecebidos, data: hojeStr() }
+      action:"baixarContrato",
+      idContrato: contrato.ID_CONTRATO,
+      dados:{
+        ...dados,
+        diasAtraso,
+        valorRecuperadoAntesBaixa: capitalRecuperado,
+        jurosJaRecebidos: jurosRecebidos,
+        data: hojeStr(),
+        // Lista dos IDs das parcelas em aberto para o backend marcar individualmente
+        parcelasABaixar: parcelasABaixar.map(p=>String(p.ID_PARCELA)),
+        // Valores pré-calculados pelo frontend com base nas parcelas reais
+        prejudizoCapital: prejuizoCapital,
+        jurosNaoRealizadosCalc: jurosNaoReal,
+        // Flag indicando se é baixa parcial (algumas parcelas já pagas)
+        baixaParcial: parcelasPagas.length>0,
+      }
     });
-    if(res.ok){ onConfirmar(); }
-    else setMsg({ok:false, texto: res.erro||"Erro."});
+    if(res.ok){onConfirmar();}
+    else setMsg({ok:false,texto:res.erro||"Erro ao processar baixa."});
     setLoading(false);
   };
 
-  const campo = (label, field, options) => (
+  const campo=(label,field,options)=>(
     <div>
       <span style={LS}>{label}</span>
       {options
-        ? <select value={dados[field]} onChange={e=>setDados(p=>({...p,[field]:e.target.value}))} style={IS}>{options.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select>
-        : <input value={dados[field]} onChange={e=>setDados(p=>({...p,[field]:e.target.value}))} style={IS}/>}
+        ?<select value={dados[field]} onChange={e=>setDados(p=>({...p,[field]:e.target.value}))} style={IS}>
+            {options.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+          </select>
+        :<input value={dados[field]} onChange={e=>setDados(p=>({...p,[field]:e.target.value}))} style={IS}/>}
     </div>
   );
 
-  return (
+  return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:CARD,borderRadius:12,width:"100%",maxWidth:600,maxHeight:"90vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
+
+        {/* Header */}
         <div style={{padding:"20px 24px 14px",borderBottom:`1px solid ${BD}`,background:"#FEF2F2",borderRadius:"12px 12px 0 0"}}>
-          <h2 style={{color:RED,fontSize:17,fontWeight:700,margin:0}}>⚠️ Baixar Contrato como Prejuízo</h2>
+          <h2 style={{color:RED,fontSize:17,fontWeight:700,margin:0}}>⚠️ Baixar Parcelas como Prejuízo</h2>
           <p style={{color:MUTED,fontSize:12,margin:"4px 0 0"}}>{contrato.ID_CONTRATO} — {contrato.NOME_CLIENTE}</p>
         </div>
+
         <div style={{overflowY:"auto",padding:"0 24px",flex:1}}>
-          {/* Resumo financeiro */}
-          <div style={SEC}>Resumo Financeiro</div>
+
+          {/* Mapa visual das parcelas */}
+          <div style={SEC}>Situação das Parcelas</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
+            {ps.map(p=>{
+              const st=String(p.STATUS||"").toLowerCase();
+              const isPaga=st==="pago";
+              const isJaBaixada=st==="baixado_como_prejuizo";
+              const isABaixar=parcelasABaixar.some(pb=>String(pb.ID_PARCELA)===String(p.ID_PARCELA));
+              const bg=isPaga?"#ECFDF5":isJaBaixada?"#F3F4F6":isABaixar?"#FEF2F2":"#FFFBEB";
+              const col=isPaga?GRN:isJaBaixada?MUTED:isABaixar?RED:YEL;
+              const bdr=isPaga?GRN:isJaBaixada?BD:isABaixar?RED:YEL;
+              const icon=isPaga?"✓":isJaBaixada?"—":isABaixar?"✕":"?";
+              return(
+                <div key={p.ID_PARCELA}
+                  title={`Parc ${p.NUM_PARCELA} — ${p.STATUS} — ${fmtR(p.VALOR_PARCELA)}`}
+                  style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,
+                    padding:"6px 10px",borderRadius:8,background:bg,
+                    border:`1.5px solid ${bdr}`,minWidth:46}}>
+                  <span style={{fontSize:11,fontWeight:800,color:col}}>{icon}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:col}}>{p.NUM_PARCELA}</span>
+                  <span style={{fontSize:9,color:MUTED,whiteSpace:"nowrap"}}>{fmtR(p.VALOR_PARCELA)}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Legenda */}
+          <div style={{display:"flex",gap:16,marginBottom:12,fontSize:11,flexWrap:"wrap"}}>
+            <span style={{color:GRN,fontWeight:600}}>✓ Pagas: {parcelasPagas.length}</span>
+            <span style={{color:RED,fontWeight:600}}>✕ A baixar agora: {parcelasABaixar.length}</span>
+            {ps.filter(p=>String(p.STATUS||"").toLowerCase()==="baixado_como_prejuizo").length>0&&
+              <span style={{color:MUTED,fontWeight:600}}>— Já baixadas: {ps.filter(p=>String(p.STATUS||"").toLowerCase()==="baixado_como_prejuizo").length}</span>}
+          </div>
+
+          {parcelasABaixar.length===0&&(
+            <div style={{padding:"12px",background:"#ECFDF5",border:`1px solid ${GRN}`,borderRadius:8,marginBottom:10}}>
+              <p style={{color:"#065F46",fontWeight:600,fontSize:13,margin:0}}>✅ Todas as parcelas já estão pagas ou baixadas.</p>
+            </div>
+          )}
+
+          {/* Resumo financeiro correto */}
+          <div style={SEC}>Resumo Financeiro da Baixa</div>
           <div style={{background:"#FEF2F2",border:`1px solid ${RED}30`,borderRadius:8,padding:14,marginBottom:4}}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:0}}>
               {[
-                ["Capital emprestado", fmtR(valPrincipal), TEXT],
-                ["Capital recuperado", fmtR(capitalRecuperado), GRN],
-                ["Prejuízo de capital", fmtR(prejuizoCapital), RED],
-                ["Juros não realizados", fmtR(jurosNaoReal), ORG],
-                ["Total pago", fmtR(totalPago), BLU],
-                ["% Recuperado", fmtP(pctRecuperado), pctRecuperado>50?GRN:RED],
-                ["Dias de atraso (máx)", diasAtraso+" dias", diasAtraso>90?RED:YEL],
+                ["Capital total do contrato",   fmtR(valPrincipal),       TEXT],
+                ["Capital já recuperado",        fmtR(capitalRecuperado),  GRN],
+                ["🔴 Capital a baixar",          fmtR(prejuizoCapital),    RED],
+                ["Juros não realizados",         fmtR(jurosNaoReal),       ORG],
+                ["Total pago (parcelas pagas)",  fmtR(totalPagoReal),      BLU],
+                ["% Capital recuperado",         fmtP(pctRecuperado),      pctRecuperado>50?GRN:RED],
+                ["Parcelas a baixar",            `${parcelasABaixar.length} de ${ps.length}`, RED],
+                ["Dias de atraso (máx)",         diasAtraso+" dias",       diasAtraso>90?RED:YEL],
               ].map(([l,v,c])=>(
-                <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${BD}`}}>
+                <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${BD}`}}>
                   <span style={{color:MUTED,fontSize:12}}>{l}</span>
                   <strong style={{color:c,fontSize:12}}>{v}</strong>
                 </div>
               ))}
             </div>
-            <p style={{color:MUTED,fontSize:11,margin:"10px 0 0",fontStyle:"italic"}}>Esta ação remove o contrato da carteira ativa e das projeções normais, mas mantém o histórico para cobrança e recuperação futura.</p>
+            <p style={{color:MUTED,fontSize:11,margin:"10px 0 0",fontStyle:"italic"}}>
+              {parcelasPagas.length>0
+                ?"Somente as parcelas em aberto serão baixadas. O histórico das parcelas pagas é preservado integralmente."
+                :"Nenhuma parcela foi paga — o contrato inteiro será baixado como prejuízo."}
+            </p>
           </div>
+
+          {/* Dados da baixa */}
           <div style={SEC}>Dados da Baixa</div>
           <div style={{display:"grid",gap:10}}>
-            {campo("Substatus / Motivo Operacional", "substatus", [
+            {campo("Substatus / Motivo Operacional","substatus",[
               {v:"CLIENTE_DESAPARECIDO",l:"Cliente desaparecido"},
               {v:"SEM_CAPACIDADE_DE_PAGAMENTO",l:"Sem capacidade de pagamento"},
               {v:"MA_FE_APARENTE",l:"Má-fé aparente"},
@@ -153,14 +234,14 @@ function BaixaModal({contrato, parcelas, pagamentos, onConfirmar, onFechar}){
               {v:"CUSTO_COBRANCA_DESPROPORCIONAL",l:"Custo de cobrança desproporcional"},
               {v:"OUTRO",l:"Outro"},
             ])}
-            {campo("Motivo detalhado (obrigatório)", "motivo")}
-            {campo("Possibilidade de recuperação futura", "possibilidadeRecuperacao", [
+            {campo("Motivo detalhado (obrigatório)","motivo")}
+            {campo("Possibilidade de recuperação futura","possibilidadeRecuperacao",[
               {v:"ALTA",l:"Alta — cliente responde e demonstra intenção"},
               {v:"MEDIA",l:"Média — cliente responde ocasionalmente"},
               {v:"BAIXA",l:"Baixa — cliente pouco responsivo"},
               {v:"REMOTA",l:"Remota — cliente sumiu ou não tem condições"},
             ])}
-            {campo("Status jurídico", "statusJuridico", [
+            {campo("Status jurídico","statusJuridico",[
               {v:"NAO_ANALISADO",l:"Não analisado"},
               {v:"EM_ANALISE",l:"Em análise"},
               {v:"NOTIFICACAO_EXTRAJUDICIAL",l:"Notificação extrajudicial"},
@@ -168,7 +249,7 @@ function BaixaModal({contrato, parcelas, pagamentos, onConfirmar, onFechar}){
               {v:"NAO_COMPENSA_JUDICIALIZAR",l:"Não compensa judicializar"},
               {v:"ACAO_COBRANCA",l:"Ação de cobrança"},
             ])}
-            {campo("Próxima providência", "proximaProvidencia")}
+            {campo("Próxima providência","proximaProvidencia")}
             <div>
               <span style={LS}>Observação adicional</span>
               <textarea value={dados.observacao} onChange={e=>setDados(p=>({...p,observacao:e.target.value}))} rows={2} style={{...IS,resize:"vertical"}}/>
@@ -176,12 +257,20 @@ function BaixaModal({contrato, parcelas, pagamentos, onConfirmar, onFechar}){
           </div>
           <div style={{height:8}}/>
         </div>
+
+        {/* Footer */}
         <div style={{padding:"12px 24px 20px",borderTop:`1px solid ${BD}`,flexShrink:0}}>
           {msg&&<div style={{padding:"10px 14px",borderRadius:7,background:"#FEF2F2",border:`1px solid ${RED}`,color:"#991B1B",fontSize:13,fontWeight:600,marginBottom:10}}>❌ {msg.texto}</div>}
           <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
             <button onClick={onFechar} style={{padding:"10px",borderRadius:7,border:`1px solid ${BD}`,background:CARD,color:MUTED,fontWeight:600,cursor:"pointer"}}>Cancelar</button>
-            <button onClick={confirmar} disabled={loading} style={{padding:"10px",borderRadius:7,border:"none",background:loading?"#FCA5A5":RED,color:"#fff",fontWeight:700,cursor:"pointer"}}>
-              {loading?"Processando...":"Confirmar Baixa como Prejuízo"}
+            <button onClick={confirmar} disabled={loading||parcelasABaixar.length===0}
+              style={{padding:"10px",borderRadius:7,border:"none",
+                background:loading||parcelasABaixar.length===0?"#FCA5A5":RED,
+                color:"#fff",fontWeight:700,
+                cursor:parcelasABaixar.length===0?"not-allowed":"pointer"}}>
+              {loading?"Processando..."
+               :parcelasABaixar.length===0?"Sem parcelas para baixar"
+               :`Baixar ${parcelasABaixar.length} parcela(s) como prejuízo — ${fmtR(valorTotalBaixado)}`}
             </button>
           </div>
         </div>
@@ -190,7 +279,10 @@ function BaixaModal({contrato, parcelas, pagamentos, onConfirmar, onFechar}){
   );
 }
 
-// ── MODAL RECUPERAÇÃO APÓS BAIXA ───────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
+// MODAL RECUPERAÇÃO APÓS BAIXA
+// ─────────────────────────────────────────────────────────────────
+
 function RecuperacaoModal({contrato, onConfirmar, onFechar}){
   const [valor, setValor] = useState("");
   const [data, setData]   = useState(hojeStr());
@@ -204,15 +296,15 @@ function RecuperacaoModal({contrato, onConfirmar, onFechar}){
   const novoRec   = recAtual + (parseFloat(valor)||0);
 
   const confirmar = async () => {
-    if (!valor || parseFloat(valor)<=0){ setMsg({ok:false,texto:"Informe o valor recebido."}); return; }
+    if(!valor||parseFloat(valor)<=0){setMsg({ok:false,texto:"Informe o valor recebido."});return;}
     setLoading(true);
-    const res = await postAction({action:"recuperacaoAposBaixa", idContrato:contrato.ID_CONTRATO, dados:{valorPago:parseFloat(valor),data,forma}});
+    const res = await postAction({action:"recuperacaoAposBaixa",idContrato:contrato.ID_CONTRATO,dados:{valorPago:parseFloat(valor),data,forma}});
     if(res.ok) onConfirmar();
     else setMsg({ok:false,texto:res.erro||"Erro."});
     setLoading(false);
   };
 
-  return (
+  return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:CARD,borderRadius:12,width:"100%",maxWidth:480,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
         <div style={{padding:"20px 24px 14px",borderBottom:`1px solid ${BD}`,background:"#ECFDF5",borderRadius:"12px 12px 0 0"}}>
@@ -259,7 +351,10 @@ function RecuperacaoModal({contrato, onConfirmar, onFechar}){
   );
 }
 
-// ── REVISÃO DE CLIENTE ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
+// REVISÃO DE CLIENTE
+// ─────────────────────────────────────────────────────────────────
+
 function RevisaoCliente({cliente,onAtivar,onFechar}){
   const f={nome:useRef(null),cpf:useRef(null),rg:useRef(null),nac:useRef(null),ecivil:useRef(null),prof:useRef(null),wpp:useRef(null),email:useRef(null),cep:useRef(null),rua:useRef(null),numero:useRef(null),quadra:useRef(null),lote:useRef(null),setor:useRef(null),comp:useRef(null),cidade:useRef(null),cont1:useRef(null),tel1:useRef(null),cont2:useRef(null),tel2:useRef(null),diavenc:useRef(null),padrinho:useRef(null),telpad:useRef(null),obs:useRef(null)};
   const cliMap={nome:"NOME",cpf:"CPF",rg:"RG",nac:"NACIONALIDADE",ecivil:"ESTADO_CIVIL",prof:"PROFISSAO",wpp:"TELEFONE_WPP",email:"EMAIL",cep:"CEP",rua:"RUA",numero:"NUMERO",quadra:"QUADRA",lote:"LOTE",setor:"SETOR",comp:"COMPLEMENTO",cidade:"CIDADE_ESTADO",cont1:"CONTATO_CONFIANCA_1",tel1:"TEL_CONFIANCA_1",cont2:"CONTATO_CONFIANCA_2",tel2:"TEL_CONFIANCA_2",diavenc:"DIA_VENCIMENTO_PREFERIDO",padrinho:"PADRINHO",telpad:"TEL_PADRINHO",obs:"OBSERVACOES"};
@@ -325,12 +420,18 @@ function RevisaoCliente({cliente,onAtivar,onFechar}){
   );
 }
 
-// ── REGISTRAR PAGAMENTO ────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
+// REGISTRAR PAGAMENTO
+// ─────────────────────────────────────────────────────────────────
+
 function RegistrarPagamento({clientes,parcelas,onSucesso}){
   const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);const [cliente,setCliente]=useState(null);const [parcela,setParcela]=useState(null);const [tipo,setTipo]=useState(null);const [data,setData]=useState(hojeStr());const [valor,setValor]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const ref=useRef();
   useEffect(()=>{const fn=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",fn);return()=>document.removeEventListener("mousedown",fn);},[]);
   const sugeridos=useMemo(()=>!busca?[]:clientes.filter(c=>c.NOME.toLowerCase().includes(busca.toLowerCase())).slice(0,8),[busca,clientes]);
-  const parcelasAbertas=useMemo(()=>!cliente?[]:parcelas.filter(p=>String(p.ID_CLIENTE)===String(cliente.ID_CLIENTE)&&p.STATUS!=="pago").sort((a,b)=>new Date(a.DATA_VENCIMENTO)-new Date(b.DATA_VENCIMENTO)),[cliente,parcelas]);
+  const parcelasAbertas=useMemo(()=>!cliente?[]:parcelas.filter(p=>{
+    const st=String(p.STATUS||"").toLowerCase();
+    return String(p.ID_CLIENTE)===String(cliente.ID_CLIENTE)&&st!=="pago"&&st!=="baixado_como_prejuizo";
+  }).sort((a,b)=>new Date(a.DATA_VENCIMENTO)-new Date(b.DATA_VENCIMENTO)),[cliente,parcelas]);
   const valorOriginal=parseFloat(parcela?.VALOR_PARCELA||0);
   const diferenca=Math.max(0,(parseFloat(valor)||valorOriginal)-valorOriginal);
   const stC=st=>st==="atrasado"?RED:st==="vencendo"?YEL:MUTED;
@@ -399,7 +500,10 @@ function RegistrarPagamento({clientes,parcelas,onSucesso}){
   );
 }
 
-// ── NOVO CONTRATO ──────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
+// NOVO CONTRATO
+// ─────────────────────────────────────────────────────────────────
+
 function NovoContrato({clientes,contratos,onSucesso}){
   const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);const [cliente,setCliente]=useState(null);const [principal,setPrincipal]=useState("");const [parcelas,setParcelas]=useState("");const [taxa,setTaxa]=useState("");const [dtEmp,setDtEmp]=useState(hojeStr());const [dtVenc,setDtVenc]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const ref=useRef();
   useEffect(()=>{const fn=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",fn);return()=>document.removeEventListener("mousedown",fn);},[]);
@@ -465,7 +569,10 @@ function NovoContrato({clientes,contratos,onSucesso}){
   );
 }
 
-// ── APP ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
+// APP PRINCIPAL
+// ─────────────────────────────────────────────────────────────────
+
 function App(){
   const [tab,setTab]=useState("dashboard");
   const [raw,setRaw]=useState(null);
@@ -479,12 +586,6 @@ function App(){
   const [filtroStatus,setFiltroStatus]=useState("todos");const [filtroBusca,setFiltroBusca]=useState("");
   const [filtroPerdas,setFiltroPerdas]=useState("todos");
   const [busca,setBusca]=useState("");
-  const [periodo,setPeriodo]=useState("tudo");
-  const [customDe,setCustomDe]=useState(null);
-  const [customAte,setCustomAte]=useState(null);
-  const [calOpen,setCalOpen]=useState(false);
-  const [calMes,setCalMes]=useState(()=>{const d=new Date();d.setDate(1);return d;});
-  const [rangeStep,setRangeStep]=useState(0); // 0=aguardando início, 1=aguardando fim
 
   const carregar=()=>{setLoading(true);setErro(null);fetch(API_URL).then(r=>r.json()).then(d=>{if(d.erro)throw new Error(d.erro);setRaw(d);setLoading(false);}).catch(e=>{setErro(e.message);setLoading(false);});};
   useEffect(()=>{carregar();},[]);
@@ -532,67 +633,23 @@ function App(){
 
     const hoje=new Date();hoje.setHours(0,0,0,0);
     const mesAtual=hoje.toISOString().slice(0,7);
+    const contratosAtivos=contratos.filter(c=>!["baixado_como_prejuizo","encerrado_sem_recuperacao"].includes(String(c.STATUS_CONTRATO||"").toLowerCase()));
+    const totalEmprestado=contratosAtivos.reduce((s,c)=>s+c.VALOR_PRINCIPAL,0);
 
-    // ── Status ativos reais (exclui quitado, cancelado, baixado, encerrado)
-    const ST_ATIVOS=["ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente"];
-    const contratosAtivos=contratos.filter(c=>ST_ATIVOS.includes(String(c.STATUS_CONTRATO||"").toLowerCase()));
-    const idsAtivos=new Set(contratosAtivos.map(c=>String(c.ID_CONTRATO)));
-
-    // CARD A — Saldo Devedor Real: parcelas pendente+atrasado de contratos ativos
-    const totalAtrasado=parcelas.filter(p=>p.STATUS==="atrasado"&&idsAtivos.has(String(p.ID_CONTRATO))).reduce((s,p)=>s+p.VALOR_PARCELA,0);
-    const totalPendente=parcelas.filter(p=>p.STATUS==="pendente"&&idsAtivos.has(String(p.ID_CONTRATO))).reduce((s,p)=>s+p.VALOR_PARCELA,0);
-    const saldoDevedor=totalAtrasado+totalPendente;
-
-    // ── Helper de corte de data por período
-    function cortePeriodo(p){
-      if(!p||p==="tudo"||p==="custom") return null;
-      const d=new Date(hoje);
-      if(p==="7d")  d.setDate(d.getDate()-7);
-      if(p==="30d") d.setDate(d.getDate()-30);
-      if(p==="3m")  d.setMonth(d.getMonth()-3);
-      if(p==="6m")  d.setMonth(d.getMonth()-6);
-      if(p==="1a")  d.setFullYear(d.getFullYear()-1);
-      return d;
-    }
-
-    // CARD B — Lucro Realizado: juros recebidos + extra (multa/atraso), filtrado por período
-    // Juros recebidos = VALOR_JUROS das parcelas pagas (exclui somente_juros puro = capital ainda não voltou)
-    // Extra = DIFERENCA_PAGA das parcelas pagas
-    const parcelasPagas=parcelas.filter(p=>p.STATUS==="pago");
-    const jurosRecebidos=parcelasPagas.reduce((s,p)=>s+(p.VALOR_JUROS||0),0);
-    const extraRecebido=parcelasPagas.reduce((s,p)=>s+(p.DIFERENCA_PAGA||0),0);
-    const lucroTotal=jurosRecebidos+extraRecebido;
-
-    // Versão filtrada por período (preset ou range customizado)
-    function lucroNoPeriodo(per){
-      if(per==="custom"){
-        const de=customDe; const ate=customAte||hoje;
-        return parcelasPagas.filter(p=>{
-          const dtP=p.DATA_PAGAMENTO;
-          if(!dtP) return false;
-          const d=new Date(dtP); d.setHours(0,0,0,0);
-          const ateF=new Date(ate); ateF.setHours(23,59,59,999);
-          return d>=de&&d<=ateF;
-        }).reduce((s,p)=>s+(p.VALOR_JUROS||0)+(p.DIFERENCA_PAGA||0),0);
-      }
-      const corte=cortePeriodo(per);
-      return parcelasPagas.filter(p=>{
-        if(!corte) return true;
-        const dtP=p.DATA_PAGAMENTO;
-        return dtP&&dtP>=corte;
-      }).reduce((s,p)=>s+(p.VALOR_JUROS||0)+(p.DIFERENCA_PAGA||0),0);
-    }
-
+    // Exclui parcelas baixadas como prejuízo dos cálculos de inadimplência
+    const parcelasAtivas=parcelas.filter(p=>String(p.STATUS||"").toLowerCase()!=="baixado_como_prejuizo");
+    const totalAtrasado=parcelasAtivas.filter(p=>p.STATUS==="atrasado").reduce((s,p)=>s+p.VALOR_PARCELA,0);
+    const totalPendente=parcelasAtivas.filter(p=>p.STATUS==="pendente").reduce((s,p)=>s+p.VALOR_PARCELA,0);
+    const totalAReceber=totalAtrasado+totalPendente;
     const totalPago=pagamentos.filter(p=>p.TIPO_PAGAMENTO!=="recuperacao_apos_baixa").reduce((s,p)=>s+p.VALOR_PAGO,0);
-    const receitaExtraTotal=parcelasPagas.reduce((s,p)=>s+(p.DIFERENCA_PAGA||0),0);
+    const receitaExtraTotal=parcelasAtivas.filter(p=>p.STATUS==="pago").reduce((s,p)=>s+(p.DIFERENCA_PAGA||0),0);
     const qtyProrrogadas=parcelas.filter(p=>p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros").length;
     const pagNormais=pagamentos.filter(p=>p.TIPO_PAGAMENTO==="pagamento_normal").length;
     const pagAtraso=pagamentos.filter(p=>p.TIPO_PAGAMENTO==="pagamento_com_atraso").length;
     const pagJuros=pagamentos.filter(p=>p.TIPO_PAGAMENTO==="somente_juros").length;
-    const taxaInad=saldoDevedor>0?(totalAtrasado/saldoDevedor)*100:0;
+    const taxaInad=totalAReceber>0?(totalAtrasado/totalAReceber)*100:0;
     const taxaMedia=contratosAtivos.length?contratosAtivos.reduce((s,c)=>s+c["TAXA_MENSAL_%"],0)/contratosAtivos.length:0;
 
-    // Perdas
     const cBaixados=contratos.filter(c=>String(c.STATUS_CONTRATO||"").toLowerCase()==="baixado_como_prejuizo");
     const cEmCobranca=contratos.filter(c=>String(c.STATUS_CONTRATO||"").toLowerCase()==="em_cobranca");
     const cPrePrejuizo=contratos.filter(c=>String(c.STATUS_CONTRATO||"").toLowerCase()==="pre_prejuizo");
@@ -602,15 +659,17 @@ function App(){
     const jurosNaoRealizados=cBaixados.reduce((s,c)=>s+c.JUROS_NAO_REALIZADOS,0);
     const recuperadoAposBaixa=cBaixados.reduce((s,c)=>s+c.VALOR_RECUPERADO_APOS_BAIXA,0);
     const txRecuperacao=capitalBaixado>0?(recuperadoAposBaixa/capitalBaixado*100):0;
-
     const perdas={cBaixados,cEmCobranca,cPrePrejuizo,cRecuperacao,capitalBaixado,prejuizoTotal,jurosNaoRealizados,recuperadoAposBaixa,txRecuperacao};
 
     const receitaMes=pagamentos.filter(p=>p.DATA_PAGAMENTO&&p.DATA_PAGAMENTO.toISOString().slice(0,7)===mesAtual&&p.TIPO_PAGAMENTO!=="recuperacao_apos_baixa").reduce((s,p)=>s+p.VALOR_PAGO,0);
-    const lucroMes=lucroNoPeriodo("30d");
+    const lucroMes=receitaMes*(taxaMedia/(1+taxaMedia));
+    const M={totalEmprestado,totalAtrasado,totalPendente,totalAReceber,totalPago,receitaExtraTotal,qtyProrrogadas,pagNormais,pagAtraso,pagJuros,taxaInad,taxaMedia,receitaMes,lucroMes};
 
-    const M={saldoDevedor,totalAtrasado,totalPendente,totalAReceber:saldoDevedor,totalPago,lucroTotal,lucroNoPeriodo,jurosRecebidos,extraRecebido,receitaExtraTotal,qtyProrrogadas,pagNormais,pagAtraso,pagJuros,taxaInad,taxaMedia,receitaMes,lucroMes};
-
-    const cobItems=parcelas.filter(p=>p.STATUS==="atrasado"||p.STATUS==="vencendo").map(p=>{
+    // Na cobrança, exclui parcelas baixadas como prejuízo
+    const cobItems=parcelas.filter(p=>{
+      const st=String(p.STATUS||"").toLowerCase();
+      return (st==="atrasado"||st==="vencendo")&&st!=="baixado_como_prejuizo";
+    }).map(p=>{
       const dtV=new Date(p.DATA_VENCIMENTO);dtV.setHours(0,0,0,0);
       const dias=Math.round((dtV-hoje)/86400000);
       const cl=clientes.find(c=>String(c.ID_CLIENTE)===String(p.ID_CLIENTE));
@@ -626,11 +685,14 @@ function App(){
     });
 
     return{clientes,contratos,parcelas,pagamentos,M,cobItems,mensal,perdas,promessas};
-  },[raw,periodo,customDe,customAte]);
+  },[raw]);
 
   const aguardando=(raw?.CLIENTES||[]).filter(c=>String(c.STATUS_CLIENTE||"").trim()==="aguardando_conferencia");
   const hoje=new Date();hoje.setHours(0,0,0,0);
-  const proximas=parcelas.filter(p=>p.STATUS!=="pago"&&p.DATA_VENCIMENTO).map(p=>{const dtV=new Date(p.DATA_VENCIMENTO);dtV.setHours(0,0,0,0);const dias=Math.round((dtV-hoje)/86400000);const cl=clientes.find(c=>String(c.ID_CLIENTE)===String(p.ID_CLIENTE));return{...p,dias,cl};}).filter(p=>p.dias>=-30&&p.dias<=3).sort((a,b)=>a.dias-b.dias).slice(0,5);
+  const proximas=parcelas.filter(p=>{
+    const st=String(p.STATUS||"").toLowerCase();
+    return st!=="pago"&&st!=="baixado_como_prejuizo"&&p.DATA_VENCIMENTO;
+  }).map(p=>{const dtV=new Date(p.DATA_VENCIMENTO);dtV.setHours(0,0,0,0);const dias=Math.round((dtV-hoje)/86400000);const cl=clientes.find(c=>String(c.ID_CLIENTE)===String(p.ID_CLIENTE));return{...p,dias,cl};}).filter(p=>p.dias>=-30&&p.dias<=3).sort((a,b)=>a.dias-b.dias).slice(0,5);
 
   const NAV=[
     {id:"dashboard",label:"Dashboard",icon:Ico.dash},
@@ -658,8 +720,6 @@ function App(){
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas} pagamentos={pagamentos} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {recuperacaoModal&&<RecuperacaoModal contrato={recuperacaoModal} onConfirmar={()=>{setRecuperacaoModal(null);carregar();}} onFechar={()=>setRecuperacaoModal(null)}/>}
 
-      {calOpen&&<div onClick={()=>setCalOpen(false)} style={{position:"fixed",inset:0,zIndex:199,background:"transparent"}}/>}
-
       {/* SIDEBAR */}
       <aside style={{width:SW,background:CARD,borderRight:`1px solid ${BD}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:100}}>
         <div style={{padding:"18px 18px 14px",borderBottom:`1px solid ${BD}`}}>
@@ -673,7 +733,7 @@ function App(){
             <button key={n.id} onClick={()=>setTab(n.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:8,border:"none",background:sel?"#EFF6FF":CARD,color:sel?BLU:MUTED,fontWeight:sel?600:400,fontSize:13,cursor:"pointer",textAlign:"left",marginBottom:2,position:"relative"}}>
               <span style={{color:sel?BLU:MUTED,flexShrink:0}}>{n.icon}</span>
               <span style={{flex:1}}>{n.label}</span>
-              {n.badge>0&&<span style={{background:n.id==="perdas"?RED:RED,color:"#fff",borderRadius:10,padding:"1px 6px",fontSize:10,fontWeight:700}}>{n.badge}</span>}
+              {n.badge>0&&<span style={{background:RED,color:"#fff",borderRadius:10,padding:"1px 6px",fontSize:10,fontWeight:700}}>{n.badge}</span>}
               {sel&&<span style={{position:"absolute",left:0,top:"20%",bottom:"20%",width:3,background:BLU,borderRadius:"0 3px 3px 0"}}/>}
             </button>
           );})}
@@ -707,176 +767,24 @@ function App(){
 
         <main style={{flex:1,padding:"24px 28px",overflowY:"auto"}}>
 
-          {/* ── DASHBOARD ── */}
-          {tab==="dashboard"&&(()=>{
-            // ── Helpers locais do calendário ───────────────────────────────
-            const DIAS_SEM=["D","S","T","Q","Q","S","S"];
-            const MESES_PT=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-            function diasDoMes(ano,mes){return new Date(ano,mes+1,0).getDate();}
-            function primeiroDiaSem(ano,mes){return new Date(ano,mes,1).getDay();}
-            function dStr(d){if(!d)return"";return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"});}
-            const periodoLabel={
-              "tudo":"Todo período","7d":"Últimos 7 dias","30d":"Últimos 30 dias",
-              "3m":"Últimos 3 meses","6m":"Últimos 6 meses","1a":"Último ano",
-              "custom":customDe&&customAte?`${dStr(customDe)} → ${dStr(customAte)}`:customDe?`A partir de ${dStr(customDe)}`:"Personalizado"
-            };
-            const periodoAtivo=periodo==="custom"&&!customDe?"tudo":periodo;
-            const lucroAtual=M.lucroNoPeriodo(periodoAtivo);
-
-            function clicarDia(d){
-              if(rangeStep===0){setCustomDe(d);setCustomAte(null);setRangeStep(1);}
-              else{
-                if(d<customDe){setCustomDe(d);setCustomAte(customDe);}
-                else{setCustomAte(d);}
-                setRangeStep(0);setPeriodo("custom");setCalOpen(false);
-              }
-            }
-            function dentroRange(d){
-              if(!customDe||!customAte) return false;
-              return d>=customDe&&d<=customAte;
-            }
-            function ehInicio(d){return customDe&&d.getTime()===customDe.getTime();}
-            function ehFim(d){return customAte&&d.getTime()===customAte.getTime();}
-            function ehHoje(d){return d.getTime()===hoje.getTime();}
-
-            // Renderiza os dias do calendário (um mês)
-            const ano=calMes.getFullYear(), mes=calMes.getMonth();
-            const totalDias=diasDoMes(ano,mes), primDia=primeiroDiaSem(ano,mes);
-            const celulas=[];
-            for(let i=0;i<primDia;i++) celulas.push(null);
-            for(let i=1;i<=totalDias;i++) celulas.push(new Date(ano,mes,i));
-
-            return <div>
-
-            {/* ── Barra de filtro de período ── */}
-            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:16,flexWrap:"wrap"}}>
-              <span style={{color:MUTED,fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginRight:2}}>Período:</span>
-              {[["tudo","Tudo"],["7d","7d"],["30d","30d"],["3m","3m"],["6m","6m"],["1a","1 ano"]].map(([v,l])=>(
-                <button key={v} onClick={()=>{setPeriodo(v);setCustomDe(null);setCustomAte(null);setCalOpen(false);}}
-                  style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${periodoAtivo===v?BLU:BD}`,background:periodoAtivo===v?BLU:CARD,color:periodoAtivo===v?"#fff":MUTED,fontSize:12,fontWeight:periodoAtivo===v?700:400,cursor:"pointer",transition:"all 0.15s"}}>
-                  {l}
-                </button>
-              ))}
-
-              {/* Botão abre calendário */}
-              <div style={{position:"relative"}}>
-                <button onClick={()=>{setCalOpen(o=>!o);setRangeStep(0);}}
-                  style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:20,border:`1px solid ${periodo==="custom"&&customDe?BLU:BD}`,background:periodo==="custom"&&customDe?BLU:CARD,color:periodo==="custom"&&customDe?"#fff":MUTED,fontSize:12,fontWeight:periodo==="custom"&&customDe?700:400,cursor:"pointer",transition:"all 0.15s"}}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                  {periodo==="custom"&&customDe ? periodoLabel["custom"] : "Personalizado"}
-                </button>
-
-                {/* Popover calendário */}
-                {calOpen&&<div style={{position:"absolute",top:"calc(100% + 8px)",left:0,zIndex:200,background:CARD,border:`1px solid ${BD}`,borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.14)",padding:16,minWidth:300}} onClick={e=>e.stopPropagation()}>
-
-                  {/* Instruções */}
-                  <p style={{color:rangeStep===0?BLU:GRN,fontSize:11,fontWeight:600,margin:"0 0 10px",textAlign:"center"}}>
-                    {rangeStep===0?"Clique para selecionar a data inicial":"Clique para selecionar a data final"}
-                  </p>
-
-                  {/* Header do mês */}
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                    <button onClick={()=>{const d=new Date(calMes);d.setMonth(d.getMonth()-1);setCalMes(d);}} style={{width:28,height:28,borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:MUTED}}>‹</button>
-                    <span style={{fontWeight:700,fontSize:13,color:TEXT}}>{MESES_PT[mes]} {ano}</span>
-                    <button onClick={()=>{const d=new Date(calMes);d.setMonth(d.getMonth()+1);setCalMes(d);}} style={{width:28,height:28,borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:MUTED}}>›</button>
-                  </div>
-
-                  {/* Cabeçalho dias da semana */}
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:4}}>
-                    {DIAS_SEM.map((d,i)=><div key={i} style={{textAlign:"center",fontSize:10,fontWeight:700,color:MUTED,padding:"2px 0"}}>{d}</div>)}
-                  </div>
-
-                  {/* Grade de dias */}
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
-                    {celulas.map((d,i)=>{
-                      if(!d) return <div key={i}/>;
-                      const ini=ehInicio(d), fim2=ehFim(d), dentro=dentroRange(d), hj=ehHoje(d);
-                      const ativo=ini||fim2;
-                      return(
-                        <button key={i} onClick={()=>clicarDia(d)}
-                          style={{width:"100%",aspectRatio:"1",borderRadius:ini?"6px 0 0 6px":fim2?"0 6px 6px 0":dentro?"0":"6px",border:"none",background:ativo?BLU:dentro?"#DBEAFE":CARD,color:ativo?"#fff":hj?BLU:TEXT,fontWeight:ativo||hj?700:400,fontSize:12,cursor:"pointer",position:"relative",outline:"none"}}
-                          onMouseEnter={e=>{if(!ativo&&!dentro)e.currentTarget.style.background=BG;}}
-                          onMouseLeave={e=>{if(!ativo&&!dentro)e.currentTarget.style.background=CARD;}}>
-                          {d.getDate()}
-                          {hj&&<span style={{position:"absolute",bottom:2,left:"50%",transform:"translateX(-50%)",width:3,height:3,borderRadius:"50%",background:ativo?"#fff":BLU}}/>}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Footer: range selecionado + limpar */}
-                  {(customDe||customAte)&&<div style={{marginTop:12,paddingTop:10,borderTop:`1px solid ${BD}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <span style={{fontSize:11,color:MUTED}}>{customDe&&dStr(customDe)}{customAte&&` → ${dStr(customAte)}`}</span>
-                    <button onClick={()=>{setCustomDe(null);setCustomAte(null);setPeriodo("tudo");setRangeStep(0);setCalOpen(false);}}
-                      style={{fontSize:11,color:RED,background:"none",border:"none",cursor:"pointer",fontWeight:600}}>Limpar</button>
-                  </div>}
-
-                </div>}
-              </div>
-
-              {(periodo!=="tudo"||(periodo==="custom"&&customDe))&&
-                <span style={{color:MUTED,fontSize:11,marginLeft:4}}>— lucro filtrado por: <strong style={{color:BLU}}>{periodoLabel[periodoAtivo]||periodoLabel[periodo]}</strong></span>}
-            </div>
-
+          {/* DASHBOARD */}
+          {tab==="dashboard"&&<div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:16}}>
-
-              {/* Card A — Saldo Devedor Real */}
-              <div style={{background:CARD,borderRadius:10,padding:18,border:`1px solid ${BD}`,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-                  <div style={{width:36,height:36,background:"#EFF6FF",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🏦</div>
-                  <p style={{color:MUTED,fontSize:11,fontWeight:500,margin:0}}>Saldo Devedor</p>
+              {[
+                {icon:"🏦",label:"Carteira Ativa",val:fmtR(M.totalEmprestado),c:BLU,bg:"#EFF6FF"},
+                {icon:"💰",label:"Total a Receber",val:fmtR(M.totalAReceber),c:GRN,bg:"#ECFDF5"},
+                {icon:"⚠️",label:"Inadimplência",val:fmtP(M.taxaInad),c:M.taxaInad>15?RED:GRN,bg:M.taxaInad>15?"#FEF2F2":"#ECFDF5"},
+                {icon:"🚨",label:"Baixados Prejuízo",val:perdas.cBaixados?.length||0,c:RED,bg:"#FEF2F2"},
+              ].map(k=>(
+                <div key={k.label} style={{background:CARD,borderRadius:10,padding:18,border:`1px solid ${BD}`,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                    <div style={{width:36,height:36,background:k.bg,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{k.icon}</div>
+                    <p style={{color:MUTED,fontSize:11,fontWeight:500,margin:0}}>{k.label}</p>
+                  </div>
+                  <p style={{fontSize:20,fontWeight:700,color:TEXT,margin:0}}>{k.val}</p>
                 </div>
-                <p style={{fontSize:20,fontWeight:700,color:TEXT,margin:"0 0 3px"}}>{fmtR(M.saldoDevedor)}</p>
-                <p style={{fontSize:10,color:MUTED,margin:0}}>capital + juros a receber (contratos ativos)</p>
-                <div style={{marginTop:8,display:"flex",gap:10}}>
-                  <span style={{fontSize:10,color:RED}}>⚠ {fmtR(M.totalAtrasado)} atrasado</span>
-                  <span style={{fontSize:10,color:GRN}}>📅 {fmtR(M.totalPendente)} a vencer</span>
-                </div>
-              </div>
-
-              {/* Card B — Lucro Realizado (filtrado por período) */}
-              <div style={{background:CARD,borderRadius:10,padding:18,border:`1px solid ${BD}`,boxShadow:"0 1px 4px rgba(0,0,0,0.05)",position:"relative"}}>
-                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-                  <div style={{width:36,height:36,background:"#ECFDF5",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>💸</div>
-                  <p style={{color:MUTED,fontSize:11,fontWeight:500,margin:0}}>Lucro Realizado</p>
-                </div>
-                <p style={{fontSize:20,fontWeight:700,color:GRN,margin:"0 0 3px"}}>{fmtR(lucroAtual)}</p>
-                <p style={{fontSize:10,color:MUTED,margin:0}}>juros recebidos + multa/atraso</p>
-                <div style={{marginTop:8,display:"flex",gap:10}}>
-                  <span style={{fontSize:10,color:BLU}}>📊 {fmtR(M.jurosRecebidos)} juros</span>
-                  <span style={{fontSize:10,color:ORG}}>⚡ {fmtR(M.extraRecebido)} extra</span>
-                </div>
-                {periodoAtivo!=="tudo"&&<div style={{position:"absolute",top:8,right:10,background:BLU,color:"#fff",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{periodo==="custom"?`${dStr(customDe)?.slice(0,5)}…`:periodoAtivo}</div>}
-              </div>
-
-              {/* Card C — Inadimplência */}
-              <div style={{background:CARD,borderRadius:10,padding:18,border:`1px solid ${BD}`,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-                  <div style={{width:36,height:36,background:M.taxaInad>15?"#FEF2F2":"#ECFDF5",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>⚠️</div>
-                  <p style={{color:MUTED,fontSize:11,fontWeight:500,margin:0}}>Inadimplência</p>
-                </div>
-                <p style={{fontSize:20,fontWeight:700,color:M.taxaInad>15?RED:GRN,margin:"0 0 3px"}}>{fmtP(M.taxaInad)}</p>
-                <p style={{fontSize:10,color:MUTED,margin:0}}>atrasado ÷ saldo devedor total</p>
-                <div style={{marginTop:8}}>
-                  <div style={{height:4,background:BD,borderRadius:2}}><div style={{width:`${Math.min(100,M.taxaInad)}%`,height:"100%",borderRadius:2,background:M.taxaInad>20?RED:M.taxaInad>10?YEL:GRN}}/></div>
-                </div>
-              </div>
-
-              {/* Card D — Baixados Prejuízo */}
-              <div style={{background:CARD,borderRadius:10,padding:18,border:`1px solid ${BD}`,boxShadow:"0 1px 4px rgba(0,0,0,0.05)",cursor:"pointer"}} onClick={()=>setTab("perdas")}>
-                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-                  <div style={{width:36,height:36,background:"#FEF2F2",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🚨</div>
-                  <p style={{color:MUTED,fontSize:11,fontWeight:500,margin:0}}>Baixados Prejuízo</p>
-                </div>
-                <p style={{fontSize:20,fontWeight:700,color:RED,margin:"0 0 3px"}}>{perdas.cBaixados?.length||0}</p>
-                <p style={{fontSize:10,color:MUTED,margin:0}}>contratos write-off — clique para detalhar</p>
-                <div style={{marginTop:8}}>
-                  <span style={{fontSize:10,color:RED}}>💀 {fmtR(perdas.prejuizoTotal)} capital perdido</span>
-                </div>
-              </div>
-
+              ))}
             </div>
-            {/* Cards de perdas resumo */}
             {(perdas.cBaixados?.length>0||perdas.cPrePrejuizo?.length>0||perdas.cEmCobranca?.length>0)&&(
               <div style={{background:"#FEF2F2",border:`1px solid ${RED}30`,borderRadius:10,padding:16,marginBottom:16,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
                 {[
@@ -933,12 +841,12 @@ function App(){
                 </div>
               ))}
             </div>
-          </div>; })()}
+          </div>}
 
           {tab==="pagamentos"&&<RegistrarPagamento clientes={clientes} parcelas={parcelas} onSucesso={()=>setTimeout(carregar,2000)}/>}
           {tab==="novoContrato"&&<NovoContrato clientes={clientes} contratos={contratos} onSucesso={()=>setTimeout(carregar,2000)}/>}
 
-          {/* ── CLIENTES ── */}
+          {/* CLIENTES */}
           {tab==="clientes"&&<div>
             <div style={{marginBottom:16}}><h1 style={{fontSize:22,fontWeight:700,color:TEXT,margin:0}}>Clientes</h1></div>
             {aguardando.length>0&&<div style={{background:"#FFFBEB",border:`1px solid ${YEL}`,borderRadius:10,padding:14,marginBottom:14}}>
@@ -991,7 +899,13 @@ function App(){
                                     <button onClick={()=>setTab("perdas")} style={{fontSize:10,padding:"2px 8px",background:"#FEF2F2",border:`1px solid ${RED}`,color:RED,borderRadius:6,cursor:"pointer",fontWeight:600}}>Ver em Perdas</button>}
                                 </div>
                                 <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
-                                  {ps.map(p=><div key={p.ID_PARCELA} title={`Parc ${p.NUM_PARCELA} — ${p.STATUS}`} style={{width:22,height:22,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,background:p.STATUS==="pago"?"#ECFDF5":p.STATUS==="atrasado"?"#FEF2F2":p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros"?"#F5F3FF":"#F3F4F6",color:p.STATUS==="pago"?GRN:p.STATUS==="atrasado"?RED:p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros"?PUR:MUTED,border:`1px solid ${p.STATUS==="pago"?GRN:p.STATUS==="atrasado"?RED:p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros"?PUR:BD}`}}>{p.NUM_PARCELA}</div>)}
+                                  {ps.map(p=>{
+                                    const pSt=String(p.STATUS||"").toLowerCase();
+                                    const bg=pSt==="pago"?"#ECFDF5":pSt==="atrasado"?"#FEF2F2":pSt==="baixado_como_prejuizo"?"#F3F4F6":p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros"?"#F5F3FF":"#F3F4F6";
+                                    const col=pSt==="pago"?GRN:pSt==="atrasado"?RED:pSt==="baixado_como_prejuizo"?MUTED:p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros"?PUR:MUTED;
+                                    const bdr=pSt==="pago"?GRN:pSt==="atrasado"?RED:BD;
+                                    return<div key={p.ID_PARCELA} title={`Parc ${p.NUM_PARCELA} — ${p.STATUS}`} style={{width:22,height:22,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,background:bg,color:col,border:`1px solid ${bdr}`}}>{p.NUM_PARCELA}</div>;
+                                  })}
                                 </div>
                               </div>;
                             })}
@@ -1005,14 +919,14 @@ function App(){
             </div>
           </div>}
 
-          {/* ── CONTRATOS ── */}
+          {/* CONTRATOS */}
           {tab==="contratos"&&<div>
             <div style={{marginBottom:16}}><h1 style={{fontSize:22,fontWeight:700,color:TEXT,margin:0}}>Contratos</h1></div>
             <div style={{display:"grid",gap:12}}>
               {contratos.filter(c=>!["quitado","cancelado"].includes(String(c.STATUS_CONTRATO||"").toLowerCase())).map(c=>{
                 const ps=parcelas.filter(p=>String(p.ID_CONTRATO)===String(c.ID_CONTRATO));
                 const pago=ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>s+(p.VALOR_PAGO||p.VALOR_PARCELA),0);
-                const rest=ps.filter(p=>p.STATUS!=="pago").reduce((s,p)=>s+p.VALOR_PARCELA,0);
+                const rest=ps.filter(p=>p.STATUS!=="pago"&&p.STATUS!=="baixado_como_prejuizo").reduce((s,p)=>s+p.VALOR_PARCELA,0);
                 const pct=pago+rest>0?Math.round(pago/(pago+rest)*100):0;
                 const st=String(c.STATUS_CONTRATO||"").toLowerCase();
                 const stCor=STATUS_COR[st]||MUTED;
@@ -1039,16 +953,22 @@ function App(){
                         <div style={{flex:1,height:5,background:BG,borderRadius:3}}><div style={{width:`${pct}%`,height:"100%",borderRadius:3,background:GRN}}/></div>
                         <span style={{color:MUTED,fontSize:11}}>{pct}% pago</span>
                       </div>
-                      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                        {ps.map(p=><div key={p.ID_PARCELA} title={`Parc ${p.NUM_PARCELA} — ${p.STATUS}`} style={{width:22,height:22,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,background:p.STATUS==="pago"?"#ECFDF5":p.STATUS==="atrasado"?"#FEF2F2":p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros"?"#F5F3FF":"#F3F4F6",color:p.STATUS==="pago"?GRN:p.STATUS==="atrasado"?RED:p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros"?PUR:MUTED,border:`1px solid ${p.STATUS==="pago"?GRN:p.STATUS==="atrasado"?RED:BD}`}}>{p.NUM_PARCELA}</div>)}
-                      </div>
                     </>}
-                    {ehPerda&&<div style={{display:"flex",gap:16,marginTop:8,fontSize:12}}>
+                    {/* Mapa de parcelas */}
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:10}}>
+                      {ps.map(p=>{
+                        const pSt=String(p.STATUS||"").toLowerCase();
+                        const bg=pSt==="pago"?"#ECFDF5":pSt==="atrasado"?"#FEF2F2":pSt==="baixado_como_prejuizo"?"#F3F4F6":p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros"?"#F5F3FF":"#F3F4F6";
+                        const col=pSt==="pago"?GRN:pSt==="atrasado"?RED:pSt==="baixado_como_prejuizo"?MUTED:p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros"?PUR:MUTED;
+                        const bdr=pSt==="pago"?GRN:pSt==="atrasado"?RED:pSt==="baixado_como_prejuizo"?BD:BD;
+                        return<div key={p.ID_PARCELA} title={`Parc ${p.NUM_PARCELA} — ${p.STATUS}`} style={{width:22,height:22,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,background:bg,color:col,border:`1px solid ${bdr}`}}>{p.NUM_PARCELA}</div>;
+                      })}
+                    </div>
+                    {ehPerda&&<div style={{display:"flex",gap:16,marginTop:4,fontSize:12}}>
                       <span style={{color:RED}}>Prejuízo Capital: <strong>{fmtR(c.PREJUIZO_CAPITAL)}</strong></span>
                       <span style={{color:ORG}}>Juros não realizados: <strong>{fmtR(c.JUROS_NAO_REALIZADOS)}</strong></span>
                       {c.VALOR_RECUPERADO_APOS_BAIXA>0&&<span style={{color:GRN}}>Recuperado: <strong>{fmtR(c.VALOR_RECUPERADO_APOS_BAIXA)}</strong></span>}
                     </div>}
-                    {/* Ações */}
                     <div style={{display:"flex",gap:8,marginTop:10,paddingTop:10,borderTop:`1px solid ${BD}`}}>
                       {st==="baixado_como_prejuizo"&&<button onClick={()=>setRecuperacaoModal(c)} style={{padding:"6px 12px",background:"#ECFDF5",border:`1px solid ${GRN}`,color:GRN,borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer"}}>💰 Registrar Recuperação</button>}
                       {["ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo"].includes(st)&&<button onClick={()=>setBaixaModal(c)} style={{padding:"6px 12px",background:"#FEF2F2",border:`1px solid ${RED}`,color:RED,borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer"}}>⚠️ Baixar como Prejuízo</button>}
@@ -1059,7 +979,7 @@ function App(){
             </div>
           </div>}
 
-          {/* ── COBRANÇA ── */}
+          {/* COBRANÇA */}
           {tab==="cobranca"&&<div>
             <div style={{marginBottom:16}}><h1 style={{fontSize:22,fontWeight:700,color:TEXT,margin:0}}>Central de Cobrança</h1></div>
             {cobItems.length===0?<div style={{background:CARD,borderRadius:10,padding:"48px",textAlign:"center",border:`1px solid ${BD}`}}><p style={{fontSize:32,margin:"0 0 8px"}}>✅</p><p style={{color:GRN,fontWeight:700}}>Nenhuma pendência!</p></div>
@@ -1088,11 +1008,9 @@ function App(){
             })}
           </div>}
 
-          {/* ── PERDAS E RECUPERAÇÃO ── */}
+          {/* PERDAS E RECUPERAÇÃO */}
           {tab==="perdas"&&<div>
             <div style={{marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:TEXT,margin:0}}>Perdas e Recuperação de Crédito</h1><p style={{color:MUTED,fontSize:13,margin:"4px 0 0"}}>Contratos problemáticos, prejuízo de capital e histórico de recuperação</p></div>
-
-            {/* KPIs de perdas */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:20}}>
               {[
                 {icon:"🚨",label:"Em Cobrança",val:perdas.cEmCobranca?.length||0,sub:"contratos",c:ORG,bg:"#FFF7ED"},
@@ -1106,8 +1024,6 @@ function App(){
                 </div>
               ))}
             </div>
-
-            {/* KPIs financeiros de perdas */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:20}}>
               {[
                 {label:"Capital Baixado",val:fmtR(perdas.capitalBaixado),sub:"total emprestado nos contratos baixados",c:RED,icon:"🏦"},
@@ -1125,21 +1041,15 @@ function App(){
                 </div>
               ))}
             </div>
-
-            {/* Aviso separação prejuízo vs lucro não realizado */}
             <div style={{background:"#FFFBEB",border:`1px solid ${YEL}`,borderRadius:10,padding:14,marginBottom:20}}>
               <p style={{color:"#92400E",fontSize:13,fontWeight:600,margin:"0 0 4px"}}>💡 Separação contábil importante</p>
               <p style={{color:"#92400E",fontSize:12,margin:0}}>O <strong>Prejuízo Real</strong> ({fmtR(perdas.prejuizoTotal)}) representa capital próprio não recuperado. Os <strong>Juros Não Realizados</strong> ({fmtR(perdas.jurosNaoRealizados)}) são lucro previsto que não se concretizou — não confundir com perda de caixa.</p>
             </div>
-
-            {/* Filtro */}
-            <div style={{display:"flex",gap:10,marginBottom:16}}>
+            <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
               {[["todos","Todos"],["em_cobranca","Em Cobrança"],["pre_prejuizo","Pré-Prejuízo"],["baixado_como_prejuizo","Baixados"],["em_recuperacao","Em Recuperação"],["recuperado_parcialmente","Rec. Parcial"]].map(([v,l])=>(
                 <button key={v} onClick={()=>setFiltroPerdas(v)} style={{padding:"6px 14px",borderRadius:20,border:`1px solid ${filtroPerdas===v?RED:BD}`,background:filtroPerdas===v?"#FEF2F2":CARD,color:filtroPerdas===v?RED:MUTED,fontSize:12,fontWeight:filtroPerdas===v?600:400,cursor:"pointer"}}>{l}</button>
               ))}
             </div>
-
-            {/* Lista de contratos problemáticos */}
             <div style={{display:"grid",gap:12}}>
               {[...perdas.cEmCobranca||[],...perdas.cPrePrejuizo||[],...perdas.cBaixados||[],...perdas.cRecuperacao||[]]
                 .filter(c=>filtroPerdas==="todos"||String(c.STATUS_CONTRATO||"").toLowerCase()===filtroPerdas)
@@ -1167,7 +1077,6 @@ function App(){
                           {c.DATA_BAIXA_PREJUIZO&&<p style={{color:RED,fontSize:11,margin:"2px 0 0"}}>Baixado em: {fmtDt(parseDate(c.DATA_BAIXA_PREJUIZO))}</p>}
                         </div>
                       </div>
-                      {/* Resumo financeiro do contrato */}
                       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:12}}>
                         {[["Prejuízo Capital",fmtR(c.PREJUIZO_CAPITAL),RED],["Juros Não Real.",fmtR(c.JUROS_NAO_REALIZADOS),ORG],["Recuperado",fmtR(c.VALOR_RECUPERADO_APOS_BAIXA),GRN]].map(([l,v,col])=>(
                           <div key={l} style={{background:BG,borderRadius:7,padding:"10px 12px"}}>
@@ -1184,7 +1093,6 @@ function App(){
                       </div>}
                       {c.PROXIMA_PROVIDENCIA&&<p style={{color:BLU,fontSize:12,margin:"0 0 10px"}}>📋 Próx. providência: {c.PROXIMA_PROVIDENCIA}</p>}
                       {c.STATUS_JURIDICO&&c.STATUS_JURIDICO!=="NAO_ANALISADO"&&<p style={{color:PUR,fontSize:12,margin:"0 0 10px"}}>⚖️ Jurídico: {c.STATUS_JURIDICO}</p>}
-                      {/* Ações */}
                       <div style={{display:"flex",gap:8}}>
                         {st==="baixado_como_prejuizo"&&<button onClick={()=>setRecuperacaoModal(c)} style={{padding:"7px 14px",background:"#ECFDF5",border:`1px solid ${GRN}`,color:GRN,borderRadius:7,fontSize:12,fontWeight:600,cursor:"pointer"}}>💰 Registrar Recuperação</button>}
                         {["em_cobranca","pre_prejuizo","ativo_em_atraso"].includes(st)&&<button onClick={()=>setBaixaModal(c)} style={{padding:"7px 14px",background:"#FEF2F2",border:`1px solid ${RED}`,color:RED,borderRadius:7,fontSize:12,fontWeight:600,cursor:"pointer"}}>⚠️ Baixar como Prejuízo</button>}
@@ -1198,7 +1106,7 @@ function App(){
             </div>
           </div>}
 
-          {/* ── FINANCEIRO ── */}
+          {/* FINANCEIRO */}
           {tab==="financeiro"&&<div>
             <div style={{marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:TEXT,margin:0}}>Painel Financeiro</h1></div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:20}}>
@@ -1229,7 +1137,6 @@ function App(){
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            {/* Últimos pagamentos */}
             <div style={{background:CARD,borderRadius:10,border:`1px solid ${BD}`}}>
               <div style={{padding:"14px 20px",borderBottom:`1px solid ${BD}`}}><h3 style={{fontSize:14,fontWeight:700,margin:0}}>Últimos Pagamentos</h3></div>
               <table style={{width:"100%",borderCollapse:"collapse"}}>
@@ -1252,14 +1159,14 @@ function App(){
             </div>
           </div>}
 
-          {/* ── KPIs ── */}
+          {/* KPIs */}
           {tab==="kpis"&&<div>
             <div style={{marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:TEXT,margin:0}}>Análise de Crédito</h1></div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
               {[
-                {l:"Inadimplência",v:fmtP(M.taxaInad),raw:M.taxaInad,ok:10,warn:20,rev:true,desc:"Atrasado / total a receber",ideal:"< 10%",icon:"⚠️"},
-                {l:"Saldo Devedor",v:fmtR(M.saldoDevedor),raw:null,desc:"Capital + juros a receber (contratos ativos)",ideal:"—",icon:"🏦"},
-                {l:"Lucro Realizado (total)",v:fmtR(M.lucroTotal),raw:null,desc:"Juros + extra recebidos — excluído o capital",ideal:"—",icon:"💸"},
+                {l:"Inadimplência",v:fmtP(M.taxaInad),raw:M.taxaInad,ok:10,warn:20,rev:true,desc:"Atrasado / total a receber (exclui baixados)",ideal:"< 10%",icon:"⚠️"},
+                {l:"Carteira Ativa",v:fmtR(M.totalEmprestado),raw:null,desc:"Volume em contratos ativos",ideal:"—",icon:"🏦"},
+                {l:"Total a Receber",v:fmtR(M.totalAReceber),raw:null,desc:"Pendente + atrasado",ideal:"—",icon:"💰"},
                 {l:"Contratos em Cobrança",v:perdas.cEmCobranca?.length||0,raw:null,desc:"",ideal:"—",icon:"📞"},
                 {l:"Capital em Prejuízo",v:fmtR(perdas.capitalBaixado),raw:null,desc:"Contratos baixados",ideal:"0",icon:"📉"},
                 {l:"Prejuízo Real",v:fmtR(perdas.prejuizoTotal),raw:null,desc:"Capital não recuperado",ideal:"0",icon:"🔻"},
@@ -1278,10 +1185,10 @@ function App(){
             </div>
           </div>}
 
-          {/* ── SIMULADOR ── */}
+          {/* SIMULADOR */}
           {tab==="simulador"&&(()=>{
             const inadPct=((M.taxaInad||0)+simInad)/100;
-            const novaCarteira=(M.saldoDevedor||0)+simVal;
+            const novaCarteira=(M.totalAReceber||0)+simVal;
             const perdaExtra=novaCarteira*inadPct;
             const lucroProj=(M.lucroMes||0)*(1+simVol/100)-perdaExtra*0.08;
             const risco=inadPct>0.3?"crítico":inadPct>0.15?"atenção":"saudável";
