@@ -698,9 +698,19 @@ function App(){
 
     const mensal=Array.from({length:6},(_,i)=>{
       const d=new Date(hoje);d.setMonth(d.getMonth()-5+i);
-      const mes=d.toISOString().slice(0,7);
-      const receita=pagamentos.filter(p=>p.DATA_PAGAMENTO&&p.DATA_PAGAMENTO.toISOString().slice(0,7)===mes&&p.TIPO_PAGAMENTO!=="recuperacao_apos_baixa").reduce((s,p)=>s+p.VALOR_PAGO,0);
-      const extra=pagamentos.filter(p=>p.DATA_PAGAMENTO&&p.DATA_PAGAMENTO.toISOString().slice(0,7)===mes).reduce((s,p)=>s+p.RECEITA_EXTRA_ATRASO,0);
+      const mesNum = d.getFullYear() * 100 + (d.getMonth() + 1);
+      const receita=pagamentos.filter(p=>{
+        if(!p.DATA_PAGAMENTO) return false;
+        const dt = p.DATA_PAGAMENTO;
+        const pMesNum = dt.getFullYear() * 100 + (dt.getMonth() + 1);
+        return pMesNum === mesNum && p.TIPO_PAGAMENTO!=="recuperacao_apos_baixa";
+      }).reduce((s,p)=>s+p.VALOR_PAGO,0);
+      const extra=pagamentos.filter(p=>{
+        if(!p.DATA_PAGAMENTO) return false;
+        const dt = p.DATA_PAGAMENTO;
+        const pMesNum = dt.getFullYear() * 100 + (dt.getMonth() + 1);
+        return pMesNum === mesNum;
+      }).reduce((s,p)=>s+(p.RECEITA_EXTRA_ATRASO||0),0);
       return{mes:d.toLocaleDateString("pt-BR",{month:"short"}),receita:Math.round(receita),extra:Math.round(extra)};
     });
 
@@ -1323,6 +1333,7 @@ function App(){
               if (periodoAtivo === "custom") {
                 const nDe = toNum(customDe);
                 const nAte = customAte ? toNum(customAte) : toNum(new Date());
+                // Comparação numérica inclusiva
                 return nDt >= nDe && nDt <= nAte;
               }
               
@@ -1338,7 +1349,7 @@ function App(){
               const nA = toNum(a.DATA_PAGAMENTO);
               const nB = toNum(b.DATA_PAGAMENTO);
               if(nA !== nB) return nB - nA;
-              return String(b.NOME_CLIENTE).localeCompare(String(a.NOME_CLIENTE));
+              return String(b.NOME_CLIENTE || "").localeCompare(String(a.NOME_CLIENTE || ""));
             });
 
             // KPIs filtrados para os cartões superiores
