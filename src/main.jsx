@@ -1360,6 +1360,7 @@ function App(){
             // KPIs filtrados baseados nas parcelas pagas
             const kpiF = {
               receitaTotal: pagFiltrados.reduce((s,p)=>s+(p.VALOR_PAGO||p.VALOR_PARCELA),0),
+              lucroRealizado: pagFiltrados.reduce((s,p)=>s+(p.VALOR_JUROS||0)+(p.DIFERENCA_PAGA||0),0),
               extraAtraso: pagFiltrados.reduce((s,p)=>s+(p.DIFERENCA_PAGA||0),0),
               normais: pagFiltrados.filter(p=>p.TIPO_PAGAMENTO==="pagamento_normal").length,
               atraso: pagFiltrados.filter(p=>p.TIPO_PAGAMENTO==="pagamento_com_atraso").length,
@@ -1411,9 +1412,10 @@ function App(){
               </div>
             </div>
 
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:20}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:20}}>
               {[
                 {icon:"💵",label:"Receita Total",val:fmtR(kpiF.receitaTotal),c:BLU},
+                {icon:"📈",label:"Lucro Realizado",val:fmtR(kpiF.lucroRealizado),c:GRN},
                 {icon:"⏰",label:"Receita Extra Atraso",val:fmtR(kpiF.extraAtraso),c:ORG},
                 {icon:"🔄",label:"Parcelas Prorrogadas",val:M.qtyProrrogadas,c:PUR},
                 {icon:"✅",label:"Pagamentos Normais",val:kpiF.normais,c:GRN},
