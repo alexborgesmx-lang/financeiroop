@@ -1459,7 +1459,7 @@ function App(){
                         <td style={{padding:"10px 20px",color:MUTED,fontSize:12}}>{fmtDt(p.DATA_PAGAMENTO)}</td>
                         <td style={{padding:"10px 20px",fontSize:12,fontWeight:500}}>{p.NOME_CLIENTE}</td>
                         <td style={{padding:"10px 20px"}}><Badge c={tCor}>{tLabel}</Badge></td>
-                        <td style={{padding:"10px 20px",color:MUTED,fontSize:12}}>{fmtR(p.VALOR_ORIGINAL_PARCELA)}</td>
+                        <td style={{padding:"10px 20px",color:MUTED,fontSize:12}}>{fmtR(p.VALOR_PARCELA)}</td>
                         <td style={{padding:"10px 20px",fontWeight:600,fontSize:12}}>{fmtR(p.VALOR_PAGO)}</td>
                         <td style={{padding:"10px 20px",color:p.DIFERENCA_PAGA>0?ORG:MUTED,fontWeight:p.DIFERENCA_PAGA>0?700:400,fontSize:12}}>{p.DIFERENCA_PAGA>0?`+${fmtR(p.DIFERENCA_PAGA)}`:"—"}</td>
                       </tr>;
