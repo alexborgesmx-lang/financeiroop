@@ -1339,29 +1339,23 @@ function App(){
               if (periodoAtivo === "tudo") return true;
               if (!p.DATA_PAGAMENTO) return false;
               
-              const nDt = toNum(p.DATA_PAGAMENTO);
-              if(!nDt) return false;
-              
+              const dtP = p.DATA_PAGAMENTO;
+              const d = new Date(dtP); d.setHours(0,0,0,0);
+
               if (periodoAtivo === "custom") {
-                const nDe = toNum(customDe);
-                const nAte = customAte ? toNum(customAte) : toNum(new Date());
-                // Comparação numérica inclusiva
-                return nDt >= nDe && nDt <= nAte;
+                const de = customDe; 
+                const ate = customAte || hoje;
+                const ateF = new Date(ate); ateF.setHours(23,59,59,999);
+                return d >= de && d <= ateF;
               }
               
-              const dCorte = new Date(hoje);
-              if(periodoAtivo==="7d")  dCorte.setDate(dCorte.getDate()-7);
-              else if(periodoAtivo==="30d") dCorte.setDate(dCorte.getDate()-30);
-              else if(periodoAtivo==="3m")  dCorte.setMonth(dCorte.getMonth()-3);
-              else if(periodoAtivo==="6m")  dCorte.setMonth(dCorte.getMonth()-6);
-              else if(periodoAtivo==="1a")  dCorte.setFullYear(dCorte.getFullYear()-1);
-              
-              return nDt >= toNum(dCorte);
+              const corte = cortePeriodo(periodoAtivo);
+              if (!corte) return true;
+              return d >= corte;
             }).sort((a,b) => {
-              const nA = toNum(a.DATA_PAGAMENTO);
-              const nB = toNum(b.DATA_PAGAMENTO);
-              if(nA !== nB) return nB - nA;
-              return String(b.NOME_CLIENTE || "").localeCompare(String(a.NOME_CLIENTE || ""));
+              const da = a.DATA_PAGAMENTO ? new Date(a.DATA_PAGAMENTO).getTime() : 0;
+              const db = b.DATA_PAGAMENTO ? new Date(b.DATA_PAGAMENTO).getTime() : 0;
+              return db - da;
             });
 
             // KPIs filtrados para os cartões superiores
