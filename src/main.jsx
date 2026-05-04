@@ -367,12 +367,42 @@ function RegistrarPagamento({clientes,parcelas,onSucesso}){
   const stC=st=>st==="atrasado"?RED:st==="vencendo"?YEL:MUTED;
   const confirmar=async()=>{
     if(!parcela||!data)return;setLoading(true);setMsg(null);
-    // Garantir que a data enviada seja interpretada corretamente como o dia selecionado
-    // O input type="date" retorna YYYY-MM-DD. Vamos garantir que o backend receba isso de forma limpa.
-    const dataFormatada = data; 
-    const res=tipo==="total"?await postAction({action:"pagamento",idParcela:parcela.ID_PARCELA,data:dataFormatada,valor:valor?parseFloat(valor):null}):await postAction({action:"pagamentoParcial",idParcela:parcela.ID_PARCELA,data:dataFormatada});
-    if(res.ok||res.msg){setMsg({ok:true,texto:res.msg||"Registrado!"});setParcela(null);setTipo(null);setValor("");if(onSucesso)onSucesso();}
-    else setMsg({ok:false,texto:res.erro||"Erro."});
+    
+    // Lógica para determinar o tipo de pagamento (Normal vs Atraso)
+    // Comparamos a data selecionada com a data de vencimento da parcela
+    const dtPag = toNum(data);
+    const dtVenc = toNum(parcela.DATA_VENCIMENTO);
+    
+    let acao = "pagamento"; // Ação padrão para pagamento total
+    let payload = { 
+      action: acao, 
+      idParcela: parcela.ID_PARCELA, 
+      data: data, 
+      valor: valor ? parseFloat(valor) : null 
+    };
+
+    if (tipo === "total") {
+      // Se for pagamento total, verificamos se houve atraso
+      if (dtPag > dtVenc) {
+        payload.tipoPagamento = "pagamento_com_atraso";
+      } else {
+        payload.tipoPagamento = "pagamento_normal";
+      }
+    } else {
+      // Se for "Somente Juros" (parcial)
+      payload.action = "pagamentoParcial";
+      delete payload.valor;
+    }
+
+    const res = await postAction(payload);
+    
+    if(res.ok||res.msg){
+      setMsg({ok:true,texto:res.msg||"Registrado!"});
+      setParcela(null);setTipo(null);setValor("");
+      if(onSucesso) onSucesso();
+    } else {
+      setMsg({ok:false,texto:res.erro||"Erro."});
+    }
     setLoading(false);
   };
   return(
