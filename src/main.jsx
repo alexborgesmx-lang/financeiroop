@@ -19,14 +19,28 @@ const limparData = v => { if(!v) return ""; const s=String(v).trim(); return s.i
 function parseDate(v){
   if(!v) return null;
   if(v instanceof Date) return v;
-  // Se for string no formato DD/MM/YYYY
-  if(typeof v === "string" && v.includes("/")){
-    const [d,m,a] = v.split("/");
-    return new Date(parseInt(a), parseInt(m)-1, parseInt(d), 12, 0, 0);
+  
+  let d;
+  if(typeof v === "string"){
+    const s = v.trim();
+    // Formato DD/MM/YYYY
+    if(s.includes("/")){
+      const [dia,mes,ano] = s.split("/");
+      d = new Date(parseInt(ano), parseInt(mes)-1, parseInt(dia), 12, 0, 0);
+    } 
+    // Formato YYYY-MM-DD (ISO)
+    else if(s.includes("-")){
+      const [ano,mes,dia] = s.split("T")[0].split("-");
+      d = new Date(parseInt(ano), parseInt(mes)-1, parseInt(dia), 12, 0, 0);
+    }
+    else {
+      d = new Date(v);
+    }
+  } else {
+    d = new Date(v);
   }
-  const d=new Date(v);
+
   if(isNaN(d.getTime())) return null;
-  // Forçar meio-dia para evitar problemas de fuso horário ao comparar apenas datas
   d.setHours(12,0,0,0);
   return d;
 }
@@ -349,7 +363,10 @@ function RegistrarPagamento({clientes,parcelas,onSucesso}){
   const stC=st=>st==="atrasado"?RED:st==="vencendo"?YEL:MUTED;
   const confirmar=async()=>{
     if(!parcela||!data)return;setLoading(true);setMsg(null);
-    const res=tipo==="total"?await postAction({action:"pagamento",idParcela:parcela.ID_PARCELA,data,valor:valor?parseFloat(valor):null}):await postAction({action:"pagamentoParcial",idParcela:parcela.ID_PARCELA,data});
+    // Garantir que a data enviada seja interpretada corretamente como o dia selecionado
+    // O input type="date" retorna YYYY-MM-DD. Vamos garantir que o backend receba isso de forma limpa.
+    const dataFormatada = data; 
+    const res=tipo==="total"?await postAction({action:"pagamento",idParcela:parcela.ID_PARCELA,data:dataFormatada,valor:valor?parseFloat(valor):null}):await postAction({action:"pagamentoParcial",idParcela:parcela.ID_PARCELA,data:dataFormatada});
     if(res.ok||res.msg){setMsg({ok:true,texto:res.msg||"Registrado!"});setParcela(null);setTipo(null);setValor("");if(onSucesso)onSucesso();}
     else setMsg({ok:false,texto:res.erro||"Erro."});
     setLoading(false);
@@ -1252,8 +1269,8 @@ function App(){
               if (!p.DATA_PAGAMENTO) return false;
               
               // Normalizar data do pagamento para comparação (meio-dia)
-              const dt = new Date(p.DATA_PAGAMENTO);
-              dt.setHours(12,0,0,0);
+              const dt = parseDate(p.DATA_PAGAMENTO);
+              if(!dt) return false;
               
               if (periodoAtivo === "custom") {
                 const de = new Date(customDe); de.setHours(0,0,0,0);
