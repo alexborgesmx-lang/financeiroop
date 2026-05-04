@@ -23,17 +23,13 @@ function parseDate(v){
   let d;
   if(typeof v === "string"){
     const s = v.trim();
-    // Formato DD/MM/YYYY
     if(s.includes("/")){
       const [dia,mes,ano] = s.split("/");
       d = new Date(parseInt(ano), parseInt(mes)-1, parseInt(dia), 12, 0, 0);
-    } 
-    // Formato YYYY-MM-DD (ISO)
-    else if(s.includes("-")){
+    } else if(s.includes("-")){
       const [ano,mes,dia] = s.split("T")[0].split("-");
       d = new Date(parseInt(ano), parseInt(mes)-1, parseInt(dia), 12, 0, 0);
-    }
-    else {
+    } else {
       d = new Date(v);
     }
   } else {
@@ -43,6 +39,14 @@ function parseDate(v){
   if(isNaN(d.getTime())) return null;
   d.setHours(12,0,0,0);
   return d;
+}
+
+// Helper infalível para comparação de datas (YYYYMMDD)
+function toNum(d){
+  if(!d) return 0;
+  const dt = d instanceof Date ? d : parseDate(d);
+  if(!dt) return 0;
+  return dt.getFullYear() * 10000 + (dt.getMonth() + 1) * 100 + dt.getDate();
 }
 async function postAction(body){ const r=await fetch(POST_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); return r.json(); }
 
@@ -1268,15 +1272,13 @@ function App(){
               if (periodoAtivo === "tudo") return true;
               if (!p.DATA_PAGAMENTO) return false;
               
-              // Normalizar data do pagamento para comparação (meio-dia)
-              const dt = parseDate(p.DATA_PAGAMENTO);
-              if(!dt) return false;
+              const nDt = toNum(p.DATA_PAGAMENTO);
+              if(!nDt) return false;
               
               if (periodoAtivo === "custom") {
-                const de = new Date(customDe); de.setHours(0,0,0,0);
-                const ate = customAte ? new Date(customAte) : new Date();
-                ate.setHours(23,59,59,999);
-                return dt >= de && dt <= ate;
+                const nDe = toNum(customDe);
+                const nAte = customAte ? toNum(customAte) : toNum(new Date());
+                return nDt >= nDe && nDt <= nAte;
               }
               
               const dCorte = new Date(hoje);
@@ -1285,13 +1287,18 @@ function App(){
               else if(periodoAtivo==="3m")  dCorte.setMonth(dCorte.getMonth()-3);
               else if(periodoAtivo==="6m")  dCorte.setMonth(dCorte.getMonth()-6);
               else if(periodoAtivo==="1a")  dCorte.setFullYear(dCorte.getFullYear()-1);
-              dCorte.setHours(0,0,0,0);
-              return dt >= dCorte;
-            }).sort((a,b) => {
-              const da = a.DATA_PAGAMENTO ? new Date(a.DATA_PAGAMENTO).getTime() : 0;
-              const db = b.DATA_PAGAMENTO ? new Date(b.DATA_PAGAMENTO).getTime() : 0;
-              return db - da;
-            });
+              
+              return nDt >= toNum(dCorte);
+            }).sort((a,b) => toNum(b.DATA_PAGAMENTO) - toNum(a.DATA_PAGAMENTO));
+
+            // KPIs filtrados para os cartões superiores
+            const kpiF = {
+              receitaTotal: pagFiltrados.reduce((s,p)=>s+p.VALOR_PAGO,0),
+              extraAtraso: pagFiltrados.reduce((s,p)=>s+(p.RECEITA_EXTRA_ATRASO||0),0),
+              normais: pagFiltrados.filter(p=>p.TIPO_PAGAMENTO==="pagamento_normal").length,
+              atraso: pagFiltrados.filter(p=>p.TIPO_PAGAMENTO==="pagamento_com_atraso").length,
+              juros: pagFiltrados.filter(p=>p.TIPO_PAGAMENTO==="somente_juros").length,
+            };
 
             return <div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:10}}>
@@ -1340,12 +1347,12 @@ function App(){
 
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:20}}>
               {[
-                {icon:"💵",label:"Receita Total",val:fmtR(M.totalPago),c:BLU},
-                {icon:"⏰",label:"Receita Extra Atraso",val:fmtR(M.receitaExtraTotal),c:ORG},
+                {icon:"💵",label:"Receita Total",val:fmtR(kpiF.receitaTotal),c:BLU},
+                {icon:"⏰",label:"Receita Extra Atraso",val:fmtR(kpiF.extraAtraso),c:ORG},
                 {icon:"🔄",label:"Parcelas Prorrogadas",val:M.qtyProrrogadas,c:PUR},
-                {icon:"✅",label:"Pagamentos Normais",val:M.pagNormais,c:GRN},
-                {icon:"⚠️",label:"Com Atraso",val:M.pagAtraso,c:YEL},
-                {icon:"💸",label:"Somente Juros",val:M.pagJuros,c:RED},
+                {icon:"✅",label:"Pagamentos Normais",val:kpiF.normais,c:GRN},
+                {icon:"⚠️",label:"Com Atraso",val:kpiF.atraso,c:YEL},
+                {icon:"💸",label:"Somente Juros",val:kpiF.juros,c:RED},
               ].map(k=>(
                 <div key={k.label} style={{background:CARD,borderRadius:10,padding:18,border:`1px solid ${BD}`}}>
                   <p style={{color:MUTED,fontSize:11,margin:"0 0 6px"}}>{k.icon} {k.label}</p>
