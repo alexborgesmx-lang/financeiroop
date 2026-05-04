@@ -1335,12 +1335,12 @@ function App(){
             for(let i=0;i<primDia;i++) celulas.push(null);
             for(let i=1;i<=totalDias;i++) celulas.push(new Date(ano,mes,i));
 
-            const pagFiltrados = pagamentos.filter(p => {
+            // Fonte de dados direta: Parcelas com status "pago"
+            const pagFiltrados = parcelas.filter(p => {
+              if (p.STATUS !== "pago" || !p.DATA_PAGAMENTO) return false;
               if (periodoAtivo === "tudo") return true;
-              if (!p.DATA_PAGAMENTO) return false;
               
-              const dtP = p.DATA_PAGAMENTO;
-              const d = new Date(dtP); d.setHours(0,0,0,0);
+              const d = new Date(p.DATA_PAGAMENTO); d.setHours(0,0,0,0);
 
               if (periodoAtivo === "custom") {
                 const de = customDe; 
@@ -1350,18 +1350,17 @@ function App(){
               }
               
               const corte = cortePeriodo(periodoAtivo);
-              if (!corte) return true;
-              return d >= corte;
+              return !corte || d >= corte;
             }).sort((a,b) => {
-              const da = a.DATA_PAGAMENTO ? new Date(a.DATA_PAGAMENTO).getTime() : 0;
-              const db = b.DATA_PAGAMENTO ? new Date(b.DATA_PAGAMENTO).getTime() : 0;
+              const da = new Date(a.DATA_PAGAMENTO).getTime();
+              const db = new Date(b.DATA_PAGAMENTO).getTime();
               return db - da;
             });
 
-            // KPIs filtrados para os cartões superiores
+            // KPIs filtrados baseados nas parcelas pagas
             const kpiF = {
-              receitaTotal: pagFiltrados.reduce((s,p)=>s+p.VALOR_PAGO,0),
-              extraAtraso: pagFiltrados.reduce((s,p)=>s+(p.RECEITA_EXTRA_ATRASO||0),0),
+              receitaTotal: pagFiltrados.reduce((s,p)=>s+(p.VALOR_PAGO||p.VALOR_PARCELA),0),
+              extraAtraso: pagFiltrados.reduce((s,p)=>s+(p.DIFERENCA_PAGA||0),0),
               normais: pagFiltrados.filter(p=>p.TIPO_PAGAMENTO==="pagamento_normal").length,
               atraso: pagFiltrados.filter(p=>p.TIPO_PAGAMENTO==="pagamento_com_atraso").length,
               juros: pagFiltrados.filter(p=>p.TIPO_PAGAMENTO==="somente_juros").length,
@@ -1460,7 +1459,7 @@ function App(){
                         <td style={{padding:"10px 20px"}}><Badge c={tCor}>{tLabel}</Badge></td>
                         <td style={{padding:"10px 20px",color:MUTED,fontSize:12}}>{fmtR(p.VALOR_ORIGINAL_PARCELA)}</td>
                         <td style={{padding:"10px 20px",fontWeight:600,fontSize:12}}>{fmtR(p.VALOR_PAGO)}</td>
-                        <td style={{padding:"10px 20px",color:p.RECEITA_EXTRA_ATRASO>0?ORG:MUTED,fontWeight:p.RECEITA_EXTRA_ATRASO>0?700:400,fontSize:12}}>{p.RECEITA_EXTRA_ATRASO>0?`+${fmtR(p.RECEITA_EXTRA_ATRASO)}`:"—"}</td>
+                        <td style={{padding:"10px 20px",color:p.DIFERENCA_PAGA>0?ORG:MUTED,fontWeight:p.DIFERENCA_PAGA>0?700:400,fontSize:12}}>{p.DIFERENCA_PAGA>0?`+${fmtR(p.DIFERENCA_PAGA)}`:"—"}</td>
                       </tr>;
                     })}
                   </tbody>
