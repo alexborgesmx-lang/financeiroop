@@ -16,7 +16,20 @@ const fmtP  = v => Number(v||0).toFixed(1) + "%";
 const fmtDt = v => { if(!v) return "—"; const d = v instanceof Date ? v : new Date(v); return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR"); };
 const hojeStr = () => new Date().toISOString().split("T")[0];
 const limparData = v => { if(!v) return ""; const s=String(v).trim(); return s.includes("T") ? s.split("T")[0] : s; };
-function parseDate(v){ if(!v) return null; if(v instanceof Date) return v; const d=new Date(v); return isNaN(d)?null:d; }
+function parseDate(v){
+  if(!v) return null;
+  if(v instanceof Date) return v;
+  // Se for string no formato DD/MM/YYYY
+  if(typeof v === "string" && v.includes("/")){
+    const [d,m,a] = v.split("/");
+    return new Date(parseInt(a), parseInt(m)-1, parseInt(d), 12, 0, 0);
+  }
+  const d=new Date(v);
+  if(isNaN(d.getTime())) return null;
+  // Forçar meio-dia para evitar problemas de fuso horário ao comparar apenas datas
+  d.setHours(12,0,0,0);
+  return d;
+}
 async function postAction(body){ const r=await fetch(POST_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); return r.json(); }
 
 function vLetras(v){ return v&&/[^a-zA-ZÀ-ÿ\s]/.test(v)?"⚠ Somente letras":null; }
@@ -1237,8 +1250,10 @@ function App(){
             const pagFiltrados = pagamentos.filter(p => {
               if (periodoAtivo === "tudo") return true;
               if (!p.DATA_PAGAMENTO) return false;
+              
+              // Normalizar data do pagamento para comparação (meio-dia)
               const dt = new Date(p.DATA_PAGAMENTO);
-              dt.setHours(0,0,0,0);
+              dt.setHours(12,0,0,0);
               
               if (periodoAtivo === "custom") {
                 const de = new Date(customDe); de.setHours(0,0,0,0);
@@ -1255,7 +1270,11 @@ function App(){
               else if(periodoAtivo==="1a")  dCorte.setFullYear(dCorte.getFullYear()-1);
               dCorte.setHours(0,0,0,0);
               return dt >= dCorte;
-            }).sort((a,b) => new Date(b.DATA_PAGAMENTO) - new Date(a.DATA_PAGAMENTO));
+            }).sort((a,b) => {
+              const da = a.DATA_PAGAMENTO ? new Date(a.DATA_PAGAMENTO).getTime() : 0;
+              const db = b.DATA_PAGAMENTO ? new Date(b.DATA_PAGAMENTO).getTime() : 0;
+              return db - da;
+            });
 
             return <div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:10}}>
