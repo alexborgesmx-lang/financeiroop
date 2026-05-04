@@ -1199,8 +1199,109 @@ function App(){
           </div>}
 
           {/* ── FINANCEIRO ── */}
-          {tab==="financeiro"&&<div>
-            <div style={{marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:TEXT,margin:0}}>Painel Financeiro</h1></div>
+          {tab==="financeiro"&&(()=>{
+            const DIAS_SEM=["D","S","T","Q","Q","S","S"];
+            const MESES_PT=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+            function diasDoMes(ano,mes){return new Date(ano,mes+1,0).getDate();}
+            function primeiroDiaSem(ano,mes){return new Date(ano,mes,1).getDay();}
+            function dStr(d){if(!d)return"";return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"});}
+            const periodoLabel={
+              "tudo":"Todo período","7d":"Últimos 7 dias","30d":"Últimos 30 dias",
+              "3m":"Últimos 3 meses","6m":"Últimos 6 meses","1a":"Último ano",
+              "custom":customDe&&customAte?`${dStr(customDe)} → ${dStr(customAte)}`:customDe?`A partir de ${dStr(customDe)}`:"Personalizado"
+            };
+            const periodoAtivo=periodo==="custom"&&!customDe?"tudo":periodo;
+
+            function clicarDia(d){
+              if(rangeStep===0){setCustomDe(d);setCustomAte(null);setRangeStep(1);}
+              else{
+                if(d<customDe){setCustomDe(d);setCustomAte(customDe);}
+                else{setCustomAte(d);}
+                setRangeStep(0);setPeriodo("custom");setCalOpen(false);
+              }
+            }
+            function dentroRange(d){
+              if(!customDe||!customAte) return false;
+              return d>=customDe&&d<=customAte;
+            }
+            function ehInicio(d){return customDe&&d.getTime()===customDe.getTime();}
+            function ehFim(d){return customAte&&d.getTime()===customAte.getTime();}
+            function ehHoje(d){return d.getTime()===hoje.getTime();}
+
+            const ano=calMes.getFullYear(), mes=calMes.getMonth();
+            const totalDias=diasDoMes(ano,mes), primDia=primeiroDiaSem(ano,mes);
+            const celulas=[];
+            for(let i=0;i<primDia;i++) celulas.push(null);
+            for(let i=1;i<=totalDias;i++) celulas.push(new Date(ano,mes,i));
+
+            const pagFiltrados = pagamentos.filter(p => {
+              if (periodoAtivo === "tudo") return true;
+              if (!p.DATA_PAGAMENTO) return false;
+              const dt = new Date(p.DATA_PAGAMENTO);
+              dt.setHours(0,0,0,0);
+              
+              if (periodoAtivo === "custom") {
+                const de = new Date(customDe); de.setHours(0,0,0,0);
+                const ate = customAte ? new Date(customAte) : new Date();
+                ate.setHours(23,59,59,999);
+                return dt >= de && dt <= ate;
+              }
+              
+              const dCorte = new Date(hoje);
+              if(periodoAtivo==="7d")  dCorte.setDate(dCorte.getDate()-7);
+              else if(periodoAtivo==="30d") dCorte.setDate(dCorte.getDate()-30);
+              else if(periodoAtivo==="3m")  dCorte.setMonth(dCorte.getMonth()-3);
+              else if(periodoAtivo==="6m")  dCorte.setMonth(dCorte.getMonth()-6);
+              else if(periodoAtivo==="1a")  dCorte.setFullYear(dCorte.getFullYear()-1);
+              dCorte.setHours(0,0,0,0);
+              return dt >= dCorte;
+            }).sort((a,b) => new Date(b.DATA_PAGAMENTO) - new Date(a.DATA_PAGAMENTO));
+
+            return <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:10}}>
+              <h1 style={{fontSize:22,fontWeight:700,color:TEXT,margin:0}}>Painel Financeiro</h1>
+              
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                <span style={{color:MUTED,fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",marginRight:2}}>Filtrar Pagamentos:</span>
+                {[["tudo","Tudo"],["7d","7d"],["30d","30d"],["3m","3m"],["6m","6m"],["1a","1 ano"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>{setPeriodo(v);setCustomDe(null);setCustomAte(null);setCalOpen(false);}}
+                    style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${periodoAtivo===v?BLU:BD}`,background:periodoAtivo===v?BLU:CARD,color:periodoAtivo===v?"#fff":MUTED,fontSize:12,fontWeight:periodoAtivo===v?700:400,cursor:"pointer",transition:"all 0.15s"}}>
+                    {l}
+                  </button>
+                ))}
+
+                <div style={{position:"relative"}}>
+                  <button onClick={()=>{setCalOpen(o=>!o);setRangeStep(0);}}
+                    style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:20,border:`1px solid ${periodo==="custom"&&customDe?BLU:BD}`,background:periodo==="custom"&&customDe?BLU:CARD,color:periodo==="custom"&&customDe?"#fff":MUTED,fontSize:12,fontWeight:periodo==="custom"&&customDe?700:400,cursor:"pointer"}}>
+                    📅 {periodoLabel[periodoAtivo]}
+                  </button>
+                  {calOpen&&<div style={{position:"absolute",top:"100%",right:0,marginTop:8,background:CARD,border:`1px solid ${BD}`,borderRadius:12,boxShadow:"0 10px 25px rgba(0,0,0,0.1)",padding:16,zIndex:200,width:280}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                      <button onClick={()=>setCalMes(new Date(ano,mes-1,1))} style={{background:"none",border:"none",cursor:"pointer",padding:4,color:MUTED}}>❮</button>
+                      <strong style={{fontSize:13}}>{MESES_PT[mes]} {ano}</strong>
+                      <button onClick={()=>setCalMes(new Date(ano,mes+1,1))} style={{background:"none",border:"none",cursor:"pointer",padding:4,color:MUTED}}>❯</button>
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
+                      {DIAS_SEM.map(d=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:MUTED,padding:4}}>{d}</div>)}
+                      {celulas.map((d,i)=>{
+                        if(!d) return <div key={i}/>;
+                        const sel=ehInicio(d)||ehFim(d), range=dentroRange(d), hj=ehHoje(d);
+                        return <button key={i} onClick={()=>clicarDia(d)}
+                          style={{aspectRatio:"1",border:"none",borderRadius:6,background:sel?BLU:range?"#EFF6FF":"none",color:sel?"#fff":range?BLU:TEXT,fontSize:11,fontWeight:sel?700:400,cursor:"pointer",position:"relative",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                          {i-primDia+1}
+                          {hj&&!sel&&<div style={{position:"absolute",bottom:4,width:3,height:3,borderRadius:"50%",background:BLU}}/>}
+                        </button>
+                      })}
+                    </div>
+                    <div style={{borderTop:`1px solid ${BD}`,paddingTop:10,marginTop:4,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontSize:10,color:MUTED}}>{rangeStep===0?"Selecione início":"Selecione fim"}</span>
+                      <button onClick={()=>{setPeriodo("tudo");setCustomDe(null);setCustomAte(null);setCalOpen(false);}} style={{background:"none",border:"none",color:BLU,fontSize:11,fontWeight:600,cursor:"pointer"}}>Limpar</button>
+                    </div>
+                  </div>}
+                </div>
+              </div>
+            </div>
+
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:20}}>
               {[
                 {icon:"💵",label:"Receita Total",val:fmtR(M.totalPago),c:BLU},
@@ -1229,28 +1330,34 @@ function App(){
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            {/* Últimos pagamentos */}
+            {/* Pagamentos do Período */}
             <div style={{background:CARD,borderRadius:10,border:`1px solid ${BD}`}}>
-              <div style={{padding:"14px 20px",borderBottom:`1px solid ${BD}`}}><h3 style={{fontSize:14,fontWeight:700,margin:0}}>Últimos Pagamentos</h3></div>
-              <table style={{width:"100%",borderCollapse:"collapse"}}>
-                <thead><tr style={{background:BG}}>{["Data","Cliente","Tipo","Valor Original","Valor Pago","Diferença"].map(h=><th key={h} style={{textAlign:"left",padding:"10px 20px",color:MUTED,fontSize:11,fontWeight:700,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {[...pagamentos].sort((a,b)=>new Date(b.DATA_PAGAMENTO||0)-new Date(a.DATA_PAGAMENTO||0)).slice(0,12).map((p,i)=>{
-                    const tCor={pagamento_normal:GRN,pagamento_com_atraso:YEL,somente_juros:RED,recuperacao_apos_baixa:PUR}[p.TIPO_PAGAMENTO]||MUTED;
-                    const tLabel={pagamento_normal:"Normal",pagamento_com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação"}[p.TIPO_PAGAMENTO]||p.TIPO_PAGAMENTO||"—";
-                    return<tr key={i} style={{borderTop:`1px solid ${BD}`}}>
-                      <td style={{padding:"10px 20px",color:MUTED,fontSize:12}}>{fmtDt(p.DATA_PAGAMENTO)}</td>
-                      <td style={{padding:"10px 20px",fontSize:12,fontWeight:500}}>{p.NOME_CLIENTE}</td>
-                      <td style={{padding:"10px 20px"}}><Badge c={tCor}>{tLabel}</Badge></td>
-                      <td style={{padding:"10px 20px",color:MUTED,fontSize:12}}>{fmtR(p.VALOR_ORIGINAL_PARCELA)}</td>
-                      <td style={{padding:"10px 20px",fontWeight:600,fontSize:12}}>{fmtR(p.VALOR_PAGO)}</td>
-                      <td style={{padding:"10px 20px",color:p.RECEITA_EXTRA_ATRASO>0?ORG:MUTED,fontWeight:p.RECEITA_EXTRA_ATRASO>0?700:400,fontSize:12}}>{p.RECEITA_EXTRA_ATRASO>0?`+${fmtR(p.RECEITA_EXTRA_ATRASO)}`:"—"}</td>
-                    </tr>;
-                  })}
-                </tbody>
-              </table>
+              <div style={{padding:"14px 20px",borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <h3 style={{fontSize:14,fontWeight:700,margin:0}}>Pagamentos no Período ({pagFiltrados.length})</h3>
+                <span style={{fontSize:12,color:MUTED}}>Total: <strong>{fmtR(pagFiltrados.reduce((s,p)=>s+p.VALOR_PAGO,0))}</strong></span>
+              </div>
+              <div style={{maxHeight:400,overflowY:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse"}}>
+                  <thead style={{position:"sticky",top:0,zIndex:10}}><tr style={{background:BG}}>{["Data","Cliente","Tipo","Valor Original","Valor Pago","Diferença"].map(h=><th key={h} style={{textAlign:"left",padding:"10px 20px",color:MUTED,fontSize:11,fontWeight:700,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {pagFiltrados.length===0 ? <tr><td colSpan="6" style={{padding:40,textAlign:"center",color:MUTED}}>Nenhum pagamento encontrado neste período.</td></tr> :
+                    pagFiltrados.map((p,i)=>{
+                      const tCor={pagamento_normal:GRN,pagamento_com_atraso:YEL,somente_juros:RED,recuperacao_apos_baixa:PUR}[p.TIPO_PAGAMENTO]||MUTED;
+                      const tLabel={pagamento_normal:"Normal",pagamento_com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação"}[p.TIPO_PAGAMENTO]||p.TIPO_PAGAMENTO||"—";
+                      return<tr key={i} style={{borderTop:`1px solid ${BD}`}}>
+                        <td style={{padding:"10px 20px",color:MUTED,fontSize:12}}>{fmtDt(p.DATA_PAGAMENTO)}</td>
+                        <td style={{padding:"10px 20px",fontSize:12,fontWeight:500}}>{p.NOME_CLIENTE}</td>
+                        <td style={{padding:"10px 20px"}}><Badge c={tCor}>{tLabel}</Badge></td>
+                        <td style={{padding:"10px 20px",color:MUTED,fontSize:12}}>{fmtR(p.VALOR_ORIGINAL_PARCELA)}</td>
+                        <td style={{padding:"10px 20px",fontWeight:600,fontSize:12}}>{fmtR(p.VALOR_PAGO)}</td>
+                        <td style={{padding:"10px 20px",color:p.RECEITA_EXTRA_ATRASO>0?ORG:MUTED,fontWeight:p.RECEITA_EXTRA_ATRASO>0?700:400,fontSize:12}}>{p.RECEITA_EXTRA_ATRASO>0?`+${fmtR(p.RECEITA_EXTRA_ATRASO)}`:"—"}</td>
+                      </tr>;
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>}
+          </div>})()}
 
           {/* ── KPIs ── */}
           {tab==="kpis"&&<div>
