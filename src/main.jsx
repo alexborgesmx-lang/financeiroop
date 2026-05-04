@@ -24,11 +24,20 @@ function parseDate(v){
   if(typeof v === "string"){
     const s = v.trim();
     if(s.includes("/")){
-      const [dia,mes,ano] = s.split("/");
-      d = new Date(parseInt(ano), parseInt(mes)-1, parseInt(dia), 12, 0, 0);
+      const partes = s.split("/");
+      let dia = parseInt(partes[0]);
+      let mes = parseInt(partes[1]);
+      let ano = parseInt(partes[2]);
+      // Se o ano vier com 2 dígitos (ex: 25), converter para 2025
+      if(ano < 100) ano += 2000;
+      d = new Date(ano, mes - 1, dia, 12, 0, 0);
     } else if(s.includes("-")){
-      const [ano,mes,dia] = s.split("T")[0].split("-");
-      d = new Date(parseInt(ano), parseInt(mes)-1, parseInt(dia), 12, 0, 0);
+      const partes = s.split("T")[0].split("-");
+      let ano = parseInt(partes[0]);
+      let mes = parseInt(partes[1]);
+      let dia = parseInt(partes[2]);
+      if(ano < 100) ano += 2000;
+      d = new Date(ano, mes - 1, dia, 12, 0, 0);
     } else {
       d = new Date(v);
     }
@@ -37,6 +46,9 @@ function parseDate(v){
   }
 
   if(isNaN(d.getTime())) return null;
+  // Se o ano resultante for muito baixo (ex: 1925), corrigir para 2025
+  if(d.getFullYear() < 2000) d.setFullYear(d.getFullYear() + 100);
+  
   d.setHours(12,0,0,0);
   return d;
 }
