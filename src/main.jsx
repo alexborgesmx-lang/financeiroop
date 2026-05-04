@@ -541,12 +541,27 @@ function App(){
       JUROS_NAO_REALIZADOS:parseFloat(c.JUROS_NAO_REALIZADOS)||0,
       VALOR_RECUPERADO_APOS_BAIXA:parseFloat(c.VALOR_RECUPERADO_APOS_BAIXA)||0}));
 
-    const pagamentos=(raw.PAGAMENTOS||[]).map(p=>({...p,
-      VALOR_PAGO:parseFloat(p.VALOR_PAGO)||0,
-      VALOR_ORIGINAL_PARCELA:parseFloat(p.VALOR_ORIGINAL_PARCELA)||0,
-      DIFERENCA_RECEBIDA:parseFloat(p.DIFERENCA_RECEBIDA)||0,
-      RECEITA_EXTRA_ATRASO:parseFloat(p.RECEITA_EXTRA_ATRASO)||0,
-      DATA_PAGAMENTO:parseDate(p.DATA_PAGAMENTO)}));
+    const pagamentos=(raw.PAGAMENTOS||[]).map(p=>{
+      const dtP = parseDate(p.DATA_PAGAMENTO);
+      const dtV = parseDate(p.DATA_VENCIMENTO_ORIGINAL);
+      let tipoReal = p.TIPO_PAGAMENTO;
+      
+      // Se for pagamento normal mas a data de pagamento for após o vencimento, classificar como atraso
+      if(tipoReal === "pagamento_normal" && dtP && dtV && toNum(dtP) > toNum(dtV)){
+        tipoReal = "pagamento_com_atraso";
+      }
+
+      return {
+        ...p,
+        TIPO_PAGAMENTO: tipoReal,
+        VALOR_PAGO:parseFloat(p.VALOR_PAGO)||0,
+        VALOR_ORIGINAL_PARCELA:parseFloat(p.VALOR_ORIGINAL_PARCELA)||0,
+        DIFERENCA_RECEBIDA:parseFloat(p.DIFERENCA_RECEBIDA)||0,
+        RECEITA_EXTRA_ATRASO:parseFloat(p.RECEITA_EXTRA_ATRASO)||0,
+        DATA_PAGAMENTO: dtP,
+        DATA_VENCIMENTO_ORIGINAL: dtV
+      };
+    });
 
     const promessas=(raw.PROMESSAS||[]).map(p=>({...p,DATA_PREVISTA_PAGAMENTO:parseDate(p.DATA_PREVISTA_PAGAMENTO)}));
 
@@ -1289,7 +1304,12 @@ function App(){
               else if(periodoAtivo==="1a")  dCorte.setFullYear(dCorte.getFullYear()-1);
               
               return nDt >= toNum(dCorte);
-            }).sort((a,b) => toNum(b.DATA_PAGAMENTO) - toNum(a.DATA_PAGAMENTO));
+            }).sort((a,b) => {
+              const nA = toNum(a.DATA_PAGAMENTO);
+              const nB = toNum(b.DATA_PAGAMENTO);
+              if(nA !== nB) return nB - nA;
+              return String(b.NOME_CLIENTE).localeCompare(String(a.NOME_CLIENTE));
+            });
 
             // KPIs filtrados para os cartões superiores
             const kpiF = {
