@@ -542,11 +542,10 @@ function NovoContrato({clientes,contratos,onSucesso}){
 }
 
 // ── APP ────────────────────────────────────────────────────────────
-function App(){
-  const [tab,setTab]=useState("dashboard");
-  const [raw,setRaw]=useState(null);
-  const [loading,setLoading]=useState(true);
-  const [erro,setErro]=useState(null);
+function A  const [tab, setTab] = useState("dashboard");
+  const [busca, setBusca] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);nst [erro,setErro]=useState(null);
   const [selCli,setSelCli]=useState(null);
   const [clienteRevisao,setClienteRevisao]=useState(null);
   const [baixaModal,setBaixaModal]=useState(null);
@@ -762,34 +761,37 @@ function App(){
       {calOpen&&<div onClick={()=>setCalOpen(false)} style={{position:"fixed",inset:0,zIndex:199,background:"transparent"}}/>}
 
       {/* SIDEBAR */}
-      <aside style={{width:SW,background:CARD,borderRight:`1px solid ${BD}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:100}}>
-        <div style={{padding:"18px 18px 14px",borderBottom:`1px solid ${BD}`}}>
+      <aside style={{width:sidebarOpen?SW:70,background:CARD,borderRight:`1px solid ${BD}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:100,transition:"width 0.3s ease"}}>
+        <div style={{padding:"18px 18px 14px",borderBottom:`1px solid ${BD}`,overflow:"hidden"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:34,height:34,background:"linear-gradient(135deg,#3B82F6,#8B5CF6)",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:"#fff",fontSize:16,fontWeight:800}}>F</span></div>
-            <div><p style={{color:TEXT,fontWeight:800,fontSize:15,margin:0}}>FinanceiroOp</p><p style={{color:MUTED,fontSize:10,margin:0}}>Gestão de Crédito</p></div>
+            <div style={{width:34,height:34,background:"linear-gradient(135deg,#3B82F6,#8B5CF6)",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{color:"#fff",fontSize:16,fontWeight:800}}>F</span></div>
+            {sidebarOpen&&<div style={{whiteSpace:"nowrap"}}><p style={{color:TEXT,fontWeight:800,fontSize:15,margin:0}}>FinanceiroOp</p><p style={{color:MUTED,fontSize:10,margin:0}}>Gestão de Crédito</p></div>}
           </div>
         </div>
         <nav style={{flex:1,overflowY:"auto",padding:"8px 10px"}}>
           {NAV.map(n=>{const sel=tab===n.id;return(
-            <button key={n.id} onClick={()=>setTab(n.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:8,border:"none",background:sel?"#EFF6FF":CARD,color:sel?BLU:MUTED,fontWeight:sel?600:400,fontSize:13,cursor:"pointer",textAlign:"left",marginBottom:2,position:"relative"}}>
+            <button key={n.id} onClick={()=>setTab(n.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:sidebarOpen?10:0,padding:"9px 12px",borderRadius:8,border:"none",background:sel?"#EFF6FF":CARD,color:sel?BLU:MUTED,fontWeight:sel?600:400,fontSize:13,cursor:"pointer",textAlign:sidebarOpen?"left":"center",justifyContent:sidebarOpen?"flex-start":"center",marginBottom:2,position:"relative"}}>
               <span style={{color:sel?BLU:MUTED,flexShrink:0}}>{n.icon}</span>
-              <span style={{flex:1}}>{n.label}</span>
-              {n.badge>0&&<span style={{background:n.id==="perdas"?RED:RED,color:"#fff",borderRadius:10,padding:"1px 6px",fontSize:10,fontWeight:700}}>{n.badge}</span>}
+              {sidebarOpen&&<span style={{flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{n.label}</span>}
+              {n.badge>0&&sidebarOpen&&<span style={{background:n.id==="perdas"?RED:RED,color:"#fff",borderRadius:10,padding:"1px 6px",fontSize:10,fontWeight:700}}>{n.badge}</span>}
               {sel&&<span style={{position:"absolute",left:0,top:"20%",bottom:"20%",width:3,background:BLU,borderRadius:"0 3px 3px 0"}}/>}
             </button>
           );})}
         </nav>
         <div style={{padding:"10px 14px",borderTop:`1px solid ${BD}`}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:BG,borderRadius:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:BG,borderRadius:8,justifyContent:sidebarOpen?"flex-start":"center"}}>
             <span style={{color:MUTED}}>{Ico.help}</span>
-            <div><p style={{color:TEXT,fontSize:12,fontWeight:600,margin:0}}>Precisa de ajuda?</p><p style={{color:MUTED,fontSize:11,margin:0}}>Suporte técnico</p></div>
+            {sidebarOpen&&<div><p style={{color:TEXT,fontSize:12,fontWeight:600,margin:0}}>Precisa de ajuda?</p><p style={{color:MUTED,fontSize:11,margin:0}}>Suporte técnico</p></div>}
           </div>
         </div>
       </aside>
 
       {/* MAIN */}
-      <div style={{flex:1,marginLeft:SW,display:"flex",flexDirection:"column",minHeight:"100vh"}}>
+      <div style={{flex:1,marginLeft:sidebarOpen?SW:70,display:"flex",flexDirection:"column",minHeight:"100vh",transition:"margin-left 0.3s ease"}}>
         <header style={{background:CARD,borderBottom:`1px solid ${BD}`,padding:"0 28px",height:64,display:"flex",alignItems:"center",gap:20,position:"sticky",top:0,zIndex:50}}>
+          <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{background:"none",border:"none",cursor:"pointer",color:MUTED,display:"flex",alignItems:"center",justifyContent:"center",padding:4}}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          </button>
           <div style={{flex:1}}><h1 style={{fontSize:20,fontWeight:700,color:TEXT,margin:0}}>{NAV.find(n=>n.id===tab)?.label}</h1></div>
           <div style={{position:"relative",width:280}}>
             <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)"}}>{Ico.srch}</span>
@@ -1453,8 +1455,8 @@ function App(){
                   <tbody>
                     {pagFiltrados.length===0 ? <tr><td colSpan="6" style={{padding:40,textAlign:"center",color:MUTED}}>Nenhum pagamento encontrado neste período.</td></tr> :
                     pagFiltrados.map((p,i)=>{
-                      const tCor={pagamento_normal:GRN,pagamento_com_atraso:YEL,somente_juros:RED,recuperacao_apos_baixa:PUR}[p.TIPO_PAGAMENTO]||MUTED;
-                      const tLabel={pagamento_normal:"Normal",pagamento_com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação"}[p.TIPO_PAGAMENTO]||p.TIPO_PAGAMENTO||"—";
+                      const tCor={pagamento_normal:GRN,pagamento_com_atraso:YEL,somente_juros:RED,recuperacao_apos_baixa:PUR,pagamento_antecipado:BLU}[p.TIPO_PAGAMENTO]||MUTED;
+                      const tLabel={pagamento_normal:"Normal",pagamento_com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação",pagamento_antecipado:"Antecipado"}[p.TIPO_PAGAMENTO]||p.TIPO_PAGAMENTO||"—";
                       return<tr key={i} style={{borderTop:`1px solid ${BD}`}}>
                         <td style={{padding:"10px 20px",color:MUTED,fontSize:12}}>{fmtDt(p.DATA_PAGAMENTO)}</td>
                         <td style={{padding:"10px 20px",fontSize:12,fontWeight:500}}>{p.NOME_CLIENTE}</td>
