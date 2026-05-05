@@ -11,15 +11,23 @@ const GRN  = "#10B981", RED = "#EF4444", BLU = "#3B82F6";
 const YEL  = "#F59E0B", PUR = "#8B5CF6", ORG = "#F97316";
 const SW   = 220;
 
+// Função robusta para converter qualquer formato de moeda (R$ 340,00 ou 340.00) em número
+const parseMoney = v => {
+  if (typeof v === 'number') return v;
+  if (!v) return 0;
+  let s = String(v).replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+  let n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+};
+
 const fmtR  = v => "R$ " + Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtP  = v => Number(v||0).toFixed(1) + "%";
 const fmtDt = v => { if(!v) return "—"; const d = v instanceof Date ? v : new Date(v); return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR"); };
 const hojeStr = () => new Date().toISOString().split("T")[0];
-const limparData = v => { if(!v) return ""; const s=String(v).trim(); return s.includes("T") ? s.split("T")[0] : s; };
+
 function parseDate(v){
   if(!v) return null;
   if(v instanceof Date) return v;
-  
   let d;
   if(typeof v === "string"){
     const s = v.trim();
@@ -43,26 +51,10 @@ function parseDate(v){
   } else {
     d = new Date(v);
   }
-
   if(isNaN(d.getTime())) return null;
-  if(d.getFullYear() < 2000) d.setFullYear(d.getFullYear() + 100);
-  
   d.setHours(12,0,0,0);
   return d;
 }
-
-function toNum(d){
-  if(!d) return 0;
-  const dt = d instanceof Date ? d : parseDate(d);
-  if(!dt) return 0;
-  return dt.getFullYear() * 10000 + (dt.getMonth() + 1) * 100 + dt.getDate();
-}
-async function postAction(body){ const r=await fetch(POST_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); return r.json(); }
-
-function vLetras(v){ return v&&/[^a-zA-ZÀ-ÿ\s]/.test(v)?"⚠ Somente letras":null; }
-function vNums(v){   return v&&/[^\d]/.test(v)?"⚠ Somente números":null; }
-function vEmail(v){ if(!v)return null; if(/[A-Z]/.test(v))return"⚠ Minúsculas"; if(!/^[^@]+@[^@]+\.[^@]+$/.test(v))return"⚠ Formato inválido"; return null; }
-function vNumEnd(v){ if(!v)return null; const l=v.toLowerCase().trim(); if(l==="sem numero"||l==="s/n"||l==="sn")return null; return/[^\d]/.test(v)?"⚠ Somente números":null; }
 
 const IS = {width:"100%",padding:"9px 12px",background:CARD,border:`1px solid ${BD}`,borderRadius:7,color:TEXT,fontSize:13,boxSizing:"border-box"};
 const IW = {...IS,border:`1px solid ${YEL}`,background:"#FFFBEB"};
@@ -83,7 +75,6 @@ const STATUS_COR = {
   recuperado_parcialmente:BLU, recuperado_integralmente:GRN,
   encerrado_sem_recuperacao:MUTED, renegociado:"#0891B2", quitado:GRN, cancelado:MUTED
 };
-const STATUS_PERDA = ["em_cobranca","pre_prejuizo","baixado_como_prejuizo","em_recuperacao","recuperado_parcialmente","encerrado_sem_recuperacao"];
 
 const Ico = {
   dash:  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
@@ -108,37 +99,33 @@ function Badge({c,children}){ return <span style={{display:"inline-flex",alignIt
 
 function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
   const [dados, setDados] = useState({
-    substatus:"CLIENTE_DESAPARECIDO", motivo:"", observacao:"",
+    substatus:"FRAUDE_IDENTIFICADA", motivo:"", observacao:"",
     possibilidadeRecuperacao:"BAIXA", statusJuridico:"NAO_ANALISADO", proximaProvidencia:""
   });
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
 
-  // Filtra todas as parcelas deste contrato (incluindo as já pagas no passado)
   const ps = parcelas.filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
 
-  const valPrincipal   = parseFloat(contrato.VALOR_PRINCIPAL||0);
-  const valTotal       = parseFloat(contrato.VALOR_TOTAL_FINAL||0); 
+  // Cálculos baseados 100% na aba PARCELAS
+  const capitalEmprestadoTotal = ps.reduce((s,p)=>s + parseMoney(p.VALOR_PRINCIPAL), 0);
+  const valorTotalContratual    = ps.reduce((s,p)=>s + parseMoney(p.VALOR_PARCELA), 0);
   
-  // Calcula o que já foi pago baseado na aba PARCELAS (Coluna M - Coluna I)
-  const totalPago      = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>s+(parseFloat(p.VALOR_PAGO)||0),0);
+  const totalPago              = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>s + parseMoney(p.VALOR_PAGO), 0);
+  const capitalRecuperado      = Math.min(totalPago, capitalEmprestadoTotal);
+  const prejuizoCapital        = Math.max(0, capitalEmprestadoTotal - capitalRecuperado);
   
-  // Juros que já foram pagos em parcelas anteriores
-  const jurosJaPagos   = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>{
-    const pago = parseFloat(p.VALOR_PAGO)||0;
-    const princ = parseFloat(p.VALOR_PRINCIPAL)||0;
+  // Juros não realizados: (Soma de todos os VALOR_JUROS das parcelas) - (Juros que já foram pagos)
+  const jurosTotais            = ps.reduce((s,p)=>s + parseMoney(p.VALOR_JUROS), 0);
+  const jurosJaPagos           = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>{
+    const pago = parseMoney(p.VALOR_PAGO);
+    const princ = parseMoney(p.VALOR_PRINCIPAL);
     return s + Math.max(0, pago - princ);
   }, 0);
-  
-  const capitalRecuperado = Math.min(totalPago, valPrincipal);
-  const prejuizoCapital   = Math.max(0, valPrincipal - capitalRecuperado);
-  
-  // Juros não realizados = (Valor Total Final - Principal Original) - Juros que já foram pagos
-  const jurosTotaisContrato = valTotal - valPrincipal;
-  const jurosNaoReal = Math.max(0, jurosTotaisContrato - jurosJaPagos);
+  const jurosNaoReal           = Math.max(0, jurosTotais - jurosJaPagos);
 
-  const pctRecuperado     = valPrincipal>0 ? (capitalRecuperado/valPrincipal*100) : 0;
-  const diasAtraso        = ps.filter(p=>p.STATUS==="atrasado").length > 0
+  const pctRecuperado          = capitalEmprestadoTotal>0 ? (capitalRecuperado/capitalEmprestadoTotal*100) : 0;
+  const diasAtraso             = ps.filter(p=>p.STATUS==="atrasado").length > 0
     ? Math.max(...ps.filter(p=>p.STATUS==="atrasado").map(p=>{ const dv=parseDate(p.DATA_VENCIMENTO); if(!dv)return 0; const d=Math.round((new Date()-dv)/86400000); return d>0?d:0; }))
     : 0;
 
@@ -172,7 +159,7 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
         </div>
         <div style={{padding:24,overflowY:"auto",flex:1}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:24,padding:16,background:BG,borderRadius:10}}>
-            <div><span style={LS}>Capital Emprestado</span><div style={{fontSize:15,fontWeight:700}}>{fmtR(valPrincipal)}</div></div>
+            <div><span style={LS}>Capital Emprestado</span><div style={{fontSize:15,fontWeight:700}}>{fmtR(capitalEmprestadoTotal)}</div></div>
             <div><span style={LS}>Capital Recuperado</span><div style={{fontSize:15,fontWeight:700,color:GRN}}>{fmtR(capitalRecuperado)}</div></div>
             <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Prejuízo de Capital</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{fmtR(prejuizoCapital)}</div></div>
             <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Juros Não Realizados</span><div style={{fontSize:15,fontWeight:700,color:ORG}}>{fmtR(jurosNaoReal)}</div></div>
@@ -182,10 +169,10 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:16}}>
             {campo("Substatus / Motivo Operacional","substatus",[
+              {v:"FRAUDE_IDENTIFICADA",l:"Má-fé aparente"},
               {v:"CLIENTE_DESAPARECIDO",l:"Cliente Desaparecido / Sem Contato"},
               {v:"SEM_BENS_PENHORAVEIS",l:"Sem Bens ou Renda para Cobrança"},
               {v:"FALECIMENTO",l:"Falecimento do Titular"},
-              {v:"FRAUDE_IDENTIFICADA",l:"Má-fé aparente"},
               {v:"ACORDO_VALOR_IRRISORIO",l:"Acordo (Valor Irrisório para Prosseguir)"}
             ])}
             {campo("Motivo Detalhado (Obrigatório)","motivo")}
@@ -216,64 +203,53 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
 function ModalAcordoPerda({ contrato, parcelas, onConfirmar, onFechar }) {
   const [valorAcordo, setValorAcordo] = useState("");
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState(null);
 
   const abertas = parcelas.filter(p => String(p.ID_CONTRATO) === String(contrato.ID_CONTRATO) && p.STATUS !== "pago");
-  const principalAberto = abertas.reduce((s, p) => s + parseFloat(p.VALOR_PRINCIPAL || 0), 0);
-  const jurosAberto = abertas.reduce((s, p) => s + parseFloat(p.VALOR_JUROS || 0), 0);
-  const totalAberto = principalAberto + jurosAberto;
-
-  const vAcordo = parseFloat(valorAcordo) || 0;
+  const principalAberto = abertas.reduce((s, p) => s + parseMoney(p.VALOR_PRINCIPAL), 0);
+  const jurosAberto = abertas.reduce((s, p) => s + parseMoney(p.VALOR_JUROS), 0);
+  
+  const vAcordo = parseMoney(valorAcordo);
   const principalPerdido = Math.max(0, principalAberto - vAcordo);
   const jurosCancelados = jurosAberto;
 
   const confirmar = async () => {
-    if (!valorAcordo || vAcordo <= 0) { setMsg("Informe o valor acordado."); return; }
+    if (!valorAcordo) return;
     setLoading(true);
     const res = await postAction({
-      action: "baixarContrato",
+      action: "registrarAcordoComPerda",
       idContrato: contrato.ID_CONTRATO,
-      dados: {
-        tipo: "acordo_com_perda",
-        valorRecebido: vAcordo,
-        principalPerdido,
-        jurosCancelados,
-        motivo: "Liquidação com desconto/acordo",
-        substatus: "ACORDO_LIQUIDACAO",
-        data: hojeStr()
-      }
+      valorRecebidoAcordo: vAcordo,
+      observacao: "Acordo realizado via painel"
     });
     if (res.ok) onConfirmar();
-    else setMsg(res.erro || "Erro ao registrar acordo.");
     setLoading(false);
   };
 
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:"#FFF",borderRadius:16,width:"100%",maxWidth:500,padding:24,boxShadow:"0 20px 50px rgba(0,0,0,0.3)"}}>
-        <h2 style={{margin:"0 0 10px",color:RED,fontSize:20}}>🤝 Acordo de Encerramento</h2>
-        <p style={{fontSize:14,color:MUTED,marginBottom:20}}>Contrato: <strong>{contrato.ID_CONTRATO}</strong> • {contrato.NOME_CLIENTE}</p>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:CARD,borderRadius:12,width:"100%",maxWidth:450,padding:24,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
+        <h2 style={{fontSize:18,fontWeight:800,margin:"0 0 8px"}}>🤝 Liquidação com Desconto</h2>
+        <p style={{fontSize:13,color:MUTED,margin:"0 0 20px"}}>{contrato.ID_CONTRATO} — {contrato.NOME_CLIENTE}</p>
         
-        <div style={{background:BG,padding:15,borderRadius:10,marginBottom:20}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:5}}><span>Principal em Aberto:</span><strong>{fmtR(principalAberto)}</strong></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:5}}><span>Juros Futuros:</span><strong>{fmtR(jurosAberto)}</strong></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:700,borderTop:`1px solid ${BD}`,paddingTop:5}}><span>Total Contratual:</span><span>{fmtR(totalAberto)}</span></div>
+        <div style={{background:BG,padding:16,borderRadius:10,marginBottom:20}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:MUTED,marginBottom:4}}><span>Saldo Principal:</span><strong>{fmtR(principalAberto)}</strong></div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:MUTED}}><span>Saldo Juros:</span><strong>{fmtR(jurosAberto)}</strong></div>
         </div>
 
-        <span style={LS}>Valor Recebido no Acordo</span>
-        <input type="number" value={valorAcordo} onChange={e=>setValorAcordo(e.target.value)} placeholder="0.00" style={{...IS,fontSize:18,fontWeight:700,height:50,textAlign:"center",borderColor:RED}}/>
+        <div style={{marginBottom:20}}>
+          <span style={LS}>Valor do Acordo (Recebido)</span>
+          <input type="text" value={valorAcordo} onChange={e=>setValorAcordo(e.target.value)} placeholder="R$ 0,00" style={{...IS,fontSize:18,fontWeight:700,textAlign:"center"}} />
+        </div>
 
-        <div style={{marginTop:20,padding:15,background:RED+"08",borderRadius:10,border:`1px dashed ${RED}30`}}>
+        <div style={{padding:16,borderRadius:10,background:RED+"10",border:`1px solid ${RED}30`}}>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:13,color:RED}}><span>Prejuízo Real (Principal):</span><strong>{fmtR(principalPerdido)}</strong></div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:13,color:MUTED,marginTop:5}}><span>Juros Cancelados:</span><strong>{fmtR(jurosCancelados)}</strong></div>
         </div>
 
-        {msg && <div style={{marginTop:15,color:RED,fontSize:13,textAlign:"center"}}>{msg}</div>}
-
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:24}}>
           <button onClick={onFechar} style={{padding:12,borderRadius:8,border:`1px solid ${BD}`,background:"none",cursor:"pointer"}}>Cancelar</button>
           <button onClick={confirmar} disabled={loading} style={{padding:12,borderRadius:8,border:"none",background:RED,color:"#FFF",fontWeight:700,cursor:"pointer",opacity:loading?0.7:1}}>
-            {loading ? "Processando..." : "Confirmar Acordo"}
+            {loading ? "Processando..." : "Confirmar Perda"}
           </button>
         </div>
       </div>
@@ -284,49 +260,42 @@ function ModalAcordoPerda({ contrato, parcelas, onConfirmar, onFechar }) {
 function RecuperacaoModal({contrato, onConfirmar, onFechar}){
   const [valor, setValor] = useState("");
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState(null);
-
   const confirmar = async () => {
     if(!valor) return;
-    setLoading(true); setMsg(null);
-    const res = await postAction({ action:"recuperacaoAposBaixa", idContrato: contrato.ID_CONTRATO, dados:{ valor: parseFloat(valor), data: hojeStr() } });
+    setLoading(true);
+    const res = await postAction({ action:"recuperacaoAposBaixa", idContrato: contrato.ID_CONTRATO, valor: parseMoney(valor) });
     if(res.ok) onConfirmar();
-    else setMsg(res.erro||"Erro.");
     setLoading(false);
   };
-
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:CARD,borderRadius:12,width:"100%",maxWidth:400,padding:24,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
-        <h2 style={{fontSize:18,fontWeight:700,margin:"0 0 8px",color:PUR}}>💸 Recuperação de Crédito</h2>
-        <p style={{fontSize:13,color:MUTED,margin:"0 0 20px"}}>Registrar entrada para contrato já baixado: {contrato.ID_CONTRATO}</p>
-        <div style={{marginBottom:20}}><span style={LS}>Valor Recebido</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} placeholder="0.00" style={{...IS,fontSize:16,fontWeight:700}}/></div>
-        {msg && <div style={{marginBottom:16,color:RED,fontSize:13}}>{msg}</div>}
-        <div style={{display:"flex",gap:12}}><button onClick={onFechar} style={{flex:1,padding:10,borderRadius:8,border:`1px solid ${BD}`,background:CARD,cursor:"pointer"}}>Sair</button><button onClick={confirmar} disabled={loading} style={{flex:2,padding:10,borderRadius:8,border:"none",background:PUR,color:"#FFF",cursor:"pointer",fontWeight:700,opacity:loading?0.7:1}}>{loading?"Gravando...":"Confirmar Recebimento"}</button></div>
+      <div style={{background:CARD,borderRadius:12,width:400,padding:24}}>
+        <h3 style={{margin:"0 0 16px"}}>Registrar Recuperação</h3>
+        <p style={{fontSize:13,color:MUTED,marginBottom:20}}>Informe o valor recuperado para o contrato {contrato.ID_CONTRATO}.</p>
+        <div style={{marginBottom:20}}><span style={LS}>Valor Recuperado</span><input value={valor} onChange={e=>setValor(e.target.value)} style={{...IS,fontSize:16,fontWeight:700}} placeholder="R$ 0,00"/></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <button onClick={onFechar} style={{padding:12,borderRadius:8,border:`1px solid ${BD}`,background:CARD}}>Cancelar</button>
+          <button onClick={confirmar} disabled={loading} style={{padding:12,borderRadius:8,border:"none",background:PUR,color:"#FFF",fontWeight:700}}>{loading?"...":"Confirmar"}</button>
+        </div>
       </div>
     </div>
   );
 }
 
 function ClienteModal({cliente, onFechar, onSucesso}){
-  const [tab, setTab] = useState("perfil");
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:BG,borderRadius:16,width:"100%",maxWidth:1000,height:"90vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 30px 90px rgba(0,0,0,0.3)"}}>
-        <div style={{background:CARD,padding:24,borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{display:"flex",alignItems:"center",gap:16}}><div style={{width:48,height:48,background:BLU,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",color:"#FFF",fontSize:20,fontWeight:800}}>{cliente.NOME_CLIENTE.charAt(0)}</div><div><h2 style={{margin:0,fontSize:20,fontWeight:800}}>{cliente.NOME_CLIENTE}</h2><div style={{fontSize:13,color:MUTED}}>{cliente.ID_CLIENTE} • {cliente.CPF_CNPJ}</div></div></div>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:CARD,borderRadius:16,width:"100%",maxWidth:800,maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 25px 50px -12px rgba(0,0,0,0.25)"}}>
+        <div style={{padding:24,borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div><h2 style={{margin:0,fontSize:20,fontWeight:800}}>{cliente.NOME_CLIENTE}</h2><div style={{fontSize:12,color:MUTED,marginTop:4}}>ID: {cliente.ID_CLIENTE} • {cliente.CIDADE}/{cliente.UF}</div></div>
           <button onClick={onFechar} style={{background:BG,border:"none",width:32,height:32,borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{Ico.arr}</button>
         </div>
-        <div style={{display:"flex",background:CARD,padding:"0 24px",borderBottom:`1px solid ${BD}`,gap:24}}>
-          {["perfil","contratos","historico"].map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"15px 5px",background:"none",border:"none",borderBottom:tab===t?`2px solid ${BLU}`:"2px solid transparent",color:tab===t?BLU:MUTED,fontWeight:600,cursor:"pointer",fontSize:13,textTransform:"capitalize"}}>{t}</button>)}
-        </div>
-        <div style={{flex:1,overflowY:"auto",padding:24}}>
-          {tab==="perfil" && (
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24}}>
-              <div style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`}}><h3 style={{margin:"0 0 15px",fontSize:15}}>Dados Pessoais</h3><div style={{display:"grid",gap:12}}>{[{l:"Celular",v:cliente.TELEFONE},{l:"Cidade",v:cliente.CIDADE+" - "+cliente.UF},{l:"Endereço",v:cliente.ENDERECO}].map(i=><div key={i.l}><span style={LS}>{i.l}</span><div style={{fontSize:14}}>{i.v}</div></div>)}</div></div>
-              <div style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`}}><h3 style={{margin:"0 0 15px",fontSize:15}}>Informações de Crédito</h3><div style={{display:"grid",gap:12}}>{[{l:"Status",v:<Badge c={cliente.STATUS_CLIENTE==="ativo"?GRN:YEL}>{cliente.STATUS_CLIENTE?.toUpperCase()}</Badge>},{l:"Score Interno",v:cliente.SCORE||"N/A"}].map(i=><div key={i.l}><span style={LS}>{i.l}</span><div style={{fontSize:14}}>{i.v}</div></div>)}</div></div>
-            </div>
-          )}
+        <div style={{padding:24,overflowY:"auto",background:BG+"40",flex:1}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:24}}>
+            <div style={{background:CARD,padding:16,borderRadius:12,border:`1px solid ${BD}`}}><div style={LS}>Total Emprestado</div><div style={{fontSize:18,fontWeight:800,color:BLU}}>{fmtR(cliente.totalEmp)}</div></div>
+            <div style={{background:CARD,padding:16,borderRadius:12,border:`1px solid ${BD}`}}><div style={LS}>Saldo Devedor</div><div style={{fontSize:18,fontWeight:800,color:RED}}>{fmtR(cliente.saldoDev)}</div></div>
+            <div style={{background:CARD,padding:16,borderRadius:12,border:`1px solid ${BD}`}}><div style={LS}>Atraso Atual</div><div style={{fontSize:18,fontWeight:800,color:cliente.maxAtraso>0?RED:GRN}}>{cliente.maxAtraso} dias</div></div>
+          </div>
         </div>
       </div>
     </div>
@@ -334,178 +303,136 @@ function ClienteModal({cliente, onFechar, onSucesso}){
 }
 
 function PagamentoDrop({contratos, parcelas, onSucesso}){
-  const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);const [cliente,setCliente]=useState(null);const [parcela,setParcela]=useState(null);const [tipo,setTipo]=useState(null);const [data,setData]=useState(hojeStr());const [valor,setValor]=useState("");const [loading,setLoading] = useState(false);const [msg,setMsg]=useState(null);const ref=useRef();
-  useEffect(()=>{ const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);}; document.addEventListener("mousedown",h); return ()=>document.removeEventListener("mousedown",h); },[]);
-  const clis=useMemo(()=>{
-    if(busca.length<2) return [];
-    const ids=new Set(); return contratos.filter(c=>{
-      const m=c.NOME_CLIENTE.toLowerCase().includes(busca.toLowerCase())||c.ID_CLIENTE.toLowerCase().includes(busca.toLowerCase());
-      if(m && !ids.has(c.ID_CLIENTE)){ ids.add(c.ID_CLIENTE); return true; } return false;
-    }).slice(0,6);
-  },[busca,contratos]);
-  const pars=useMemo(()=>cliente?parcelas.filter(p=>p.ID_CLIENTE===cliente.ID_CLIENTE && p.STATUS==="pendente").sort((a,b)=>toNum(a.DATA_VENCIMENTO)-toNum(b.DATA_VENCIMENTO)):[],[cliente,parcelas]);
-  const registrar=async()=>{
-    if(!parcela||!valor||!data) return; setLoading(true); setMsg(null);
-    const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data,forma:"dinheiro"});
-    if(res.ok){ setMsg({ok:true,t:res.msg||"Sucesso!"}); setTimeout(onSucesso,1500); }
-    else setMsg({ok:false,t:res.erro||"Erro"});
+  const [loading, setLoading] = useState(false);
+  const registrar = async (idP, valor) => {
+    setLoading(true);
+    await postAction({ action:"pagamento", idParcela: idP, valorPago: valor, dataPagamento: hojeStr() });
+    onSucesso();
     setLoading(false);
   };
   return (
-    <div style={{background:CARD,borderRadius:12,padding:24,border:`1px solid ${BD}`,boxShadow:"0 4px 20px rgba(0,0,0,0.05)"}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}><div style={{background:GRN+"15",color:GRN,padding:8,borderRadius:8}}>{Ico.pag}</div><h3 style={{margin:0,fontSize:16,fontWeight:700}}>Registrar Pagamento</h3></div>
-      <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        <div style={{position:"relative"}} ref={ref}>
-          <span style={LS}>Buscar Cliente</span>
-          <div style={{position:"relative"}}><div style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)"}}>{Ico.srch}</div><input value={cliente?cliente.NOME_CLIENTE:busca} onChange={e=>{setBusca(e.target.value);setCliente(null);setParcela(null);setShowDrop(true);}} onFocus={()=>setShowDrop(true)} placeholder="Nome ou ID do cliente..." style={{...IS,paddingLeft:35}}/>{cliente&&<button onClick={()=>{setCliente(null);setBusca("");}} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:MUTED}}>x</button>}</div>
-          {showDrop && clis.length>0 && (
-            <div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BD}`,borderRadius:8,marginTop:4,zIndex:100,boxShadow:"0 10px 30px rgba(0,0,0,0.1)",overflow:"hidden"}}>
-              {clis.map(c=><div key={c.ID_CLIENTE} onClick={()=>{setCliente(c);setShowDrop(false);}} style={{padding:"10px 15px",cursor:"pointer",borderBottom:`1px solid ${BG}`,fontSize:13}} onMouseEnter={e=>e.target.style.background=BG} onMouseLeave={e=>e.target.style.background=CARD}><strong>{c.ID_CLIENTE}</strong> - {c.NOME_CLIENTE}</div>)}
-            </div>
-          )}
-        </div>
-        {cliente && (
-          <div><span style={LS}>Parcela Pendente</span>
-            {pars.length>0 ? <select value={parcela?.ID_PARCELA||""} onChange={e=>{const p=pars.find(x=>x.ID_PARCELA===e.target.value);setParcela(p);setValor(p.VALOR_PARCELA);}} style={IS}><option value="">Selecione...</option>{pars.map(p=><option key={p.ID_PARCELA} value={p.ID_PARCELA}>Parc {p.NUM_PARCELA} ({fmtDt(p.DATA_VENCIMENTO)}) - {fmtR(p.VALOR_PARCELA)}</option>)}</select> : <div style={{padding:10,background:RED+"08",color:RED,fontSize:12,borderRadius:6,fontWeight:600}}>Nenhuma parcela pendente para este cliente.</div>}
+    <div style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`}}>
+      <h3 style={{margin:"0 0 16px",fontSize:15,fontWeight:700,display:"flex",alignItems:"center",gap:8}}>{Ico.pag} Baixa Rápida</h3>
+      <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:200,overflowY:"auto"}}>
+        {parcelas.filter(p=>p.STATUS==="atrasado").slice(0,5).map(p=>(
+          <div key={p.ID_PARCELA} style={{padding:10,background:BG,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontSize:12}}><div style={{fontWeight:700}}>{p.NOME_CLIENTE.split(" ")[0]}</div><div style={{color:MUTED}}>{p.ID_CONTRATO} • Parc {p.NUM_PARCELA}</div></div>
+            <button onClick={()=>registrar(p.ID_PARCELA, parseMoney(p.VALOR_PARCELA))} disabled={loading} style={{padding:"5px 10px",background:GRN,color:"#FFF",border:"none",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer"}}>Pagar {fmtR(p.VALOR_PARCELA)}</button>
           </div>
-        )}
-        {parcela && (
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            <div><span style={LS}>Tipo</span><select value={tipo} onChange={e=>setTipo(e.target.value)} style={IS}><option value="total">Total</option><option value="parcial">Somente Juros (Rolar Principal)</option></select></div>
-            <div><span style={LS}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} style={IS}/></div>
-            <div style={{gridColumn:"1/-1"}}><span style={LS}>Data Pagamento</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS}/></div>
-            <button onClick={registrar} disabled={loading} style={{gridColumn:"1/-1",marginTop:8,padding:"12px",borderRadius:8,border:"none",background:GRN,color:"#FFF",fontWeight:700,cursor:"pointer",opacity:loading?0.7:1}}>{loading?"Processando...":"Confirmar Pagamento"}</button>
-          </div>
-        )}
-        {msg && <div style={{padding:12,borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:13,textAlign:"center",fontWeight:600}}>{msg.t}</div>}
+        ))}
       </div>
     </div>
   );
 }
 
 function NovoContrato({contratos, onSucesso}){
-  const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);const [cliente,setCliente]=useState(null);const [principal,setPrincipal]=useState("");const [parcelas,setParcelas]=useState("");const [taxa,setTaxa]=useState("");const [dtEmp,setDtEmp]=useState(hojeStr());const [dtVenc,setDtVenc]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const ref=useRef();
-  useEffect(()=>{ const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);}; document.addEventListener("mousedown",h); return ()=>document.removeEventListener("mousedown",h); },[]);
-  const clis=useMemo(()=>{
-    if(busca.length<2) return [];
-    const ids=new Set(); return contratos.filter(c=>{
-      const m=c.NOME_CLIENTE.toLowerCase().includes(busca.toLowerCase())||c.ID_CLIENTE.toLowerCase().includes(busca.toLowerCase());
-      if(m && !ids.has(c.ID_CLIENTE)){ ids.add(c.ID_CLIENTE); return true; } return false;
-    }).slice(0,6);
-  },[busca,contratos]);
-  const criar=async()=>{
-    if(!cliente||!principal||!parcelas||!taxa||!dtEmp||!dtVenc) return; setLoading(true); setMsg(null);
-    const res=await postAction({action:"novoContrato",dados:{idCliente:cliente.ID_CLIENTE,nomeCliente:cliente.NOME_CLIENTE,principal,parcelas,taxa,dataEmprestimo:dtEmp,dataVencimento:dtVenc}});
-    if(res.ok){ setMsg({ok:true,t:"Contrato criado com sucesso!"}); setTimeout(onSucesso,1500); }
-    else setMsg({ok:false,t:res.erro||"Erro"});
-    setLoading(false);
-  };
   return (
-    <div style={{background:CARD,borderRadius:12,padding:24,border:`1px solid ${BD}`,boxShadow:"0 4px 20px rgba(0,0,0,0.05)"}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}><div style={{background:BLU+"15",color:BLU,padding:8,borderRadius:8}}>{Ico.ctr}</div><h3 style={{margin:0,fontSize:16,fontWeight:700}}>Novo Contrato</h3></div>
-      <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        <div style={{position:"relative"}} ref={ref}>
-          <span style={LS}>Buscar Cliente</span>
-          <div style={{position:"relative"}}><div style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)"}}>{Ico.srch}</div><input value={cliente?cliente.NOME_CLIENTE:busca} onChange={e=>{setBusca(e.target.value);setCliente(null);setShowDrop(true);}} onFocus={()=>setShowDrop(true)} placeholder="Nome ou ID..." style={{...IS,paddingLeft:35}}/>{cliente&&<button onClick={()=>{setCliente(null);setBusca("");}} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:MUTED}>x</button>}</div>
-          {showDrop && clis.length>0 && (
-            <div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BD}`,borderRadius:8,marginTop:4,zIndex:100,boxShadow:"0 10px 30px rgba(0,0,0,0.1)",overflow:"hidden"}}>
-              {clis.map(c=><div key={c.ID_CLIENTE} onClick={()=>{setCliente(c);setShowDrop(false);}} style={{padding:"10px 15px",cursor:"pointer",borderBottom:`1px solid ${BG}`,fontSize:13}} onMouseEnter={e=>e.target.style.background=BG} onMouseLeave={e=>e.target.style.background=CARD}><strong>{c.ID_CLIENTE}</strong> - {c.NOME_CLIENTE}</div>)}
-            </div>
-          )}
-        </div>
-        {cliente && (
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            <div><span style={LS}>Valor Principal</span><input type="number" value={principal} onChange={e=>setPrincipal(e.target.value)} placeholder="0.00" style={IS}/></div>
-            <div><span style={LS}>Nº Parcelas</span><input type="number" value={parcelas} onChange={e=>setParcelas(e.target.value)} placeholder="1" style={IS}/></div>
-            <div><span style={LS}>Taxa Mensal (%)</span><input type="number" value={taxa} onChange={e=>setTaxa(e.target.value)} placeholder="0.00" style={IS}/></div>
-            <div><span style={LS}>1º Vencimento</span><input type="date" value={dtVenc} onChange={e=>setDtVenc(e.target.value)} style={IS}/></div>
-            <div style={{gridColumn:"1/-1"}}><span style={LS}>Data Empréstimo</span><input type="date" value={dtEmp} onChange={e=>setDtEmp(e.target.value)} style={IS}/></div>
-            <button onClick={criar} disabled={loading} style={{gridColumn:"1/-1",marginTop:8,padding:"12px",borderRadius:8,border:"none",background:BLU,color:"#FFF",fontWeight:700,cursor:"pointer",opacity:loading?0.7:1}}>{loading?"Criando...":"Gerar Contrato"}</button>
-          </div>
-        )}
-        {msg && <div style={{padding:12,borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:13,textAlign:"center",fontWeight:600}}>{msg.t}</div>}
-      </div>
+    <div style={{background:BLU,padding:20,borderRadius:12,color:"#FFF",display:"flex",flexDirection:"column",gap:12}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{background:"rgba(255,255,255,0.2)",padding:8,borderRadius:8}}>{Ico.novo}</div><div style={{fontWeight:700,fontSize:15}}>Novo Empréstimo</div></div>
+      <p style={{margin:0,fontSize:12,opacity:0.9}}>Inicie um novo contrato de crédito para um cliente cadastrado.</p>
+      <button style={{width:"100%",padding:10,background:"#FFF",color:BLU,border:"none",borderRadius:8,fontWeight:700,cursor:"pointer",marginTop:5}}>Criar Contrato</button>
     </div>
   );
 }
 
 function App() {
-  const [raw, setRaw] = useState(null);
   const [tab, setTab] = useState("dashboard");
-  const [busca, setBusca] = useState("");
-  const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [erro, setErro] = useState(null);
+  const [raw, setRaw] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [filtroBusca, setFiltroBusca] = useState("");
+  const [filtroStatus, setFiltroStatus] = useState("todos");
+  const [filtroPerdas, setFiltroPerdas] = useState("todos");
   const [selCli, setSelCli] = useState(null);
   const [baixaModal, setBaixaModal] = useState(null);
   const [acordoModal, setAcordoModal] = useState(null);
   const [recuperacaoModal, setRecuperacaoModal] = useState(null);
-  const [simVal, setSimVal] = useState(5000);
-  const [simInad, setSimInad] = useState(0);
-  const [simVol, setSimVol] = useState(0);
-  const [filtroStatus, setFiltroStatus] = useState("todos");
-  const [filtroBusca, setFiltroBusca] = useState("");
-  const [filtroPerdas, setFiltroPerdas] = useState("todos");
-  const [periodo, setPeriodo] = useState("tudo");
-  const [customDe, setCustomDe] = useState(null);
-  const [customAte, setCustomAte] = useState(null);
-  const [calOpen, setCalOpen] = useState(false);
-  const [calMes, setCalMes] = useState(() => { const d = new Date(); d.setDate(1); return d; });
-  const [rangeStep, setRangeStep] = useState(0); 
+  const [simVal, setSimVal] = useState(10000);
+  const [simInad, setSimInad] = useState(10);
+  const [simVol, setSimVol] = useState(5);
 
-  const carregar=()=>{setLoading(true);setErro(null);fetch(API_URL).then(r=>r.json()).then(d=>{if(d.erro)throw new Error(d.erro);setRaw(d);setLoading(false);}).catch(e=>{setErro(e.message);setLoading(false);});};
-  useEffect(()=>{carregar();},[]);
+  const carregar = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      setRaw(data);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
+  useEffect(() => { carregar(); }, []);
 
-  const {clientes,contratos,parcelas,pagamentos} = useMemo(()=>raw||{clientes:[],contratos:[],parcelas:[],pagamentos:[]},[raw]);
-
-  const filtrados = useMemo(()=>{
-    return clientes.filter(c=>{
-      const m = c.NOME_CLIENTE.toLowerCase().includes(filtroBusca.toLowerCase()) || c.ID_CLIENTE.toLowerCase().includes(filtroBusca.toLowerCase());
-      const s = filtroStatus==="todos" || c.STATUS_CLIENTE===filtroStatus;
-      return m && s;
+  const { clientes, contratos, parcelas, pagamentos } = useMemo(() => {
+    if(!raw) return { clientes:[], contratos:[], parcelas:[], pagamentos:[] };
+    const normalize = (arr) => (arr || []).map(obj => {
+      const n = {};
+      for(let k in obj) n[k.toUpperCase()] = obj[k];
+      return n;
     });
-  },[clientes,filtroBusca,filtroStatus]);
+    return {
+      clientes: normalize(raw.CLIENTES),
+      contratos: normalize(raw.CONTRATOS),
+      parcelas: normalize(raw.PARCELAS),
+      pagamentos: normalize(raw.PAGAMENTOS)
+    };
+  }, [raw]);
 
-  const pFiltradas = useMemo(()=>{
-    return contratos.filter(c=>{
-      const p = STATUS_PERDA.includes(c.STATUS_CONTRATO);
-      const s = filtroPerdas==="todos" || c.STATUS_CONTRATO===filtroPerdas;
-      return p && s;
+  const M = useMemo(() => {
+    const ativos = contratos.filter(c => !["quitado","cancelado"].includes(c.STATUS_CONTRATO));
+    const vAtivos = ativos.reduce((s,c) => s + parseMoney(c.VALOR_PRINCIPAL), 0);
+    const vAtrasoTotal = parcelas.filter(p => p.STATUS === "atrasado").reduce((s,p) => s + parseMoney(p.VALOR_PARCELA), 0);
+    const lucroTotal = parcelas.reduce((s,p) => s + parseMoney(p.VALOR_JUROS), 0);
+    return { vAtivos, vAtrasoTotal, lucroTotal, taxaInad: vAtivos>0 ? (vAtrasoTotal/vAtivos*100) : 0 };
+  }, [contratos, parcelas]);
+
+  const filtrados = useMemo(() => {
+    return clientes.map(c => {
+      const ccs = contratos.filter(ct => String(ct.ID_CLIENTE) === String(c.ID_CLIENTE));
+      const pps = parcelas.filter(p => String(p.ID_CLIENTE) === String(c.ID_CLIENTE));
+      const totalEmp = ccs.reduce((s,ct) => s + parseMoney(ct.VALOR_PRINCIPAL), 0);
+      const saldoDev = pps.filter(p => p.STATUS !== "pago").reduce((s,p) => s + parseMoney(p.VALOR_PARCELA), 0);
+      const vAtraso = pps.filter(p => p.STATUS === "atrasado").reduce((s,p) => s + parseMoney(p.VALOR_PARCELA), 0);
+      const maxAtraso = pps.filter(p => p.STATUS === "atrasado").reduce((m,p) => {
+        const dv = parseDate(p.DATA_VENCIMENTO);
+        if(!dv) return m;
+        const d = Math.round((new Date() - dv) / 86400000);
+        return d > m ? d : m;
+      }, 0);
+      return { ...c, totalEmp, saldoDev, vAtraso, maxAtraso };
+    }).filter(c => {
+      const matchB = c.NOME_CLIENTE.toLowerCase().includes(filtroBusca.toLowerCase()) || String(c.ID_CLIENTE).includes(filtroBusca);
+      const matchS = filtroStatus === "todos" || c.STATUS_CLIENTE === filtroStatus;
+      return matchB && matchS;
     });
-  },[contratos,filtroPerdas]);
+  }, [clientes, contratos, parcelas, filtroBusca, filtroStatus]);
 
-  const M = useMemo(()=>{
-    const ativos = contratos.filter(c=>c.STATUS_CONTRATO==="ativo");
-    const vAtivos = ativos.reduce((s,c)=>s+parseFloat(c.VALOR_TOTAL_FINAL||0),0);
-    const vAtrasoTotal = parcelas.filter(p=>p.STATUS==="atrasado").reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
-    const taxaInad = vAtivos>0 ? (vAtrasoTotal/vAtivos*100) : 0;
-    return {vAtivos,vAtrasoTotal,taxaInad,lucroTotal:vAtivos*0.15};
-  },[contratos,parcelas]);
+  const cobItems = useMemo(() => {
+    return filtrados.filter(c => c.maxAtraso > 0).sort((a,b) => b.maxAtraso - a.maxAtraso);
+  }, [filtrados]);
 
-  const mensal = useMemo(()=>{
-    const m = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-    return m.map((mes,i)=>({m:mes,v:pagamentos.filter(p=>{const d=parseDate(p.DATA_PAGAMENTO); return d&&d.getMonth()===i;}).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0)}));
-  },[pagamentos]);
+  const perdas = useMemo(() => {
+    const p = contratos.filter(c => STATUS_PERDA.includes(c.STATUS_CONTRATO));
+    const capitalBaixado = p.reduce((s,c) => s + parseMoney(c.PREJUIZO_CAPITAL), 0);
+    const recuperadoAposBaixa = p.reduce((s,c) => s + parseMoney(c.VALOR_RECUPERADO_APOS_BAIXA), 0);
+    return { capitalBaixado, recuperadoAposBaixa, prejuizoTotal: capitalBaixado - recuperadoAposBaixa, txRecuperacao: capitalBaixado>0 ? (recuperadoAposBaixa/capitalBaixado*100) : 0 };
+  }, [contratos]);
 
-  const cobItems = useMemo(()=>{
-    const ids = [...new Set(parcelas.filter(p=>p.STATUS==="atrasado").map(p=>p.ID_CLIENTE))];
-    return ids.map(id=>{
-      const c = clientes.find(x=>x.ID_CLIENTE===id);
-      const ps = parcelas.filter(p=>p.ID_CLIENTE===id && p.STATUS==="atrasado");
-      const vAtraso = ps.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
-      const maxAtraso = Math.max(...ps.map(p=>{const d=parseDate(p.DATA_VENCIMENTO); return d?Math.round((new Date()-d)/86400000):0;}));
-      return {...c,vAtraso,maxAtraso,contratos:[...new Set(ps.map(p=>p.ID_CONTRATO))]};
-    }).sort((a,b)=>b.maxAtraso - a.maxAtraso);
-  },[clientes,parcelas]);
+  const pFiltradas = useMemo(() => {
+    return contratos.filter(c => STATUS_PERDA.includes(c.STATUS_CONTRATO) && (filtroPerdas === "todos" || c.STATUS_CONTRATO === filtroPerdas));
+  }, [contratos, filtroPerdas]);
 
-  const perdas = useMemo(()=>{
-    const baixados = contratos.filter(c=>c.STATUS_CONTRATO==="baixado_como_prejuizo");
-    const capitalBaixado = baixados.reduce((s,c)=>s+parseFloat(c.PREJUIZO_CAPITAL||0),0);
-    const recuperadoAposBaixa = baixados.reduce((s,c)=>s+parseFloat(c.VALOR_RECUPERADO_APOS_BAIXA||0),0);
-    return {capitalBaixado,recuperadoAposBaixa,prejuizoTotal:capitalBaixado-recuperadoAposBaixa,txRecuperacao:capitalBaixado>0?(recuperadoAposBaixa/capitalBaixado*100):0};
-  },[contratos]);
+  const mensal = useMemo(() => {
+    const meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+    return meses.map((m, i) => {
+      const v = parcelas.filter(p => {
+        const d = parseDate(p.DATA_PAGAMENTO || p.DATA_VENCIMENTO);
+        return d && d.getMonth() === i && (p.STATUS === "pago" || p.STATUS === "atrasado");
+      }).reduce((s,p) => s + parseMoney(p.VALOR_PAGO || p.VALOR_PARCELA), 0);
+      return { m, v };
+    });
+  }, [parcelas]);
 
-  const NavItem = ({id,label,ico}) => (
+  const NavItem = ({id, label, ico}) => (
     <div onClick={()=>setTab(id)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderRadius:10,cursor:"pointer",background:tab===id?BLU:"transparent",color:tab===id?"#FFF":MUTED,marginBottom:4,transition:"0.2s"}} onMouseEnter={e=>tab!==id&&(e.currentTarget.style.background=BG)} onMouseLeave={e=>tab!==id&&(e.currentTarget.style.background="transparent")}>
       {ico} <span style={{fontSize:14,fontWeight:600}}>{label}</span>
     </div>
@@ -515,7 +442,6 @@ function App() {
 
   return (
     <div style={{display:"flex",height:"100vh",background:BG,color:TEXT,fontFamily:"'Inter', sans-serif"}}>
-      {/* SIDEBAR */}
       <div style={{width:sidebarOpen?SW:0,background:CARD,borderRight:`1px solid ${BD}`,display:"flex",flexDirection:"column",overflow:"hidden",transition:"0.3s"}}>
         <div style={{padding:24,display:"flex",alignItems:"center",gap:12,borderBottom:`1px solid ${BD}`}}><div style={{width:32,height:32,background:BLU,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",color:"#FFF"}}>{Ico.fin}</div><span style={{fontWeight:800,fontSize:18,letterSpacing:"-0.5px"}}>Financeiro<span style={{color:BLU}}>Op</span></span></div>
         <div style={{padding:16,flex:1}}>
@@ -525,14 +451,11 @@ function App() {
           <NavItem id="perdas" label="Perdas & Recuperação" ico={Ico.loss}/>
           <NavItem id="simulador" label="Simulador" ico={Ico.sim}/>
         </div>
-        <div style={{padding:16,borderTop:`1px solid ${BD}`}}><div style={{padding:12,background:BG,borderRadius:10,display:"flex",alignItems:"center",gap:10}}><div style={{width:32,height:32,background:BD,borderRadius:"50%"}}/><div style={{overflow:"hidden"}}><div style={{fontSize:12,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>Administrador</div><div style={{fontSize:10,color:MUTED}}>Painel Gestão</div></div></div></div>
       </div>
 
-      {/* MAIN CONTENT */}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <header style={{height:64,background:CARD,borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 24px",zIndex:10}}>
           <div style={{display:"flex",alignItems:"center",gap:15}}><button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{background:BG,border:"none",padding:8,borderRadius:8,cursor:"pointer",color:MUTED}}>{Ico.arr}</button><h2 style={{fontSize:18,fontWeight:700,margin:0}}>{tab.charAt(0).toUpperCase()+tab.slice(1)}</h2></div>
-          <div style={{display:"flex",alignItems:"center",gap:20}}><div style={{position:"relative"}}><div style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)"}}>{Ico.srch}</div><input placeholder="Busca rápida..." style={{...IS,width:250,paddingLeft:32,background:BG,border:"none"}}/></div><div style={{color:MUTED,cursor:"pointer"}}>{Ico.bell}</div></div>
         </header>
 
         <main style={{flex:1,overflowY:"auto",padding:24}}>
@@ -571,42 +494,20 @@ function App() {
                 <div style={{fontSize:13,color:MUTED}}><strong>{filtrados.length}</strong> clientes encontrados</div>
               </div>
               <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-                <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase",letterSpacing:"0.05em"}}><th style={{padding:"12px 20px"}}>Cliente</th><th>Status</th><th>Empréstimo Total</th><th>Saldo Devedor</th><th>Atraso</th><th style={{padding:"12px 20px",textAlign:"right"}}>Ações</th></tr></thead>
+                <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"12px 20px"}}>Cliente</th><th>Status</th><th>Empréstimo Total</th><th>Saldo Devedor</th><th>Atraso</th><th style={{padding:"12px 20px",textAlign:"right"}}>Ações</th></tr></thead>
                 <tbody>
                   {filtrados.map(c=>(
-                    <tr key={c.ID_CLIENTE} style={{borderBottom:`1px solid ${BD}`,fontSize:13}} onMouseEnter={e=>e.currentTarget.style.background=BG+"30"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                      <td style={{padding:"15px 20px"}}><div style={{fontWeight:700}}>{c.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED}}>{c.ID_CLIENTE} • {c.CIDADE}/{c.UF}</div></td>
+                    <tr key={c.ID_CLIENTE} style={{borderBottom:`1px solid ${BD}`,fontSize:13}}>
+                      <td style={{padding:"15px 20px"}}><div style={{fontWeight:700}}>{c.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED}}>{c.ID_CLIENTE}</div></td>
                       <td><Badge c={c.STATUS_CLIENTE==="ativo"?GRN:YEL}>{c.STATUS_CLIENTE?.toUpperCase()}</Badge></td>
                       <td>{fmtR(c.totalEmp)}</td>
                       <td style={{fontWeight:600}}>{fmtR(c.saldoDev)}</td>
                       <td style={{color:c.maxAtraso>0?RED:MUTED}}>{c.maxAtraso>0?`${fmtR(c.vAtraso)} (${c.maxAtraso}d)`:"—"}</td>
-                      <td style={{padding:"15px 20px",textAlign:"right"}}><button onClick={()=>setSelCli(c)} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,fontWeight:600}}>{Ico.novo} Detalhes</button></td>
+                      <td style={{padding:"15px 20px",textAlign:"right"}}><button onClick={()=>setSelCli(c)} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,fontWeight:600}}>Detalhes</button></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
-
-          {tab==="cobranca" && (
-            <div style={{display:"grid",gridTemplateColumns:"1fr 350px",gap:24,alignItems:"start"}}>
-              <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
-                <div style={{padding:20,borderBottom:`1px solid ${BD}`,background:RED+"05"}}><h3 style={{margin:0,fontSize:16,fontWeight:700,color:RED}}>Fila de Cobrança Prioritária</h3></div>
-                <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-                  <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"12px 20px"}}>Cliente</th><th>Contratos</th><th>Atraso Máx</th><th>Valor Atrasado</th><th style={{padding:"12px 20px",textAlign:"right"}}>Ações</th></tr></thead>
-                  <tbody>
-                    {cobItems.map(c=>(
-                      <tr key={c.ID_CLIENTE} style={{borderBottom:`1px solid ${BD}`,fontSize:13}}>
-                        <td style={{padding:"15px 20px"}}><div style={{fontWeight:700}}>{c.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED}}>{c.TELEFONE}</div></td>
-                        <td>{c.contratos.length}</td>
-                        <td><Badge c={c.maxAtraso>60?RED:c.maxAtraso>30?ORG:YEL}>{c.maxAtraso} dias</Badge></td>
-                        <td style={{fontWeight:700,color:RED}}>{fmtR(c.vAtraso)}</td>
-                        <td style={{padding:"15px 20px",textAlign:"right"}}><button style={{padding:"6px 12px",borderRadius:6,border:"none",background:BLU,color:"#FFF",cursor:"pointer",fontSize:12,fontWeight:600}}>Cobrar</button></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </div>
           )}
 
@@ -652,32 +553,6 @@ function App() {
               </div>
             </div>
           )}
-
-          {tab==="simulador" && (
-            <div style={{maxWidth:900,margin:"0 auto"}}>
-              <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,padding:32,boxShadow:"0 10px 40px rgba(0,0,0,0.05)"}}>
-                <div style={{textAlign:"center",marginBottom:32}}>
-                  <h2 style={{fontSize:24,fontWeight:800,margin:"0 0 8px"}}>Simulador de Expansão</h2>
-                  <p style={{color:MUTED,margin:0}}>Projete o crescimento da sua carteira e analise o risco</p>
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:40}}>
-                  <div style={{display:"flex",flexDirection:"column",gap:24}}>
-                    {[
-                      {l:"Novo Aporte (R$)",v:simVal,s:setSimVal,m:1000,max:100000,step:500,fmt:v=>fmtR(v)},
-                      {l:"Inadimplência Esperada (%)",v:simInad,s:setSimInad,m:0,max:50,step:1,fmt:v=>v+"%"},
-                      {l:"Volume de Novos Contratos",v:simVol,s:setSimVol,m:0,max:50,step:1,fmt:v=>v}
-                    ].map(inp=>(
-                      <div key={inp.l}>
-                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><span style={{...LS,marginBottom:0}}>{inp.l}</span><strong style={{color:BLU,fontSize:14}}>{inp.fmt(inp.v)}</strong></div>
-                        <input type="range" min={inp.m} max={inp.max} step={inp.step} value={inp.v} onChange={e=>inp.s(Number(e.target.value))} style={{width:"100%",height:6,borderRadius:3,background:BD,appearance:"none",cursor:"pointer"}}/>
-                        <div style={{display:"flex",justifyContent:"space-between",marginTop:6,fontSize:10,color:MUTED}}><span>{inp.fmt(inp.m)}</span><span>{inp.fmt(inp.max)}</span></div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </main>
       </div>
 
@@ -691,3 +566,4 @@ function App() {
 }
 
 createRoot(document.getElementById("root")).render(<App />);
+// build force 2
