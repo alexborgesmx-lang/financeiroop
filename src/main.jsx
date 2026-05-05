@@ -121,9 +121,15 @@ function BaixaModal({contrato, parcelas, pagamentos, onConfirmar, onFechar}){
   const valTotal       = parseFloat(contrato.VALOR_TOTAL||0);
   const totalPago      = pgs.reduce((s,p)=>s+(parseFloat(p.VALOR_PAGO)||0),0);
   const jurosRecebidos = pgs.reduce((s,p)=>s+(parseFloat(p.RECEITA_EXTRA_ATRASO)||0),0);
+  
+  // CORREÇÃO DA LÓGICA DE CÁLCULO
   const capitalRecuperado = Math.min(totalPago, valPrincipal);
   const prejuizoCapital   = Math.max(0, valPrincipal - capitalRecuperado);
-  const jurosNaoReal      = Math.max(0, (valTotal - valPrincipal) - jurosRecebidos);
+  
+  // Juros não realizados = (Total Contratual - Principal Original) - Juros que já foram pagos em parcelas anteriores
+  const jurosTotaisContrato = valTotal - valPrincipal;
+  const jurosNaoReal = Math.max(0, jurosTotaisContrato - jurosRecebidos);
+
   const pctRecuperado     = valPrincipal>0 ? (capitalRecuperado/valPrincipal*100) : 0;
   const diasAtraso        = ps.filter(p=>p.STATUS==="atrasado").length > 0
     ? Math.max(...ps.filter(p=>p.STATUS==="atrasado").map(p=>{ const dv=parseDate(p.DATA_VENCIMENTO); if(!dv)return 0; const d=Math.round((new Date()-dv)/86400000); return d>0?d:0; }))
@@ -159,30 +165,41 @@ function BaixaModal({contrato, parcelas, pagamentos, onConfirmar, onFechar}){
         </div>
         <div style={{padding:24,overflowY:"auto",flex:1}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:24,padding:16,background:BG,borderRadius:10}}>
-            <div><span style={LS}>Principal Perdido</span><div style={{fontSize:18,fontWeight:800,color:RED}}>{fmtR(prejuizoCapital)}</div></div>
-            <div><span style={LS}>Recuperação</span><div style={{fontSize:18,fontWeight:800,color:GRN}}>{fmtP(pctRecuperado)}</div></div>
+            <div><span style={LS}>Capital Emprestado</span><div style={{fontSize:15,fontWeight:700}}>{fmtR(valPrincipal)}</div></div>
+            <div><span style={LS}>Capital Recuperado</span><div style={{fontSize:15,fontWeight:700,color:GRN}}>{fmtR(capitalRecuperado)}</div></div>
+            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Prejuízo de Capital</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{fmtR(prejuizoCapital)}</div></div>
+            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Juros Não Realizados</span><div style={{fontSize:15,fontWeight:700,color:ORG}}>{fmtR(jurosNaoReal)}</div></div>
+            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Total Pago</span><div style={{fontSize:15,fontWeight:700,color:BLU}}>{fmtR(totalPago)}</div></div>
+            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>% Recuperado</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{fmtP(pctRecuperado)}</div></div>
+            <div style={{gridColumn:"1/-1",borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Dias de Atraso (Máx)</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{diasAtraso} dias</div></div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:16}}>
-            {campo("Motivo da Perda","substatus",[
+            {campo("Substatus / Motivo Operacional","substatus",[
               {v:"CLIENTE_DESAPARECIDO",l:"Cliente Desaparecido / Sem Contato"},
               {v:"SEM_BENS_PENHORAVEIS",l:"Sem Bens ou Renda para Cobrança"},
               {v:"FALECIMENTO",l:"Falecimento do Titular"},
-              {v:"FRAUDE_IDENTIFICADA",l:"Fraude / Má Fé Confirmada"},
+              {v:"FRAUDE_IDENTIFICADA",l:"Má-fé aparente"},
               {v:"ACORDO_VALOR_IRRISORIO",l:"Acordo (Valor Irrisório para Prosseguir)"}
             ])}
-            {campo("Descrição do Motivo","motivo")}
+            {campo("Motivo Detalhado (Obrigatório)","motivo")}
             {campo("Possibilidade de Recuperação Futura","possibilidadeRecuperacao",[
-              {v:"BAIXA",l:"Nenhuma (Baixa Definitiva)"},
+              {v:"BAIXA",l:"Baixa — cliente pouco responsivo"},
               {v:"RECURSOS_FUTUROS",l:"Remota (Monitorar Renda Futura)"},
               {v:"JUDICIAL",l:"Judicial (Enviar para Advogado)"}
             ])}
-            <div><span style={LS}>Observações Internas</span><textarea value={dados.observacao} onChange={e=>setDados(p=>({...p,observacao:e.target.value}))} style={{...IS,height:80,resize:"none"}}/></div>
+            {campo("Status Jurídico","statusJuridico",[
+              {v:"NAO_ANALISADO",l:"Não analisado"},
+              {v:"ANALISE_INTERNA",l:"Análise Interna"},
+              {v:"PROCESSO_AJUIZADO",l:"Processo Ajuizado"}
+            ])}
+            <div><span style={LS}>Próxima Providência</span><input value={dados.proximaProvidencia} onChange={e=>setDados(p=>({...p,proximaProvidencia:e.target.value}))} style={IS}/></div>
+            <div><span style={LS}>Observação Adicional</span><textarea value={dados.observacao} onChange={e=>setDados(p=>({...p,observacao:e.target.value}))} style={{...IS,height:80,resize:"none"}}/></div>
           </div>
           {msg && <div style={{marginTop:16,padding:12,borderRadius:8,background:RED+"10",color:RED,fontSize:13,textAlign:"center",fontWeight:600}}>{msg.texto}</div>}
         </div>
         <div style={{padding:20,borderTop:`1px solid ${BD}`,display:"flex",gap:12}}>
           <button onClick={onFechar} style={{flex:1,padding:12,borderRadius:8,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontWeight:600}}>Cancelar</button>
-          <button onClick={confirmar} disabled={loading} style={{flex:2,padding:12,borderRadius:8,border:"none",background:RED,color:"#FFF",cursor:"pointer",fontWeight:700,opacity:loading?0.7:1}}>{loading?"Processando...":"Confirmar Baixa de Prejuízo"}</button>
+          <button onClick={confirmar} disabled={loading} style={{flex:2,padding:12,borderRadius:8,border:"none",background:RED,color:"#FFF",cursor:"pointer",fontWeight:700,opacity:loading?0.7:1}}>{loading?"Processando...":"Confirmar Baixa como Prejuízo"}</button>
         </div>
       </div>
     </div>
