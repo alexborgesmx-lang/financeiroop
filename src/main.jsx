@@ -117,16 +117,17 @@ function BaixaModal({contrato, parcelas, pagamentos, onConfirmar, onFechar}){
   const ps = parcelas.filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
   const pgs = pagamentos.filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
 
+  // NOMES DE COLUNAS ATUALIZADOS CONFORME PLANILHA
   const valPrincipal   = parseFloat(contrato.VALOR_PRINCIPAL||0);
-  const valTotal       = parseFloat(contrato.VALOR_TOTAL||0);
+  const valTotal       = parseFloat(contrato.VALOR_TOTAL_FINAL||0); 
+  
   const totalPago      = pgs.reduce((s,p)=>s+(parseFloat(p.VALOR_PAGO)||0),0);
   const jurosRecebidos = pgs.reduce((s,p)=>s+(parseFloat(p.RECEITA_EXTRA_ATRASO)||0),0);
   
-  // CORREÇÃO DA LÓGICA DE CÁLCULO
   const capitalRecuperado = Math.min(totalPago, valPrincipal);
   const prejuizoCapital   = Math.max(0, valPrincipal - capitalRecuperado);
   
-  // Juros não realizados = (Total Contratual - Principal Original) - Juros que já foram pagos em parcelas anteriores
+  // Juros não realizados = (Valor Total Final - Principal) - Juros já pagos
   const jurosTotaisContrato = valTotal - valPrincipal;
   const jurosNaoReal = Math.max(0, jurosTotaisContrato - jurosRecebidos);
 
@@ -469,7 +470,7 @@ function App() {
 
   const M = useMemo(()=>{
     const ativos = contratos.filter(c=>c.STATUS_CONTRATO==="ativo");
-    const vAtivos = ativos.reduce((s,c)=>s+parseFloat(c.VALOR_TOTAL||0),0);
+    const vAtivos = ativos.reduce((s,c)=>s+parseFloat(c.VALOR_TOTAL_FINAL||0),0);
     const vAtrasoTotal = parcelas.filter(p=>p.STATUS==="atrasado").reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
     const taxaInad = vAtivos>0 ? (vAtrasoTotal/vAtivos*100) : 0;
     return {vAtivos,vAtrasoTotal,taxaInad,lucroTotal:vAtivos*0.15};
