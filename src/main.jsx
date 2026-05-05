@@ -11,15 +11,23 @@ const GRN  = "#10B981", RED = "#EF4444", BLU = "#3B82F6";
 const YEL  = "#F59E0B", PUR = "#8B5CF6", ORG = "#F97316";
 const SW   = 220;
 
+// Função robusta para converter qualquer formato de moeda (R$ 340,00 ou 340.00) em número
+const parseMoney = v => {
+  if (typeof v === 'number') return v;
+  if (!v) return 0;
+  let s = String(v).replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+  let n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+};
+
 const fmtR  = v => "R$ " + Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtP  = v => Number(v||0).toFixed(1) + "%";
 const fmtDt = v => { if(!v) return "—"; const d = v instanceof Date ? v : new Date(v); return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR"); };
 const hojeStr = () => new Date().toISOString().split("T")[0];
-const limparData = v => { if(!v) return ""; const s=String(v).trim(); return s.includes("T") ? s.split("T")[0] : s; };
+
 function parseDate(v){
   if(!v) return null;
   if(v instanceof Date) return v;
-  
   let d;
   if(typeof v === "string"){
     const s = v.trim();
@@ -43,10 +51,7 @@ function parseDate(v){
   } else {
     d = new Date(v);
   }
-
   if(isNaN(d.getTime())) return null;
-  if(d.getFullYear() < 2000) d.setFullYear(d.getFullYear() + 100);
-  
   d.setHours(12,0,0,0);
   return d;
 }
@@ -58,17 +63,6 @@ function toNum(d){
   return dt.getFullYear() * 10000 + (dt.getMonth() + 1) * 100 + dt.getDate();
 }
 async function postAction(body){ const r=await fetch(POST_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); return r.json(); }
-
-function vLetras(v){ return v&&/[^a-zA-ZÀ-ÿ\s]/.test(v)?"⚠ Somente letras":null; }
-function vNums(v){   return v&&/[^\d]/.test(v)?"⚠ Somente números":null; }
-function vEmail(v){ if(!v)return null; if(/[A-Z]/.test(v))return"⚠ Minúsculas"; if(!/^[^@]+@[^@]+\.[^@]+$/.test(v))return"⚠ Formato inválido"; return null; }
-function vNumEnd(v){ if(!v)return null; const l=v.toLowerCase().trim(); if(l==="sem numero"||l==="s/n"||l==="sn")return null; return/[^\d]/.test(v)?"⚠ Somente números":null; }
-
-const IS = {width:"100%",padding:"9px 12px",background:CARD,border:`1px solid ${BD}`,borderRadius:7,color:TEXT,fontSize:13,boxSizing:"border-box"};
-const IW = {...IS,border:`1px solid ${YEL}`,background:"#FFFBEB"};
-const LS = {color:MUTED,fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:4};
-const WS = {color:YEL,fontSize:11,display:"block",marginTop:3};
-const SEC= {fontSize:11,fontWeight:700,color:BLU,textTransform:"uppercase",margin:"16px 0 8px",borderBottom:`1px solid ${BD}`,paddingBottom:4};
 
 const STATUS_LABEL = {
   ativo_em_dia:"Em Dia", ativo_em_atraso:"Em Atraso", em_cobranca:"Em Cobrança",
@@ -108,37 +102,34 @@ function Badge({c,children}){ return <span style={{display:"inline-flex",alignIt
 
 function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
   const [dados, setDados] = useState({
-    substatus:"CLIENTE_DESAPARECIDO", motivo:"", observacao:"",
+    substatus:"FRAUDE_IDENTIFICADA", motivo:"", observacao:"",
     possibilidadeRecuperacao:"BAIXA", statusJuridico:"NAO_ANALISADO", proximaProvidencia:""
   });
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
 
-  // Filtra todas as parcelas deste contrato (incluindo as já pagas no passado)
+  // Filtra parcelas do contrato para calcular tudo diretamente delas
   const ps = parcelas.filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
 
-  const valPrincipal   = parseFloat(contrato.VALOR_PRINCIPAL||0);
-  const valTotal       = parseFloat(contrato.VALOR_TOTAL_FINAL||0); 
+  // Cálculos baseados 100% na aba PARCELAS (conforme as imagens enviadas)
+  const capitalEmprestadoTotal = ps.reduce((s,p)=>s + parseMoney(p.VALOR_PRINCIPAL), 0);
+  const valorTotalContratual    = ps.reduce((s,p)=>s + parseMoney(p.VALOR_PARCELA), 0);
   
-  // Calcula o que já foi pago baseado na aba PARCELAS (Coluna M - Coluna I)
-  const totalPago      = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>s+(parseFloat(p.VALOR_PAGO)||0),0);
+  const totalPago              = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>s + parseMoney(p.VALOR_PAGO), 0);
+  const capitalRecuperado      = Math.min(totalPago, capitalEmprestadoTotal);
+  const prejuizoCapital        = Math.max(0, capitalEmprestadoTotal - capitalRecuperado);
   
-  // Juros que já foram pagos em parcelas anteriores
-  const jurosJaPagos   = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>{
-    const pago = parseFloat(p.VALOR_PAGO)||0;
-    const princ = parseFloat(p.VALOR_PRINCIPAL)||0;
+  // Juros não realizados: (Soma de todos os VALOR_JUROS das parcelas) - (Juros que já foram pagos)
+  const jurosTotais            = ps.reduce((s,p)=>s + parseMoney(p.VALOR_JUROS), 0);
+  const jurosJaPagos           = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>{
+    const pago = parseMoney(p.VALOR_PAGO);
+    const princ = parseMoney(p.VALOR_PRINCIPAL);
     return s + Math.max(0, pago - princ);
   }, 0);
-  
-  const capitalRecuperado = Math.min(totalPago, valPrincipal);
-  const prejuizoCapital   = Math.max(0, valPrincipal - capitalRecuperado);
-  
-  // Juros não realizados = (Valor Total Final - Principal Original) - Juros que já foram pagos
-  const jurosTotaisContrato = valTotal - valPrincipal;
-  const jurosNaoReal = Math.max(0, jurosTotaisContrato - jurosJaPagos);
+  const jurosNaoReal           = Math.max(0, jurosTotais - jurosJaPagos);
 
-  const pctRecuperado     = valPrincipal>0 ? (capitalRecuperado/valPrincipal*100) : 0;
-  const diasAtraso        = ps.filter(p=>p.STATUS==="atrasado").length > 0
+  const pctRecuperado          = capitalEmprestadoTotal>0 ? (capitalRecuperado/capitalEmprestadoTotal*100) : 0;
+  const diasAtraso             = ps.filter(p=>p.STATUS==="atrasado").length > 0
     ? Math.max(...ps.filter(p=>p.STATUS==="atrasado").map(p=>{ const dv=parseDate(p.DATA_VENCIMENTO); if(!dv)return 0; const d=Math.round((new Date()-dv)/86400000); return d>0?d:0; }))
     : 0;
 
@@ -172,7 +163,7 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
         </div>
         <div style={{padding:24,overflowY:"auto",flex:1}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:24,padding:16,background:BG,borderRadius:10}}>
-            <div><span style={LS}>Capital Emprestado</span><div style={{fontSize:15,fontWeight:700}}>{fmtR(valPrincipal)}</div></div>
+            <div><span style={LS}>Capital Emprestado</span><div style={{fontSize:15,fontWeight:700}}>{fmtR(capitalEmprestadoTotal)}</div></div>
             <div><span style={LS}>Capital Recuperado</span><div style={{fontSize:15,fontWeight:700,color:GRN}}>{fmtR(capitalRecuperado)}</div></div>
             <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Prejuízo de Capital</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{fmtR(prejuizoCapital)}</div></div>
             <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Juros Não Realizados</span><div style={{fontSize:15,fontWeight:700,color:ORG}}>{fmtR(jurosNaoReal)}</div></div>
@@ -182,10 +173,10 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:16}}>
             {campo("Substatus / Motivo Operacional","substatus",[
+              {v:"FRAUDE_IDENTIFICADA",l:"Má-fé aparente"},
               {v:"CLIENTE_DESAPARECIDO",l:"Cliente Desaparecido / Sem Contato"},
               {v:"SEM_BENS_PENHORAVEIS",l:"Sem Bens ou Renda para Cobrança"},
               {v:"FALECIMENTO",l:"Falecimento do Titular"},
-              {v:"FRAUDE_IDENTIFICADA",l:"Má-fé aparente"},
               {v:"ACORDO_VALOR_IRRISORIO",l:"Acordo (Valor Irrisório para Prosseguir)"}
             ])}
             {campo("Motivo Detalhado (Obrigatório)","motivo")}
@@ -218,9 +209,11 @@ function ModalAcordoPerda({ contrato, parcelas, onConfirmar, onFechar }) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
 
-  const abertas = parcelas.filter(p => String(p.ID_CONTRATO) === String(contrato.ID_CONTRATO) && p.STATUS !== "pago");
-  const principalAberto = abertas.reduce((s, p) => s + parseFloat(p.VALOR_PRINCIPAL || 0), 0);
-  const jurosAberto = abertas.reduce((s, p) => s + parseFloat(p.VALOR_JUROS || 0), 0);
+  const ps = parcelas.filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
+  const abertas = ps.filter(p => p.STATUS !== "pago");
+  
+  const principalAberto = abertas.reduce((s, p) => s + parseMoney(p.VALOR_PRINCIPAL), 0);
+  const jurosAberto = abertas.reduce((s, p) => s + parseMoney(p.VALOR_JUROS), 0);
   const totalAberto = principalAberto + jurosAberto;
 
   const vAcordo = parseFloat(valorAcordo) || 0;
@@ -406,7 +399,7 @@ function NovoContrato({contratos, onSucesso}){
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
         <div style={{position:"relative"}} ref={ref}>
           <span style={LS}>Buscar Cliente</span>
-          <div style={{position:"relative"}}><div style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)"}}>{Ico.srch}</div><input value={cliente?cliente.NOME_CLIENTE:busca} onChange={e=>{setBusca(e.target.value);setCliente(null);setShowDrop(true);}} onFocus={()=>setShowDrop(true)} placeholder="Nome ou ID..." style={{...IS,paddingLeft:35}}/>{cliente&&<button onClick={()=>{setCliente(null);setBusca("");}} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:MUTED}>x</button>}</div>
+          <div style={{position:"relative"}}><div style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)"}}>{Ico.srch}</div><input value={cliente?cliente.NOME_CLIENTE:busca} onChange={e=>{setBusca(e.target.value);setCliente(null);setShowDrop(true);}} onFocus={()=>setShowDrop(true)} placeholder="Nome ou ID..." style={{...IS,paddingLeft:35}}/>{cliente&&<button onClick={()=>{setCliente(null);setBusca("");}} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:MUTED}}>x</button>}</div>
           {showDrop && clis.length>0 && (
             <div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BD}`,borderRadius:8,marginTop:4,zIndex:100,boxShadow:"0 10px 30px rgba(0,0,0,0.1)",overflow:"hidden"}}>
               {clis.map(c=><div key={c.ID_CLIENTE} onClick={()=>{setCliente(c);setShowDrop(false);}} style={{padding:"10px 15px",cursor:"pointer",borderBottom:`1px solid ${BG}`,fontSize:13}} onMouseEnter={e=>e.target.style.background=BG} onMouseLeave={e=>e.target.style.background=CARD}><strong>{c.ID_CLIENTE}</strong> - {c.NOME_CLIENTE}</div>)}
@@ -476,15 +469,15 @@ function App() {
 
   const M = useMemo(()=>{
     const ativos = contratos.filter(c=>c.STATUS_CONTRATO==="ativo");
-    const vAtivos = ativos.reduce((s,c)=>s+parseFloat(c.VALOR_TOTAL_FINAL||0),0);
-    const vAtrasoTotal = parcelas.filter(p=>p.STATUS==="atrasado").reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
+    const vAtivos = ativos.reduce((s,c)=>s+parseMoney(c.VALOR_TOTAL_FINAL),0);
+    const vAtrasoTotal = parcelas.filter(p=>p.STATUS==="atrasado").reduce((s,p)=>s+parseMoney(p.VALOR_PARCELA),0);
     const taxaInad = vAtivos>0 ? (vAtrasoTotal/vAtivos*100) : 0;
     return {vAtivos,vAtrasoTotal,taxaInad,lucroTotal:vAtivos*0.15};
   },[contratos,parcelas]);
 
   const mensal = useMemo(()=>{
     const m = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-    return m.map((mes,i)=>({m:mes,v:pagamentos.filter(p=>{const d=parseDate(p.DATA_PAGAMENTO); return d&&d.getMonth()===i;}).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0)}));
+    return m.map((mes,i)=>({m:mes,v:pagamentos.filter(p=>{const d=parseDate(p.DATA_PAGAMENTO); return d&&d.getMonth()===i;}).reduce((s,p)=>s+parseMoney(p.VALOR_PAGO),0)}));
   },[pagamentos]);
 
   const cobItems = useMemo(()=>{
@@ -492,7 +485,7 @@ function App() {
     return ids.map(id=>{
       const c = clientes.find(x=>x.ID_CLIENTE===id);
       const ps = parcelas.filter(p=>p.ID_CLIENTE===id && p.STATUS==="atrasado");
-      const vAtraso = ps.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
+      const vAtraso = ps.reduce((s,p)=>s+parseMoney(p.VALOR_PARCELA),0);
       const maxAtraso = Math.max(...ps.map(p=>{const d=parseDate(p.DATA_VENCIMENTO); return d?Math.round((new Date()-d)/86400000):0;}));
       return {...c,vAtraso,maxAtraso,contratos:[...new Set(ps.map(p=>p.ID_CONTRATO))]};
     }).sort((a,b)=>b.maxAtraso - a.maxAtraso);
@@ -500,8 +493,8 @@ function App() {
 
   const perdas = useMemo(()=>{
     const baixados = contratos.filter(c=>c.STATUS_CONTRATO==="baixado_como_prejuizo");
-    const capitalBaixado = baixados.reduce((s,c)=>s+parseFloat(c.PREJUIZO_CAPITAL||0),0);
-    const recuperadoAposBaixa = baixados.reduce((s,c)=>s+parseFloat(c.VALOR_RECUPERADO_APOS_BAIXA||0),0);
+    const capitalBaixado = baixados.reduce((s,c)=>s+parseMoney(c.PREJUIZO_CAPITAL),0);
+    const recuperadoAposBaixa = baixados.reduce((s,c)=>s+parseMoney(c.VALOR_RECUPERADO_APOS_BAIXA),0);
     return {capitalBaixado,recuperadoAposBaixa,prejuizoTotal:capitalBaixado-recuperadoAposBaixa,txRecuperacao:capitalBaixado>0?(recuperadoAposBaixa/capitalBaixado*100):0};
   },[contratos]);
 
