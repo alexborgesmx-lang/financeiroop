@@ -118,7 +118,7 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
 
   const ps = parcelas.filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
 
-  // Cálculo baseado na aba PARCELAS
+  // Cálculo baseado na aba PARCELAS para garantir precisão
   const capitalEmprestadoTotal = ps.reduce((s,p)=>s + parseMoney(p.VALOR_PRINCIPAL), 0);
   const totalPago              = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>s + parseMoney(p.VALOR_PAGO), 0);
   const capitalRecuperado      = Math.min(totalPago, capitalEmprestadoTotal);
@@ -428,18 +428,34 @@ function App() {
     });
   }, [parcelas]);
 
+  const cobItems = useMemo(() => {
+    const cls = Array.from(new Set(parcelas.filter(p => p.STATUS === "atrasado").map(p => String(p.ID_CLIENTE))));
+    return cls.map(id => {
+      const c = clientes.find(cl => String(cl.ID_CLIENTE) === id);
+      if(!c) return null;
+      const pps = parcelas.filter(p => String(p.ID_CLIENTE) === id && p.STATUS === "atrasado");
+      const ccs = contratos.filter(ct => String(ct.ID_CLIENTE) === id && !["quitado","cancelado"].includes(ct.STATUS_CONTRATO));
+      const vAtraso = pps.reduce((s,p) => s + parseMoney(p.VALOR_PARCELA), 0);
+      const maxAtraso = Math.max(...pps.map(p => {
+        const dv = parseDate(p.DATA_VENCIMENTO);
+        return dv ? Math.round((new Date() - dv) / 86400000) : 0;
+      }));
+      return { ...c, vAtraso, maxAtraso, contratos: ccs };
+    }).filter(x => x !== null).sort((a,b) => b.vAtraso - a.vAtraso);
+  }, [clientes, parcelas, contratos]);
+
   const NavItem = ({id, label, ico}) => (
-    <div onClick={()=>setTab(id)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderRadius:10,cursor:"pointer",background:tab===id?BLU:"transparent",color:tab===id?"#FFF":MUTED,marginBottom:4,transition:"0.2s"}} onMouseEnter={e=>tab!==id&&(e.currentTarget.style.background=BG)} onMouseLeave={e=>tab!==id&&(e.currentTarget.style.background="transparent")}>
+    <div onClick={()=>setTab(id)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderRadius:10,cursor:"pointer",background:tab===id?BLU:"transparent",color:tab===id?"#FFF":MUTED,marginBottom:4,transition:"0.2s"}}>
       {ico} <span style={{fontSize:14,fontWeight:600}}>{label}</span>
     </div>
   );
 
-  if(loading && !raw) return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:BG}}><div style={{textAlign:"center"}}><div style={{width:40,height:40,border:`4px solid ${BD}`,borderTopColor:BLU,borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto 15px"}}/><div style={{fontSize:14,color:MUTED,fontWeight:600}}>Carregando FinanceiroOp...</div></div><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>;
+  if(loading && !raw) return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:BG}}>Carregando...</div>;
 
   return (
     <div style={{display:"flex",height:"100vh",background:BG,color:TEXT,fontFamily:"'Inter', sans-serif"}}>
       <div style={{width:sidebarOpen?SW:0,background:CARD,borderRight:`1px solid ${BD}`,display:"flex",flexDirection:"column",overflow:"hidden",transition:"0.3s"}}>
-        <div style={{padding:24,display:"flex",alignItems:"center",gap:12,borderBottom:`1px solid ${BD}`}}><div style={{width:32,height:32,background:BLU,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",color:"#FFF"}}>{Ico.fin}</div><span style={{fontWeight:800,fontSize:18,letterSpacing:"-0.5px"}}>Financeiro<span style={{color:BLU}}>Op</span></span></div>
+        <div style={{padding:24,display:"flex",alignItems:"center",gap:12,borderBottom:`1px solid ${BD}`}}><div style={{width:32,height:32,background:BLU,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",color:"#FFF"}}>{Ico.fin}</div><span style={{fontWeight:800,fontSize:18}}>Financeiro<span style={{color:BLU}}>Op</span></span></div>
         <div style={{padding:16,flex:1}}>
           <NavItem id="dashboard" label="Dashboard" ico={Ico.dash}/>
           <NavItem id="clientes" label="Clientes" ico={Ico.cli}/>
@@ -449,8 +465,8 @@ function App() {
       </div>
 
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <header style={{height:64,background:CARD,borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 24px",zIndex:10}}>
-          <div style={{display:"flex",alignItems:"center",gap:15}}><button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{background:BG,border:"none",padding:8,borderRadius:8,cursor:"pointer",color:MUTED}}>{Ico.arr}</button><h2 style={{fontSize:18,fontWeight:700,margin:0}}>{tab.charAt(0).toUpperCase()+tab.slice(1)}</h2></div>
+        <header style={{height:64,background:CARD,borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 24px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:15}}><button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{background:BG,border:"none",padding:8,borderRadius:8,cursor:"pointer"}}>{Ico.arr}</button><h2 style={{fontSize:18,fontWeight:700,margin:0}}>{tab.toUpperCase()}</h2></div>
         </header>
 
         <main style={{flex:1,overflowY:"auto",padding:24}}>
@@ -460,19 +476,19 @@ function App() {
                 {[
                   {l:"Total em Aberto",v:fmtR(M.vAtivos),c:BLU,i:Ico.fin},
                   {l:"Total em Atraso",v:fmtR(M.vAtrasoTotal),c:YEL,i:Ico.cob},
-                  {l:"Inadimplência",v:fmtP(M.taxaInad),c:M.taxaInad>15?RED:M.taxaInad>8?YEL:GRN,i:Ico.kpi},
+                  {l:"Inadimplência",v:fmtP(M.taxaInad),c:RED,i:Ico.kpi},
                   {l:"Lucro Projetado",v:fmtR(M.lucroTotal),c:GRN,i:Ico.novo}
                 ].map(k=>(
                   <div key={k.l} style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`,display:"flex",alignItems:"center",gap:16}}>
                     <div style={{background:k.c+"15",color:k.c,padding:12,borderRadius:12}}>{k.i}</div>
-                    <div><div style={{fontSize:12,color:MUTED,fontWeight:600,marginBottom:4}}>{k.l}</div><div style={{fontSize:20,fontWeight:800}}>{k.v}</div></div>
+                    <div><div style={{fontSize:12,color:MUTED,marginBottom:4}}>{k.l}</div><div style={{fontSize:20,fontWeight:800}}>{k.v}</div></div>
                   </div>
                 ))}
               </div>
               <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:24}}>
                 <div style={{background:CARD,padding:24,borderRadius:12,border:`1px solid ${BD}`,height:350}}>
                   <h3 style={{margin:"0 0 20px",fontSize:16,fontWeight:700}}>Recebimentos Mensais</h3>
-                  <ResponsiveContainer width="100%" height="100%"><BarChart data={mensal}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke={BD}/><XAxis dataKey="m" axisLine={false} tickLine={false} tick={{fontSize:10,fill:MUTED}}/><YAxis axisLine={false} tickLine={false} tick={{fontSize:10,fill:MUTED}} tickFormatter={v=>`R$ ${v/1000}k`}/><Tooltip cursor={{fill:BG}} contentStyle={{borderRadius:8,border:"none",boxShadow:"0 10px 20px rgba(0,0,0,0.1)"}}/><Bar dataKey="v" fill={BLU} radius={[4,4,0,0]} barSize={40}/></BarChart></ResponsiveContainer>
+                  <ResponsiveContainer width="100%" height="100%"><BarChart data={mensal}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke={BD}/><XAxis dataKey="m"/><YAxis tickFormatter={v=>`R$ ${v/1000}k`}/><Tooltip/><Bar dataKey="v" fill={BLU} radius={[4,4,0,0]}/></BarChart></ResponsiveContainer>
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:20}}>
                   <PagamentoDrop contratos={contratos} parcelas={parcelas} onSucesso={carregar}/>
@@ -484,21 +500,35 @@ function App() {
 
           {tab==="clientes" && (
             <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
-              <div style={{padding:20,borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:BG+"50"}}>
-                <div style={{display:"flex",gap:12}}><input placeholder="Buscar por nome ou ID..." value={filtroBusca} onChange={e=>setFiltroBusca(e.target.value)} style={{...IS,width:300}}/><select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{...IS,width:150}}><option value="todos">Todos Status</option><option value="ativo">Ativos</option><option value="aguardando_conferencia">Aguardando</option></select></div>
-                <div style={{fontSize:13,color:MUTED}}><strong>{filtrados.length}</strong> clientes encontrados</div>
-              </div>
+              <input placeholder="Buscar..." value={filtroBusca} onChange={e=>setFiltroBusca(e.target.value)} style={{...IS,width:300,margin:20}}/>
               <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-                <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"12px 20px"}}>Cliente</th><th>Status</th><th>Empréstimo Total</th><th>Saldo Devedor</th><th>Atraso</th><th style={{padding:"12px 20px",textAlign:"right"}}>Ações</th></tr></thead>
+                <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"12px 20px"}}>Cliente</th><th>Status</th><th>Saldo Devedor</th><th>Atraso</th><th style={{padding:"12px 20px",textAlign:"right"}}>Ações</th></tr></thead>
                 <tbody>
                   {filtrados.map(c=>(
                     <tr key={c.ID_CLIENTE} style={{borderBottom:`1px solid ${BD}`,fontSize:13}}>
-                      <td style={{padding:"15px 20px"}}><div style={{fontWeight:700}}>{c.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED}}>{c.ID_CLIENTE}</div></td>
+                      <td style={{padding:"15px 20px"}}><div style={{fontWeight:700}}>{c.NOME_CLIENTE}</div></td>
                       <td><Badge c={c.STATUS_CLIENTE==="ativo"?GRN:YEL}>{c.STATUS_CLIENTE?.toUpperCase()}</Badge></td>
-                      <td>{fmtR(c.totalEmp)}</td>
                       <td style={{fontWeight:600}}>{fmtR(c.saldoDev)}</td>
-                      <td style={{color:c.maxAtraso>0?RED:MUTED}}>{c.maxAtraso>0?`${fmtR(c.vAtraso)} (${c.maxAtraso}d)`:"—"}</td>
+                      <td style={{color:c.maxAtraso>0?RED:MUTED}}>{c.maxAtraso} dias</td>
                       <td style={{padding:"15px 20px",textAlign:"right"}}><button onClick={()=>setSelCli(c)} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,fontWeight:600}}>Detalhes</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {tab==="cobranca" && (
+            <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
+                <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"12px 20px"}}>Cliente</th><th>Atraso Máx</th><th>Valor Atrasado</th><th style={{padding:"12px 20px",textAlign:"right"}}>Ações</th></tr></thead>
+                <tbody>
+                  {cobItems.map(c=>(
+                    <tr key={c.ID_CLIENTE} style={{borderBottom:`1px solid ${BD}`,fontSize:13}}>
+                      <td style={{padding:"15px 20px"}}><div style={{fontWeight:700}}>{c.NOME_CLIENTE}</div></td>
+                      <td><Badge c={RED}>{c.maxAtraso} dias</Badge></td>
+                      <td style={{fontWeight:700,color:RED}}>{fmtR(c.vAtraso)}</td>
+                      <td style={{padding:"15px 20px",textAlign:"right"}}><button style={{padding:"6px 12px",borderRadius:6,border:"none",background:BLU,color:"#FFF",cursor:"pointer"}}>Cobrar</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -522,24 +552,17 @@ function App() {
                 ))}
               </div>
               <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
-                <div style={{padding:20,borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:BG+"50"}}>
-                  <h3 style={{margin:0,fontSize:16,fontWeight:700}}>Gestão de Contratos com Perda</h3>
-                  <select value={filtroPerdas} onChange={e=>setFiltroPerdas(e.target.value)} style={{...IS,width:200}}><option value="todos">Todos os Status</option><option value="em_cobranca">Em Cobrança</option><option value="pre_prejuizo">Pré-Prejuízo</option><option value="baixado_como_prejuizo">Baixado (Prejuízo)</option><option value="em_recuperacao">Em Recuperação</option></select>
-                </div>
                 <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-                  <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"12px 20px"}}>Contrato / Cliente</th><th>Status</th><th>Capital</th><th>Prejuízo</th><th>Recuperado</th><th style={{padding:"12px 20px",textAlign:"right"}}>Ações</th></tr></thead>
+                  <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"12px 20px"}}>Contrato / Cliente</th><th>Status</th><th>Prejuízo</th><th style={{padding:"12px 20px",textAlign:"right"}}>Ações</th></tr></thead>
                   <tbody>
                     {pFiltradas.map(c=>(
                       <tr key={c.ID_CONTRATO} style={{borderBottom:`1px solid ${BD}`,fontSize:13}}>
                         <td style={{padding:"15px 20px"}}><div style={{fontWeight:700}}>{c.ID_CONTRATO}</div><div style={{fontSize:11,color:MUTED}}>{c.NOME_CLIENTE}</div></td>
                         <td><Badge c={STATUS_COR[c.STATUS_CONTRATO]}>{STATUS_LABEL[c.STATUS_CONTRATO]?.toUpperCase()}</Badge></td>
-                        <td>{fmtR(c.VALOR_PRINCIPAL)}</td>
                         <td style={{color:RED,fontWeight:600}}>{fmtR(c.PREJUIZO_CAPITAL)}</td>
-                        <td style={{color:PUR,fontWeight:600}}>{fmtR(c.VALOR_RECUPERADO_APOS_BAIXA)}</td>
-                        <td style={{padding:"15px 20px",textAlign:"right",display:"flex",gap:8,justifyContent:"flex-end"}}>
-                          {c.STATUS_CONTRATO!=="baixado_como_prejuizo" && <button onClick={()=>setBaixaModal(c)} style={{padding:"6px 10px",borderRadius:6,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontSize:11,fontWeight:700}}>Baixar</button>}
+                        <td style={{padding:"15px 20px",textAlign:"right"}}>
+                          <button onClick={()=>setBaixaModal(c)} style={{padding:"6px 10px",borderRadius:6,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontSize:11,fontWeight:700,marginRight:8}}>Baixar</button>
                           <button onClick={()=>setAcordoModal(c)} style={{padding:"6px 10px",borderRadius:6,border:`1px solid ${ORG}30`,background:ORG+"08",color:ORG,cursor:"pointer",fontSize:11,fontWeight:700}}>🤝 Acordo</button>
-                          <button onClick={()=>setRecuperacaoModal(c)} style={{padding:"6px 10px",borderRadius:6,border:`1px solid ${PUR}30`,background:PUR+"08",color:PUR,cursor:"pointer",fontSize:11,fontWeight:700}}>Recuperar</button>
                         </td>
                       </tr>
                     ))}
@@ -551,7 +574,6 @@ function App() {
         </main>
       </div>
 
-      {/* MODALS */}
       {selCli && <ClienteModal cliente={selCli} onFechar={()=>setSelCli(null)} onSucesso={carregar}/>}
       {baixaModal && <BaixaModal contrato={baixaModal} parcelas={parcelas} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {acordoModal && <ModalAcordoPerda contrato={acordoModal} parcelas={parcelas} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
