@@ -357,7 +357,10 @@ function App() {
   const carregar=()=>{setLoading(true);fetch(API_URL).then(r=>r.json()).then(d=>{setRaw(d);setLoading(false);}).catch(()=>setLoading(false));};
   useEffect(()=>{carregar();},[]);
 
-  const {clientes,contratos,parcelas,pagamentos}=useMemo(()=>raw||{clientes:[],contratos:[],pagamentos:[],parcelas:[]},[raw]);
+  const clientes  = useMemo(()=>raw?.CLIENTES  || raw?.clientes  || [], [raw]);
+  const contratos = useMemo(()=>raw?.CONTRATOS || raw?.contratos || [], [raw]);
+  const parcelas  = useMemo(()=>raw?.PARCELAS  || raw?.parcelas  || [], [raw]);
+  const pagamentos= useMemo(()=>raw?.PAGAMENTOS|| raw?.pagamentos|| [], [raw]);
 
   const filtrados=useMemo(()=>(clientes||[]).filter(c=>{const m=(c.NOME_CLIENTE||"").toLowerCase().includes(filtroBusca.toLowerCase())||(c.ID_CLIENTE||"").toLowerCase().includes(filtroBusca.toLowerCase());const s=filtroStatus==="todos"||c.STATUS_CLIENTE===filtroStatus;return m&&s;}),[clientes,filtroBusca,filtroStatus]);
 
@@ -368,10 +371,19 @@ function App() {
     const vAtivos=ativos.reduce((s,c)=>s+parseFloat(c.VALOR_TOTAL_FINAL||0),0);
     const vAtrasoTotal=(parcelas||[]).filter(p=>p.STATUS==="atrasado").reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
     const taxaInad=vAtivos>0?(vAtrasoTotal/vAtivos*100):0;
-    return{vAtivos,vAtrasoTotal,taxaInad,lucroTotal:vAtivos*0.15};
-  },[contratos,parcelas]);
+    const receitaTotal=(pagamentos||[]).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+    const receitaExtra=(pagamentos||[]).reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0);
+    const qtyProrrogadas=(parcelas||[]).filter(p=>p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros").length;
+    const pagNormais=(pagamentos||[]).filter(p=>p.TIPO_PAGAMENTO==="pagamento_normal").length;
+    const pagAtraso=(pagamentos||[]).filter(p=>p.TIPO_PAGAMENTO==="pagamento_com_atraso").length;
+    const pagJuros=(pagamentos||[]).filter(p=>p.TIPO_PAGAMENTO==="somente_juros").length;
+    return{vAtivos,vAtrasoTotal,taxaInad,lucroTotal:vAtivos*0.15,receitaTotal,receitaExtra,qtyProrrogadas,pagNormais,pagAtraso,pagJuros};
+  },[contratos,parcelas,pagamentos]);
 
-  const mensal=useMemo(()=>["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map((mes,i)=>({m:mes,v:(pagamentos||[]).filter(p=>{const d=parseDate(p.DATA_PAGAMENTO);return d&&d.getMonth()===i;}).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0)})),[pagamentos]);
+  const mensal=useMemo(()=>["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map((mes,i)=>{
+    const pMes=(pagamentos||[]).filter(p=>{const d=parseDate(p.DATA_PAGAMENTO);return d&&d.getMonth()===i;});
+    return{m:mes,v:pMes.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0),extra:pMes.reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0)};
+  }),[pagamentos]);
 
   const cobItems=useMemo(()=>{
     const ids=[...new Set((parcelas||[]).filter(p=>p.STATUS==="atrasado").map(p=>p.ID_CLIENTE))];
@@ -542,73 +554,112 @@ function App() {
           {/* FINANCEIRO */}
           {tab==="financeiro"&&(
             <div style={{display:"flex",flexDirection:"column",gap:20}}>
+
+              {/* 6 cards de resumo */}
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+                {[
+                  {icon:"💵",label:"Receita Total",      val:fmtR(M.receitaTotal),  c:BLU},
+                  {icon:"⏰",label:"Receita Extra Atraso",val:fmtR(M.receitaExtra), c:ORG},
+                  {icon:"🔄",label:"Parcelas Prorrogadas",val:M.qtyProrrogadas,     c:PUR},
+                  {icon:"✅",label:"Pagamentos Normais",  val:M.pagNormais,          c:GRN},
+                  {icon:"⚠️",label:"Com Atraso",          val:M.pagAtraso,           c:YEL},
+                  {icon:"💸",label:"Somente Juros",       val:M.pagJuros,            c:RED},
+                ].map(k=>(
+                  <div key={k.label} style={{background:CARD,borderRadius:12,padding:18,border:`1px solid ${BD}`}}>
+                    <p style={{color:MUTED,fontSize:11,margin:"0 0 6px"}}>{k.icon} {k.label}</p>
+                    <p style={{fontSize:20,fontWeight:700,color:k.c,margin:0}}>{k.val}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Gráfico mensal */}
               <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,padding:20}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
+                <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:700}}>Receita Mensal (Total × Extra por Atraso)</h3>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={mensal}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={BD}/>
+                    <XAxis dataKey="m" axisLine={false} tickLine={false} tick={{fontSize:10,fill:MUTED}}/>
+                    <YAxis axisLine={false} tickLine={false} tick={{fontSize:10,fill:MUTED}} tickFormatter={v=>`R$${(v/1000).toFixed(0)}k`}/>
+                    <Tooltip cursor={{fill:BG}} contentStyle={{borderRadius:8,border:"none",boxShadow:"0 10px 20px rgba(0,0,0,0.1)"}} formatter={(v,n)=>[fmtR(v),n==="v"?"Receita":"Extra Atraso"]}/>
+                    <Bar dataKey="v"    fill={BLU} radius={[4,4,0,0]} barSize={36}/>
+                    <Bar dataKey="extra" fill={ORG} radius={[4,4,0,0]} barSize={36}/>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Tabela de pagamentos com filtro de datas */}
+              <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
+                <div style={{padding:"14px 18px",borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
                   <div>
-                    <h3 style={{margin:0,fontSize:16,fontWeight:700}}>Conferência de Pagamentos</h3>
-                    <p style={{margin:"4px 0 0",fontSize:12,color:MUTED}}>
-                      {finDe?`${totaisFin.count} pagamento(s) — ${labelPeriodo}`:`Total: ${(pagamentos||[]).length} pagamentos`}
+                    <h3 style={{margin:0,fontSize:15,fontWeight:700}}>
+                      {finDe ? "Pagamentos do Período" : "Últimos Pagamentos"}
+                    </h3>
+                    <p style={{margin:"3px 0 0",fontSize:11,color:MUTED}}>
+                      {finDe
+                        ? `${totaisFin.count} pagamento(s) — ${labelPeriodo}`
+                        : `${(pagamentos||[]).length} pagamentos no total`}
                     </p>
                   </div>
                   <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                    {finDe&&<button onClick={()=>{setFinDe(null);setFinAte(null);}} style={{padding:"7px 14px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,fontSize:12,cursor:"pointer",fontWeight:600}}>✕ Limpar</button>}
+                    {finDe&&<button onClick={()=>{setFinDe(null);setFinAte(null);}} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,fontSize:12,cursor:"pointer",fontWeight:600}}>✕ Limpar</button>}
                     <div style={{position:"relative"}}>
-                      <button onClick={()=>setFinCalOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:8,border:`1.5px solid ${finDe?BLU:BD}`,background:finDe?"#EFF6FF":CARD,color:finDe?BLU:MUTED,fontSize:13,fontWeight:finDe?700:400,cursor:"pointer"}}>
-                        {IcoCal} {labelPeriodo}
+                      <button onClick={()=>setFinCalOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${finDe?BLU:BD}`,background:finDe?"#EFF6FF":CARD,color:finDe?BLU:MUTED,fontSize:12,fontWeight:finDe?700:400,cursor:"pointer"}}>
+                        {IcoCal} {finDe?labelPeriodo:"Filtrar por período"}
                       </button>
                       {finCalOpen&&(
                         <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,zIndex:200}} onClick={e=>e.stopPropagation()}>
-                          <CalendarioRange
-                            de={finDe} ate={finAte}
+                          <CalendarioRange de={finDe} ate={finAte}
                             onSelecionar={(d,a)=>{setFinDe(d);setFinAte(a);}}
-                            onLimpar={()=>{setFinDe(null);setFinAte(null);setFinCalOpen(false);}}
-                          />
+                            onLimpar={()=>{setFinDe(null);setFinAte(null);setFinCalOpen(false);}}/>
                         </div>
                       )}
                     </div>
                   </div>
                 </div>
+
+                {/* Totais do período (só aparece quando filtro ativo) */}
                 {finDe&&(
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginTop:16,paddingTop:16,borderTop:`1px solid ${BD}`}}>
-                    {[{l:"Total Recebido",v:fmtR(totaisFin.total),c:BLU},{l:"Receita Extra (Atraso)",v:fmtR(totaisFin.extra),c:ORG},{l:"Nº de Pagamentos",v:totaisFin.count,c:GRN}].map(k=>(
-                      <div key={k.l} style={{background:BG,borderRadius:8,padding:"12px 16px"}}>
-                        <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:4}}>{k.l}</div>
-                        <div style={{fontSize:18,fontWeight:800,color:k.c}}>{k.v}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:0,borderBottom:`1px solid ${BD}`}}>
+                    {[{l:"Total Recebido",v:fmtR(totaisFin.total),c:BLU},{l:"Receita Extra",v:fmtR(totaisFin.extra),c:ORG},{l:"Nº Pagamentos",v:totaisFin.count,c:GRN}].map((k,i)=>(
+                      <div key={k.l} style={{padding:"10px 18px",background:"#F8FAFC",borderRight:i<2?`1px solid ${BD}`:"none"}}>
+                        <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:2}}>{k.l}</div>
+                        <div style={{fontSize:16,fontWeight:800,color:k.c}}>{k.v}</div>
                       </div>
                     ))}
                   </div>
                 )}
-              </div>
-              <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
+
                 <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
                   <thead>
                     <tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}>
-                      <th style={{padding:"10px 18px"}}>Data</th><th>Cliente</th><th>Contrato</th><th>Tipo</th><th>Valor Original</th><th>Valor Pago</th><th>Extra</th>
+                      <th style={{padding:"10px 18px"}}>Data</th>
+                      <th>Cliente</th>
+                      <th>Tipo</th>
+                      <th>Valor Original</th>
+                      <th>Valor Pago</th>
+                      <th>Diferença</th>
                     </tr>
                   </thead>
                   <tbody>
                     {pagsFiltrados.length===0
-                      ?<tr><td colSpan={7} style={{padding:"28px 18px",textAlign:"center",color:MUTED,fontSize:13}}>Nenhum pagamento encontrado neste período.</td></tr>
+                      ?<tr><td colSpan={6} style={{padding:"28px 18px",textAlign:"center",color:MUTED,fontSize:13}}>Nenhum pagamento encontrado neste período.</td></tr>
                       :pagsFiltrados.map((p,i)=>{
                         const tCor={pagamento_normal:GRN,pagamento_com_atraso:YEL,somente_juros:RED,recuperacao_apos_baixa:PUR}[p.TIPO_PAGAMENTO]||MUTED;
-                        const tLabel={pagamento_normal:"Normal",pagamento_com_atraso:"c/ Atraso",somente_juros:"Só Juros",recuperacao_apos_baixa:"Recuperação"}[p.TIPO_PAGAMENTO]||p.TIPO_PAGAMENTO||"—";
+                        const tLabel={pagamento_normal:"Normal",pagamento_com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação"}[p.TIPO_PAGAMENTO]||p.TIPO_PAGAMENTO||"—";
                         const extra=parseFloat(p.RECEITA_EXTRA_ATRASO||0);
                         return(
                           <tr key={i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:"#FAFAFA"}}>
                             <td style={{padding:"11px 18px",color:MUTED,whiteSpace:"nowrap"}}>{fmtDt(parseDate(p.DATA_PAGAMENTO))}</td>
                             <td style={{fontWeight:600}}>{p.NOME_CLIENTE}</td>
-                            <td style={{color:MUTED,fontSize:12}}>{p.ID_CONTRATO||"—"}</td>
                             <td><Badge c={tCor}>{tLabel}</Badge></td>
                             <td style={{color:MUTED}}>{fmtR(p.VALOR_ORIGINAL_PARCELA||p.VALOR_PARCELA)}</td>
                             <td style={{fontWeight:700,color:BLU}}>{fmtR(p.VALOR_PAGO)}</td>
                             <td style={{color:extra>0?ORG:MUTED,fontWeight:extra>0?700:400}}>{extra>0?`+${fmtR(extra)}`:"—"}</td>
                           </tr>
                         );
-                      })
-                    }
+                    })}
                   </tbody>
                 </table>
-                {!finDe&&<div style={{padding:"8px 18px",borderTop:`1px solid ${BD}`,background:"#F8FAFC"}}><p style={{color:MUTED,fontSize:11,margin:0}}>Selecione um período para filtrar os pagamentos</p></div>}
               </div>
             </div>
           )}
