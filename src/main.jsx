@@ -99,7 +99,7 @@ function BaixaModal({ contrato, pagamentos, onConfirmar, onFechar }) {
     possibilidadeRecuperacao: "BAIXA", statusJuridico: "NAO_ANALISADO", proximaProvidencia: ""
   });
   const [loading, setLoading] = useState(false);
-  const pgs = pagamentos.filter(p => String(p.ID_CONTRATO) === String(contrato.ID_CONTRATO));
+  const pgs = (pagamentos || []).filter(p => String(p.ID_CONTRATO) === String(contrato.ID_CONTRATO));
   const capEmp = parseFloat(contrato.VALOR_PRINCIPAL || 0);
   const capRec = pgs.reduce((s, p) => s + parseFloat(p.VALOR_PAGO || 0), 0);
   const jurosRec = pgs.reduce((s, p) => s + parseFloat(p.RECEITA_EXTRA_ATRASO || 0), 0);
@@ -166,8 +166,8 @@ function PagamentoDrop({ contratos, parcelas, onSucesso }) {
     <div style={{ background: CARD, padding: 20, borderRadius: 12, border: `1px solid ${BD}` }}>
       <h3 style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>{Ico.pag} Baixa Rápida</h3>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 200, overflowY: "auto" }}>
-        {parcelas.filter(p => p.STATUS === "atrasado").slice(0, 5).map(p => (
-          <div key={p.ID_PARCELA} style={{ padding: 10, background: BG, borderRadius: 8, display: "flex", justifyConten: "space-between", alignItems: "center" }}>
+        {(parcelas || []).filter(p => p.STATUS === "atrasado").slice(0, 5).map(p => (
+          <div key={p.ID_PARCELA} style={{ padding: 10, background: BG, borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ fontSize: 12 }}><div style={{ fontWeight: 700 }}>{(p.NOME_CLIENTE || "").split(" ")[0]}</div><div style={{ color: MUTED }}>{p.ID_CONTRATO}</div></div>
             <button onClick={() => registrar(p.ID_PARCELA, parseFloat(p.VALOR_PARCELA))} disabled={loading} style={{ padding: "5px 10px", background: GRN, color: "#FFF", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Pagar {fmtR(p.VALOR_PARCELA)}</button>
           </div>
@@ -217,7 +217,7 @@ function App() {
   }, [raw]);
 
   const M = useMemo(() => {
-    const ativos = contratos.filter(c => !["quitado", "cancelado"].includes(c.STATUS_CONTRATO?.toLowerCase()));
+    const ativos = contratos.filter(c => !["quitado", "cancelado"].includes((c.STATUS_CONTRATO || "").toLowerCase()));
     const vAtivos = ativos.reduce((s, c) => s + parseFloat(c.VALOR_PRINCIPAL || 0), 0);
     const vAtrasoTotal = parcelas.filter(p => p.STATUS === "atrasado").reduce((s, p) => s + parseFloat(p.VALOR_PARCELA || 0), 0);
     const lucroTotal = parcelas.reduce((s, p) => s + parseFloat(p.VALOR_JUROS || 0), 0);
@@ -250,7 +250,7 @@ function App() {
     </div>
   );
 
-  if (loading && !raw) return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyConten: "center", background: BG }}>Carregando...</div>;
+  if (loading && !raw) return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: BG }}>Carregando...</div>;
 
   return (
     <div style={{ display: "flex", height: "100vh", background: BG, color: TEXT, fontFamily: "sans-serif" }}>
@@ -267,7 +267,7 @@ function App() {
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <header style={{ height: 64, background: CARD, borderBottom: `1px solid ${BD}`, display: "flex", alignItems: "center", justifyConten: "space-between", padding: "0 24px" }}>
+        <header style={{ height: 64, background: CARD, borderBottom: `1px solid ${BD}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 15 }}><button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ background: BG, border: "none", padding: 8, borderRadius: 8, cursor: "pointer" }}>{Ico.arr}</button><h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{tab.toUpperCase()}</h2></div>
         </header>
 
