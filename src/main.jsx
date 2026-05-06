@@ -15,9 +15,7 @@ const fmtR  = v => "R$ " + Number(v||0).toLocaleString("pt-BR",{minimumFractionD
 const fmtP  = v => Number(v||0).toFixed(1) + "%";
 const fmtDt = v => { if(!v) return "—"; const d = v instanceof Date ? v : new Date(v); return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR"); };
 const hojeStr = () => new Date().toISOString().split("T")[0];
-const limparData = v => { if(!v) return ""; const s=String(v).trim(); return s.includes("T") ? s.split("T")[0] : s; };
 
-// Função para converter formatos de moeda em número
 const parseMoney = v => {
   if (typeof v === 'number') return v;
   if (!v) return 0;
@@ -58,19 +56,17 @@ function parseDate(v){
   return d;
 }
 
-function toNum(d){
-  if(!d) return 0;
-  const dt = d instanceof Date ? d : parseDate(d);
-  if(!dt) return 0;
-  return dt.getFullYear() * 10000 + (dt.getMonth() + 1) * 100 + dt.getDate();
+async function postAction(body){ 
+  const r = await fetch(POST_URL,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(body)
+  }); 
+  return r.json(); 
 }
-async function postAction(body){ const r=await fetch(POST_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); return r.json(); }
 
 const IS = {width:"100%",padding:"9px 12px",background:CARD,border:`1px solid ${BD}`,borderRadius:7,color:TEXT,fontSize:13,boxSizing:"border-box"};
-const IW = {...IS,border:`1px solid ${YEL}`,background:"#FFFBEB"};
 const LS = {color:MUTED,fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:4};
-const WS = {color:YEL,fontSize:11,display:"block",marginTop:3};
-const SEC= {fontSize:11,fontWeight:700,color:BLU,textTransform:"uppercase",margin:"16px 0 8px",borderBottom:`1px solid ${BD}`,paddingBottom:4};
 
 const STATUS_LABEL = {
   ativo_em_dia:"Em Dia", ativo_em_atraso:"Em Atraso", em_cobranca:"Em Cobrança",
@@ -90,20 +86,8 @@ const STATUS_PERDA = ["em_cobranca","pre_prejuizo","baixado_como_prejuizo","em_r
 const Ico = {
   dash:  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
   cli:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>,
-  ctr:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>,
-  pag:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>,
-  cob:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.19 12"/></svg>,
-  fin:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
-  loss:  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
-  novo:  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>,
-  kpi:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
-  rel:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>,
-  sim:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>,
-  bell:  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
-  srch:  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
-  help:  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/></svg>,
   arr:   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9,18 15,12 9,6"/></svg>,
-  ref:   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23,4 23,10 17,10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>,
+  fin:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
 };
 
 function Badge({c,children}){ return <span style={{display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:20,fontSize:10,fontWeight:600,background:c+"18",color:c,border:`1px solid ${c}30`}}>{children}</span>; }
@@ -114,242 +98,59 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
     possibilidadeRecuperacao:"BAIXA", statusJuridico:"NAO_ANALISADO", proximaProvidencia:""
   });
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState(null);
-
   const ps = parcelas.filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
-
-  // Cálculo baseado na aba PARCELAS para garantir precisão
   const capitalEmprestadoTotal = ps.reduce((s,p)=>s + parseMoney(p.VALOR_PRINCIPAL), 0);
   const totalPago              = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>s + parseMoney(p.VALOR_PAGO), 0);
   const capitalRecuperado      = Math.min(totalPago, capitalEmprestadoTotal);
   const prejuizoCapital        = Math.max(0, capitalEmprestadoTotal - capitalRecuperado);
-  
-  // Juros não realizados: Soma da coluna VALOR_JUROS de todas as parcelas deste contrato
   const jurosNaoReal           = ps.reduce((s,p)=>s + parseMoney(p.VALOR_JUROS), 0);
-
   const pctRecuperado          = capitalEmprestadoTotal>0 ? (capitalRecuperado/capitalEmprestadoTotal*100) : 0;
   const diasAtraso             = ps.filter(p=>p.STATUS==="atrasado").length > 0
     ? Math.max(...ps.filter(p=>p.STATUS==="atrasado").map(p=>{ const dv=parseDate(p.DATA_VENCIMENTO); if(!dv)return 0; const d=Math.round((new Date()-dv)/86400000); return d>0?d:0; }))
     : 0;
 
   const confirmar = async () => {
-    if (!dados.motivo){ setMsg({ok:false,texto:"Informe o motivo da baixa."}); return; }
-    setLoading(true); setMsg(null);
+    if (!dados.motivo) return;
+    setLoading(true);
     const res = await postAction({
       action:"baixarContrato", idContrato: contrato.ID_CONTRATO,
       dados:{ ...dados, diasAtraso, valorRecuperadoAntesBaixa: capitalRecuperado, jurosJaRecebidos: 0, data: hojeStr() }
     });
-    if(res.ok){ onConfirmar(); }
-    else setMsg({ok:false, texto: res.erro||"Erro."});
+    if(res.ok) onConfirmar();
     setLoading(false);
   };
 
-  const campo = (label, field, options) => (
-    <div>
-      <span style={LS}>{label}</span>
-      {options
-        ? <select value={dados[field]} onChange={e=>setDados(p=>({...p,[field]:e.target.value}))} style={IS}>{options.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select>
-        : <input value={dados[field]} onChange={e=>setDados(p=>({...p,[field]:e.target.value}))} style={IS}/>}
-    </div>
-  );
-
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:CARD,borderRadius:12,width:"100%",maxWidth:600,maxHeight:"90vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
-        <div style={{padding:"20px 24px 14px",borderBottom:`1px solid ${BD}`,background:"#FEF2F2",borderRadius:"12px 12px 0 0"}}>
-          <h2 style={{color:RED,fontSize:17,fontWeight:700,margin:0}}>⚠️ Baixar Contrato como Prejuízo</h2>
-          <p style={{fontSize:13,color:MUTED,margin:"4px 0 0"}}>Contrato {contrato.ID_CONTRATO} • {contrato.NOME_CLIENTE}</p>
+      <div style={{background:CARD,borderRadius:12,width:"100%",maxWidth:600,maxHeight:"90vh",display:"flex",flexDirection:"column"}}>
+        <div style={{padding:24,borderBottom:`1px solid ${BD}`,background:"#FEF2F2"}}>
+          <h2 style={{color:RED,fontSize:17,margin:0}}>⚠️ Baixar Contrato como Prejuízo</h2>
+          <p style={{fontSize:13,color:MUTED}}>{contrato.ID_CONTRATO} • {contrato.NOME_CLIENTE}</p>
         </div>
         <div style={{padding:24,overflowY:"auto",flex:1}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:24,padding:16,background:BG,borderRadius:10}}>
             <div><span style={LS}>Capital Emprestado</span><div style={{fontSize:15,fontWeight:700}}>{fmtR(capitalEmprestadoTotal)}</div></div>
             <div><span style={LS}>Capital Recuperado</span><div style={{fontSize:15,fontWeight:700,color:GRN}}>{fmtR(capitalRecuperado)}</div></div>
-            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Prejuízo de Capital</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{fmtR(prejuizoCapital)}</div></div>
-            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Juros Não Realizados</span><div style={{fontSize:15,fontWeight:700,color:ORG}}>{fmtR(jurosNaoReal)}</div></div>
-            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Total Pago</span><div style={{fontSize:15,fontWeight:700,color:BLU}}>{fmtR(totalPago)}</div></div>
-            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>% Recuperado</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{fmtP(pctRecuperado)}</div></div>
-            <div style={{gridColumn:"1/-1",borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Dias de Atraso (Máx)</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{diasAtraso} dias</div></div>
+            <div><span style={LS}>Prejuízo de Capital</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{fmtR(prejuizoCapital)}</div></div>
+            <div><span style={LS}>Juros Não Realizados</span><div style={{fontSize:15,fontWeight:700,color:ORG}}>{fmtR(jurosNaoReal)}</div></div>
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:16}}>
-            {campo("Substatus / Motivo Operacional","substatus",[
-              {v:"FRAUDE_IDENTIFICADA",l:"Má-fé aparente"},
-              {v:"CLIENTE_DESAPARECIDO",l:"Cliente Desaparecido / Sem Contato"},
-              {v:"SEM_BENS_PENHORAVEIS",l:"Sem Bens ou Renda para Cobrança"},
-              {v:"FALECIMENTO",l:"Falecimento do Titular"},
-              {v:"ACORDO_VALOR_IRRISORIO",l:"Acordo (Valor Irrisório para Prosseguir)"}
-            ])}
-            {campo("Motivo Detalhado (Obrigatório)","motivo")}
-            {campo("Possibilidade de Recuperação Futura","possibilidadeRecuperacao",[
-              {v:"BAIXA",l:"Baixa — cliente pouco responsivo"},
-              {v:"RECURSOS_FUTUROS",l:"Remota (Monitorar Renda Futura)"},
-              {v:"JUDICIAL",l:"Judicial (Enviar para Advogado)"}
-            ])}
-            {campo("Status Jurídico","statusJuridico",[
-              {v:"NAO_ANALISADO",l:"Não analisado"},
-              {v:"ANALISE_INTERNA",l:"Análise Interna"},
-              {v:"PROCESSO_AJUIZADO",l:"Processo Ajuizado"}
-            ])}
-            <div><span style={LS}>Próxima Providência</span><input value={dados.proximaProvidencia} onChange={e=>setDados(p=>({...p,proximaProvidencia:e.target.value}))} style={IS}/></div>
-            <div><span style={LS}>Observação Adicional</span><textarea value={dados.observacao} onChange={e=>setDados(p=>({...p,observacao:e.target.value}))} style={{...IS,height:80,resize:"none"}}/></div>
-          </div>
-          {msg && <div style={{marginTop:16,padding:12,borderRadius:8,background:RED+"10",color:RED,fontSize:13,textAlign:"center",fontWeight:600}}>{msg.texto}</div>}
+          <div><span style={LS}>Motivo Detalhado</span><input value={dados.motivo} onChange={e=>setDados(p=>({...p,motivo:e.target.value}))} style={IS}/></div>
         </div>
         <div style={{padding:20,borderTop:`1px solid ${BD}`,display:"flex",gap:12}}>
-          <button onClick={onFechar} style={{flex:1,padding:12,borderRadius:8,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontWeight:600}}>Cancelar</button>
-          <button onClick={confirmar} disabled={loading} style={{flex:2,padding:12,borderRadius:8,border:"none",background:RED,color:"#FFF",cursor:"pointer",fontWeight:700,opacity:loading?0.7:1}}>{loading?"Processando...":"Confirmar Baixa como Prejuízo"}</button>
+          <button onClick={onFechar} style={{flex:1,padding:12,borderRadius:8,border:`1px solid ${BD}`,background:CARD}}>Cancelar</button>
+          <button onClick={confirmar} disabled={loading} style={{flex:2,padding:12,borderRadius:8,border:"none",background:RED,color:"#FFF"}}>{loading?"...":"Confirmar"}</button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function ModalAcordoPerda({ contrato, parcelas, onConfirmar, onFechar }) {
-  const [valorAcordo, setValorAcordo] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const abertas = parcelas.filter(p => String(p.ID_CONTRATO) === String(contrato.ID_CONTRATO) && p.STATUS !== "pago");
-  const principalAberto = abertas.reduce((s, p) => s + parseMoney(p.VALOR_PRINCIPAL), 0);
-  const jurosAberto = abertas.reduce((s, p) => s + parseMoney(p.VALOR_JUROS), 0);
-  
-  const vAcordo = parseMoney(valorAcordo);
-  const principalPerdido = Math.max(0, principalAberto - vAcordo);
-  const jurosCancelados = jurosAberto;
-
-  const confirmar = async () => {
-    if (!valorAcordo) return;
-    setLoading(true);
-    const res = await postAction({
-      action: "registrarAcordoComPerda",
-      idContrato: contrato.ID_CONTRATO,
-      valorRecebidoAcordo: vAcordo,
-      observacao: "Acordo realizado via painel"
-    });
-    if (res.ok) onConfirmar();
-    setLoading(false);
-  };
-
-  return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:CARD,borderRadius:12,width:"100%",maxWidth:450,padding:24,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
-        <h2 style={{fontSize:18,fontWeight:800,margin:"0 0 8px"}}>🤝 Liquidação com Desconto</h2>
-        <p style={{fontSize:13,color:MUTED,margin:"0 0 20px"}}>{contrato.ID_CONTRATO} — {contrato.NOME_CLIENTE}</p>
-        
-        <div style={{background:BG,padding:16,borderRadius:10,marginBottom:20}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:MUTED,marginBottom:4}}><span>Saldo Principal:</span><strong>{fmtR(principalAberto)}</strong></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:MUTED}}><span>Saldo Juros:</span><strong>{fmtR(jurosAberto)}</strong></div>
-        </div>
-
-        <div style={{marginBottom:20}}>
-          <span style={LS}>Valor do Acordo (Recebido)</span>
-          <input type="text" value={valorAcordo} onChange={e=>setValorAcordo(e.target.value)} placeholder="R$ 0,00" style={{...IS,fontSize:18,fontWeight:700,textAlign:"center"}} />
-        </div>
-
-        <div style={{padding:16,borderRadius:10,background:RED+"10",border:`1px solid ${RED}30`}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,color:RED}}><span>Prejuízo Real (Principal):</span><strong>{fmtR(principalPerdido)}</strong></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,color:MUTED,marginTop:5}}><span>Juros Cancelados:</span><strong>{fmtR(jurosCancelados)}</strong></div>
-        </div>
-
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:24}}>
-          <button onClick={onFechar} style={{padding:12,borderRadius:8,border:`1px solid ${BD}`,background:"none",cursor:"pointer"}}>Cancelar</button>
-          <button onClick={confirmar} disabled={loading} style={{padding:12,borderRadius:8,border:"none",background:RED,color:"#FFF",fontWeight:700,cursor:"pointer",opacity:loading?0.7:1}}>
-            {loading ? "Processando..." : "Confirmar Perda"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function RecuperacaoModal({contrato, onConfirmar, onFechar}){
-  const [valor, setValor] = useState("");
-  const [loading, setLoading] = useState(false);
-  const confirmar = async () => {
-    if(!valor) return;
-    setLoading(true);
-    const res = await postAction({ action:"recuperacaoAposBaixa", idContrato: contrato.ID_CONTRATO, valor: parseMoney(valor) });
-    if(res.ok) onConfirmar();
-    setLoading(false);
-  };
-  return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:CARD,borderRadius:12,width:400,padding:24}}>
-        <h3 style={{margin:"0 0 16px"}}>Registrar Recuperação</h3>
-        <p style={{fontSize:13,color:MUTED,marginBottom:20}}>Informe o valor recuperado para o contrato {contrato.ID_CONTRATO}.</p>
-        <div style={{marginBottom:20}}><span style={LS}>Valor Recuperado</span><input value={valor} onChange={e=>setValor(e.target.value)} style={{...IS,fontSize:16,fontWeight:700}} placeholder="R$ 0,00"/></div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          <button onClick={onFechar} style={{padding:12,borderRadius:8,border:`1px solid ${BD}`,background:CARD}}>Cancelar</button>
-          <button onClick={confirmar} disabled={loading} style={{padding:12,borderRadius:8,border:"none",background:PUR,color:"#FFF",fontWeight:700}}>{loading?"...":"Confirmar"}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ClienteModal({cliente, onFechar, onSucesso}){
-  return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:CARD,borderRadius:16,width:"100%",maxWidth:800,maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 25px 50px -12px rgba(0,0,0,0.25)"}}>
-        <div style={{padding:24,borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div><h2 style={{margin:0,fontSize:20,fontWeight:800}}>{cliente.NOME_CLIENTE}</h2><div style={{fontSize:12,color:MUTED,marginTop:4}}>ID: {cliente.ID_CLIENTE} • {cliente.CIDADE}/{cliente.UF}</div></div>
-          <button onClick={onFechar} style={{background:BG,border:"none",width:32,height:32,borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{Ico.arr}</button>
-        </div>
-        <div style={{padding:24,overflowY:"auto",background:BG+"40",flex:1}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:24}}>
-            <div style={{background:CARD,padding:16,borderRadius:12,border:`1px solid ${BD}`}}><div style={LS}>Total Emprestado</div><div style={{fontSize:18,fontWeight:800,color:BLU}}>{fmtR(cliente.totalEmp)}</div></div>
-            <div style={{background:CARD,padding:16,borderRadius:12,border:`1px solid ${BD}`}}><div style={LS}>Saldo Devedor</div><div style={{fontSize:18,fontWeight:800,color:RED}}>{fmtR(cliente.saldoDev)}</div></div>
-            <div style={{background:CARD,padding:16,borderRadius:12,border:`1px solid ${BD}`}}><div style={LS}>Atraso Atual</div><div style={{fontSize:18,fontWeight:800,color:cliente.maxAtraso>0?RED:GRN}}>{cliente.maxAtraso} dias</div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PagamentoDrop({contratos, parcelas, onSucesso}){
-  const [loading, setLoading] = useState(false);
-  const registrar = async (idP, valor) => {
-    setLoading(true);
-    await postAction({ action:"pagamento", idParcela: idP, valorPago: valor, dataPagamento: hojeStr() });
-    onSucesso();
-    setLoading(false);
-  };
-  return (
-    <div style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`}}>
-      <h3 style={{margin:"0 0 16px",fontSize:15,fontWeight:700,display:"flex",alignItems:"center",gap:8}}>{Ico.pag} Baixa Rápida</h3>
-      <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:200,overflowY:"auto"}}>
-        {parcelas.filter(p=>p.STATUS==="atrasado").slice(0,5).map(p=>(
-          <div key={p.ID_PARCELA} style={{padding:10,background:BG,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{fontSize:12}}><div style={{fontWeight:700}}>{p.NOME_CLIENTE.split(" ")[0]}</div><div style={{color:MUTED}}>{p.ID_CONTRATO} • Parc {p.NUM_PARCELA}</div></div>
-            <button onClick={()=>registrar(p.ID_PARCELA, parseMoney(p.VALOR_PARCELA))} disabled={loading} style={{padding:"5px 10px",background:GRN,color:"#FFF",border:"none",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer"}}>Pagar {fmtR(p.VALOR_PARCELA)}</button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function NovoContrato({contratos, onSucesso}){
-  return (
-    <div style={{background:BLU,padding:20,borderRadius:12,color:"#FFF",display:"flex",flexDirection:"column",gap:12}}>
-      <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{background:"rgba(255,255,255,0.2)",padding:8,borderRadius:8}}>{Ico.novo}</div><div style={{fontWeight:700,fontSize:15}}>Novo Empréstimo</div></div>
-      <p style={{margin:0,fontSize:12,opacity:0.9}}>Inicie um novo contrato de crédito para um cliente cadastrado.</p>
-      <button style={{width:"100%",padding:10,background:"#FFF",color:BLU,border:"none",borderRadius:8,fontWeight:700,cursor:"pointer",marginTop:5}}>Criar Contrato</button>
     </div>
   );
 }
 
 function App() {
   const [tab, setTab] = useState("dashboard");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [raw, setRaw] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filtroBusca, setFiltroBusca] = useState("");
-  const [filtroStatus, setFiltroStatus] = useState("todos");
-  const [filtroPerdas, setFiltroPerdas] = useState("todos");
-  const [selCli, setSelCli] = useState(null);
   const [baixaModal, setBaixaModal] = useState(null);
-  const [acordoModal, setAcordoModal] = useState(null);
-  const [recuperacaoModal, setRecuperacaoModal] = useState(null);
 
   const carregar = async () => {
     setLoading(true);
@@ -362,8 +163,8 @@ function App() {
   };
   useEffect(() => { carregar(); }, []);
 
-  const { clientes, contratos, parcelas, pagamentos } = useMemo(() => {
-    if(!raw) return { clientes:[], contratos:[], parcelas:[], pagamentos:[] };
+  const { clientes, contratos, parcelas } = useMemo(() => {
+    if(!raw) return { clientes:[], contratos:[], parcelas:[] };
     const normalize = (arr) => (arr || []).map(obj => {
       const n = {};
       for(let k in obj) n[k.toUpperCase()] = obj[k];
@@ -372,8 +173,7 @@ function App() {
     return {
       clientes: normalize(raw.CLIENTES),
       contratos: normalize(raw.CONTRATOS),
-      parcelas: normalize(raw.PARCELAS),
-      pagamentos: normalize(raw.PAGAMENTOS)
+      parcelas: normalize(raw.PARCELAS)
     };
   }, [raw]);
 
@@ -381,155 +181,50 @@ function App() {
     const ativos = contratos.filter(c => !["quitado","cancelado"].includes(c.STATUS_CONTRATO));
     const vAtivos = ativos.reduce((s,c) => s + parseMoney(c.VALOR_PRINCIPAL), 0);
     const vAtrasoTotal = parcelas.filter(p => p.STATUS === "atrasado").reduce((s,p) => s + parseMoney(p.VALOR_PARCELA), 0);
-    const lucroTotal = parcelas.reduce((s,p) => s + parseMoney(p.VALOR_JUROS), 0);
-    return { vAtivos, vAtrasoTotal, lucroTotal, taxaInad: vAtivos>0 ? (vAtrasoTotal/vAtivos*100) : 0 };
+    return { vAtivos, vAtrasoTotal };
   }, [contratos, parcelas]);
 
   const filtrados = useMemo(() => {
-    return clientes.map(c => {
-      const ccs = contratos.filter(ct => String(ct.ID_CLIENTE) === String(c.ID_CLIENTE));
-      const pps = parcelas.filter(p => String(p.ID_CLIENTE) === String(c.ID_CLIENTE));
-      const totalEmp = ccs.reduce((s,ct) => s + parseMoney(ct.VALOR_PRINCIPAL), 0);
-      const saldoDev = pps.filter(p => p.STATUS !== "pago").reduce((s,p) => s + parseMoney(p.VALOR_PARCELA), 0);
-      const vAtraso = pps.filter(p => p.STATUS === "atrasado").reduce((s,p) => s + parseMoney(p.VALOR_PARCELA), 0);
-      const maxAtraso = pps.filter(p => p.STATUS === "atrasado").reduce((m,p) => {
-        const dv = parseDate(p.DATA_VENCIMENTO);
-        if(!dv) return m;
-        const d = Math.round((new Date() - dv) / 86400000);
-        return d > m ? d : m;
-      }, 0);
-      return { ...c, totalEmp, saldoDev, vAtraso, maxAtraso };
-    }).filter(c => {
-      const matchB = c.NOME_CLIENTE.toLowerCase().includes(filtroBusca.toLowerCase()) || String(c.ID_CLIENTE).includes(filtroBusca);
-      const matchS = filtroStatus === "todos" || c.STATUS_CLIENTE === filtroStatus;
-      return matchB && matchS;
+    return clientes.filter(c => {
+      const nome = c.NOME_CLIENTE || ""; // Proteção contra nome nulo
+      return nome.toLowerCase().includes(filtroBusca.toLowerCase());
     });
-  }, [clientes, contratos, parcelas, filtroBusca, filtroStatus]);
-
-  const perdas = useMemo(() => {
-    const p = contratos.filter(c => STATUS_PERDA.includes(c.STATUS_CONTRATO));
-    const capitalBaixado = p.reduce((s,c) => s + parseMoney(c.PREJUIZO_CAPITAL), 0);
-    const recuperadoAposBaixa = p.reduce((s,c) => s + parseMoney(c.VALOR_RECUPERADO_APOS_BAIXA), 0);
-    return { capitalBaixado, recuperadoAposBaixa, prejuizoTotal: capitalBaixado - recuperadoAposBaixa, txRecuperacao: capitalBaixado>0 ? (recuperadoAposBaixa/capitalBaixado*100) : 0 };
-  }, [contratos]);
-
-  const pFiltradas = useMemo(() => {
-    return contratos.filter(c => STATUS_PERDA.includes(c.STATUS_CONTRATO) && (filtroPerdas === "todos" || c.STATUS_CONTRATO === filtroPerdas));
-  }, [contratos, filtroPerdas]);
-
-  const mensal = useMemo(() => {
-    const meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-    return meses.map((m, i) => {
-      const v = parcelas.filter(p => {
-        const d = parseDate(p.DATA_PAGAMENTO || p.DATA_VENCIMENTO);
-        return d && d.getMonth() === i && (p.STATUS === "pago" || p.STATUS === "atrasado");
-      }).reduce((s,p) => s + parseMoney(p.VALOR_PAGO || p.VALOR_PARCELA), 0);
-      return { m, v };
-    });
-  }, [parcelas]);
-
-  const cobItems = useMemo(() => {
-    const cls = Array.from(new Set(parcelas.filter(p => p.STATUS === "atrasado").map(p => String(p.ID_CLIENTE))));
-    return cls.map(id => {
-      const c = clientes.find(cl => String(cl.ID_CLIENTE) === id);
-      if(!c) return null;
-      const pps = parcelas.filter(p => String(p.ID_CLIENTE) === id && p.STATUS === "atrasado");
-      const ccs = contratos.filter(ct => String(ct.ID_CLIENTE) === id && !["quitado","cancelado"].includes(ct.STATUS_CONTRATO));
-      const vAtraso = pps.reduce((s,p) => s + parseMoney(p.VALOR_PARCELA), 0);
-      const maxAtraso = Math.max(...pps.map(p => {
-        const dv = parseDate(p.DATA_VENCIMENTO);
-        return dv ? Math.round((new Date() - dv) / 86400000) : 0;
-      }));
-      return { ...c, vAtraso, maxAtraso, contratos: ccs };
-    }).filter(x => x !== null).sort((a,b) => b.vAtraso - a.vAtraso);
-  }, [clientes, parcelas, contratos]);
-
-  const NavItem = ({id, label, ico}) => (
-    <div onClick={()=>setTab(id)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderRadius:10,cursor:"pointer",background:tab===id?BLU:"transparent",color:tab===id?"#FFF":MUTED,marginBottom:4,transition:"0.2s"}}>
-      {ico} <span style={{fontSize:14,fontWeight:600}}>{label}</span>
-    </div>
-  );
+  }, [clientes, filtroBusca]);
 
   if(loading && !raw) return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:BG}}>Carregando...</div>;
 
   return (
-    <div style={{display:"flex",height:"100vh",background:BG,color:TEXT,fontFamily:"'Inter', sans-serif"}}>
-      <div style={{width:sidebarOpen?SW:0,background:CARD,borderRight:`1px solid ${BD}`,display:"flex",flexDirection:"column",overflow:"hidden",transition:"0.3s"}}>
-        <div style={{padding:24,display:"flex",alignItems:"center",gap:12,borderBottom:`1px solid ${BD}`}}><div style={{width:32,height:32,background:BLU,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",color:"#FFF"}}>{Ico.fin}</div><span style={{fontWeight:800,fontSize:18}}>Financeiro<span style={{color:BLU}}>Op</span></span></div>
-        <div style={{padding:16,flex:1}}>
-          <NavItem id="dashboard" label="Dashboard" ico={Ico.dash}/>
-          <NavItem id="clientes" label="Clientes" ico={Ico.cli}/>
-          <NavItem id="cobranca" label="Cobrança" ico={Ico.cob}/>
-          <NavItem id="perdas" label="Perdas & Recuperação" ico={Ico.loss}/>
+    <div style={{display:"flex",height:"100vh",background:BG,color:TEXT,fontFamily:"sans-serif"}}>
+      <div style={{width:SW,background:CARD,borderRight:`1px solid ${BD}`}}>
+        <div style={{padding:24,fontWeight:800}}>FinanceiroOp</div>
+        <div style={{padding:16}}>
+          <div onClick={()=>setTab("dashboard")} style={{padding:12,cursor:"pointer",color:tab==="dashboard"?BLU:MUTED}}>Dashboard</div>
+          <div onClick={()=>setTab("clientes")} style={{padding:12,cursor:"pointer",color:tab==="clientes"?BLU:MUTED}}>Clientes</div>
+          <div onClick={()=>setTab("perdas")} style={{padding:12,cursor:"pointer",color:tab==="perdas"?BLU:MUTED}}>Perdas</div>
         </div>
       </div>
 
-      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <header style={{height:64,background:CARD,borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 24px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:15}}><button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{background:BG,border:"none",padding:8,borderRadius:8,cursor:"pointer"}}>{Ico.arr}</button><h2 style={{fontSize:18,fontWeight:700,margin:0}}>{tab.toUpperCase()}</h2></div>
+      <div style={{flex:1,display:"flex",flexDirection:"column"}}>
+        <header style={{height:64,background:CARD,borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"center",padding:"0 24px"}}>
+          <h2 style={{fontSize:18}}>{tab.toUpperCase()}</h2>
         </header>
 
         <main style={{flex:1,overflowY:"auto",padding:24}}>
           {tab==="dashboard" && (
-            <div style={{display:"flex",flexDirection:"column",gap:24}}>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(240px, 1fr))",gap:20}}>
-                {[
-                  {l:"Total em Aberto",v:fmtR(M.vAtivos),c:BLU,i:Ico.fin},
-                  {l:"Total em Atraso",v:fmtR(M.vAtrasoTotal),c:YEL,i:Ico.cob},
-                  {l:"Inadimplência",v:fmtP(M.taxaInad),c:RED,i:Ico.kpi},
-                  {l:"Lucro Projetado",v:fmtR(M.lucroTotal),c:GRN,i:Ico.novo}
-                ].map(k=>(
-                  <div key={k.l} style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`,display:"flex",alignItems:"center",gap:16}}>
-                    <div style={{background:k.c+"15",color:k.c,padding:12,borderRadius:12}}>{k.i}</div>
-                    <div><div style={{fontSize:12,color:MUTED,marginBottom:4}}>{k.l}</div><div style={{fontSize:20,fontWeight:800}}>{k.v}</div></div>
-                  </div>
-                ))}
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:24}}>
-                <div style={{background:CARD,padding:24,borderRadius:12,border:`1px solid ${BD}`,height:350}}>
-                  <h3 style={{margin:"0 0 20px",fontSize:16,fontWeight:700}}>Recebimentos Mensais</h3>
-                  <ResponsiveContainer width="100%" height="100%"><BarChart data={mensal}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke={BD}/><XAxis dataKey="m"/><YAxis tickFormatter={v=>`R$ ${v/1000}k`}/><Tooltip/><Bar dataKey="v" fill={BLU} radius={[4,4,0,0]}/></BarChart></ResponsiveContainer>
-                </div>
-                <div style={{display:"flex",flexDirection:"column",gap:20}}>
-                  <PagamentoDrop contratos={contratos} parcelas={parcelas} onSucesso={carregar}/>
-                  <NovoContrato contratos={contratos} onSucesso={carregar}/>
-                </div>
-              </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:20}}>
+              <div style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`}}>Total Aberto: {fmtR(M.vAtivos)}</div>
+              <div style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`}}>Em Atraso: {fmtR(M.vAtrasoTotal)}</div>
             </div>
           )}
 
           {tab==="clientes" && (
-            <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
-              <input placeholder="Buscar..." value={filtroBusca} onChange={e=>setFiltroBusca(e.target.value)} style={{...IS,width:300,margin:20}}/>
-              <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-                <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"12px 20px"}}>Cliente</th><th>Status</th><th>Saldo Devedor</th><th>Atraso</th><th style={{padding:"12px 20px",textAlign:"right"}}>Ações</th></tr></thead>
+            <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`}}>
+              <input placeholder="Buscar..." value={filtroBusca} onChange={e=>setFiltroBusca(e.target.value)} style={{margin:20,padding:10,width:300}}/>
+              <table style={{width:"100%",borderCollapse:"collapse"}}>
+                <thead><tr style={{background:BG,textAlign:"left"}}><th style={{padding:12}}>Nome</th></tr></thead>
                 <tbody>
                   {filtrados.map(c=>(
-                    <tr key={c.ID_CLIENTE} style={{borderBottom:`1px solid ${BD}`,fontSize:13}}>
-                      <td style={{padding:"15px 20px"}}><div style={{fontWeight:700}}>{c.NOME_CLIENTE}</div></td>
-                      <td><Badge c={c.STATUS_CLIENTE==="ativo"?GRN:YEL}>{c.STATUS_CLIENTE?.toUpperCase()}</Badge></td>
-                      <td style={{fontWeight:600}}>{fmtR(c.saldoDev)}</td>
-                      <td style={{color:c.maxAtraso>0?RED:MUTED}}>{c.maxAtraso} dias</td>
-                      <td style={{padding:"15px 20px",textAlign:"right"}}><button onClick={()=>setSelCli(c)} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,fontWeight:600}}>Detalhes</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {tab==="cobranca" && (
-            <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-                <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"12px 20px"}}>Cliente</th><th>Atraso Máx</th><th>Valor Atrasado</th><th style={{padding:"12px 20px",textAlign:"right"}}>Ações</th></tr></thead>
-                <tbody>
-                  {cobItems.map(c=>(
-                    <tr key={c.ID_CLIENTE} style={{borderBottom:`1px solid ${BD}`,fontSize:13}}>
-                      <td style={{padding:"15px 20px"}}><div style={{fontWeight:700}}>{c.NOME_CLIENTE}</div></td>
-                      <td><Badge c={RED}>{c.maxAtraso} dias</Badge></td>
-                      <td style={{fontWeight:700,color:RED}}>{fmtR(c.vAtraso)}</td>
-                      <td style={{padding:"15px 20px",textAlign:"right"}}><button style={{padding:"6px 12px",borderRadius:6,border:"none",background:BLU,color:"#FFF",cursor:"pointer"}}>Cobrar</button></td>
-                    </tr>
+                    <tr key={c.ID_CLIENTE} style={{borderBottom:`1px solid ${BD}`}}><td style={{padding:12}}>{c.NOME_CLIENTE}</td></tr>
                   ))}
                 </tbody>
               </table>
@@ -537,47 +232,24 @@ function App() {
           )}
 
           {tab==="perdas" && (
-            <div style={{display:"flex",flexDirection:"column",gap:24}}>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:20}}>
-                {[
-                  {l:"Capital em Prejuízo",v:fmtR(perdas.capitalBaixado),c:RED},
-                  {l:"Recuperado",v:fmtR(perdas.recuperadoAposBaixa),c:PUR},
-                  {l:"Prejuízo Real",v:fmtR(perdas.prejuizoTotal),c:RED},
-                  {l:"Taxa de Recuperação",v:fmtP(perdas.txRecuperacao),c:GRN}
-                ].map(k=>(
-                  <div key={k.l} style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`}}>
-                    <div style={{fontSize:11,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:4}}>{k.l}</div>
-                    <div style={{fontSize:20,fontWeight:800,color:k.c}}>{k.v}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-                  <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"12px 20px"}}>Contrato / Cliente</th><th>Status</th><th>Prejuízo</th><th style={{padding:"12px 20px",textAlign:"right"}}>Ações</th></tr></thead>
-                  <tbody>
-                    {pFiltradas.map(c=>(
-                      <tr key={c.ID_CONTRATO} style={{borderBottom:`1px solid ${BD}`,fontSize:13}}>
-                        <td style={{padding:"15px 20px"}}><div style={{fontWeight:700}}>{c.ID_CONTRATO}</div><div style={{fontSize:11,color:MUTED}}>{c.NOME_CLIENTE}</div></td>
-                        <td><Badge c={STATUS_COR[c.STATUS_CONTRATO]}>{STATUS_LABEL[c.STATUS_CONTRATO]?.toUpperCase()}</Badge></td>
-                        <td style={{color:RED,fontWeight:600}}>{fmtR(c.PREJUIZO_CAPITAL)}</td>
-                        <td style={{padding:"15px 20px",textAlign:"right"}}>
-                          <button onClick={()=>setBaixaModal(c)} style={{padding:"6px 10px",borderRadius:6,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontSize:11,fontWeight:700,marginRight:8}}>Baixar</button>
-                          <button onClick={()=>setAcordoModal(c)} style={{padding:"6px 10px",borderRadius:6,border:`1px solid ${ORG}30`,background:ORG+"08",color:ORG,cursor:"pointer",fontSize:11,fontWeight:700}}>🤝 Acordo</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`}}>
+              <table style={{width:"100%",borderCollapse:"collapse"}}>
+                <thead><tr style={{background:BG,textAlign:"left"}}><th style={{padding:12}}>Contrato</th><th>Ações</th></tr></thead>
+                <tbody>
+                  {contratos.filter(c=>STATUS_PERDA.includes(c.STATUS_CONTRATO)).map(c=>(
+                    <tr key={c.ID_CONTRATO} style={{borderBottom:`1px solid ${BD}`}}>
+                      <td style={{padding:12}}>{c.ID_CONTRATO} - {c.NOME_CLIENTE}</td>
+                      <td><button onClick={()=>setBaixaModal(c)} style={{color:RED}}>Baixar</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </main>
       </div>
 
-      {selCli && <ClienteModal cliente={selCli} onFechar={()=>setSelCli(null)} onSucesso={carregar}/>}
       {baixaModal && <BaixaModal contrato={baixaModal} parcelas={parcelas} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
-      {acordoModal && <ModalAcordoPerda contrato={acordoModal} parcelas={parcelas} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
-      {recuperacaoModal && <RecuperacaoModal contrato={recuperacaoModal} onConfirmar={()=>{setRecuperacaoModal(null);carregar();}} onFechar={()=>setRecuperacaoModal(null)}/>}
     </div>
   );
 }
