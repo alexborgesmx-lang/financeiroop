@@ -106,7 +106,7 @@ const Ico = {
 
 function Badge({c,children}){ return <span style={{display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:20,fontSize:10,fontWeight:600,background:c+"18",color:c,border:`1px solid ${c}30`}}>{children}</span>; }
 
-function BaixaModal({contrato, parcelas, pagamentos, onConfirmar, onFechar}){
+function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
   const [dados, setDados] = useState({
     substatus:"CLIENTE_DESAPARECIDO", motivo:"", observacao:"",
     possibilidadeRecuperacao:"BAIXA", statusJuridico:"NAO_ANALISADO", proximaProvidencia:""
@@ -114,22 +114,28 @@ function BaixaModal({contrato, parcelas, pagamentos, onConfirmar, onFechar}){
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
 
+  // Filtra todas as parcelas deste contrato (incluindo as já pagas no passado)
   const ps = parcelas.filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
-  const pgs = pagamentos.filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
 
-  // NOMES DE COLUNAS ATUALIZADOS CONFORME PLANILHA
   const valPrincipal   = parseFloat(contrato.VALOR_PRINCIPAL||0);
   const valTotal       = parseFloat(contrato.VALOR_TOTAL_FINAL||0); 
   
-  const totalPago      = pgs.reduce((s,p)=>s+(parseFloat(p.VALOR_PAGO)||0),0);
-  const jurosRecebidos = pgs.reduce((s,p)=>s+(parseFloat(p.RECEITA_EXTRA_ATRASO)||0),0);
+  // Calcula o que já foi pago baseado na aba PARCELAS (Coluna M - Coluna I)
+  const totalPago      = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>s+(parseFloat(p.VALOR_PAGO)||0),0);
+  
+  // Juros que já foram pagos em parcelas anteriores
+  const jurosJaPagos   = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>{
+    const pago = parseFloat(p.VALOR_PAGO)||0;
+    const princ = parseFloat(p.VALOR_PRINCIPAL)||0;
+    return s + Math.max(0, pago - princ);
+  }, 0);
   
   const capitalRecuperado = Math.min(totalPago, valPrincipal);
   const prejuizoCapital   = Math.max(0, valPrincipal - capitalRecuperado);
   
-  // Juros não realizados = (Valor Total Final - Principal) - Juros já pagos
+  // Juros não realizados = (Valor Total Final - Principal Original) - Juros que já foram pagos
   const jurosTotaisContrato = valTotal - valPrincipal;
-  const jurosNaoReal = Math.max(0, jurosTotaisContrato - jurosRecebidos);
+  const jurosNaoReal = Math.max(0, jurosTotaisContrato - jurosJaPagos);
 
   const pctRecuperado     = valPrincipal>0 ? (capitalRecuperado/valPrincipal*100) : 0;
   const diasAtraso        = ps.filter(p=>p.STATUS==="atrasado").length > 0
@@ -141,7 +147,7 @@ function BaixaModal({contrato, parcelas, pagamentos, onConfirmar, onFechar}){
     setLoading(true); setMsg(null);
     const res = await postAction({
       action:"baixarContrato", idContrato: contrato.ID_CONTRATO,
-      dados:{ ...dados, diasAtraso, valorRecuperadoAntesBaixa: capitalRecuperado, jurosJaRecebidos: jurosRecebidos, data: hojeStr() }
+      dados:{ ...dados, diasAtraso, valorRecuperadoAntesBaixa: capitalRecuperado, jurosJaRecebidos: jurosJaPagos, data: hojeStr() }
     });
     if(res.ok){ onConfirmar(); }
     else setMsg({ok:false, texto: res.erro||"Erro."});
@@ -677,7 +683,7 @@ function App() {
 
       {/* MODALS */}
       {selCli && <ClienteModal cliente={selCli} onFechar={()=>setSelCli(null)} onSucesso={carregar}/>}
-      {baixaModal && <BaixaModal contrato={baixaModal} parcelas={parcelas} pagamentos={pagamentos} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
+      {baixaModal && <BaixaModal contrato={baixaModal} parcelas={parcelas} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {acordoModal && <ModalAcordoPerda contrato={acordoModal} parcelas={parcelas} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
       {recuperacaoModal && <RecuperacaoModal contrato={recuperacaoModal} onConfirmar={()=>{setRecuperacaoModal(null);carregar();}} onFechar={()=>setRecuperacaoModal(null)}/>}
     </div>
