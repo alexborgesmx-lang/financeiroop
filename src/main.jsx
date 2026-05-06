@@ -145,7 +145,7 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
   const [msg, setMsg] = useState(null);
   const ps = (parcelas||[]).filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
   const valPrincipal = parseFloat(contrato.VALOR_PRINCIPAL||0);
-  const valTotal     = parseFloat(contrato.VALOR_TOTAL_FINAL||0);
+  const valTotal     = parseFloat(contrato.VALOR_TOTAL||contrato.VALOR_TOTAL_FINAL||0);
   const totalPago    = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>s+(parseFloat(p.VALOR_PAGO)||0),0);
   const jurosJaPagos = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>s+Math.max(0,(parseFloat(p.VALOR_PAGO)||0)-(parseFloat(p.VALOR_PRINCIPAL)||0)),0);
   const capitalRecuperado = Math.min(totalPago, valPrincipal);
@@ -367,8 +367,9 @@ function App() {
   const pFiltradas=useMemo(()=>(contratos||[]).filter(c=>STATUS_PERDA.includes(c.STATUS_CONTRATO)&&(filtroPerdas==="todos"||c.STATUS_CONTRATO===filtroPerdas)),[contratos,filtroPerdas]);
 
   const M=useMemo(()=>{
-    const ativos=(contratos||[]).filter(c=>c.STATUS_CONTRATO==="ativo");
-    const vAtivos=ativos.reduce((s,c)=>s+parseFloat(c.VALOR_TOTAL_FINAL||0),0);
+    const ST_ATIVOS=["ativo","ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente"];
+    const ativos=(contratos||[]).filter(c=>ST_ATIVOS.includes(String(c.STATUS_CONTRATO||"").toLowerCase()));
+    const vAtivos=ativos.reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
     const vAtrasoTotal=(parcelas||[]).filter(p=>p.STATUS==="atrasado").reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
     const taxaInad=vAtivos>0?(vAtrasoTotal/vAtivos*100):0;
     const receitaTotal=(pagamentos||[]).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
@@ -377,7 +378,7 @@ function App() {
     const pagNormais=(pagamentos||[]).filter(p=>p.TIPO_PAGAMENTO==="pagamento_normal").length;
     const pagAtraso=(pagamentos||[]).filter(p=>p.TIPO_PAGAMENTO==="pagamento_com_atraso").length;
     const pagJuros=(pagamentos||[]).filter(p=>p.TIPO_PAGAMENTO==="somente_juros").length;
-    return{vAtivos,vAtrasoTotal,taxaInad,lucroTotal:vAtivos*0.15,receitaTotal,receitaExtra,qtyProrrogadas,pagNormais,pagAtraso,pagJuros};
+    return{vAtivos,vAtrasoTotal,taxaInad,lucroTotal:receitaExtra,receitaTotal,receitaExtra,qtyProrrogadas,pagNormais,pagAtraso,pagJuros};
   },[contratos,parcelas,pagamentos]);
 
   const mensal=useMemo(()=>["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map((mes,i)=>{
@@ -481,7 +482,7 @@ function App() {
           {tab==="dashboard"&&(
             <div style={{display:"flex",flexDirection:"column",gap:24}}>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:16}}>
-                {[{l:"Total em Aberto",v:fmtR(M.vAtivos),c:BLU,i:IcoFin},{l:"Total em Atraso",v:fmtR(M.vAtrasoTotal),c:YEL,i:IcoCob},{l:"Inadimplência",v:fmtP(M.taxaInad),c:M.taxaInad>15?RED:GRN,i:IcoKpi},{l:"Lucro Projetado",v:fmtR(M.lucroTotal),c:GRN,i:IcoNovo}].map(k=>(
+                {[{l:"Carteira Ativa",v:fmtR(M.vAtivos),c:BLU,i:IcoFin},{l:"Total em Atraso",v:fmtR(M.vAtrasoTotal),c:YEL,i:IcoCob},{l:"Inadimplência",v:fmtP(M.taxaInad),c:M.taxaInad>15?RED:GRN,i:IcoKpi},{l:"Receita Extra",v:fmtR(M.receitaExtra),c:ORG,i:IcoNovo}].map(k=>(
                   <div key={k.l} style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`,display:"flex",alignItems:"center",gap:14}}>
                     <div style={{background:k.c+"15",color:k.c,padding:12,borderRadius:10}}>{k.i}</div>
                     <div><div style={{fontSize:11,color:MUTED,fontWeight:600,marginBottom:3}}>{k.l}</div><div style={{fontSize:20,fontWeight:800}}>{k.v}</div></div>
