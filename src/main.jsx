@@ -11,6 +11,12 @@ const GRN  = "#10B981", RED = "#EF4444", BLU = "#3B82F6";
 const YEL  = "#F59E0B", PUR = "#8B5CF6", ORG = "#F97316";
 const SW   = 220;
 
+const fmtR  = v => "R$ " + Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtP  = v => Number(v||0).toFixed(1) + "%";
+const fmtDt = v => { if(!v) return "—"; const d = v instanceof Date ? v : new Date(v); return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR"); };
+const hojeStr = () => new Date().toISOString().split("T")[0];
+const limparData = v => { if(!v) return ""; const s=String(v).trim(); return s.includes("T") ? s.split("T")[0] : s; };
+
 // Função para converter formatos de moeda em número
 const parseMoney = v => {
   if (typeof v === 'number') return v;
@@ -19,12 +25,6 @@ const parseMoney = v => {
   let n = parseFloat(s);
   return isNaN(n) ? 0 : n;
 };
-
-const fmtR  = v => "R$ " + Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
-const fmtP  = v => Number(v||0).toFixed(1) + "%";
-const fmtDt = v => { if(!v) return "—"; const d = v instanceof Date ? v : new Date(v); return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR"); };
-const hojeStr = () => new Date().toISOString().split("T")[0];
-const limparData = v => { if(!v) return ""; const s=String(v).trim(); return s.includes("T") ? s.split("T")[0] : s; };
 
 function parseDate(v){
   if(!v) return null;
@@ -58,14 +58,13 @@ function parseDate(v){
   return d;
 }
 
-async function postAction(body){ 
-  const r = await fetch(POST_URL,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify(body)
-  }); 
-  return r.json(); 
+function toNum(d){
+  if(!d) return 0;
+  const dt = d instanceof Date ? d : parseDate(d);
+  if(!dt) return 0;
+  return dt.getFullYear() * 10000 + (dt.getMonth() + 1) * 100 + dt.getDate();
 }
+async function postAction(body){ const r=await fetch(POST_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); return r.json(); }
 
 const IS = {width:"100%",padding:"9px 12px",background:CARD,border:`1px solid ${BD}`,borderRadius:7,color:TEXT,fontSize:13,boxSizing:"border-box"};
 const IW = {...IS,border:`1px solid ${YEL}`,background:"#FFFBEB"};
@@ -117,18 +116,15 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
 
-  // Filtra as parcelas deste contrato específico
   const ps = parcelas.filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
 
-  // Cálculos baseados na aba PARCELAS
+  // Cálculo baseado na aba PARCELAS
   const capitalEmprestadoTotal = ps.reduce((s,p)=>s + parseMoney(p.VALOR_PRINCIPAL), 0);
-  const valorTotalContratual    = ps.reduce((s,p)=>s + parseMoney(p.VALOR_PARCELA), 0);
-  
   const totalPago              = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>s + parseMoney(p.VALOR_PAGO), 0);
   const capitalRecuperado      = Math.min(totalPago, capitalEmprestadoTotal);
   const prejuizoCapital        = Math.max(0, capitalEmprestadoTotal - capitalRecuperado);
   
-  // Juros não realizados: Soma da coluna VALOR_JUROS de todas as parcelas
+  // Juros não realizados: Soma da coluna VALOR_JUROS de todas as parcelas deste contrato
   const jurosNaoReal           = ps.reduce((s,p)=>s + parseMoney(p.VALOR_JUROS), 0);
 
   const pctRecuperado          = capitalEmprestadoTotal>0 ? (capitalRecuperado/capitalEmprestadoTotal*100) : 0;
