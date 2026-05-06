@@ -16,7 +16,6 @@ const fmtP  = v => Number(v||0).toFixed(1) + "%";
 const fmtDt = v => { if(!v) return "—"; const d = v instanceof Date ? v : new Date(v); return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR"); };
 const hojeStr = () => new Date().toISOString().split("T")[0];
 
-// Função de segurança para transformar qualquer valor em texto minúsculo sem quebrar
 const safeLower = (v) => String(v || "").toLowerCase();
 
 const parseMoney = v => {
@@ -59,7 +58,14 @@ function parseDate(v){
   return d;
 }
 
-async function postAction(body){ const r=await fetch(POST_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); return r.json(); }
+async function postAction(body){ 
+  const r = await fetch(POST_URL,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(body)
+  }); 
+  return r.json(); 
+}
 
 const IS = {width:"100%",padding:"9px 12px",background:CARD,border:`1px solid ${BD}`,borderRadius:7,color:TEXT,fontSize:13,boxSizing:"border-box"};
 const LS = {color:MUTED,fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:4};
@@ -87,6 +93,7 @@ const Ico = {
   cob:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.19 12"/></svg>,
   fin:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
   loss:  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  novo:  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>,
   kpi:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
   arr:   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9,18 15,12 9,6"/></svg>,
 };
@@ -100,6 +107,7 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
   });
   const [loading, setLoading] = useState(false);
   const ps = parcelas.filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
+  
   const capitalEmprestadoTotal = ps.reduce((s,p)=>s + parseMoney(p.VALOR_PRINCIPAL), 0);
   const totalPago              = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>s + parseMoney(p.VALOR_PAGO), 0);
   const capitalRecuperado      = Math.min(totalPago, capitalEmprestadoTotal);
@@ -123,8 +131,8 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:CARD,borderRadius:12,width:"100%",maxWidth:600,maxHeight:"90vh",display:"flex",flexDirection:"column"}}>
-        <div style={{padding:24,borderBottom:`1px solid ${BD}`,background:"#FEF2F2",borderRadius:"12px 12px 0 0"}}>
+      <div style={{background:CARD,borderRadius:12,width:"100%",maxWidth:600,maxHeight:"90vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
+        <div style={{padding:"20px 24px 14px",borderBottom:`1px solid ${BD}`,background:"#FEF2F2",borderRadius:"12px 12px 0 0"}}>
           <h2 style={{color:RED,fontSize:17,fontWeight:700,margin:0}}>⚠️ Baixar Contrato como Prejuízo</h2>
           <p style={{fontSize:13,color:MUTED,margin:"4px 0 0"}}>{contrato.ID_CONTRATO} • {contrato.NOME_CLIENTE}</p>
         </div>
@@ -144,8 +152,8 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
           </div>
         </div>
         <div style={{padding:20,borderTop:`1px solid ${BD}`,display:"flex",gap:12}}>
-          <button onClick={onFechar} style={{flex:1,padding:12,borderRadius:8,border:`1px solid ${BD}`,background:CARD,cursor:"pointer"}}>Cancelar</button>
-          <button onClick={confirmar} disabled={loading} style={{flex:2,padding:12,borderRadius:8,border:"none",background:RED,color:"#FFF",fontWeight:700}}>{loading?"Processando...":"Confirmar Baixa"}</button>
+          <button onClick={onFechar} style={{flex:1,padding:12,borderRadius:8,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontWeight:600}}>Cancelar</button>
+          <button onClick={confirmar} disabled={loading} style={{flex:2,padding:12,borderRadius:8,border:"none",background:RED,color:"#FFF",cursor:"pointer",fontWeight:700,opacity:loading?0.7:1}}>{loading?"Processando...":"Confirmar Baixa"}</button>
         </div>
       </div>
     </div>
@@ -179,7 +187,7 @@ function ModalAcordoPerda({ contrato, parcelas, onConfirmar, onFechar }) {
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:CARD,borderRadius:12,width:"100%",maxWidth:450,padding:24}}>
+      <div style={{background:CARD,borderRadius:12,width:"100%",maxWidth:450,padding:24,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
         <h2 style={{fontSize:18,fontWeight:800,margin:"0 0 20px"}}>🤝 Liquidação com Desconto</h2>
         <div style={{marginBottom:20}}>
           <span style={LS}>Valor do Acordo (Recebido)</span>
@@ -190,9 +198,32 @@ function ModalAcordoPerda({ contrato, parcelas, onConfirmar, onFechar }) {
           <div style={{display:"flex",justifyContent:"space-between",fontSize:13,color:MUTED,marginTop:5}}><span>Juros Cancelados:</span><strong>{fmtR(jurosCancelados)}</strong></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:24}}>
-          <button onClick={onFechar} style={{padding:12,borderRadius:8,border:`1px solid ${BD}`,background:"none"}}>Cancelar</button>
-          <button onClick={confirmar} disabled={loading} style={{padding:12,borderRadius:8,border:"none",background:RED,color:"#FFF",fontWeight:700}}>Confirmar</button>
+          <button onClick={onFechar} style={{padding:12,borderRadius:8,border:`1px solid ${BD}`,background:"none",cursor:"pointer"}}>Cancelar</button>
+          <button onClick={confirmar} disabled={loading} style={{padding:12,borderRadius:8,border:"none",background:RED,color:"#FFF",fontWeight:700,cursor:"pointer",opacity:loading?0.7:1}}>Confirmar</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PagamentoDrop({contratos, parcelas, onSucesso}){
+  const [loading, setLoading] = useState(false);
+  const registrar = async (idP, valor) => {
+    setLoading(true);
+    await postAction({ action:"pagamento", idParcela: idP, valorPago: valor, dataPagamento: hojeStr() });
+    onSucesso();
+    setLoading(false);
+  };
+  return (
+    <div style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`}}>
+      <h3 style={{margin:"0 0 16px",fontSize:15,fontWeight:700,display:"flex",alignItems:"center",gap:8}}>{Ico.pag} Baixa Rápida</h3>
+      <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:200,overflowY:"auto"}}>
+        {parcelas.filter(p=>p.STATUS==="atrasado").slice(0,5).map(p=>(
+          <div key={p.ID_PARCELA} style={{padding:10,background:BG,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontSize:12}}><div style={{fontWeight:700}}>{(p.NOME_CLIENTE||"").split(" ")[0]}</div><div style={{color:MUTED}}>{p.ID_CONTRATO}</div></div>
+            <button onClick={()=>registrar(p.ID_PARCELA, parseMoney(p.VALOR_PARCELA))} disabled={loading} style={{padding:"5px 10px",background:GRN,color:"#FFF",border:"none",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer"}}>Pagar {fmtR(p.VALOR_PARCELA)}</button>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -200,6 +231,7 @@ function ModalAcordoPerda({ contrato, parcelas, onConfirmar, onFechar }) {
 
 function App() {
   const [tab, setTab] = useState("dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [raw, setRaw] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filtroBusca, setFiltroBusca] = useState("");
@@ -232,22 +264,34 @@ function App() {
   }, [raw]);
 
   const M = useMemo(() => {
-    const ativos = contratos.filter(c => !["quitado","cancelado"].includes(c.STATUS_CONTRATO));
+    const ativos = contratos.filter(c => !["quitado","cancelado"].includes(safeLower(c.STATUS_CONTRATO)));
     const vAtivos = ativos.reduce((s,c) => s + parseMoney(c.VALOR_PRINCIPAL), 0);
     const vAtrasoTotal = parcelas.filter(p => p.STATUS === "atrasado").reduce((s,p) => s + parseMoney(p.VALOR_PARCELA), 0);
-    return { vAtivos, vAtrasoTotal };
+    const lucroTotal = parcelas.reduce((s,p) => s + parseMoney(p.VALOR_JUROS), 0);
+    return { vAtivos, vAtrasoTotal, lucroTotal, taxaInad: vAtivos>0 ? (vAtrasoTotal/vAtivos*100) : 0 };
   }, [contratos, parcelas]);
 
   const filtrados = useMemo(() => {
     return clientes.filter(c => {
-      const nome = safeLower(c.NOME_CLIENTE); // Blindagem total contra toLowerCase
+      const nome = safeLower(c.NOME_CLIENTE);
       const busca = safeLower(filtroBusca);
       return nome.includes(busca);
     });
   }, [clientes, filtroBusca]);
 
+  const mensal = useMemo(() => {
+    const meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+    return meses.map((m, i) => {
+      const v = parcelas.filter(p => {
+        const d = parseDate(p.DATA_PAGAMENTO || p.DATA_VENCIMENTO);
+        return d && d.getMonth() === i && (p.STATUS === "pago" || p.STATUS === "atrasado");
+      }).reduce((s,p) => s + parseMoney(p.VALOR_PAGO || p.VALOR_PARCELA), 0);
+      return { m, v };
+    });
+  }, [parcelas]);
+
   const NavItem = ({id, label, ico}) => (
-    <div onClick={()=>setTab(id)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderRadius:10,cursor:"pointer",background:tab===id?BLU:"transparent",color:tab===id?"#FFF":MUTED,marginBottom:4}}>
+    <div onClick={()=>setTab(id)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderRadius:10,cursor:"pointer",background:tab===id?BLU:"transparent",color:tab===id?"#FFF":MUTED,marginBottom:4,transition:"0.2s"}}>
       {ico} <span style={{fontSize:14,fontWeight:600}}>{label}</span>
     </div>
   );
@@ -256,8 +300,8 @@ function App() {
 
   return (
     <div style={{display:"flex",height:"100vh",background:BG,color:TEXT,fontFamily:"sans-serif"}}>
-      <div style={{width:SW,background:CARD,borderRight:`1px solid ${BD}`,display:"flex",flexDirection:"column"}}>
-        <div style={{padding:24,fontWeight:800,fontSize:18}}>FinanceiroOp</div>
+      <div style={{width:sidebarOpen?SW:0,background:CARD,borderRight:`1px solid ${BD}`,display:"flex",flexDirection:"column",overflow:"hidden",transition:"0.3s"}}>
+        <div style={{padding:24,fontWeight:800,fontSize:18,borderBottom:`1px solid ${BD}`}}>FinanceiroOp</div>
         <div style={{padding:16,flex:1}}>
           <NavItem id="dashboard" label="Dashboard" ico={Ico.dash}/>
           <NavItem id="clientes" label="Clientes" ico={Ico.cli}/>
@@ -265,31 +309,42 @@ function App() {
         </div>
       </div>
 
-      <div style={{flex:1,display:"flex",flexDirection:"column"}}>
-        <header style={{height:64,background:CARD,borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"center",padding:"0 24px"}}>
-          <h2 style={{fontSize:18,fontWeight:700}}>{tab.toUpperCase()}</h2>
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <header style={{height:64,background:CARD,borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 24px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:15}}><button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{background:BG,border:"none",padding:8,borderRadius:8,cursor:"pointer"}}>{Ico.arr}</button><h2 style={{fontSize:18,fontWeight:700,margin:0}}>{tab.toUpperCase()}</h2></div>
         </header>
 
         <main style={{flex:1,overflowY:"auto",padding:24}}>
           {tab==="dashboard" && (
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(240px, 1fr))",gap:20}}>
-              <div style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`}}>
-                <div style={LS}>Total em Aberto</div><div style={{fontSize:20,fontWeight:800}}>{fmtR(M.vAtivos)}</div>
+            <div style={{display:"flex",flexDirection:"column",gap:24}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(240px, 1fr))",gap:20}}>
+                <div style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`,display:"flex",alignItems:"center",gap:16}}>
+                  <div style={{background:BLU+"15",color:BLU,padding:12,borderRadius:12}}>{Ico.fin}</div>
+                  <div><div style={LS}>Total em Aberto</div><div style={{fontSize:20,fontWeight:800}}>{fmtR(M.vAtivos)}</div></div>
+                </div>
+                <div style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`,display:"flex",alignItems:"center",gap:16}}>
+                  <div style={{background:RED+"15",color:RED,padding:12,borderRadius:12}}>{Ico.cob}</div>
+                  <div><div style={LS}>Total em Atraso</div><div style={{fontSize:20,fontWeight:800,color:RED}}>{fmtR(M.vAtrasoTotal)}</div></div>
+                </div>
               </div>
-              <div style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`}}>
-                <div style={LS}>Total em Atraso</div><div style={{fontSize:20,fontWeight:800,color:RED}}>{fmtR(M.vAtrasoTotal)}</div>
+              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:24}}>
+                <div style={{background:CARD,padding:24,borderRadius:12,border:`1px solid ${BD}`,height:350}}>
+                  <h3 style={{margin:"0 0 20px",fontSize:16,fontWeight:700}}>Recebimentos Mensais</h3>
+                  <ResponsiveContainer width="100%" height="100%"><BarChart data={mensal}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke={BD}/><XAxis dataKey="m"/><YAxis tickFormatter={v=>`R$ ${v/1000}k`}/><Tooltip/><Bar dataKey="v" fill={BLU} radius={[4,4,0,0]}/></BarChart></ResponsiveContainer>
+                </div>
+                <PagamentoDrop contratos={contratos} parcelas={parcelas} onSucesso={carregar}/>
               </div>
             </div>
           )}
 
           {tab==="clientes" && (
-            <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`}}>
+            <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
               <input placeholder="Buscar..." value={filtroBusca} onChange={e=>setFiltroBusca(e.target.value)} style={{...IS,width:300,margin:20}}/>
               <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-                <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:12}}>Cliente</th></tr></thead>
+                <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:15}}>Cliente</th><th style={{padding:15}}>Saldo Devedor</th></tr></thead>
                 <tbody>
                   {filtrados.map(c=>(
-                    <tr key={c.ID_CLIENTE} style={{borderBottom:`1px solid ${BD}`,fontSize:13}}><td style={{padding:15}}>{c.NOME_CLIENTE}</td></tr>
+                    <tr key={c.ID_CLIENTE} style={{borderBottom:`1px solid ${BD}`,fontSize:13}}><td style={{padding:15}}>{c.NOME_CLIENTE}</td><td style={{padding:15}}>{fmtR(c.saldoDev)}</td></tr>
                   ))}
                 </tbody>
               </table>
@@ -297,15 +352,15 @@ function App() {
           )}
 
           {tab==="perdas" && (
-            <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`}}>
+            <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
               <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-                <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:12}}>Contrato</th><th>Ações</th></tr></thead>
+                <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:15}}>Contrato / Cliente</th><th style={{padding:15}}>Ações</th></tr></thead>
                 <tbody>
                   {contratos.filter(c => STATUS_PERDA.includes(safeLower(c.STATUS_CONTRATO))).map(c=>(
                     <tr key={c.ID_CONTRATO} style={{borderBottom:`1px solid ${BD}`,fontSize:13}}>
                       <td style={{padding:15}}>{c.ID_CONTRATO} - {c.NOME_CLIENTE}</td>
-                      <td>
-                        <button onClick={()=>setBaixaModal(c)} style={{color:RED,marginRight:10,cursor:"pointer",border:"none",background:"none",fontWeight:700}}>Baixar</button>
+                      <td style={{padding:15}}>
+                        <button onClick={()=>setBaixaModal(c)} style={{color:RED,marginRight:15,cursor:"pointer",border:"none",background:"none",fontWeight:700}}>Baixar</button>
                         <button onClick={()=>setAcordoModal(c)} style={{color:ORG,cursor:"pointer",border:"none",background:"none",fontWeight:700}}>🤝 Acordo</button>
                       </td>
                     </tr>
