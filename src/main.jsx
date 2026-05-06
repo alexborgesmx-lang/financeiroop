@@ -11,7 +11,7 @@ const GRN  = "#10B981", RED = "#EF4444", BLU = "#3B82F6";
 const YEL  = "#F59E0B", PUR = "#8B5CF6", ORG = "#F97316";
 const SW   = 220;
 
-// Função robusta para converter qualquer formato de moeda (R$ 340,00 ou 340.00) em número
+// Função para converter formatos de moeda em número
 const parseMoney = v => {
   if (typeof v === 'number') return v;
   if (!v) return 0;
@@ -24,6 +24,7 @@ const fmtR  = v => "R$ " + Number(v||0).toLocaleString("pt-BR",{minimumFractionD
 const fmtP  = v => Number(v||0).toFixed(1) + "%";
 const fmtDt = v => { if(!v) return "—"; const d = v instanceof Date ? v : new Date(v); return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR"); };
 const hojeStr = () => new Date().toISOString().split("T")[0];
+const limparData = v => { if(!v) return ""; const s=String(v).trim(); return s.includes("T") ? s.split("T")[0] : s; };
 
 function parseDate(v){
   if(!v) return null;
@@ -52,8 +53,18 @@ function parseDate(v){
     d = new Date(v);
   }
   if(isNaN(d.getTime())) return null;
+  if(d.getFullYear() < 2000) d.setFullYear(d.getFullYear() + 100);
   d.setHours(12,0,0,0);
   return d;
+}
+
+async function postAction(body){ 
+  const r = await fetch(POST_URL,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(body)
+  }); 
+  return r.json(); 
 }
 
 const IS = {width:"100%",padding:"9px 12px",background:CARD,border:`1px solid ${BD}`,borderRadius:7,color:TEXT,fontSize:13,boxSizing:"border-box"};
@@ -75,6 +86,7 @@ const STATUS_COR = {
   recuperado_parcialmente:BLU, recuperado_integralmente:GRN,
   encerrado_sem_recuperacao:MUTED, renegociado:"#0891B2", quitado:GRN, cancelado:MUTED
 };
+const STATUS_PERDA = ["em_cobranca","pre_prejuizo","baixado_como_prejuizo","em_recuperacao","recuperado_parcialmente","encerrado_sem_recuperacao"];
 
 const Ico = {
   dash:  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
@@ -105,9 +117,10 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
 
+  // Filtra as parcelas deste contrato específico
   const ps = parcelas.filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
 
-  // Cálculos baseados 100% na aba PARCELAS
+  // Cálculos baseados na aba PARCELAS
   const capitalEmprestadoTotal = ps.reduce((s,p)=>s + parseMoney(p.VALOR_PRINCIPAL), 0);
   const valorTotalContratual    = ps.reduce((s,p)=>s + parseMoney(p.VALOR_PARCELA), 0);
   
@@ -115,14 +128,8 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
   const capitalRecuperado      = Math.min(totalPago, capitalEmprestadoTotal);
   const prejuizoCapital        = Math.max(0, capitalEmprestadoTotal - capitalRecuperado);
   
-  // Juros não realizados: (Soma de todos os VALOR_JUROS das parcelas) - (Juros que já foram pagos)
-  const jurosTotais            = ps.reduce((s,p)=>s + parseMoney(p.VALOR_JUROS), 0);
-  const jurosJaPagos           = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>{
-    const pago = parseMoney(p.VALOR_PAGO);
-    const princ = parseMoney(p.VALOR_PRINCIPAL);
-    return s + Math.max(0, pago - princ);
-  }, 0);
-  const jurosNaoReal           = Math.max(0, jurosTotais - jurosJaPagos);
+  // Juros não realizados: Soma da coluna VALOR_JUROS de todas as parcelas
+  const jurosNaoReal           = ps.reduce((s,p)=>s + parseMoney(p.VALOR_JUROS), 0);
 
   const pctRecuperado          = capitalEmprestadoTotal>0 ? (capitalRecuperado/capitalEmprestadoTotal*100) : 0;
   const diasAtraso             = ps.filter(p=>p.STATUS==="atrasado").length > 0
@@ -134,7 +141,7 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
     setLoading(true); setMsg(null);
     const res = await postAction({
       action:"baixarContrato", idContrato: contrato.ID_CONTRATO,
-      dados:{ ...dados, diasAtraso, valorRecuperadoAntesBaixa: capitalRecuperado, jurosJaRecebidos: jurosJaPagos, data: hojeStr() }
+      dados:{ ...dados, diasAtraso, valorRecuperadoAntesBaixa: capitalRecuperado, jurosJaRecebidos: 0, data: hojeStr() }
     });
     if(res.ok){ onConfirmar(); }
     else setMsg({ok:false, texto: res.erro||"Erro."});
@@ -347,9 +354,6 @@ function App() {
   const [baixaModal, setBaixaModal] = useState(null);
   const [acordoModal, setAcordoModal] = useState(null);
   const [recuperacaoModal, setRecuperacaoModal] = useState(null);
-  const [simVal, setSimVal] = useState(10000);
-  const [simInad, setSimInad] = useState(10);
-  const [simVol, setSimVol] = useState(5);
 
   const carregar = async () => {
     setLoading(true);
@@ -406,10 +410,6 @@ function App() {
     });
   }, [clientes, contratos, parcelas, filtroBusca, filtroStatus]);
 
-  const cobItems = useMemo(() => {
-    return filtrados.filter(c => c.maxAtraso > 0).sort((a,b) => b.maxAtraso - a.maxAtraso);
-  }, [filtrados]);
-
   const perdas = useMemo(() => {
     const p = contratos.filter(c => STATUS_PERDA.includes(c.STATUS_CONTRATO));
     const capitalBaixado = p.reduce((s,c) => s + parseMoney(c.PREJUIZO_CAPITAL), 0);
@@ -449,7 +449,6 @@ function App() {
           <NavItem id="clientes" label="Clientes" ico={Ico.cli}/>
           <NavItem id="cobranca" label="Cobrança" ico={Ico.cob}/>
           <NavItem id="perdas" label="Perdas & Recuperação" ico={Ico.loss}/>
-          <NavItem id="simulador" label="Simulador" ico={Ico.sim}/>
         </div>
       </div>
 
@@ -566,4 +565,3 @@ function App() {
 }
 
 createRoot(document.getElementById("root")).render(<App />);
-// build force 2
