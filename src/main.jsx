@@ -94,13 +94,12 @@ const IcoSrch = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stro
 const IcoArr  = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9,18 15,12 9,6"/></svg>;
 const IcoCtr  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>;
 const IcoPag  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>;
-const IcoNovo = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>;
 const IcoKpi  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>;
 const IcoCal  = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
 
 function Badge({c,children}){ return <span style={{display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:20,fontSize:10,fontWeight:600,background:c+"18",color:c,border:`1px solid ${c}30`}}>{children}</span>; }
 
-// ─── CALENDÁRIO DE INTERVALO ────────────────────────────────────────
+// ─── CALENDÁRIO ──────────────────────────────────────────────────
 function CalendarioRange({ de, ate, onSelecionar, onLimpar }) {
   const [mes, setMes] = useState(() => { const d=new Date(); d.setDate(1); return d; });
   const [step, setStep] = useState(0);
@@ -160,7 +159,288 @@ function CalendarioRange({ de, ate, onSelecionar, onLimpar }) {
   );
 }
 
-// ─── MODAIS ─────────────────────────────────────────────────────────
+// ─── MODAL COBRANÇA ──────────────────────────────────────────────
+// Abre ao clicar numa linha da fila de cobrança.
+// Coluna esquerda: parcelas em atraso do cliente.
+// Coluna direita:  formulário de pagamento para a parcela selecionada.
+function CobrancaModal({ cliente, parcelasCliente, onSucesso, onFechar }) {
+  const MULTA_PCT   = 10;      // 10% sobre o valor da parcela
+  const MORA_DIARIO = 0.033;   // 0.033% ao dia
+
+  const [parcelaSel, setParcelaSel] = useState(null);
+  const [tipo, setTipo]             = useState("total");
+  const [data, setData]             = useState(hojeStr());
+  const [valor, setValor]           = useState("");
+  const [loading, setLoading]       = useState(false);
+  const [msg, setMsg]               = useState(null);
+  const [pagoIds, setPagoIds]       = useState(new Set());
+
+  const calcComAtraso = (p) => {
+    const vOrig = parseFloat(p.VALOR_PARCELA || 0);
+    const dias  = Math.max(0, p.DIAS_ATRASO || 0);
+    const multa = vOrig * MULTA_PCT / 100;
+    const mora  = vOrig * MORA_DIARIO / 100 * dias;
+    return { vOrig, multa, mora, total: vOrig + multa + mora };
+  };
+
+  const selecionarParcela = (p) => {
+    setParcelaSel(p);
+    setTipo("total");
+    setMsg(null);
+    const { total } = calcComAtraso(p);
+    setValor(total.toFixed(2));
+  };
+
+  const changeTipo = (t) => {
+    setTipo(t);
+    if (!parcelaSel) return;
+    if (t === "total") {
+      const { total } = calcComAtraso(parcelaSel);
+      setValor(total.toFixed(2));
+    } else if (t === "somente_juros") {
+      setValor(parseFloat(parcelaSel.VALOR_JUROS || 0).toFixed(2));
+    } else {
+      setValor(parseFloat(parcelaSel.VALOR_PARCELA || 0).toFixed(2));
+    }
+  };
+
+  const registrar = async () => {
+    if (!parcelaSel || !valor || !data) return;
+    setLoading(true); setMsg(null);
+    const action = tipo === "somente_juros" ? "pagamentoParcial" : "pagamento";
+    const res = await postAction({
+      action,
+      idParcela: parcelaSel.ID_PARCELA,
+      valor: parseFloat(valor),
+      data: apiDateStr(data),
+      forma: "dinheiro"
+    });
+    if (res.ok) {
+      setMsg({ ok: true, t: res.msg || "Pagamento registrado com sucesso!" });
+      setPagoIds(prev => new Set([...prev, parcelaSel.ID_PARCELA]));
+      setTimeout(() => { setParcelaSel(null); setMsg(null); onSucesso(); }, 1400);
+    } else {
+      setMsg({ ok: false, t: res.erro || "Erro ao registrar pagamento." });
+    }
+    setLoading(false);
+  };
+
+  const nome         = cliente?.NOME_CLIENTE || "Cliente";
+  const tel          = cliente?.TELEFONE || "—";
+  const parcelas     = parcelasCliente.filter(p => !pagoIds.has(p.ID_PARCELA));
+  const totalAtraso  = parcelas.reduce((s, p) => s + parseFloat(p.VALOR_PARCELA || 0), 0);
+
+  return (
+    <div
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
+      onClick={onFechar}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{background:BG,borderRadius:16,width:"100%",maxWidth:860,maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 30px 90px rgba(0,0,0,0.3)",overflow:"hidden"}}
+      >
+        {/* HEADER */}
+        <div style={{background:CARD,padding:"16px 22px",borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:14}}>
+            <div style={{width:44,height:44,background:RED+"15",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",color:RED,fontSize:20,fontWeight:800,flexShrink:0}}>
+              {nome[0]?.toUpperCase() || "?"}
+            </div>
+            <div>
+              <div style={{fontSize:16,fontWeight:800,color:TEXT}}>{nome}</div>
+              <div style={{fontSize:12,color:MUTED,marginTop:2}}>ID {cliente?.ID_CLIENTE || "—"} · {tel}</div>
+            </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:16}}>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em"}}>Total em Atraso</div>
+              <div style={{fontSize:20,fontWeight:900,color:RED,letterSpacing:"-0.5px"}}>{fmtR(totalAtraso)}</div>
+            </div>
+            <button onClick={onFechar} style={{background:BG,border:`1px solid ${BD}`,width:34,height:34,borderRadius:8,cursor:"pointer",fontSize:18,color:MUTED,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>×</button>
+          </div>
+        </div>
+
+        {/* BODY — 2 colunas */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",flex:1,overflow:"hidden",minHeight:0}}>
+
+          {/* COLUNA ESQUERDA — parcelas em atraso */}
+          <div style={{overflowY:"auto",padding:18,borderRight:`1px solid ${BD}`}}>
+            <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:12}}>
+              Parcelas em Atraso ({parcelas.length})
+            </div>
+            {parcelas.length === 0 ? (
+              <div style={{padding:20,textAlign:"center",color:GRN,fontWeight:700,fontSize:13}}>
+                ✓ Nenhuma parcela em atraso
+              </div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {parcelas.map(p => {
+                  const isSel = parcelaSel?.ID_PARCELA === p.ID_PARCELA;
+                  const { vOrig, multa, mora, total } = calcComAtraso(p);
+                  const diasCor = p.DIAS_ATRASO > 60 ? RED : p.DIAS_ATRASO > 30 ? ORG : YEL;
+                  return (
+                    <div
+                      key={p.ID_PARCELA}
+                      onClick={() => selecionarParcela(p)}
+                      style={{padding:14,borderRadius:10,border:`2px solid ${isSel ? BLU : BD}`,background:isSel ? BLU+"08" : CARD,cursor:"pointer",transition:"border-color 0.15s, background 0.15s"}}
+                      onMouseEnter={e => { if(!isSel) e.currentTarget.style.borderColor = BLU+"60"; }}
+                      onMouseLeave={e => { if(!isSel) e.currentTarget.style.borderColor = BD; }}
+                    >
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                        <div>
+                          <div style={{fontSize:12,fontWeight:800,color:isSel ? BLU : TEXT}}>
+                            {p.ID_CONTRATO} · Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS}
+                          </div>
+                          <div style={{fontSize:11,color:MUTED,marginTop:2}}>Venc: {fmtDt(p.DATA_VENCIMENTO)}</div>
+                        </div>
+                        <Badge c={diasCor}>{p.DIAS_ATRASO} dias</Badge>
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                        <div>
+                          <div style={{fontSize:10,color:MUTED,fontWeight:600}}>PARCELA ORIGINAL</div>
+                          <div style={{fontSize:13,fontWeight:700}}>{fmtR(vOrig)}</div>
+                        </div>
+                        {p.DIAS_ATRASO > 0 && (
+                          <div>
+                            <div style={{fontSize:10,color:RED,fontWeight:600}}>COM ENCARGOS</div>
+                            <div style={{fontSize:13,fontWeight:700,color:RED}}>{fmtR(total)}</div>
+                          </div>
+                        )}
+                      </div>
+                      {isSel && (
+                        <div style={{marginTop:8,fontSize:11,color:BLU,fontWeight:700}}>✓ Selecionada — preencha o formulário ao lado</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* COLUNA DIREITA — formulário de pagamento */}
+          <div style={{overflowY:"auto",padding:18}}>
+            {!parcelaSel ? (
+              <div style={{height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,color:MUTED,padding:20,textAlign:"center"}}>
+                <div style={{fontSize:40,opacity:0.3}}>←</div>
+                <div style={{fontSize:13,fontWeight:600}}>Selecione uma parcela ao lado para registrar o pagamento</div>
+              </div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:16}}>
+                <div style={{fontSize:14,fontWeight:800,color:TEXT}}>Registrar Pagamento</div>
+
+                {/* Resumo da parcela selecionada */}
+                {(() => {
+                  const { vOrig, multa, mora, total } = calcComAtraso(parcelaSel);
+                  const temAtraso = parcelaSel.DIAS_ATRASO > 0;
+                  return (
+                    <div style={{background:BLU+"06",border:`1px solid ${BLU}25`,borderRadius:10,padding:14}}>
+                      <div style={{fontSize:11,fontWeight:700,color:BLU,marginBottom:10}}>
+                        {parcelaSel.ID_CONTRATO} · Parcela {parcelaSel.NUM_PARCELA}/{parcelaSel.TOTAL_PARCELAS}
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:temAtraso ? 10 : 0}}>
+                        <div>
+                          <div style={{fontSize:10,color:MUTED,fontWeight:600}}>PRINCIPAL</div>
+                          <div style={{fontSize:13,fontWeight:700}}>{fmtR(parseFloat(parcelaSel.VALOR_PRINCIPAL || 0))}</div>
+                        </div>
+                        <div>
+                          <div style={{fontSize:10,color:MUTED,fontWeight:600}}>JUROS</div>
+                          <div style={{fontSize:13,fontWeight:700}}>{fmtR(parseFloat(parcelaSel.VALOR_JUROS || 0))}</div>
+                        </div>
+                        <div>
+                          <div style={{fontSize:10,color:MUTED,fontWeight:600}}>PARCELA ORIGINAL</div>
+                          <div style={{fontSize:13,fontWeight:700}}>{fmtR(vOrig)}</div>
+                        </div>
+                        <div>
+                          <div style={{fontSize:10,color:temAtraso ? RED : GRN,fontWeight:600}}>
+                            {temAtraso ? `COM ENCARGOS (${parcelaSel.DIAS_ATRASO}d)` : "EM DIA"}
+                          </div>
+                          <div style={{fontSize:13,fontWeight:700,color:temAtraso ? RED : GRN}}>{fmtR(total)}</div>
+                        </div>
+                      </div>
+                      {temAtraso && (
+                        <div style={{padding:"8px 10px",background:RED+"08",borderRadius:6,fontSize:11,color:RED,borderLeft:`3px solid ${RED}`}}>
+                          Multa (10%): {fmtR(multa)} &nbsp;·&nbsp; Mora ({parcelaSel.DIAS_ATRASO}d × 0.033%): {fmtR(mora)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Tipo de pagamento */}
+                <div>
+                  <span style={LS}>Tipo de Pagamento</span>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                    {[
+                      { v:"total",         l:"💰 Pagamento Total",   sub:"Valor original da parcela" },
+                      { v:"com_atraso",    l:"⏰ Total + Encargos",  sub:"Multa + juros de mora" },
+                      { v:"somente_juros", l:"💸 Somente Juros",     sub:"Principal rolado p/ nova parcela" },
+                      { v:"personalizado", l:"✏️ Personalizado",     sub:"Informe o valor manualmente" },
+                    ].map(op => (
+                      <div
+                        key={op.v}
+                        onClick={() => changeTipo(op.v)}
+                        style={{padding:"10px 12px",borderRadius:8,border:`2px solid ${tipo === op.v ? BLU : BD}`,background:tipo === op.v ? BLU+"08" : CARD,cursor:"pointer",textAlign:"center",transition:"all 0.15s"}}
+                      >
+                        <div style={{fontSize:12,fontWeight:700,color:tipo === op.v ? BLU : TEXT}}>{op.l}</div>
+                        <div style={{fontSize:10,color:MUTED,marginTop:2}}>{op.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Valor */}
+                <div>
+                  <span style={LS}>Valor (R$)</span>
+                  <input
+                    type="number"
+                    value={valor}
+                    onChange={e => setValor(e.target.value)}
+                    style={{...IS, fontSize:20, fontWeight:800, textAlign:"center", height:52}}
+                    readOnly={tipo !== "personalizado" && tipo !== "com_atraso"}
+                    onFocus={() => setTipo("personalizado")}
+                  />
+                  {tipo === "personalizado" && (
+                    <div style={{marginTop:4,fontSize:11,color:MUTED}}>Valor livre — será registrado como informado.</div>
+                  )}
+                </div>
+
+                {/* Data */}
+                <div>
+                  <span style={LS}>Data do Pagamento</span>
+                  <input type="date" value={data} onChange={e => setData(e.target.value)} style={IS}/>
+                </div>
+
+                {/* Feedback */}
+                {msg && (
+                  <div style={{padding:"10px 14px",borderRadius:8,background:msg.ok ? GRN+"10" : RED+"10",color:msg.ok ? GRN : RED,fontSize:13,fontWeight:700,textAlign:"center",border:`1px solid ${msg.ok ? GRN : RED}25`}}>
+                    {msg.ok ? "✓ " : "⚠ "}{msg.t}
+                  </div>
+                )}
+
+                {/* Botão confirmar */}
+                <button
+                  onClick={registrar}
+                  disabled={loading || !valor || !data || parseFloat(valor) <= 0}
+                  style={{padding:"13px",borderRadius:9,border:"none",background:GRN,color:"#FFF",fontWeight:800,cursor:"pointer",fontSize:14,opacity:loading || !valor || !data || parseFloat(valor) <= 0 ? 0.6 : 1,transition:"opacity 0.15s"}}
+                >
+                  {loading ? "Registrando..." : "✓ Confirmar Pagamento"}
+                </button>
+
+                <button
+                  onClick={() => setParcelaSel(null)}
+                  style={{padding:"9px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,color:MUTED,fontWeight:600}}
+                >
+                  ← Escolher outra parcela
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── OUTROS MODAIS ───────────────────────────────────────────────
 function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
   const [dados, setDados] = useState({substatus:"CLIENTE_DESAPARECIDO", motivo:"", observacao:"", possibilidadeRecuperacao:"BAIXA", statusJuridico:"NAO_ANALISADO", proximaProvidencia:""});
   const [loading, setLoading] = useState(false);
@@ -393,7 +673,7 @@ function NovoContrato({contratos,onSucesso}){
   );
 }
 
-// ─── APP ────────────────────────────────────────────────────────────
+// ─── APP ─────────────────────────────────────────────────────────
 function App() {
   const [raw, setRaw] = useState(null);
   const [tab, setTab] = useState("dashboard");
@@ -403,6 +683,7 @@ function App() {
   const [baixaModal, setBaixaModal] = useState(null);
   const [acordoModal, setAcordoModal] = useState(null);
   const [recuperacaoModal, setRecuperacaoModal] = useState(null);
+  const [cobModal, setCobModal] = useState(null);       // ← NOVO
   const [simVal, setSimVal] = useState(5000);
   const [simInad, setSimInad] = useState(0);
   const [simVol, setSimVol] = useState(0);
@@ -461,7 +742,6 @@ function App() {
     const statusPago=p=>["pago","paga","quitado","quitada","baixado","baixada"].includes(String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase());
     const parcelasPeriodo=(parcelas||[]).filter(p=>noPeriodoDash(p.DATA_VENCIMENTO));
     const pagamentosPeriodo=(pagamentos||[]).filter(p=>noPeriodoDash(p.DATA_PAGAMENTO));
-    const contratosPeriodo=(contratos||[]).filter(c=>noPeriodoDash(c.DATA_CONTRATO||c.DATA_EMPRESTIMO||c.DATA_INICIO));
     const parcelasAbertas=(parcelasPeriodo||[]).filter(p=>!statusPago(p));
     const parcelasPagas=(parcelasPeriodo||[]).filter(p=>statusPago(p));
     const vAtrasoTotal=parcelasAbertas.filter(p=>String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase()==="atrasado").reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
@@ -476,9 +756,8 @@ function App() {
     const totalRecebidoGeral=(pagamentos||[]).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
     const principalLiberadoGeral=(contratos||[]).reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
     const caixaAtual=totalRecebidoGeral-principalLiberadoGeral;
-    return{vAtivos,vAtrasoTotal,taxaInad,lucroTotal:receitaExtra,receitaTotal,receitaExtra,qtyProrrogadas,pagNormais,pagAtraso,pagJuros,totalCobrancas:(parcelasPeriodo||[]).length,parcelasPagas:parcelasPagas.length,parcelasPendentes:parcelasAbertas.length,vPendente,contratosAtivos:ativos.length,caixaAtual,pagamentosPeriodo:pagamentosPeriodo.length,contratosPeriodo:contratosPeriodo.length};
+    return{vAtivos,vAtrasoTotal,taxaInad,lucroTotal:receitaExtra,receitaTotal,receitaExtra,qtyProrrogadas,pagNormais,pagAtraso,pagJuros,totalCobrancas:(parcelasPeriodo||[]).length,parcelasPagas:parcelasPagas.length,parcelasPendentes:parcelasAbertas.length,vPendente,contratosAtivos:ativos.length,caixaAtual,pagamentosPeriodo:pagamentosPeriodo.length};
   },[contratos,parcelas,pagamentos,periodoDash]);
-
 
   const parcelasHoje=useMemo(()=>{
     const base=new Date();base.setHours(0,0,0,0);
@@ -490,7 +769,6 @@ function App() {
     }).map(p=>{const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(p.ID_CLIENTE));return{...p,NOME_CLIENTE:p.NOME_CLIENTE||nomeCliente(c)};}).sort((a,b)=>String(a.NOME_CLIENTE||"").localeCompare(String(b.NOME_CLIENTE||""),"pt-BR"));
   },[parcelas,clientes]);
   const totalParcelasHoje=useMemo(()=>parcelasHoje.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0),[parcelasHoje]);
-
 
   const parcelasAtrasadas=useMemo(()=>{
     const base=new Date();base.setHours(0,0,0,0);
@@ -509,17 +787,32 @@ function App() {
     return{m:mes,v:pMes.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0),extra:pMes.reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0)};
   }),[pagamentos]);
 
+  // ── cobItems: inclui parcelasAtrasadas de cada cliente ──────────
   const cobItems=useMemo(()=>{
     const ids=[...new Set((parcelas||[]).filter(p=>String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase()==="atrasado").map(p=>p.ID_CLIENTE))];
     return ids.map(id=>{
       const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(id));
       const ps=(parcelas||[]).filter(p=>String(p.ID_CLIENTE)===String(id)&&String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase()==="atrasado");
+      const psComDias=ps.map(p=>{
+        const dv=parseDate(p.DATA_VENCIMENTO);
+        const dias=dv?Math.max(1,Math.round((new Date()-dv)/86400000)):0;
+        return{...p,DIAS_ATRASO:dias,NOME_CLIENTE:p.NOME_CLIENTE||(c?nomeCliente(c):"")};
+      }).sort((a,b)=>b.DIAS_ATRASO-a.DIAS_ATRASO);
       const vAtraso=ps.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
-      const maxAtraso=ps.length>0?Math.max(...ps.map(p=>{const d=parseDate(p.DATA_VENCIMENTO);return d?Math.round((new Date()-d)/86400000):0;})):0;
+      const maxAtraso=psComDias.length>0?psComDias[0].DIAS_ATRASO:0;
       const ref=ps[0]||{};
       const nome=c?nomeCliente(c):(ref.NOME_CLIENTE||"Cliente sem nome");
       const telefone=c?telCliente(c):(ref.TELEFONE||ref.TELEFONE_WPP||"—");
-      return{...c,ID_CLIENTE:id,NOME_CLIENTE:nome,TELEFONE:telefone,vAtraso,maxAtraso,qtdContratos:[...new Set(ps.map(p=>p.ID_CONTRATO))].length};
+      return{
+        ...c,
+        ID_CLIENTE:id,
+        NOME_CLIENTE:nome,
+        TELEFONE:telefone,
+        vAtraso,
+        maxAtraso,
+        qtdContratos:[...new Set(ps.map(p=>p.ID_CONTRATO))].length,
+        parcelasAtrasadas:psComDias,   // ← parcelas com DIAS_ATRASO calculado
+      };
     }).sort((a,b)=>b.maxAtraso-a.maxAtraso);
   },[clientes,parcelas]);
 
@@ -637,37 +930,34 @@ function App() {
                 ))}
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))",gap:20,alignItems:"start"}}>
-
-                  <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:14}}>
-                      <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{background:YEL+"15",color:YEL,padding:8,borderRadius:8}}>{IcoCal}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Vencem Hoje</h3></div>
-                      <Badge c={parcelasHoje.length?YEL:GRN}>{parcelasHoje.length} parcela{parcelasHoje.length===1?"":"s"}</Badge>
-                    </div>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><span style={{fontSize:12,color:MUTED,fontWeight:700}}>Total previsto</span><strong style={{fontSize:20,color:parcelasHoje.length?YEL:GRN}}>{fmtR(totalParcelasHoje)}</strong></div>
-                    {parcelasHoje.length===0?<div style={{padding:12,borderRadius:8,background:GRN+"08",color:GRN,fontSize:12,fontWeight:700}}>Nenhuma parcela vencendo hoje.</div>:<div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:220,overflowY:"auto"}}>{parcelasHoje.map(p=>(
-                      <div key={p.ID_PARCELA||`${p.ID_CLIENTE}-${p.NUM_PARCELA}`} style={{padding:10,borderRadius:9,background:BG,border:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
-                        <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)}</div></div>
-                        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}><div style={{fontSize:13,fontWeight:800,color:BLU}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</div><button onClick={()=>setPagamentoHoje(p)} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${GRN}35`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>Registrar pagamento</button></div>
-                      </div>
-                    ))}</div>}
+                <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:14}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{background:YEL+"15",color:YEL,padding:8,borderRadius:8}}>{IcoCal}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Vencem Hoje</h3></div>
+                    <Badge c={parcelasHoje.length?YEL:GRN}>{parcelasHoje.length} parcela{parcelasHoje.length===1?"":"s"}</Badge>
                   </div>
-
-
-                  <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:14}}>
-                      <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{background:RED+"15",color:RED,padding:8,borderRadius:8}}>{IcoCob}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Em Atraso</h3></div>
-                      <Badge c={parcelasAtrasadas.length?RED:GRN}>{parcelasAtrasadas.length} parcela{parcelasAtrasadas.length===1?"":"s"}</Badge>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><span style={{fontSize:12,color:MUTED,fontWeight:700}}>Total previsto</span><strong style={{fontSize:20,color:parcelasHoje.length?YEL:GRN}}>{fmtR(totalParcelasHoje)}</strong></div>
+                  {parcelasHoje.length===0?<div style={{padding:12,borderRadius:8,background:GRN+"08",color:GRN,fontSize:12,fontWeight:700}}>Nenhuma parcela vencendo hoje.</div>:<div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:220,overflowY:"auto"}}>{parcelasHoje.map(p=>(
+                    <div key={p.ID_PARCELA||`${p.ID_CLIENTE}-${p.NUM_PARCELA}`} style={{padding:10,borderRadius:9,background:BG,border:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
+                      <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)}</div></div>
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}><div style={{fontSize:13,fontWeight:800,color:BLU}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</div><button onClick={()=>setPagamentoHoje(p)} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${GRN}35`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>Registrar pagamento</button></div>
                     </div>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><span style={{fontSize:12,color:MUTED,fontWeight:700}}>Total atrasado</span><strong style={{fontSize:20,color:parcelasAtrasadas.length?RED:GRN}}>{fmtR(totalParcelasAtrasadas)}</strong></div>
-                    {parcelasAtrasadas.length===0?<div style={{padding:12,borderRadius:8,background:GRN+"08",color:GRN,fontSize:12,fontWeight:700}}>Nenhuma parcela em atraso.</div>:<div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:260,overflowY:"auto"}}>{parcelasAtrasadas.map(p=>(
-                      <div key={p.ID_PARCELA||`${p.ID_CLIENTE}-${p.NUM_PARCELA}-atraso`} style={{padding:10,borderRadius:9,background:BG,border:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
-                        <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)} · {p.DIAS_ATRASO} dia{p.DIAS_ATRASO===1?"":"s"}</div></div>
-                        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}><div style={{fontSize:13,fontWeight:800,color:RED}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</div><button onClick={()=>setPagamentoHoje(p)} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${GRN}35`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>Registrar pagamento</button></div>
-                      </div>
-                    ))}</div>}
+                  ))}</div>}
+                </div>
+                <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:14}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{background:RED+"15",color:RED,padding:8,borderRadius:8}}>{IcoCob}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Em Atraso</h3></div>
+                    <Badge c={parcelasAtrasadas.length?RED:GRN}>{parcelasAtrasadas.length} parcela{parcelasAtrasadas.length===1?"":"s"}</Badge>
                   </div>
-                  <PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} onSucesso={carregar} onSelecionarParcela={setPagamentoHoje}/>
-                  <NovoContrato contratos={contratos||[]} onSucesso={carregar}/>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><span style={{fontSize:12,color:MUTED,fontWeight:700}}>Total atrasado</span><strong style={{fontSize:20,color:parcelasAtrasadas.length?RED:GRN}}>{fmtR(totalParcelasAtrasadas)}</strong></div>
+                  {parcelasAtrasadas.length===0?<div style={{padding:12,borderRadius:8,background:GRN+"08",color:GRN,fontSize:12,fontWeight:700}}>Nenhuma parcela em atraso.</div>:<div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:260,overflowY:"auto"}}>{parcelasAtrasadas.map(p=>(
+                    <div key={p.ID_PARCELA||`${p.ID_CLIENTE}-${p.NUM_PARCELA}-atraso`} style={{padding:10,borderRadius:9,background:BG,border:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
+                      <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)} · {p.DIAS_ATRASO} dia{p.DIAS_ATRASO===1?"":"s"}</div></div>
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}><div style={{fontSize:13,fontWeight:800,color:RED}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</div><button onClick={()=>setPagamentoHoje(p)} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${GRN}35`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>Registrar pagamento</button></div>
+                    </div>
+                  ))}</div>}
+                </div>
+                <PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} onSucesso={carregar} onSelecionarParcela={setPagamentoHoje}/>
+                <NovoContrato contratos={contratos||[]} onSucesso={carregar}/>
               </div>
             </div>
           )}
@@ -696,20 +986,50 @@ function App() {
             </div>
           )}
 
-          {/* COBRANÇA */}
+          {/* COBRANÇA ── linha clicável abre CobrancaModal */}
           {tab==="cobranca"&&(
             <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
-              <div style={{padding:16,borderBottom:`1px solid ${BD}`,background:RED+"05"}}><h3 style={{margin:0,fontSize:15,fontWeight:700,color:RED}}>Fila de Cobrança</h3></div>
+              <div style={{padding:16,borderBottom:`1px solid ${BD}`,background:RED+"05",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <h3 style={{margin:0,fontSize:15,fontWeight:700,color:RED}}>Fila de Cobrança</h3>
+                <span style={{fontSize:12,color:MUTED}}>Clique em uma linha para registrar pagamento</span>
+              </div>
               <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-                <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"10px 18px"}}>Cliente</th><th>Contratos</th><th>Atraso Máx</th><th>Valor</th></tr></thead>
-                <tbody>{cobItems.map(c=>(
-                  <tr key={c.ID_CLIENTE} style={{borderBottom:`1px solid ${BD}`,fontSize:13}}>
-                    <td style={{padding:"13px 18px"}}><div style={{fontWeight:700}}>{nomeCliente(c)}</div><div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"} · {telCliente(c)}</div></td>
-                    <td>{c.qtdContratos}</td>
-                    <td><Badge c={c.maxAtraso>60?RED:c.maxAtraso>30?ORG:YEL}>{c.maxAtraso} dias</Badge></td>
-                    <td style={{fontWeight:700,color:RED}}>{fmtR(c.vAtraso)}</td>
+                <thead>
+                  <tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}>
+                    <th style={{padding:"10px 18px"}}>Cliente</th>
+                    <th>Contratos</th>
+                    <th>Atraso Máx</th>
+                    <th>Valor</th>
+                    <th style={{padding:"10px 18px",textAlign:"right"}}>Ação</th>
                   </tr>
-                ))}</tbody>
+                </thead>
+                <tbody>
+                  {cobItems.map(c=>(
+                    <tr
+                      key={c.ID_CLIENTE}
+                      onClick={() => setCobModal(c)}
+                      style={{borderBottom:`1px solid ${BD}`,fontSize:13,cursor:"pointer",transition:"background 0.1s"}}
+                      onMouseEnter={e=>e.currentTarget.style.background=BG}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                    >
+                      <td style={{padding:"13px 18px"}}>
+                        <div style={{fontWeight:700}}>{nomeCliente(c)}</div>
+                        <div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"} · {telCliente(c)}</div>
+                      </td>
+                      <td style={{fontWeight:600}}>{c.qtdContratos}</td>
+                      <td><Badge c={c.maxAtraso>60?RED:c.maxAtraso>30?ORG:YEL}>{c.maxAtraso} dias</Badge></td>
+                      <td style={{fontWeight:700,color:RED}}>{fmtR(c.vAtraso)}</td>
+                      <td style={{padding:"13px 18px",textAlign:"right"}}>
+                        <button
+                          onClick={e=>{e.stopPropagation();setCobModal(c);}}
+                          style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${GRN}40`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:12,fontWeight:700}}
+                        >
+                          💳 Registrar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
               </table>
             </div>
           )}
@@ -717,8 +1037,6 @@ function App() {
           {/* FINANCEIRO */}
           {tab==="financeiro"&&(
             <div style={{display:"flex",flexDirection:"column",gap:20}}>
-
-              {/* 6 cards de resumo */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
                 {[
                   {icon:"💵",label:"Receita Total",      val:fmtR(M.receitaTotal),  c:BLU},
@@ -734,8 +1052,6 @@ function App() {
                   </div>
                 ))}
               </div>
-
-              {/* Gráfico mensal */}
               <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,padding:20}}>
                 <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:700}}>Receita Mensal (Total × Extra por Atraso)</h3>
                 <ResponsiveContainer width="100%" height={220}>
@@ -749,19 +1065,11 @@ function App() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-
-              {/* Tabela de pagamentos com filtro de datas */}
               <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
                 <div style={{padding:"14px 18px",borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
                   <div>
-                    <h3 style={{margin:0,fontSize:15,fontWeight:700}}>
-                      {finDe ? "Pagamentos do Período" : "Últimos Pagamentos"}
-                    </h3>
-                    <p style={{margin:"3px 0 0",fontSize:11,color:MUTED}}>
-                      {finDe
-                        ? `${totaisFin.count} pagamento(s) — ${labelPeriodo}`
-                        : `${(pagamentos||[]).length} pagamentos no total`}
-                    </p>
+                    <h3 style={{margin:0,fontSize:15,fontWeight:700}}>{finDe?"Pagamentos do Período":"Últimos Pagamentos"}</h3>
+                    <p style={{margin:"3px 0 0",fontSize:11,color:MUTED}}>{finDe?`${totaisFin.count} pagamento(s) — ${labelPeriodo}`:`${(pagamentos||[]).length} pagamentos no total`}</p>
                   </div>
                   <div style={{display:"flex",gap:8,alignItems:"center"}}>
                     {finDe&&<button onClick={()=>{setFinDe(null);setFinAte(null);}} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,fontSize:12,cursor:"pointer",fontWeight:600}}>✕ Limpar</button>}
@@ -771,16 +1079,12 @@ function App() {
                       </button>
                       {finCalOpen&&(
                         <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,zIndex:200}} onClick={e=>e.stopPropagation()}>
-                          <CalendarioRange de={finDe} ate={finAte}
-                            onSelecionar={(d,a)=>{setFinDe(d);setFinAte(a);}}
-                            onLimpar={()=>{setFinDe(null);setFinAte(null);setFinCalOpen(false);}}/>
+                          <CalendarioRange de={finDe} ate={finAte} onSelecionar={(d,a)=>{setFinDe(d);setFinAte(a);}} onLimpar={()=>{setFinDe(null);setFinAte(null);setFinCalOpen(false);}}/>
                         </div>
                       )}
                     </div>
                   </div>
                 </div>
-
-                {/* Totais do período (só aparece quando filtro ativo) */}
                 {finDe&&(
                   <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:0,borderBottom:`1px solid ${BD}`}}>
                     {[{l:"Total Recebido",v:fmtR(totaisFin.total),c:BLU},{l:"Receita Extra",v:fmtR(totaisFin.extra),c:ORG},{l:"Nº Pagamentos",v:totaisFin.count,c:GRN}].map((k,i)=>(
@@ -791,18 +1095,8 @@ function App() {
                     ))}
                   </div>
                 )}
-
                 <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-                  <thead>
-                    <tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}>
-                      <th style={{padding:"10px 18px"}}>Data</th>
-                      <th>Cliente</th>
-                      <th>Tipo</th>
-                      <th>Valor Original</th>
-                      <th>Valor Pago</th>
-                      <th>Diferença</th>
-                    </tr>
-                  </thead>
+                  <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"10px 18px"}}>Data</th><th>Cliente</th><th>Tipo</th><th>Valor Original</th><th>Valor Pago</th><th>Diferença</th></tr></thead>
                   <tbody>
                     {pagsFiltrados.length===0
                       ?<tr><td colSpan={6} style={{padding:"28px 18px",textAlign:"center",color:MUTED,fontSize:13}}>Nenhum pagamento encontrado neste período.</td></tr>
@@ -884,11 +1178,22 @@ function App() {
         </main>
       </div>
 
+      {/* ── MODAIS ── */}
       {selCli&&<ClienteModal cliente={selCli} onFechar={()=>setSelCli(null)}/>}
       {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} onConfirmar={()=>{setPagamentoHoje(null);carregar();}} onFechar={()=>setPagamentoHoje(null)}/>}
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {acordoModal&&<ModalAcordoPerda contrato={acordoModal} parcelas={parcelas||[]} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
       {recuperacaoModal&&<RecuperacaoModal contrato={recuperacaoModal} onConfirmar={()=>{setRecuperacaoModal(null);carregar();}} onFechar={()=>setRecuperacaoModal(null)}/>}
+
+      {/* ── MODAL COBRANÇA (NOVO) ── */}
+      {cobModal&&(
+        <CobrancaModal
+          cliente={cobModal}
+          parcelasCliente={cobModal.parcelasAtrasadas || []}
+          onSucesso={()=>{ carregar(); }}
+          onFechar={()=>setCobModal(null)}
+        />
+      )}
     </div>
   );
 }
