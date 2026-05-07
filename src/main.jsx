@@ -14,7 +14,7 @@ const SW   = 220;
 const fmtR  = v => "R$ " + Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtP  = v => Number(v||0).toFixed(1) + "%";
 const fmtDt = v => { if(!v) return "—"; const d = v instanceof Date ? v : new Date(v); return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR"); };
-const hojeStr = () => new Date().toISOString().split("T")[0];
+const hojeStr = () => dateInputStr(new Date());
 const dateInputStr = d => {
   const dt = d instanceof Date ? d : new Date(d);
   if(isNaN(dt.getTime())) return "";
@@ -54,6 +54,14 @@ function parseDate(v){
   return d;
 }
 
+function apiDateStr(v){
+  const dt = parseDate(v);
+  if(!dt) return v || "";
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth()+1).padStart(2,"0");
+  const day = String(dt.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}T12:00:00`;
+}
 function toNum(d){ if(!d)return 0; const dt=d instanceof Date?d:parseDate(d); if(!dt)return 0; return dt.getFullYear()*10000+(dt.getMonth()+1)*100+dt.getDate(); }
 async function postAction(body){ const r=await fetch(POST_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); return r.json(); }
 
@@ -297,7 +305,7 @@ function PagamentoDrop({contratos,parcelas,onSucesso}){
   useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
   const clis=useMemo(()=>{if(busca.length<2)return[];const ids=new Set();return (contratos||[]).filter(c=>{const m=(c.NOME_CLIENTE||"").toLowerCase().includes(busca.toLowerCase())||String(c.ID_CLIENTE||"").toLowerCase().includes(busca.toLowerCase());if(m&&!ids.has(c.ID_CLIENTE)){ids.add(c.ID_CLIENTE);return true;}return false;}).slice(0,6);},[busca,contratos]);
   const pars=useMemo(()=>cliente?(parcelas||[]).filter(p=>String(p.ID_CLIENTE)===String(cliente.ID_CLIENTE)&&p.STATUS==="pendente").sort((a,b)=>toNum(a.DATA_VENCIMENTO)-toNum(b.DATA_VENCIMENTO)):[],[cliente,parcelas]);
-  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data,forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||"Sucesso!"});setTimeout(onSucesso,1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
+  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||"Sucesso!"});setTimeout(onSucesso,1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
   return(
     <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}><div style={{background:GRN+"15",color:GRN,padding:8,borderRadius:8}}>{IcoPag}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Registrar Pagamento</h3></div>
@@ -326,7 +334,7 @@ function PagamentoParcelaModal({parcela,onConfirmar,onFechar}){
   const [valor,setValor]=useState(String(parcela?.VALOR_PARCELA||""));
   const [loading,setLoading]=useState(false);
   const [msg,setMsg]=useState(null);
-  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data,forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||"Pagamento registrado!"});setTimeout(onConfirmar,900);}else setMsg({ok:false,t:res.erro||"Erro ao registrar pagamento"});setLoading(false);};
+  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||"Pagamento registrado!"});setTimeout(onConfirmar,900);}else setMsg({ok:false,t:res.erro||"Erro ao registrar pagamento"});setLoading(false);};
   return(
     <div style={{position:"fixed",inset:0,zIndex:300,background:"rgba(15,23,42,0.35)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onFechar}>
       <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:CARD,borderRadius:14,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.22)",overflow:"hidden"}}>
@@ -347,7 +355,7 @@ function NovoContrato({contratos,onSucesso}){
   const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);const [cliente,setCliente]=useState(null);const [principal,setPrincipal]=useState("");const [nParcelas,setNParcelas]=useState("");const [taxa,setTaxa]=useState("");const [dtEmp,setDtEmp]=useState(hojeStr());const [dtVenc,setDtVenc]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const ref=useRef();
   useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
   const clis=useMemo(()=>{if(busca.length<2)return[];const ids=new Set();return (contratos||[]).filter(c=>{const m=(c.NOME_CLIENTE||"").toLowerCase().includes(busca.toLowerCase())||String(c.ID_CLIENTE||"").toLowerCase().includes(busca.toLowerCase());if(m&&!ids.has(c.ID_CLIENTE)){ids.add(c.ID_CLIENTE);return true;}return false;}).slice(0,6);},[busca,contratos]);
-  const criar=async()=>{if(!cliente||!principal||!nParcelas||!taxa||!dtEmp||!dtVenc)return;setLoading(true);setMsg(null);const res=await postAction({action:"novoContrato",dados:{idCliente:cliente.ID_CLIENTE,nomeCliente:cliente.NOME_CLIENTE,principal,parcelas:nParcelas,taxa,dataEmprestimo:dtEmp,dataVencimento:dtVenc}});if(res.ok){setMsg({ok:true,t:"Contrato criado!"});setTimeout(onSucesso,1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
+  const criar=async()=>{if(!cliente||!principal||!nParcelas||!taxa||!dtEmp||!dtVenc)return;setLoading(true);setMsg(null);const res=await postAction({action:"novoContrato",dados:{idCliente:cliente.ID_CLIENTE,nomeCliente:cliente.NOME_CLIENTE,principal,parcelas:nParcelas,taxa,dataEmprestimo:apiDateStr(dtEmp),dataVencimento:apiDateStr(dtVenc)}});if(res.ok){setMsg({ok:true,t:"Contrato criado!"});setTimeout(onSucesso,1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
   return(
     <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}><div style={{background:BLU+"15",color:BLU,padding:8,borderRadius:8}}>{IcoCtr}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Novo Contrato</h3></div>
