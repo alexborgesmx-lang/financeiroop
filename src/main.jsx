@@ -160,12 +160,9 @@ function CalendarioRange({ de, ate, onSelecionar, onLimpar }) {
 }
 
 // ─── MODAL COBRANÇA ──────────────────────────────────────────────
-// Abre ao clicar numa linha da fila de cobrança.
-// Coluna esquerda: parcelas em atraso do cliente.
-// Coluna direita:  formulário de pagamento para a parcela selecionada.
 function CobrancaModal({ cliente, parcelasCliente, onSucesso, onFechar }) {
-  const MULTA_PCT   = 10;      // 10% sobre o valor da parcela
-  const MORA_DIARIO = 0.033;   // 0.033% ao dia
+  const MULTA_PCT   = 10;
+  const MORA_DIARIO = 0.033;
 
   const [parcelaSel, setParcelaSel] = useState(null);
   const [tipo, setTipo]             = useState("total");
@@ -327,7 +324,6 @@ function CobrancaModal({ cliente, parcelasCliente, onSucesso, onFechar }) {
               <div style={{display:"flex",flexDirection:"column",gap:16}}>
                 <div style={{fontSize:14,fontWeight:800,color:TEXT}}>Registrar Pagamento</div>
 
-                {/* Resumo da parcela selecionada */}
                 {(() => {
                   const { vOrig, multa, mora, total } = calcComAtraso(parcelaSel);
                   const temAtraso = parcelaSel.DIAS_ATRASO > 0;
@@ -365,7 +361,6 @@ function CobrancaModal({ cliente, parcelasCliente, onSucesso, onFechar }) {
                   );
                 })()}
 
-                {/* Tipo de pagamento */}
                 <div>
                   <span style={LS}>Tipo de Pagamento</span>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -387,7 +382,6 @@ function CobrancaModal({ cliente, parcelasCliente, onSucesso, onFechar }) {
                   </div>
                 </div>
 
-                {/* Valor */}
                 <div>
                   <span style={LS}>Valor (R$)</span>
                   <input
@@ -403,20 +397,17 @@ function CobrancaModal({ cliente, parcelasCliente, onSucesso, onFechar }) {
                   )}
                 </div>
 
-                {/* Data */}
                 <div>
                   <span style={LS}>Data do Pagamento</span>
                   <input type="date" value={data} onChange={e => setData(e.target.value)} style={IS}/>
                 </div>
 
-                {/* Feedback */}
                 {msg && (
                   <div style={{padding:"10px 14px",borderRadius:8,background:msg.ok ? GRN+"10" : RED+"10",color:msg.ok ? GRN : RED,fontSize:13,fontWeight:700,textAlign:"center",border:`1px solid ${msg.ok ? GRN : RED}25`}}>
                     {msg.ok ? "✓ " : "⚠ "}{msg.t}
                   </div>
                 )}
 
-                {/* Botão confirmar */}
                 <button
                   onClick={registrar}
                   disabled={loading || !valor || !data || parseFloat(valor) <= 0}
@@ -928,7 +919,6 @@ function App() {
     return{m:mes,v:pMes.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0),extra:pMes.reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0)};
   }),[pagamentos]);
 
-  // ── cobItems: inclui parcelasAtrasadas de cada cliente ──────────
   const cobItems=useMemo(()=>{
     const ids=[...new Set((parcelas||[]).filter(p=>String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase()==="atrasado").map(p=>p.ID_CLIENTE))];
     return ids.map(id=>{
@@ -952,7 +942,7 @@ function App() {
         vAtraso,
         maxAtraso,
         qtdContratos:[...new Set(ps.map(p=>p.ID_CONTRATO))].length,
-        parcelasAtrasadas:psComDias,   // ← parcelas com DIAS_ATRASO calculado
+        parcelasAtrasadas:psComDias,
       };
     }).sort((a,b)=>b.maxAtraso-a.maxAtraso);
   },[clientes,parcelas]);
@@ -1123,8 +1113,7 @@ function App() {
                     <td style={{color:MUTED}}>{telCliente(c)}</td>
                     <td style={{padding:"13px 18px",textAlign:"right"}}><button onClick={()=>setSelCli(c)} style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,fontWeight:600}}>Detalhes</button></td>
                   </tr>
-                ))}</tbody>
-              </table>
+                ))}</tbody>              </table>
             </div>
           )}
 
@@ -1196,7 +1185,7 @@ function App() {
             </div>
           )}
 
-          {/* COBRANÇA ── linha clicável abre CobrancaModal */}
+          {/* COBRANÇA */}
           {tab==="cobranca"&&(
             <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
               <div style={{padding:16,borderBottom:`1px solid ${BD}`,background:RED+"05",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -1320,4 +1309,104 @@ function App() {
                             <td style={{fontWeight:600}}>{p.NOME_CLIENTE}</td>
                             <td><Badge c={tCor}>{tLabel}</Badge></td>
                             <td style={{color:MUTED}}>{fmtR(p.VALOR_ORIGINAL_PARCELA||p.VALOR_PARCELA)}</td>
-                            <td style={{
+                            <td style={{fontWeight:700,color:BLU}}>{fmtR(p.VALOR_PAGO)}</td>
+                            <td style={{color:extra>0?ORG:MUTED,fontWeight:extra>0?700:400}}>{extra>0?`+${fmtR(extra)}`:"—"}</td>
+                          </tr>
+                        );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* PERDAS */}
+          {tab==="perdas"&&(
+            <div style={{display:"flex",flexDirection:"column",gap:20}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16}}>
+                {[{l:"Capital em Prejuízo",v:fmtR(perdas.capitalBaixado),c:RED},{l:"Recuperado",v:fmtR(perdas.recuperadoAposBaixa),c:PUR},{l:"Prejuízo Real",v:fmtR(perdas.prejuizoTotal),c:RED},{l:"Taxa Recuperação",v:fmtP(perdas.txRecuperacao),c:GRN}].map(k=>(
+                  <div key={k.l} style={{background:CARD,padding:18,borderRadius:12,border:`1px solid ${BD}`}}><div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:4}}>{k.l}</div><div style={{fontSize:20,fontWeight:800,color:k.c}}>{k.v}</div></div>
+                ))}
+              </div>
+              <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
+                <div style={{padding:16,borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:BG+"50"}}>
+                  <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Contratos com Perda</h3>
+                  <select value={filtroPerdas} onChange={e=>setFiltroPerdas(e.target.value)} style={{...IS,width:200}}><option value="todos">Todos</option><option value="em_cobranca">Em Cobrança</option><option value="pre_prejuizo">Pré-Prejuízo</option><option value="baixado_como_prejuizo">Baixado</option><option value="em_recuperacao">Em Recuperação</option></select>
+                </div>
+                <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
+                  <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"10px 18px"}}>Contrato</th><th>Status</th><th>Capital</th><th>Prejuízo</th><th>Recuperado</th><th style={{padding:"10px 18px",textAlign:"right"}}>Ações</th></tr></thead>
+                  <tbody>{pFiltradas.map(c=>(
+                    <tr key={c.ID_CONTRATO} style={{borderBottom:`1px solid ${BD}`,fontSize:13}}>
+                      <td style={{padding:"13px 18px"}}><div style={{fontWeight:700}}>{c.ID_CONTRATO}</div><div style={{fontSize:11,color:MUTED}}>{c.NOME_CLIENTE}</div></td>
+                      <td><Badge c={STATUS_COR[c.STATUS_CONTRATO]||MUTED}>{STATUS_LABEL[c.STATUS_CONTRATO]||c.STATUS_CONTRATO}</Badge></td>
+                      <td>{fmtR(c.VALOR_PRINCIPAL)}</td>
+                      <td style={{color:RED,fontWeight:600}}>{fmtR(c.PREJUIZO_CAPITAL)}</td>
+                      <td style={{color:PUR,fontWeight:600}}>{fmtR(c.VALOR_RECUPERADO_APOS_BAIXA)}</td>
+                      <td style={{padding:"13px 18px",textAlign:"right"}}>
+                        <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+                          {c.STATUS_CONTRATO!=="baixado_como_prejuizo"&&<button onClick={()=>setBaixaModal(c)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontSize:11,fontWeight:700}}>Baixar</button>}
+                          <button onClick={()=>setAcordoModal(c)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${ORG}30`,background:ORG+"08",color:ORG,cursor:"pointer",fontSize:11,fontWeight:700}}>🤝 Acordo</button>
+                          <button onClick={()=>setRecuperacaoModal(c)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${PUR}30`,background:PUR+"08",color:PUR,cursor:"pointer",fontSize:11,fontWeight:700}}>Recuperar</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* SIMULADOR */}
+          {tab==="simulador"&&(
+            <div style={{maxWidth:800,margin:"0 auto"}}>
+              <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,padding:32}}>
+                <h2 style={{fontSize:22,fontWeight:800,margin:"0 0 8px"}}>Simulador de Expansão</h2>
+                <p style={{color:MUTED,margin:"0 0 28px"}}>Projete o crescimento da carteira e analise o risco</p>
+                <div style={{display:"flex",flexDirection:"column",gap:24}}>
+                  {[{l:"Novo Aporte (R$)",v:simVal,s:setSimVal,m:1000,max:100000,step:500,fmt:v=>fmtR(v)},{l:"Inadimplência Esperada (%)",v:simInad,s:setSimInad,m:0,max:50,step:1,fmt:v=>v+"%"},{l:"Volume de Novos Contratos",v:simVol,s:setSimVol,m:0,max:50,step:1,fmt:v=>v}].map(inp=>(
+                    <div key={inp.l}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><span style={{...LS,marginBottom:0}}>{inp.l}</span><strong style={{color:BLU,fontSize:14}}>{inp.fmt(inp.v)}</strong></div>
+                      <input type="range" min={inp.m} max={inp.max} step={inp.step} value={inp.v} onChange={e=>inp.s(Number(e.target.value))} style={{width:"100%",height:6,borderRadius:3,background:BD,appearance:"none",cursor:"pointer"}}/>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+        </main>
+      </div>
+
+      {/* ── MODAIS ── */}
+      {selCli&&<ClienteModal cliente={selCli} onFechar={()=>setSelCli(null)}/>}
+      {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} onConfirmar={()=>{setPagamentoHoje(null);carregar();}} onFechar={()=>setPagamentoHoje(null)}/>}
+      {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
+      {acordoModal&&<ModalAcordoPerda contrato={acordoModal} parcelas={parcelas||[]} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
+      {recuperacaoModal&&<RecuperacaoModal contrato={recuperacaoModal} onConfirmar={()=>{setRecuperacaoModal(null);carregar();}} onFechar={()=>setRecuperacaoModal(null)}/>}
+
+      {/* ── MODAL CONTRATO ── */}
+      {contratoSel&&(
+        <ContratoModal
+          contrato={contratoSel}
+          parcelas={parcelas||[]}
+          pagamentos={pagamentos||[]}
+          onRegistrarPagamento={p=>{setContratoSel(null);setPagamentoHoje(p);}}
+          onBaixar={c=>{setContratoSel(null);setBaixaModal(c);}}
+          onFechar={()=>setContratoSel(null)}
+        />
+      )}
+
+      {/* ── MODAL COBRANÇA ── */}
+      {cobModal&&(
+        <CobrancaModal
+          cliente={cobModal}
+          parcelasCliente={cobModal.parcelasAtrasadas || []}
+          onSucesso={()=>{ carregar(); }}
+          onFechar={()=>setCobModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+createRoot(document.getElementById("root")).render(<App/>);
