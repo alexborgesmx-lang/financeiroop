@@ -498,33 +498,98 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
 }
 
 function ModalAcordoPerda({contrato,parcelas,onConfirmar,onFechar}){
-  const [valorAcordo,setValorAcordo]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);
-  const abertas=(parcelas||[]).filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO)&&p.STATUS!=="pago");
+  const [valorAcordo,setValorAcordo]=useState("");
+  const [forma,setForma]=useState("dinheiro");
+  const [observacao,setObservacao]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [msg,setMsg]=useState(null);
+
+  const statusAberto=s=>!["pago","cancelado","baixado_como_prejuizo","renegociado"].includes(String(s||"").toLowerCase());
+  const abertas=(parcelas||[]).filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO)&&statusAberto(p.STATUS||p.STATUS_PAGAMENTO));
   const principalAberto=abertas.reduce((s,p)=>s+parseFloat(p.VALOR_PRINCIPAL||0),0);
   const jurosAberto=abertas.reduce((s,p)=>s+parseFloat(p.VALOR_JUROS||0),0);
+  const totalDivida=principalAberto+jurosAberto;
+
   const vAcordo=parseFloat(valorAcordo)||0;
+  // Abatimento: primeiro principal, depois juros
+  const principalRecuperado=Math.min(vAcordo,principalAberto);
+  const jurosRecuperado=Math.max(0,vAcordo-principalRecuperado);
+  const descontoPrincipal=principalAberto-principalRecuperado; // prejuízo real
+  const descontoJuros=jurosAberto-jurosRecuperado;             // receita não realizada
+
   const confirmar=async()=>{
     if(!valorAcordo||vAcordo<=0){setMsg("Informe o valor acordado.");return;}
-    setLoading(true);
-    const res=await postAction({action:"baixarContrato",idContrato:contrato.ID_CONTRATO,dados:{tipo:"acordo_com_perda",valorRecebido:vAcordo,principalPerdido:Math.max(0,principalAberto-vAcordo),jurosCancelados:jurosAberto,motivo:"Liquidação com desconto/acordo",substatus:"ACORDO_LIQUIDACAO",data:hojeStr()}});
+    setLoading(true);setMsg(null);
+    const res=await postAction({action:"acordoComPerda",dados:{
+      idContrato:contrato.ID_CONTRATO,
+      valorAcordado:vAcordo,
+      data:hojeStr(),
+      forma,
+      observacao
+    }});
     if(res.ok)onConfirmar();else setMsg(res.erro||"Erro.");
     setLoading(false);
   };
+
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:"#FFF",borderRadius:16,width:"100%",maxWidth:500,padding:24,boxShadow:"0 20px 50px rgba(0,0,0,0.3)"}}>
-        <h2 style={{margin:"0 0 10px",color:RED,fontSize:20}}>🤝 Acordo de Encerramento</h2>
-        <p style={{fontSize:14,color:MUTED,marginBottom:20}}>Contrato: <strong>{contrato.ID_CONTRATO}</strong> • {contrato.NOME_CLIENTE}</p>
-        <div style={{background:BG,padding:15,borderRadius:10,marginBottom:20}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:5}}><span>Principal em Aberto:</span><strong>{fmtR(principalAberto)}</strong></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span>Juros Futuros:</span><strong>{fmtR(jurosAberto)}</strong></div>
+      <div style={{background:"#FFF",borderRadius:16,width:"100%",maxWidth:520,padding:24,boxShadow:"0 20px 50px rgba(0,0,0,0.3)",maxHeight:"90vh",overflowY:"auto"}}>
+        <h2 style={{margin:"0 0 4px",color:"#0891B2",fontSize:18,fontWeight:800}}>🤝 Acordo com Perda</h2>
+        <p style={{fontSize:13,color:MUTED,marginBottom:20}}>Contrato: <strong>{contrato.ID_CONTRATO}</strong> · {contrato.NOME_CLIENTE}</p>
+
+        {/* Dívida atual */}
+        <div style={{background:BG,padding:14,borderRadius:10,marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:10}}>Dívida em Aberto ({abertas.length} parcelas)</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div><div style={{fontSize:10,color:MUTED,fontWeight:600}}>PRINCIPAL</div><div style={{fontSize:14,fontWeight:800}}>{fmtR(principalAberto)}</div></div>
+            <div><div style={{fontSize:10,color:MUTED,fontWeight:600}}>JUROS FUTUROS</div><div style={{fontSize:14,fontWeight:800,color:ORG}}>{fmtR(jurosAberto)}</div></div>
+            <div style={{gridColumn:"1/-1",borderTop:`1px solid ${BD}`,paddingTop:8}}><div style={{fontSize:10,color:MUTED,fontWeight:600}}>TOTAL DA DÍVIDA</div><div style={{fontSize:16,fontWeight:900}}>{fmtR(totalDivida)}</div></div>
+          </div>
         </div>
-        <span style={LS}>Valor Recebido no Acordo</span>
-        <input type="number" value={valorAcordo} onChange={e=>setValorAcordo(e.target.value)} placeholder="0.00" style={{...IS,fontSize:18,fontWeight:700,height:50,textAlign:"center"}}/>
-        {msg&&<div style={{marginTop:15,color:RED,fontSize:13,textAlign:"center"}}>{msg}</div>}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:20}}>
-          <button onClick={onFechar} style={{padding:12,borderRadius:8,border:`1px solid ${BD}`,background:"none",cursor:"pointer"}}>Cancelar</button>
-          <button onClick={confirmar} disabled={loading} style={{padding:12,borderRadius:8,border:"none",background:RED,color:"#FFF",fontWeight:700,cursor:"pointer",opacity:loading?0.7:1}}>{loading?"Processando...":"Confirmar Acordo"}</button>
+
+        {/* Valor do acordo */}
+        <div style={{marginBottom:16}}>
+          <span style={LS}>Valor Recebido no Acordo (R$)</span>
+          <input type="number" value={valorAcordo} onChange={e=>setValorAcordo(e.target.value)} placeholder="0.00" style={{...IS,fontSize:20,fontWeight:800,height:52,textAlign:"center"}}/>
+        </div>
+
+        {/* Preview contábil — aparece ao digitar valor */}
+        {vAcordo>0&&(
+          <div style={{background:"#F0FDF4",border:`1px solid ${GRN}40`,borderRadius:10,padding:14,marginBottom:16}}>
+            <div style={{fontSize:11,fontWeight:700,color:GRN,marginBottom:10}}>RESUMO CONTÁBIL</div>
+            <div style={{display:"flex",flexDirection:"column",gap:7}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}>
+                <span style={{color:MUTED}}>Principal recuperado</span>
+                <strong style={{color:GRN}}>{fmtR(principalRecuperado)}</strong>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}>
+                <span style={{color:MUTED}}>Juros recebidos</span>
+                <strong style={{color:GRN}}>{fmtR(jurosRecuperado)}</strong>
+              </div>
+              <div style={{borderTop:`1px dashed ${BD}`,paddingTop:7,display:"flex",justifyContent:"space-between",fontSize:13}}>
+                <span style={{color:RED,fontWeight:700}}>Prejuízo real (capital perdido)</span>
+                <strong style={{color:RED}}>{fmtR(descontoPrincipal)}</strong>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}>
+                <span style={{color:ORG,fontWeight:700}}>Juros cancelados (não é prejuízo)</span>
+                <strong style={{color:ORG}}>{fmtR(descontoJuros)}</strong>
+              </div>
+            </div>
+            {descontoPrincipal===0&&<div style={{marginTop:8,fontSize:11,color:GRN,fontWeight:700}}>✓ Principal inteiramente recuperado — apenas juros cancelados</div>}
+          </div>
+        )}
+
+        {/* Forma e observação */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+          <div><span style={LS}>Forma</span><select value={forma} onChange={e=>setForma(e.target.value)} style={IS}><option value="dinheiro">Dinheiro</option><option value="pix">PIX</option><option value="transferencia">Transferência</option></select></div>
+          <div><span style={LS}>Observação</span><input value={observacao} onChange={e=>setObservacao(e.target.value)} placeholder="Opcional" style={IS}/></div>
+        </div>
+
+        {msg&&<div style={{marginBottom:12,padding:10,borderRadius:8,background:RED+"10",color:RED,fontSize:13,textAlign:"center",fontWeight:600}}>{msg}</div>}
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <button onClick={onFechar} style={{padding:12,borderRadius:8,border:`1px solid ${BD}`,background:"none",cursor:"pointer",fontWeight:600}}>Cancelar</button>
+          <button onClick={confirmar} disabled={loading||vAcordo<=0} style={{padding:12,borderRadius:8,border:"none",background:"#0891B2",color:"#FFF",fontWeight:700,cursor:"pointer",opacity:loading||vAcordo<=0?0.7:1}}>{loading?"Processando...":"Confirmar Acordo"}</button>
         </div>
       </div>
     </div>
