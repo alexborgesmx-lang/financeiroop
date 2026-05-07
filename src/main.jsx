@@ -596,6 +596,160 @@ function ModalAcordoPerda({contrato,parcelas,onConfirmar,onFechar}){
   );
 }
 
+function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
+  const abertas = useMemo(()=>(parcelas||[]).filter(p=>
+    String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO) &&
+    !["pago","cancelado","baixado_como_prejuizo","renegociado","quitacao_antecipada"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase())
+  ).sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0)),[parcelas,contrato]);
+
+  const [selecionadas, setSelecionadas] = useState(()=>new Set((abertas||[]).map(p=>p.ID_PARCELA)));
+  const [desconto, setDesconto]         = useState("");
+  const [forma, setForma]               = useState("dinheiro");
+  const [observacao, setObservacao]     = useState("");
+  const [loading, setLoading]           = useState(false);
+  const [msg, setMsg]                   = useState(null);
+
+  const toggle = id => setSelecionadas(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
+  const toggleTodas = () => setSelecionadas(selecionadas.size===abertas.length?new Set():new Set(abertas.map(p=>p.ID_PARCELA)));
+
+  const parcelasSel = abertas.filter(p=>selecionadas.has(p.ID_PARCELA));
+  const totalPrincipal = parcelasSel.reduce((s,p)=>s+parseFloat(p.VALOR_PRINCIPAL||0),0);
+  const totalJuros     = parcelasSel.reduce((s,p)=>s+parseFloat(p.VALOR_JUROS||0),0);
+  const descontoNum    = Math.min(parseFloat(desconto)||0, totalJuros);
+  const totalCobrar    = totalPrincipal + totalJuros - descontoNum;
+  const todasSel       = selecionadas.size === abertas.length;
+
+  const confirmar = async()=>{
+    if(selecionadas.size===0){setMsg("Selecione ao menos uma parcela.");return;}
+    setLoading(true);setMsg(null);
+    const res = await postAction({action:"quitacaoAntecipada",dados:{
+      idContrato: contrato.ID_CONTRATO,
+      parcelasSelecionadas: [...selecionadas],
+      descontoJuros: descontoNum,
+      data: hojeStr(),
+      forma,
+      observacao
+    }});
+    if(res.ok){
+      const r = res.resultado||{};
+      setMsg({ok:true, t:`${r.parcelasQuitadas||selecionadas.size} parcela(s) quitadas. Recebido: ${fmtR(r.totalRecebido||totalCobrar)}${r.contratoQuitado?" · Contrato QUITADO ✓":""}`});
+      setTimeout(()=>onConfirmar(), 1800);
+    } else {
+      setMsg({ok:false, t:res.erro||"Erro ao processar."});
+    }
+    setLoading(false);
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onFechar}>
+      <div onClick={e=>e.stopPropagation()} style={{background:BG,borderRadius:16,width:"100%",maxWidth:620,maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 30px 80px rgba(0,0,0,0.3)",overflow:"hidden"}}>
+
+        {/* Header */}
+        <div style={{background:CARD,padding:"18px 22px",borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:16,fontWeight:800}}>⚡ Quitação Antecipada</div>
+            <div style={{fontSize:12,color:MUTED,marginTop:3}}>{contrato.ID_CONTRATO} · {contrato.NOME_CLIENTE}</div>
+          </div>
+          <button onClick={onFechar} style={{background:BG,border:`1px solid ${BD}`,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:18,color:MUTED}}>×</button>
+        </div>
+
+        <div style={{flex:1,overflowY:"auto",padding:20,display:"flex",flexDirection:"column",gap:16}}>
+
+          {/* Lista de parcelas */}
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <span style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase"}}>Parcelas em Aberto ({abertas.length})</span>
+              <button onClick={toggleTodas} style={{fontSize:11,fontWeight:700,color:BLU,background:"none",border:`1px solid ${BLU}30`,borderRadius:6,padding:"4px 10px",cursor:"pointer"}}>
+                {todasSel?"Desmarcar todas":"Selecionar todas"}
+              </button>
+            </div>
+            {abertas.length===0
+              ? <div style={{padding:12,background:GRN+"08",borderRadius:8,color:GRN,fontSize:13,fontWeight:700}}>Nenhuma parcela em aberto.</div>
+              : <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {abertas.map(p=>{
+                    const sel = selecionadas.has(p.ID_PARCELA);
+                    const stCor = {pendente:BLU,atrasado:RED,vence_hoje:ORG}[String(p.STATUS||"").toLowerCase()]||MUTED;
+                    return(
+                      <div key={p.ID_PARCELA} onClick={()=>toggle(p.ID_PARCELA)}
+                        style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:9,border:`2px solid ${sel?BLU:BD}`,background:sel?BLU+"06":CARD,cursor:"pointer",transition:"all 0.12s"}}
+                      >
+                        <div style={{width:18,height:18,borderRadius:5,border:`2px solid ${sel?BLU:BD}`,background:sel?BLU:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                          {sel&&<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2" fill="none" stroke="#fff" strokeWidth="1.8"/></svg>}
+                        </div>
+                        <div style={{flex:1,display:"flex",justifyContent:"space-between",alignItems:"center",minWidth:0}}>
+                          <div>
+                            <div style={{fontSize:12,fontWeight:700}}>Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS} · venc. {fmtDt(p.DATA_VENCIMENTO)}</div>
+                            <div style={{fontSize:11,color:MUTED,marginTop:2}}>Principal: {fmtR(p.VALOR_PRINCIPAL||0)} · Juros: {fmtR(p.VALOR_JUROS||0)}</div>
+                          </div>
+                          <div style={{textAlign:"right",flexShrink:0}}>
+                            <div style={{fontSize:13,fontWeight:800}}>{fmtR(p.VALOR_PARCELA||0)}</div>
+                            <Badge c={stCor}>{String(p.STATUS||"pendente")}</Badge>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+            }
+          </div>
+
+          {/* Desconto nos juros */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div>
+              <span style={LS}>Desconto nos Juros (R$)</span>
+              <input type="number" value={desconto} onChange={e=>setDesconto(e.target.value)} placeholder="0.00" min="0" max={totalJuros} style={IS}/>
+              {totalJuros>0&&<div style={{fontSize:10,color:MUTED,marginTop:3}}>Máx: {fmtR(totalJuros)}</div>}
+            </div>
+            <div>
+              <span style={LS}>Forma de Pagamento</span>
+              <select value={forma} onChange={e=>setForma(e.target.value)} style={IS}>
+                <option value="dinheiro">Dinheiro</option>
+                <option value="pix">PIX</option>
+                <option value="transferencia">Transferência</option>
+              </select>
+            </div>
+            <div style={{gridColumn:"1/-1"}}>
+              <span style={LS}>Observação</span>
+              <input value={observacao} onChange={e=>setObservacao(e.target.value)} placeholder="Opcional" style={IS}/>
+            </div>
+          </div>
+
+          {/* Preview */}
+          {parcelasSel.length>0&&(
+            <div style={{background:BLU+"06",border:`1px solid ${BLU}25`,borderRadius:10,padding:14}}>
+              <div style={{fontSize:11,fontWeight:700,color:BLU,marginBottom:10,textTransform:"uppercase"}}>Resumo — {parcelasSel.length} parcela(s)</div>
+              <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:MUTED}}>Principal</span><strong>{fmtR(totalPrincipal)}</strong></div>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:MUTED}}>Juros originais</span><strong>{fmtR(totalJuros)}</strong></div>
+                {descontoNum>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:GRN}}>Desconto concedido</span><strong style={{color:GRN}}>− {fmtR(descontoNum)}</strong></div>}
+                <div style={{borderTop:`1px solid ${BLU}20`,paddingTop:8,display:"flex",justifyContent:"space-between",fontSize:15}}>
+                  <span style={{fontWeight:700}}>Total a Receber</span>
+                  <strong style={{color:BLU,fontSize:17}}>{fmtR(totalCobrar)}</strong>
+                </div>
+                {todasSel&&<div style={{fontSize:11,color:GRN,fontWeight:700}}>✓ Todas as parcelas selecionadas → contrato será marcado como <strong>Quitado</strong></div>}
+              </div>
+            </div>
+          )}
+
+          {msg&&(
+            <div style={{padding:"10px 14px",borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:13,fontWeight:700,textAlign:"center",border:`1px solid ${msg.ok?GRN:RED}25`}}>
+              {msg.ok?"✓ ":"⚠ "}{msg.t}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{padding:"14px 20px",borderTop:`1px solid ${BD}`,background:CARD,display:"flex",gap:12}}>
+          <button onClick={onFechar} style={{flex:1,padding:12,borderRadius:8,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontWeight:600,color:MUTED}}>Cancelar</button>
+          <button onClick={confirmar} disabled={loading||selecionadas.size===0} style={{flex:2,padding:12,borderRadius:8,border:"none",background:BLU,color:"#FFF",fontWeight:800,cursor:"pointer",fontSize:14,opacity:loading||selecionadas.size===0?0.6:1}}>
+            {loading?"Processando...":"⚡ Confirmar Quitação"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RecuperacaoModal({contrato,onConfirmar,onFechar}){
   const [valor,setValor]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);
   const confirmar=async()=>{
@@ -739,7 +893,7 @@ function NovoContrato({contratos,onSucesso}){
 }
 
 // ─── MODAL CONTRATO ──────────────────────────────────────────────
-function ContratoModal({ contrato, parcelas, pagamentos, onRegistrarPagamento, onBaixar, onFechar }) {
+function ContratoModal({ contrato, parcelas, pagamentos, onRegistrarPagamento, onBaixar, onQuitacaoAntecipada, onFechar }) {
   const [abaM, setAbaM] = useState("parcelas");
 
   const ps = (parcelas||[])
@@ -860,6 +1014,7 @@ function ContratoModal({ contrato, parcelas, pagamentos, onRegistrarPagamento, o
         {/* FOOTER */}
         <div style={{padding:"14px 20px",borderTop:`1px solid ${BD}`,background:CARD,display:"flex",gap:10,justifyContent:"flex-end"}}>
           {podeBaixar&&<button onClick={()=>onBaixar(contrato)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontSize:13,fontWeight:700}}>⚠️ Baixar Prejuízo</button>}
+          {podeRegistrar&&pendentes.length>0&&<button onClick={()=>onQuitacaoAntecipada&&onQuitacaoAntecipada(contrato)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${BLU}30`,background:BLU+"08",color:BLU,cursor:"pointer",fontSize:13,fontWeight:700}}>⚡ Quitar Antecipado</button>}
           {podeRegistrar&&pendentes.length>0&&<button onClick={()=>onRegistrarPagamento(pendentes[0])} style={{padding:"9px 16px",borderRadius:8,border:"none",background:GRN,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:700}}>💳 Registrar Pagamento</button>}
         </div>
       </div>
@@ -876,6 +1031,7 @@ function App() {
   const [selCli, setSelCli] = useState(null);
   const [baixaModal, setBaixaModal] = useState(null);
   const [acordoModal, setAcordoModal] = useState(null);
+  const [quitacaoModal, setQuitacaoModal] = useState(null);
   const [recuperacaoModal, setRecuperacaoModal] = useState(null);
   const [cobModal, setCobModal] = useState(null);
   const [contratoSel, setContratoSel] = useState(null);
@@ -1478,6 +1634,7 @@ function App() {
       {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} onConfirmar={()=>{setPagamentoHoje(null);carregar();}} onFechar={()=>setPagamentoHoje(null)}/>}
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {acordoModal&&<ModalAcordoPerda contrato={acordoModal} parcelas={parcelas||[]} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
+      {quitacaoModal&&<QuitacaoAntecipadaModal contrato={quitacaoModal} parcelas={parcelas||[]} onConfirmar={()=>{setQuitacaoModal(null);carregar();}} onFechar={()=>setQuitacaoModal(null)}/>}
       {recuperacaoModal&&<RecuperacaoModal contrato={recuperacaoModal} onConfirmar={()=>{setRecuperacaoModal(null);carregar();}} onFechar={()=>setRecuperacaoModal(null)}/>}
 
       {/* ── MODAL CONTRATO ── */}
@@ -1488,6 +1645,7 @@ function App() {
           pagamentos={pagamentos||[]}
           onRegistrarPagamento={p=>{setContratoSel(null);setPagamentoHoje(p);}}
           onBaixar={c=>{setContratoSel(null);setBaixaModal(c);}}
+          onQuitacaoAntecipada={c=>{setContratoSel(null);setQuitacaoModal(c);}}
           onFechar={()=>setContratoSel(null)}
         />
       )}
