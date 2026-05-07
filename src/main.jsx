@@ -394,7 +394,9 @@ function App() {
     const ST_ATIVOS=["ativo","ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente"];
     const ativos=(contratos||[]).filter(c=>ST_ATIVOS.includes(String(c.STATUS_CONTRATO||"").toLowerCase()));
     const vAtivos=ativos.reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
-    const vAtrasoTotal=(parcelas||[]).filter(p=>p.STATUS==="atrasado").reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
+    const parcelasAbertas=(parcelas||[]).filter(p=>!(["pago","paga","quitado","quitada","baixado","baixada"].includes(String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase())));
+    const parcelasPagas=(parcelas||[]).filter(p=>["pago","paga","quitado","quitada","baixado","baixada"].includes(String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase()));
+    const vAtrasoTotal=parcelasAbertas.filter(p=>String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase()==="atrasado").reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
     const taxaInad=vAtivos>0?(vAtrasoTotal/vAtivos*100):0;
     const receitaTotal=(pagamentos||[]).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
     const receitaExtra=(pagamentos||[]).reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0);
@@ -402,7 +404,8 @@ function App() {
     const pagNormais=(pagamentos||[]).filter(p=>p.TIPO_PAGAMENTO==="pagamento_normal").length;
     const pagAtraso=(pagamentos||[]).filter(p=>p.TIPO_PAGAMENTO==="pagamento_com_atraso").length;
     const pagJuros=(pagamentos||[]).filter(p=>p.TIPO_PAGAMENTO==="somente_juros").length;
-    return{vAtivos,vAtrasoTotal,taxaInad,lucroTotal:receitaExtra,receitaTotal,receitaExtra,qtyProrrogadas,pagNormais,pagAtraso,pagJuros};
+    const vPendente=parcelasAbertas.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
+    return{vAtivos,vAtrasoTotal,taxaInad,lucroTotal:receitaExtra,receitaTotal,receitaExtra,qtyProrrogadas,pagNormais,pagAtraso,pagJuros,totalCobrancas:(parcelas||[]).length,parcelasPagas:parcelasPagas.length,parcelasPendentes:parcelasAbertas.length,vPendente,contratosAtivos:ativos.length};
   },[contratos,parcelas,pagamentos]);
 
 
@@ -529,28 +532,22 @@ function App() {
           {/* DASHBOARD */}
           {tab==="dashboard"&&(
             <div style={{display:"flex",flexDirection:"column",gap:24}}>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:16}}>
-                {[{l:"Carteira Ativa",v:fmtR(M.vAtivos),c:BLU,i:IcoFin},{l:"Total em Atraso",v:fmtR(M.vAtrasoTotal),c:YEL,i:IcoCob},{l:"Inadimplência",v:fmtP(M.taxaInad),c:M.taxaInad>15?RED:GRN,i:IcoKpi},{l:"Receita Extra",v:fmtR(M.receitaExtra),c:ORG,i:IcoNovo}].map(k=>(
-                  <div key={k.l} style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`,display:"flex",alignItems:"center",gap:14}}>
-                    <div style={{background:k.c+"15",color:k.c,padding:12,borderRadius:10}}>{k.i}</div>
-                    <div><div style={{fontSize:11,color:MUTED,fontWeight:600,marginBottom:3}}>{k.l}</div><div style={{fontSize:20,fontWeight:800}}>{k.v}</div></div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:14}}>
+                {[
+                  {l:"Receita Total",v:fmtR(M.receitaTotal),sub:`${pagamentos.length} pagamentos registrados`,c:BLU,i:IcoFin},
+                  {l:"Total de Cobranças",v:M.totalCobrancas,sub:`${fmtR(M.vPendente)} em aberto`,c:YEL,i:IcoCob},
+                  {l:"Pagos",v:M.parcelasPagas,sub:`${M.totalCobrancas?Math.round((M.parcelasPagas/M.totalCobrancas)*100):0}% do total`,c:GRN,i:IcoKpi},
+                  {l:"Pendentes",v:M.parcelasPendentes,sub:`${fmtR(M.vPendente)} aguardando`,c:ORG,i:IcoCal},
+                  {l:"Vencidos",v:parcelasAtrasadas.length,sub:`${fmtR(totalParcelasAtrasadas)} em atraso`,c:RED,i:IcoCob},
+                ].map(k=>(
+                  <div key={k.l} style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`,minHeight:118,display:"flex",flexDirection:"column",justifyContent:"space-between",boxShadow:"0 10px 24px rgba(15,23,42,0.04)"}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:12}}><div style={{fontSize:13,color:TEXT,fontWeight:800}}>{k.l}</div><div style={{color:k.c}}>{k.i}</div></div>
+                    <div style={{fontSize:26,fontWeight:900,letterSpacing:"-0.8px",color:TEXT,lineHeight:1}}>{k.v}</div>
+                    <div style={{fontSize:11,color:k.c,fontWeight:700,marginTop:10}}>{k.sub}</div>
                   </div>
                 ))}
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:20}}>
-                <div style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`,height:320}}>
-                  <h3 style={{margin:"0 0 16px",fontSize:15,fontWeight:700}}>Recebimentos Mensais</h3>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={mensal}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={BD}/>
-                      <XAxis dataKey="m" axisLine={false} tickLine={false} tick={{fontSize:10,fill:MUTED}}/>
-                      <YAxis axisLine={false} tickLine={false} tick={{fontSize:10,fill:MUTED}} tickFormatter={v=>`R$${v/1000}k`}/>
-                      <Tooltip cursor={{fill:BG}} contentStyle={{borderRadius:8,border:"none",boxShadow:"0 10px 20px rgba(0,0,0,0.1)"}}/>
-                      <Bar dataKey="v" fill={BLU} radius={[4,4,0,0]} barSize={36}/>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <div style={{display:"flex",flexDirection:"column",gap:16}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))",gap:20,alignItems:"start"}}>
 
                   <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:14}}>
@@ -582,7 +579,6 @@ function App() {
                   </div>
                   <PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} onSucesso={carregar}/>
                   <NovoContrato contratos={contratos||[]} onSucesso={carregar}/>
-                </div>
               </div>
             </div>
           )}
