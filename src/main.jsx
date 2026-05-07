@@ -1,6 +1,60 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
-import { createRoot } from "react-dom/client";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistema de Gestão de Crédito</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body, #root { margin: 0; width: 100%; min-height: 100%; font-family: Inter, Arial, sans-serif; background: #F5F6FA; }
+    body { overflow-x: hidden; }
+    button, input, select, textarea { font-family: inherit; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+
+const { useState, useMemo, useEffect, useRef } = React;
+const { createRoot } = ReactDOM;
+const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } = Recharts;
+
+const MOCK_DATA = {
+  CLIENTES: [
+    { ID_CLIENTE: "CLI-001", NOME_CLIENTE: "João Silva", TELEFONE: "(62) 99999-0001", CPF: "000.000.000-00", SCORE: 820, STATUS_CLIENTE: "ativo", PROFISSAO: "CLT", DATA_CADASTRO: "2026-04-01" },
+    { ID_CLIENTE: "CLI-002", NOME_CLIENTE: "Maria Santos", TELEFONE: "(62) 99999-0002", CPF: "111.111.111-11", SCORE: 690, STATUS_CLIENTE: "ativo", PROFISSAO: "Autônoma", DATA_CADASTRO: "2026-04-10" },
+    { ID_CLIENTE: "CLI-003", NOME_CLIENTE: "Carlos Pereira", TELEFONE: "(62) 99999-0003", CPF: "222.222.222-22", SCORE: 540, STATUS_CLIENTE: "restrito", PROFISSAO: "CLT", DATA_CADASTRO: "2026-03-12" }
+  ],
+  CONTRATOS: [
+    { ID_CONTRATO: "CTR-001", ID_CLIENTE: "CLI-001", NOME_CLIENTE: "João Silva", VALOR_PRINCIPAL: 2000, VALOR_TOTAL: 3180, STATUS_CONTRATO: "ativo_em_dia", DATA_EMPRESTIMO: "2026-04-05", QTDE_PARCELAS: 6, TAXA_MENSAL: 9 },
+    { ID_CONTRATO: "CTR-002", ID_CLIENTE: "CLI-002", NOME_CLIENTE: "Maria Santos", VALOR_PRINCIPAL: 1500, VALOR_TOTAL: 2310, STATUS_CONTRATO: "ativo_em_atraso", DATA_EMPRESTIMO: "2026-03-20", QTDE_PARCELAS: 6, TAXA_MENSAL: 9 },
+    { ID_CONTRATO: "CTR-003", ID_CLIENTE: "CLI-003", NOME_CLIENTE: "Carlos Pereira", VALOR_PRINCIPAL: 1000, VALOR_TOTAL: 1540, STATUS_CONTRATO: "em_cobranca", DATA_EMPRESTIMO: "2026-02-10", QTDE_PARCELAS: 6, TAXA_MENSAL: 9 }
+  ],
+  PARCELAS: [
+    { ID_PARCELA:"P-001", ID_CONTRATO:"CTR-001", ID_CLIENTE:"CLI-001", NOME_CLIENTE:"João Silva", NUM_PARCELA:1, TOTAL_PARCELAS:6, DATA_VENCIMENTO:"2026-05-10", VALOR_PARCELA:530, VALOR_PRINCIPAL:333.33, VALOR_JUROS:196.67, STATUS:"pendente", DIAS_ATRASO:0 },
+    { ID_PARCELA:"P-002", ID_CONTRATO:"CTR-002", ID_CLIENTE:"CLI-002", NOME_CLIENTE:"Maria Santos", NUM_PARCELA:2, TOTAL_PARCELAS:6, DATA_VENCIMENTO:"2026-04-20", VALOR_PARCELA:385, VALOR_PRINCIPAL:250, VALOR_JUROS:135, STATUS:"atrasado", DIAS_ATRASO:17 },
+    { ID_PARCELA:"P-003", ID_CONTRATO:"CTR-003", ID_CLIENTE:"CLI-003", NOME_CLIENTE:"Carlos Pereira", NUM_PARCELA:3, TOTAL_PARCELAS:6, DATA_VENCIMENTO:"2026-03-10", VALOR_PARCELA:256.67, VALOR_PRINCIPAL:166.67, VALOR_JUROS:90, STATUS:"atrasado", DIAS_ATRASO:58 }
+  ],
+  PAGAMENTOS: [
+    { ID_PAGAMENTO:"PG-001", ID_CONTRATO:"CTR-001", ID_CLIENTE:"CLI-001", NOME_CLIENTE:"João Silva", DATA_PAGAMENTO:"2026-05-02", VALOR_PAGO:530, VALOR_PARCELA:530, TIPO_PAGAMENTO:"total" }
+  ]
+};
+
+const originalFetch = window.fetch ? window.fetch.bind(window) : null;
+window.fetch = async (url, options={}) => {
+  if (String(url).includes('/api/sheets')) {
+    return new Response(JSON.stringify(MOCK_DATA), { headers: { 'Content-Type': 'application/json' }});
+  }
+  if (String(url).includes('/api/action')) {
+    return new Response(JSON.stringify({ ok: true, msg: 'Ação simulada no HTML local.' }), { headers: { 'Content-Type': 'application/json' }});
+  }
+  return originalFetch ? originalFetch(url, options) : Promise.reject(new Error('fetch indisponível'));
+};
+
 
 const API_URL  = "/api/sheets";
 const POST_URL = "/api/action";
@@ -673,6 +727,135 @@ function NovoContrato({contratos,onSucesso}){
   );
 }
 
+// ─── MODAL CONTRATO ──────────────────────────────────────────────
+function ContratoModal({ contrato, parcelas, pagamentos, onRegistrarPagamento, onBaixar, onFechar }) {
+  const [abaM, setAbaM] = useState("parcelas");
+
+  const ps = (parcelas||[])
+    .filter(p => String(p.ID_CONTRATO) === String(contrato.ID_CONTRATO))
+    .sort((a,b) => parseInt(a.NUM_PARCELA||0) - parseInt(b.NUM_PARCELA||0));
+
+  const pags = (pagamentos||[])
+    .filter(p => String(p.ID_CONTRATO) === String(contrato.ID_CONTRATO))
+    .sort((a,b) => toNum(b.DATA_PAGAMENTO) - toNum(a.DATA_PAGAMENTO));
+
+  const totalPago    = pags.reduce((s,p) => s + parseFloat(p.VALOR_PAGO||0), 0);
+  const pendentes    = ps.filter(p => !["pago","baixado_como_prejuizo","cancelado"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase()));
+  const pct          = parseFloat(contrato.VALOR_PRINCIPAL||0) > 0
+    ? (totalPago / parseFloat(contrato.VALOR_TOTAL||contrato.VALOR_PRINCIPAL||1)) * 100 : 0;
+
+  const stCor = { pago:GRN, pendente:BLU, atrasado:YEL, vence_hoje:ORG, baixado_como_prejuizo:RED, cancelado:MUTED };
+  const stLabel = { pago:"Pago", pendente:"Pendente", atrasado:"Atrasado", vence_hoje:"Vence Hoje", baixado_como_prejuizo:"Baixado", cancelado:"Cancelado" };
+  const podeRegistrar = !["baixado_como_prejuizo","quitado","cancelado","recuperado_integralmente"].includes(contrato.STATUS_CONTRATO);
+  const podeBaixar    = !["baixado_como_prejuizo","quitado","cancelado","recuperado_integralmente","recuperado_parcialmente"].includes(contrato.STATUS_CONTRATO);
+  const tipoPagLabel  = { pagamento_normal:"Normal", pagamento_com_atraso:"Com Atraso", somente_juros:"Só Juros", recuperacao_apos_baixa:"Recuperação", pagamento_antecipado:"Antecipado" };
+  const tipoPagCor    = { pagamento_normal:GRN, pagamento_com_atraso:YEL, somente_juros:RED, recuperacao_apos_baixa:PUR, pagamento_antecipado:BLU };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onFechar}>
+      <div onClick={e=>e.stopPropagation()} style={{background:BG,borderRadius:16,width:"100%",maxWidth:900,maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 30px 90px rgba(0,0,0,0.3)",overflow:"hidden"}}>
+
+        {/* HEADER */}
+        <div style={{background:CARD,padding:"18px 22px",borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
+          <div>
+            <div style={{fontSize:18,fontWeight:900,letterSpacing:"-0.5px"}}>{contrato.ID_CONTRATO}</div>
+            <div style={{fontSize:13,color:MUTED,marginTop:3}}>{contrato.NOME_CLIENTE} · Empréstimo: {fmtDt(contrato.DATA_EMPRESTIMO)}</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <Badge c={STATUS_COR[contrato.STATUS_CONTRATO]||MUTED}>{STATUS_LABEL[contrato.STATUS_CONTRATO]||contrato.STATUS_CONTRATO}</Badge>
+            <button onClick={onFechar} style={{background:BG,border:`1px solid ${BD}`,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:18,color:MUTED,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>×</button>
+          </div>
+        </div>
+
+        {/* KPIs */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",borderBottom:`1px solid ${BD}`,background:CARD}}>
+          {[
+            {l:"Principal",      v:fmtR(contrato.VALOR_PRINCIPAL),  c:TEXT},
+            {l:"Total c/ Juros", v:fmtR(contrato.VALOR_TOTAL),      c:TEXT},
+            {l:"Parcelas",       v:`${contrato.NUM_PARCELAS}x ${fmtR(contrato.VALOR_PARCELA)}`, c:TEXT},
+            {l:"Taxa Mensal",    v:`${(parseFloat(contrato.TAXA_JUROS_MENSAL||0)*100).toFixed(1)}%`, c:BLU},
+            {l:"Total Recebido", v:fmtR(totalPago),                  c:totalPago>0?GRN:MUTED},
+          ].map((k,i)=>(
+            <div key={k.l} style={{padding:"12px 16px",borderRight:i<4?`1px solid ${BD}`:"none"}}>
+              <div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:3}}>{k.l}</div>
+              <div style={{fontSize:13,fontWeight:800,color:k.c}}>{k.v||"—"}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* TABS */}
+        <div style={{display:"flex",background:CARD,padding:"0 20px",borderBottom:`1px solid ${BD}`,gap:20}}>
+          {[["parcelas",`Parcelas (${ps.length})`],["pagamentos",`Pagamentos (${pags.length})`]].map(([id,lbl])=>(
+            <button key={id} onClick={()=>setAbaM(id)} style={{padding:"13px 4px",background:"none",border:"none",borderBottom:abaM===id?`2px solid ${BLU}`:"2px solid transparent",color:abaM===id?BLU:MUTED,fontWeight:600,cursor:"pointer",fontSize:13}}>{lbl}</button>
+          ))}
+        </div>
+
+        {/* CONTENT */}
+        <div style={{flex:1,overflowY:"auto"}}>
+          {abaM==="parcelas"&&(
+            <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
+              <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase",position:"sticky",top:0}}>
+                <th style={{padding:"10px 18px"}}>#</th>
+                <th>Vencimento</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th>Pagamento</th>
+                <th style={{textAlign:"right",padding:"10px 18px"}}>Valor Pago</th>
+              </tr></thead>
+              <tbody>{ps.map((p,i)=>{
+                const st=String(p.STATUS||p.STATUS_PAGAMENTO||"pendente").toLowerCase();
+                const cor=stCor[st]||MUTED;
+                return(
+                  <tr key={p.ID_PARCELA||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:"#FAFAFA"}}>
+                    <td style={{padding:"11px 18px",color:MUTED,fontWeight:600}}>{p.NUM_PARCELA}/{p.TOTAL_PARCELAS}</td>
+                    <td style={{fontWeight:600}}>{fmtDt(p.DATA_VENCIMENTO)}</td>
+                    <td>{fmtR(p.VALOR_PARCELA)}</td>
+                    <td><Badge c={cor}>{stLabel[st]||st}</Badge></td>
+                    <td style={{color:MUTED}}>{fmtDt(p.DATA_PAGAMENTO)||"—"}</td>
+                    <td style={{textAlign:"right",padding:"11px 18px",fontWeight:700,color:parseFloat(p.VALOR_PAGO||0)>0?GRN:MUTED}}>{parseFloat(p.VALOR_PAGO||0)>0?fmtR(p.VALOR_PAGO):"—"}</td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          )}
+          {abaM==="pagamentos"&&(
+            pags.length===0
+              ? <div style={{padding:32,textAlign:"center",color:MUTED,fontSize:13}}>Nenhum pagamento registrado neste contrato.</div>
+              : <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
+                  <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase",position:"sticky",top:0}}>
+                    <th style={{padding:"10px 18px"}}>Data</th>
+                    <th>Tipo</th>
+                    <th>Valor Original</th>
+                    <th>Valor Pago</th>
+                    <th style={{textAlign:"right",padding:"10px 18px"}}>Diferença</th>
+                  </tr></thead>
+                  <tbody>{pags.map((p,i)=>{
+                    const cor=tipoPagCor[p.TIPO_PAGAMENTO]||MUTED;
+                    const extra=parseFloat(p.RECEITA_EXTRA_ATRASO||p.DIFERENCA_RECEBIDA||0);
+                    return(
+                      <tr key={p.ID_PAGAMENTO||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:"#FAFAFA"}}>
+                        <td style={{padding:"11px 18px",color:MUTED}}>{fmtDt(parseDate(p.DATA_PAGAMENTO))}</td>
+                        <td><Badge c={cor}>{tipoPagLabel[p.TIPO_PAGAMENTO]||p.TIPO_PAGAMENTO||"—"}</Badge></td>
+                        <td style={{color:MUTED}}>{fmtR(p.VALOR_ORIGINAL_PARCELA||p.VALOR_PARCELA)}</td>
+                        <td style={{fontWeight:700,color:BLU}}>{fmtR(p.VALOR_PAGO)}</td>
+                        <td style={{textAlign:"right",padding:"11px 18px",color:extra>0?ORG:MUTED,fontWeight:extra>0?700:400}}>{extra>0?`+${fmtR(extra)}`:"—"}</td>
+                      </tr>
+                    );
+                  })}</tbody>
+                </table>
+          )}
+        </div>
+
+        {/* FOOTER */}
+        <div style={{padding:"14px 20px",borderTop:`1px solid ${BD}`,background:CARD,display:"flex",gap:10,justifyContent:"flex-end"}}>
+          {podeBaixar&&<button onClick={()=>onBaixar(contrato)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontSize:13,fontWeight:700}}>⚠️ Baixar Prejuízo</button>}
+          {podeRegistrar&&pendentes.length>0&&<button onClick={()=>onRegistrarPagamento(pendentes[0])} style={{padding:"9px 16px",borderRadius:8,border:"none",background:GRN,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:700}}>💳 Registrar Pagamento</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── APP ─────────────────────────────────────────────────────────
 function App() {
   const [raw, setRaw] = useState(null);
@@ -683,7 +866,10 @@ function App() {
   const [baixaModal, setBaixaModal] = useState(null);
   const [acordoModal, setAcordoModal] = useState(null);
   const [recuperacaoModal, setRecuperacaoModal] = useState(null);
-  const [cobModal, setCobModal] = useState(null);       // ← NOVO
+  const [cobModal, setCobModal] = useState(null);
+  const [contratoSel, setContratoSel] = useState(null);
+  const [filtroCtr, setFiltroCtr] = useState("");
+  const [filtroStatusCtr, setFiltroStatusCtr] = useState("todos");
   const [simVal, setSimVal] = useState(5000);
   const [simInad, setSimInad] = useState(0);
   const [simVol, setSimVol] = useState(0);
@@ -710,6 +896,15 @@ function App() {
   const filtrados=useMemo(()=>(clientes||[]).filter(c=>{const busca=filtroBusca.toLowerCase();const m=nomeCliente(c).toLowerCase().includes(busca)||String(c.ID_CLIENTE||"").toLowerCase().includes(busca)||String(telCliente(c)||"").toLowerCase().includes(busca)||String(c.CPF||"").toLowerCase().includes(busca);const s=filtroStatus==="todos"||c.STATUS_CLIENTE===filtroStatus;return m&&s;}),[clientes,filtroBusca,filtroStatus]);
 
   const pFiltradas=useMemo(()=>(contratos||[]).filter(c=>STATUS_PERDA.includes(c.STATUS_CONTRATO)&&(filtroPerdas==="todos"||c.STATUS_CONTRATO===filtroPerdas)),[contratos,filtroPerdas]);
+
+  const contratosFiltrados=useMemo(()=>{
+    const b=filtroCtr.toLowerCase();
+    return (contratos||[]).filter(c=>{
+      const m=String(c.ID_CONTRATO||"").toLowerCase().includes(b)||String(c.NOME_CLIENTE||"").toLowerCase().includes(b)||String(c.ID_CLIENTE||"").toLowerCase().includes(b);
+      const s=filtroStatusCtr==="todos"||String(c.STATUS_CONTRATO||"")===filtroStatusCtr;
+      return m&&s;
+    }).sort((a,b)=>String(a.ID_CONTRATO||"").localeCompare(String(b.ID_CONTRATO||""),"pt-BR",{numeric:true}));
+  },[contratos,filtroCtr,filtroStatusCtr]);
 
   const periodoDash=useMemo(()=>{
     const ini=parseDate(dashPeriodo.ini);
@@ -872,6 +1067,7 @@ function App() {
         <div style={{padding:16,flex:1}}>
           <Nav id="dashboard"  label="Dashboard"        ico={IcoDash}/>
           <Nav id="clientes"   label="Clientes"         ico={IcoCli}/>
+          <Nav id="contratos"  label="Contratos"        ico={IcoCtr}/>
           <Nav id="cobranca"   label="Cobrança"         ico={IcoCob}/>
           <Nav id="financeiro" label="Financeiro"       ico={IcoFin}/>
           <Nav id="perdas"     label="Perdas & Recup."  ico={IcoLoss}/>
@@ -982,6 +1178,74 @@ function App() {
                     <td style={{padding:"13px 18px",textAlign:"right"}}><button onClick={()=>setSelCli(c)} style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,fontWeight:600}}>Detalhes</button></td>
                   </tr>
                 ))}</tbody>
+              </table>
+            </div>
+          )}
+
+          {/* CONTRATOS */}
+          {tab==="contratos"&&(
+            <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
+              <div style={{padding:16,borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:BG+"50",flexWrap:"wrap",gap:10}}>
+                <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                  <input placeholder="Buscar por ID, cliente..." value={filtroCtr} onChange={e=>setFiltroCtr(e.target.value)} style={{...IS,width:260}}/>
+                  <select value={filtroStatusCtr} onChange={e=>setFiltroStatusCtr(e.target.value)} style={{...IS,width:180}}>
+                    <option value="todos">Todos os status</option>
+                    <option value="ativo_em_dia">Em Dia</option>
+                    <option value="ativo_em_atraso">Em Atraso</option>
+                    <option value="em_cobranca">Em Cobrança</option>
+                    <option value="pre_prejuizo">Pré-Prejuízo</option>
+                    <option value="baixado_como_prejuizo">Baixado</option>
+                    <option value="em_recuperacao">Em Recuperação</option>
+                    <option value="recuperado_parcialmente">Rec. Parcial</option>
+                    <option value="recuperado_integralmente">Recuperado</option>
+                    <option value="quitado">Quitado</option>
+                    <option value="cancelado">Cancelado</option>
+                    <option value="renegociado">Renegociado</option>
+                  </select>
+                </div>
+                <div style={{fontSize:13,color:MUTED}}><strong>{contratosFiltrados.length}</strong> contrato{contratosFiltrados.length===1?"":"s"}</div>
+              </div>
+              <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
+                <thead>
+                  <tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}>
+                    <th style={{padding:"10px 18px"}}>Contrato</th>
+                    <th>Status</th>
+                    <th>Empréstimo</th>
+                    <th>Principal</th>
+                    <th>Parcelas</th>
+                    <th>Taxa</th>
+                    <th style={{padding:"10px 18px",textAlign:"right"}}>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contratosFiltrados.length===0
+                    ? <tr><td colSpan={7} style={{padding:"28px 18px",textAlign:"center",color:MUTED,fontSize:13}}>Nenhum contrato encontrado.</td></tr>
+                    : contratosFiltrados.map((c,i)=>(
+                      <tr key={c.ID_CONTRATO||i}
+                        onClick={()=>setContratoSel(c)}
+                        style={{borderBottom:`1px solid ${BD}`,fontSize:13,cursor:"pointer"}}
+                        onMouseEnter={e=>e.currentTarget.style.background=BG}
+                        onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"transparent":"#FAFAFA"}
+                      >
+                        <td style={{padding:"13px 18px"}}>
+                          <div style={{fontWeight:700}}>{c.ID_CONTRATO}</div>
+                          <div style={{fontSize:11,color:MUTED}}>Cliente {c.ID_CLIENTE} · {c.NOME_CLIENTE}</div>
+                        </td>
+                        <td><Badge c={STATUS_COR[c.STATUS_CONTRATO]||MUTED}>{STATUS_LABEL[c.STATUS_CONTRATO]||c.STATUS_CONTRATO||"—"}</Badge></td>
+                        <td style={{color:MUTED}}>{fmtDt(c.DATA_EMPRESTIMO)}</td>
+                        <td style={{fontWeight:600}}>{fmtR(c.VALOR_PRINCIPAL)}</td>
+                        <td style={{color:MUTED}}>{c.NUM_PARCELAS}x {fmtR(c.VALOR_PARCELA)}</td>
+                        <td style={{color:BLU,fontWeight:600}}>{(parseFloat(c.TAXA_JUROS_MENSAL||0)*100).toFixed(1)}%</td>
+                        <td style={{padding:"13px 18px",textAlign:"right"}}>
+                          <button
+                            onClick={e=>{e.stopPropagation();setContratoSel(c);}}
+                            style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,fontWeight:600}}
+                          >Ver detalhes</button>
+                        </td>
+                      </tr>
+                    ))
+                  }
+                </tbody>
               </table>
             </div>
           )}
@@ -1185,6 +1449,18 @@ function App() {
       {acordoModal&&<ModalAcordoPerda contrato={acordoModal} parcelas={parcelas||[]} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
       {recuperacaoModal&&<RecuperacaoModal contrato={recuperacaoModal} onConfirmar={()=>{setRecuperacaoModal(null);carregar();}} onFechar={()=>setRecuperacaoModal(null)}/>}
 
+      {/* ── MODAL CONTRATO ── */}
+      {contratoSel&&(
+        <ContratoModal
+          contrato={contratoSel}
+          parcelas={parcelas||[]}
+          pagamentos={pagamentos||[]}
+          onRegistrarPagamento={p=>{setContratoSel(null);setPagamentoHoje(p);}}
+          onBaixar={c=>{setContratoSel(null);setBaixaModal(c);}}
+          onFechar={()=>setContratoSel(null)}
+        />
+      )}
+
       {/* ── MODAL COBRANÇA (NOVO) ── */}
       {cobModal&&(
         <CobrancaModal
@@ -1199,3 +1475,6 @@ function App() {
 }
 
 createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>
