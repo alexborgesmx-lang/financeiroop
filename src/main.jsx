@@ -277,23 +277,36 @@ function RecuperacaoModal({contrato,onConfirmar,onFechar}){
 
 function ClienteModal({cliente,onFechar}){
   const [t,setT]=useState("perfil");
+  const nome=cliente.NOME_CLIENTE||cliente.NOME||cliente.CLIENTE||"Cliente sem nome";
+  const tel=cliente.TELEFONE||cliente.TELEFONE_WPP||cliente.WHATSAPP||"—";
+  const score=cliente.SCORE||cliente.SCORE_CLIENTE||cliente.SCORE_SERASA||cliente.SCORING||cliente.SPC_SCORE||cliente.SERASA_SCORE||"Não informado";
+  const label=k=>String(k).replaceAll("_"," ").toLowerCase().replace(/\b\w/g,m=>m.toUpperCase());
+  const campos=Object.entries(cliente||{}).filter(([_,v])=>v!==null&&v!==undefined&&String(v).trim()!=="");
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:BG,borderRadius:16,width:"100%",maxWidth:900,height:"80vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 30px 90px rgba(0,0,0,0.3)"}}>
+      <div style={{background:BG,borderRadius:16,width:"100%",maxWidth:980,height:"86vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 30px 90px rgba(0,0,0,0.3)"}}>
         <div style={{background:CARD,padding:20,borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{display:"flex",alignItems:"center",gap:16}}><div style={{width:44,height:44,background:BLU,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",color:"#FFF",fontSize:18,fontWeight:800}}>{(cliente.NOME_CLIENTE||"?")[0]}</div><div><h2 style={{margin:0,fontSize:18,fontWeight:800}}>{cliente.NOME_CLIENTE}</h2><div style={{fontSize:12,color:MUTED}}>{cliente.ID_CLIENTE}</div></div></div>
-          <button onClick={onFechar} style={{background:BG,border:"none",width:32,height:32,borderRadius:8,cursor:"pointer"}}>{IcoArr}</button>
+          <div style={{display:"flex",alignItems:"center",gap:16}}><div style={{width:44,height:44,background:BLU,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",color:"#FFF",fontSize:18,fontWeight:800}}>{nome[0]||"?"}</div><div><h2 style={{margin:0,fontSize:18,fontWeight:800}}>{nome}</h2><div style={{fontSize:12,color:MUTED}}>ID {cliente.ID_CLIENTE||"—"} · Score: {score}</div></div></div>
+          <button onClick={onFechar} style={{background:BG,border:"none",width:32,height:32,borderRadius:8,cursor:"pointer"}}>×</button>
         </div>
         <div style={{display:"flex",background:CARD,padding:"0 20px",borderBottom:`1px solid ${BD}`,gap:20}}>
-          {["perfil"].map(tab=><button key={tab} onClick={()=>setT(tab)} style={{padding:"14px 4px",background:"none",border:"none",borderBottom:t===tab?`2px solid ${BLU}`:"2px solid transparent",color:t===tab?BLU:MUTED,fontWeight:600,cursor:"pointer",fontSize:13,textTransform:"capitalize"}}>{tab}</button>)}
+          {["perfil","todos os dados"].map(tab=><button key={tab} onClick={()=>setT(tab)} style={{padding:"14px 4px",background:"none",border:"none",borderBottom:t===tab?`2px solid ${BLU}`:"2px solid transparent",color:t===tab?BLU:MUTED,fontWeight:600,cursor:"pointer",fontSize:13,textTransform:"capitalize"}}>{tab}</button>)}
         </div>
         <div style={{flex:1,overflowY:"auto",padding:20}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-            <div style={{background:CARD,padding:18,borderRadius:12,border:`1px solid ${BD}`}}>
-              <h3 style={{margin:"0 0 14px",fontSize:14}}>Dados</h3>
-              {[{l:"Telefone",v:cliente.TELEFONE||cliente.TELEFONE_WPP},{l:"Status",v:cliente.STATUS_CLIENTE}].map(i=><div key={i.l} style={{marginBottom:10}}><span style={LS}>{i.l}</span><div style={{fontSize:13}}>{i.v||"—"}</div></div>)}
+          {t==="perfil"?(
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16}}>
+              {[
+                {l:"Nome",v:nome},{l:"Score",v:score},{l:"CPF",v:cliente.CPF},{l:"RG",v:cliente.RG},{l:"Telefone/WhatsApp",v:tel},{l:"Email",v:cliente.EMAIL},
+                {l:"Status",v:cliente.STATUS_CLIENTE},{l:"Profissão",v:cliente.PROFISSAO},{l:"Estado civil",v:cliente.ESTADO_CIVIL},{l:"Nacionalidade",v:cliente.NACIONALIDADE},
+                {l:"Endereço",v:[cliente.RUA,cliente.NUMERO,cliente.QUADRA&&`Qd. ${cliente.QUADRA}`,cliente.LOTE&&`Lt. ${cliente.LOTE}`,cliente.SETOR,cliente.CIDADE_ESTADO].filter(Boolean).join(", ")},
+                {l:"CEP",v:cliente.CEP},{l:"Contato confiança 1",v:[cliente.CONTATO_CONFIANCA_1,cliente.TEL_CONFIANCA_1].filter(Boolean).join(" · ")},
+                {l:"Contato confiança 2",v:[cliente.CONTATO_CONFIANCA_2,cliente.TEL_CONFIANCA_2].filter(Boolean).join(" · ")},{l:"Padrinho",v:[cliente.PADRINHO,cliente.TEL_PADRINHO].filter(Boolean).join(" · ")},
+                {l:"Vencimento preferido",v:cliente.DIA_VENCIMENTO_PREFERIDO},{l:"Cadastro",v:fmtDt(cliente.DATA_CADASTRO)},{l:"Observações",v:cliente.OBSERVACOES}
+              ].map(i=><div key={i.l} style={{background:CARD,padding:15,borderRadius:10,border:`1px solid ${BD}`,gridColumn:i.l==="Endereço"||i.l==="Observações"?"1/-1":"auto"}}><span style={LS}>{i.l}</span><div style={{fontSize:13,fontWeight:600,wordBreak:"break-word"}}>{i.v||"—"}</div></div>)}
             </div>
-          </div>
+          ):(
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>{campos.map(([k,v])=><div key={k} style={{background:CARD,padding:13,borderRadius:10,border:`1px solid ${BD}`}}><span style={LS}>{label(k)}</span><div style={{fontSize:13,fontWeight:600,wordBreak:"break-word"}}>{String(v)}</div></div>)}</div>
+          )}
         </div>
       </div>
     </div>
@@ -409,8 +422,11 @@ function App() {
   const contratos = useMemo(()=>raw?.CONTRATOS || raw?.contratos || [], [raw]);
   const parcelas  = useMemo(()=>raw?.PARCELAS  || raw?.parcelas  || [], [raw]);
   const pagamentos= useMemo(()=>raw?.PAGAMENTOS|| raw?.pagamentos|| [], [raw]);
+  const nomeCliente=c=>c?.NOME_CLIENTE||c?.NOME||c?.CLIENTE||c?.NOME_COMPLETO||"Cliente sem nome";
+  const telCliente=c=>c?.TELEFONE||c?.TELEFONE_WPP||c?.WHATSAPP||"—";
+  const scoreCliente=c=>c?.SCORE||c?.SCORE_CLIENTE||c?.SCORE_SERASA||c?.SCORING||c?.SPC_SCORE||c?.SERASA_SCORE||"—";
 
-  const filtrados=useMemo(()=>(clientes||[]).filter(c=>{const m=(c.NOME_CLIENTE||"").toLowerCase().includes(filtroBusca.toLowerCase())||String(c.ID_CLIENTE||"").toLowerCase().includes(filtroBusca.toLowerCase());const s=filtroStatus==="todos"||c.STATUS_CLIENTE===filtroStatus;return m&&s;}),[clientes,filtroBusca,filtroStatus]);
+  const filtrados=useMemo(()=>(clientes||[]).filter(c=>{const busca=filtroBusca.toLowerCase();const m=nomeCliente(c).toLowerCase().includes(busca)||String(c.ID_CLIENTE||"").toLowerCase().includes(busca)||String(telCliente(c)||"").toLowerCase().includes(busca)||String(c.CPF||"").toLowerCase().includes(busca);const s=filtroStatus==="todos"||c.STATUS_CLIENTE===filtroStatus;return m&&s;}),[clientes,filtroBusca,filtroStatus]);
 
   const pFiltradas=useMemo(()=>(contratos||[]).filter(c=>STATUS_PERDA.includes(c.STATUS_CONTRATO)&&(filtroPerdas==="todos"||c.STATUS_CONTRATO===filtroPerdas)),[contratos,filtroPerdas]);
 
@@ -471,7 +487,7 @@ function App() {
       if(["pago","paga","quitado","quitada","baixado","baixada"].includes(status))return false;
       const d=parseDate(p.DATA_VENCIMENTO);if(!d)return false;d.setHours(0,0,0,0);
       return d.getTime()===base.getTime();
-    }).map(p=>{const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(p.ID_CLIENTE));return{...p,NOME_CLIENTE:p.NOME_CLIENTE||c?.NOME_CLIENTE||"Cliente sem nome"};}).sort((a,b)=>String(a.NOME_CLIENTE||"").localeCompare(String(b.NOME_CLIENTE||""),"pt-BR"));
+    }).map(p=>{const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(p.ID_CLIENTE));return{...p,NOME_CLIENTE:p.NOME_CLIENTE||nomeCliente(c)};}).sort((a,b)=>String(a.NOME_CLIENTE||"").localeCompare(String(b.NOME_CLIENTE||""),"pt-BR"));
   },[parcelas,clientes]);
   const totalParcelasHoje=useMemo(()=>parcelasHoje.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0),[parcelasHoje]);
 
@@ -484,7 +500,7 @@ function App() {
       const d=parseDate(p.DATA_VENCIMENTO);if(!d)return false;d.setHours(0,0,0,0);
       if(periodoDash.ini&&periodoDash.fim&&(d<periodoDash.ini||d>periodoDash.fim))return false;
       return status==="atrasado" || d.getTime()<base.getTime();
-    }).map(p=>{const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(p.ID_CLIENTE));const d=parseDate(p.DATA_VENCIMENTO);const dias=d?Math.max(1,Math.round((new Date()-d)/86400000)):0;return{...p,NOME_CLIENTE:p.NOME_CLIENTE||c?.NOME_CLIENTE||"Cliente sem nome",DIAS_ATRASO:dias};}).sort((a,b)=>(b.DIAS_ATRASO||0)-(a.DIAS_ATRASO||0));
+    }).map(p=>{const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(p.ID_CLIENTE));const d=parseDate(p.DATA_VENCIMENTO);const dias=d?Math.max(1,Math.round((new Date()-d)/86400000)):0;return{...p,NOME_CLIENTE:p.NOME_CLIENTE||nomeCliente(c),DIAS_ATRASO:dias};}).sort((a,b)=>(b.DIAS_ATRASO||0)-(a.DIAS_ATRASO||0));
   },[parcelas,clientes,periodoDash]);
   const totalParcelasAtrasadas=useMemo(()=>parcelasAtrasadas.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0),[parcelasAtrasadas]);
 
@@ -494,13 +510,16 @@ function App() {
   }),[pagamentos]);
 
   const cobItems=useMemo(()=>{
-    const ids=[...new Set((parcelas||[]).filter(p=>p.STATUS==="atrasado").map(p=>p.ID_CLIENTE))];
+    const ids=[...new Set((parcelas||[]).filter(p=>String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase()==="atrasado").map(p=>p.ID_CLIENTE))];
     return ids.map(id=>{
       const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(id));
-      const ps=(parcelas||[]).filter(p=>String(p.ID_CLIENTE)===String(id)&&p.STATUS==="atrasado");
+      const ps=(parcelas||[]).filter(p=>String(p.ID_CLIENTE)===String(id)&&String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase()==="atrasado");
       const vAtraso=ps.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
       const maxAtraso=ps.length>0?Math.max(...ps.map(p=>{const d=parseDate(p.DATA_VENCIMENTO);return d?Math.round((new Date()-d)/86400000):0;})):0;
-      return{...c,vAtraso,maxAtraso,qtdContratos:[...new Set(ps.map(p=>p.ID_CONTRATO))].length};
+      const ref=ps[0]||{};
+      const nome=c?nomeCliente(c):(ref.NOME_CLIENTE||"Cliente sem nome");
+      const telefone=c?telCliente(c):(ref.TELEFONE||ref.TELEFONE_WPP||"—");
+      return{...c,ID_CLIENTE:id,NOME_CLIENTE:nome,TELEFONE:telefone,vAtraso,maxAtraso,qtdContratos:[...new Set(ps.map(p=>p.ID_CONTRATO))].length};
     }).sort((a,b)=>b.maxAtraso-a.maxAtraso);
   },[clientes,parcelas]);
 
@@ -667,9 +686,9 @@ function App() {
                 <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"10px 18px"}}>Cliente</th><th>Status</th><th>Telefone</th><th style={{padding:"10px 18px",textAlign:"right"}}>Ações</th></tr></thead>
                 <tbody>{filtrados.map(c=>(
                   <tr key={c.ID_CLIENTE} style={{borderBottom:`1px solid ${BD}`,fontSize:13}} onMouseEnter={e=>e.currentTarget.style.background=BG+"30"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    <td style={{padding:"13px 18px"}}><div style={{fontWeight:700}}>{c.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED}}>{c.ID_CLIENTE}</div></td>
+                    <td style={{padding:"13px 18px"}}><div style={{fontWeight:700}}>{nomeCliente(c)}</div><div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"} · Score {scoreCliente(c)}</div></td>
                     <td><Badge c={c.STATUS_CLIENTE==="ativo"?GRN:YEL}>{(c.STATUS_CLIENTE||"").toUpperCase()}</Badge></td>
-                    <td style={{color:MUTED}}>{c.TELEFONE||c.TELEFONE_WPP||"—"}</td>
+                    <td style={{color:MUTED}}>{telCliente(c)}</td>
                     <td style={{padding:"13px 18px",textAlign:"right"}}><button onClick={()=>setSelCli(c)} style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,fontWeight:600}}>Detalhes</button></td>
                   </tr>
                 ))}</tbody>
@@ -685,7 +704,7 @@ function App() {
                 <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"10px 18px"}}>Cliente</th><th>Contratos</th><th>Atraso Máx</th><th>Valor</th></tr></thead>
                 <tbody>{cobItems.map(c=>(
                   <tr key={c.ID_CLIENTE} style={{borderBottom:`1px solid ${BD}`,fontSize:13}}>
-                    <td style={{padding:"13px 18px"}}><div style={{fontWeight:700}}>{c.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED}}>{c.TELEFONE||c.TELEFONE_WPP}</div></td>
+                    <td style={{padding:"13px 18px"}}><div style={{fontWeight:700}}>{nomeCliente(c)}</div><div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"} · {telCliente(c)}</div></td>
                     <td>{c.qtdContratos}</td>
                     <td><Badge c={c.maxAtraso>60?RED:c.maxAtraso>30?ORG:YEL}>{c.maxAtraso} dias</Badge></td>
                     <td style={{fontWeight:700,color:RED}}>{fmtR(c.vAtraso)}</td>
