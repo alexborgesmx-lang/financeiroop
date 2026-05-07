@@ -15,6 +15,20 @@ const fmtR  = v => "R$ " + Number(v||0).toLocaleString("pt-BR",{minimumFractionD
 const fmtP  = v => Number(v||0).toFixed(1) + "%";
 const fmtDt = v => { if(!v) return "—"; const d = v instanceof Date ? v : new Date(v); return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR"); };
 const hojeStr = () => new Date().toISOString().split("T")[0];
+const dateInputStr = d => {
+  const dt = d instanceof Date ? d : new Date(d);
+  if(isNaN(dt.getTime())) return "";
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth()+1).padStart(2,"0");
+  const day = String(dt.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+};
+const mesAtualRange = () => {
+  const hoje = new Date();
+  const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1, 12, 0, 0);
+  const fim = new Date(hoje.getFullYear(), hoje.getMonth()+1, 0, 12, 0, 0);
+  return { ini: dateInputStr(ini), fim: dateInputStr(fim) };
+};
 
 function parseDate(v){
   if(!v) return null;
@@ -377,6 +391,7 @@ function App() {
   const [finAte, setFinAte] = useState(null);
   const [finCalOpen, setFinCalOpen] = useState(false);
   const [pagamentoHoje, setPagamentoHoje] = useState(null);
+  const [dashPeriodo, setDashPeriodo] = useState(()=>mesAtualRange());
 
   const carregar=()=>{setLoading(true);fetch(API_URL).then(r=>r.json()).then(d=>{setRaw(d);setLoading(false);}).catch(()=>setLoading(false));};
   useEffect(()=>{carregar();},[]);
@@ -390,23 +405,54 @@ function App() {
 
   const pFiltradas=useMemo(()=>(contratos||[]).filter(c=>STATUS_PERDA.includes(c.STATUS_CONTRATO)&&(filtroPerdas==="todos"||c.STATUS_CONTRATO===filtroPerdas)),[contratos,filtroPerdas]);
 
+  const periodoDash=useMemo(()=>{
+    const ini=parseDate(dashPeriodo.ini);
+    const fim=parseDate(dashPeriodo.fim||dashPeriodo.ini);
+    if(ini) ini.setHours(0,0,0,0);
+    if(fim) fim.setHours(23,59,59,999);
+    return {ini,fim};
+  },[dashPeriodo]);
+
+  const noPeriodoDash=(valor)=>{
+    const d=parseDate(valor);
+    if(!d||!periodoDash.ini||!periodoDash.fim)return false;
+    d.setHours(12,0,0,0);
+    return d>=periodoDash.ini&&d<=periodoDash.fim;
+  };
+
+  const labelPeriodoDash=useMemo(()=>{
+    const ini=parseDate(dashPeriodo.ini);
+    const fim=parseDate(dashPeriodo.fim);
+    if(!ini||!fim)return "Período selecionado";
+    return `${fmtDt(ini)} até ${fmtDt(fim)}`;
+  },[dashPeriodo]);
+
+  const resetPeriodoMesAtual=()=>setDashPeriodo(mesAtualRange());
+
   const M=useMemo(()=>{
     const ST_ATIVOS=["ativo","ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente"];
     const ativos=(contratos||[]).filter(c=>ST_ATIVOS.includes(String(c.STATUS_CONTRATO||"").toLowerCase()));
     const vAtivos=ativos.reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
-    const parcelasAbertas=(parcelas||[]).filter(p=>!(["pago","paga","quitado","quitada","baixado","baixada"].includes(String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase())));
-    const parcelasPagas=(parcelas||[]).filter(p=>["pago","paga","quitado","quitada","baixado","baixada"].includes(String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase()));
+    const statusPago=p=>["pago","paga","quitado","quitada","baixado","baixada"].includes(String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase());
+    const parcelasPeriodo=(parcelas||[]).filter(p=>noPeriodoDash(p.DATA_VENCIMENTO));
+    const pagamentosPeriodo=(pagamentos||[]).filter(p=>noPeriodoDash(p.DATA_PAGAMENTO));
+    const contratosPeriodo=(contratos||[]).filter(c=>noPeriodoDash(c.DATA_CONTRATO||c.DATA_EMPRESTIMO||c.DATA_INICIO));
+    const parcelasAbertas=(parcelasPeriodo||[]).filter(p=>!statusPago(p));
+    const parcelasPagas=(parcelasPeriodo||[]).filter(p=>statusPago(p));
     const vAtrasoTotal=parcelasAbertas.filter(p=>String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase()==="atrasado").reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
     const taxaInad=vAtivos>0?(vAtrasoTotal/vAtivos*100):0;
-    const receitaTotal=(pagamentos||[]).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
-    const receitaExtra=(pagamentos||[]).reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0);
-    const qtyProrrogadas=(parcelas||[]).filter(p=>p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros").length;
-    const pagNormais=(pagamentos||[]).filter(p=>p.TIPO_PAGAMENTO==="pagamento_normal").length;
-    const pagAtraso=(pagamentos||[]).filter(p=>p.TIPO_PAGAMENTO==="pagamento_com_atraso").length;
-    const pagJuros=(pagamentos||[]).filter(p=>p.TIPO_PAGAMENTO==="somente_juros").length;
+    const receitaTotal=(pagamentosPeriodo||[]).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+    const receitaExtra=(pagamentosPeriodo||[]).reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0);
+    const qtyProrrogadas=(parcelasPeriodo||[]).filter(p=>p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros").length;
+    const pagNormais=(pagamentosPeriodo||[]).filter(p=>p.TIPO_PAGAMENTO==="pagamento_normal").length;
+    const pagAtraso=(pagamentosPeriodo||[]).filter(p=>p.TIPO_PAGAMENTO==="pagamento_com_atraso").length;
+    const pagJuros=(pagamentosPeriodo||[]).filter(p=>p.TIPO_PAGAMENTO==="somente_juros").length;
     const vPendente=parcelasAbertas.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
-    return{vAtivos,vAtrasoTotal,taxaInad,lucroTotal:receitaExtra,receitaTotal,receitaExtra,qtyProrrogadas,pagNormais,pagAtraso,pagJuros,totalCobrancas:(parcelas||[]).length,parcelasPagas:parcelasPagas.length,parcelasPendentes:parcelasAbertas.length,vPendente,contratosAtivos:ativos.length};
-  },[contratos,parcelas,pagamentos]);
+    const totalRecebidoGeral=(pagamentos||[]).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+    const principalLiberadoGeral=(contratos||[]).reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
+    const caixaAtual=totalRecebidoGeral-principalLiberadoGeral;
+    return{vAtivos,vAtrasoTotal,taxaInad,lucroTotal:receitaExtra,receitaTotal,receitaExtra,qtyProrrogadas,pagNormais,pagAtraso,pagJuros,totalCobrancas:(parcelasPeriodo||[]).length,parcelasPagas:parcelasPagas.length,parcelasPendentes:parcelasAbertas.length,vPendente,contratosAtivos:ativos.length,caixaAtual,pagamentosPeriodo:pagamentosPeriodo.length,contratosPeriodo:contratosPeriodo.length};
+  },[contratos,parcelas,pagamentos,periodoDash]);
 
 
   const parcelasHoje=useMemo(()=>{
@@ -427,9 +473,10 @@ function App() {
       const status=String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase();
       if(["pago","paga","quitado","quitada","baixado","baixada"].includes(status))return false;
       const d=parseDate(p.DATA_VENCIMENTO);if(!d)return false;d.setHours(0,0,0,0);
+      if(periodoDash.ini&&periodoDash.fim&&(d<periodoDash.ini||d>periodoDash.fim))return false;
       return status==="atrasado" || d.getTime()<base.getTime();
     }).map(p=>{const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(p.ID_CLIENTE));const d=parseDate(p.DATA_VENCIMENTO);const dias=d?Math.max(1,Math.round((new Date()-d)/86400000)):0;return{...p,NOME_CLIENTE:p.NOME_CLIENTE||c?.NOME_CLIENTE||"Cliente sem nome",DIAS_ATRASO:dias};}).sort((a,b)=>(b.DIAS_ATRASO||0)-(a.DIAS_ATRASO||0));
-  },[parcelas,clientes]);
+  },[parcelas,clientes,periodoDash]);
   const totalParcelasAtrasadas=useMemo(()=>parcelasAtrasadas.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0),[parcelasAtrasadas]);
 
   const mensal=useMemo(()=>["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map((mes,i)=>{
@@ -532,9 +579,23 @@ function App() {
           {/* DASHBOARD */}
           {tab==="dashboard"&&(
             <div style={{display:"flex",flexDirection:"column",gap:24}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:16,flexWrap:"wrap"}}>
+                <div>
+                  <div style={{fontSize:12,color:MUTED,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em"}}>Período do Dashboard</div>
+                  <div style={{fontSize:14,fontWeight:800,color:TEXT,marginTop:4}}>{labelPeriodoDash}</div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:10,background:CARD,border:`1px solid ${BD}`,borderRadius:12,padding:10,boxShadow:"0 8px 18px rgba(15,23,42,0.04)"}}>
+                  <label style={{fontSize:11,color:MUTED,fontWeight:800}}>De</label>
+                  <input type="date" value={dashPeriodo.ini} onChange={e=>setDashPeriodo(p=>({...p,ini:e.target.value}))} style={{...IS,width:150,padding:"7px 10px"}}/>
+                  <label style={{fontSize:11,color:MUTED,fontWeight:800}}>Até</label>
+                  <input type="date" value={dashPeriodo.fim} onChange={e=>setDashPeriodo(p=>({...p,fim:e.target.value}))} style={{...IS,width:150,padding:"7px 10px"}}/>
+                  <button onClick={resetPeriodoMesAtual} style={{padding:"8px 11px",borderRadius:8,border:`1px solid ${BLU}30`,background:BLU+"10",color:BLU,cursor:"pointer",fontSize:12,fontWeight:800}}>Mês atual</button>
+                </div>
+              </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:14}}>
                 {[
-                  {l:"Receita Total",v:fmtR(M.receitaTotal),sub:`${pagamentos.length} pagamentos registrados`,c:BLU,i:IcoFin},
+                  {l:"Caixa Atual",v:fmtR(M.caixaAtual),sub:"Saldo geral estimado",c:GRN,i:IcoFin},
+                  {l:"Receita Total",v:fmtR(M.receitaTotal),sub:`${M.pagamentosPeriodo} pagamentos no período`,c:BLU,i:IcoFin},
                   {l:"Total de Cobranças",v:M.totalCobrancas,sub:`${fmtR(M.vPendente)} em aberto`,c:YEL,i:IcoCob},
                   {l:"Pagos",v:M.parcelasPagas,sub:`${M.totalCobrancas?Math.round((M.parcelasPagas/M.totalCobrancas)*100):0}% do total`,c:GRN,i:IcoKpi},
                   {l:"Pendentes",v:M.parcelasPendentes,sub:`${fmtR(M.vPendente)} aguardando`,c:ORG,i:IcoCal},
