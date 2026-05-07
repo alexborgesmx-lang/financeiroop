@@ -306,6 +306,29 @@ function PagamentoDrop({contratos,parcelas,onSucesso}){
   );
 }
 
+function PagamentoParcelaModal({parcela,onConfirmar,onFechar}){
+  const [tipo,setTipo]=useState("total");
+  const [data,setData]=useState(hojeStr());
+  const [valor,setValor]=useState(String(parcela?.VALOR_PARCELA||""));
+  const [loading,setLoading]=useState(false);
+  const [msg,setMsg]=useState(null);
+  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data,forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||"Pagamento registrado!"});setTimeout(onConfirmar,900);}else setMsg({ok:false,t:res.erro||"Erro ao registrar pagamento"});setLoading(false);};
+  return(
+    <div style={{position:"fixed",inset:0,zIndex:300,background:"rgba(15,23,42,0.35)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onFechar}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:CARD,borderRadius:14,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.22)",overflow:"hidden"}}>
+        <div style={{padding:"18px 20px",borderBottom:`1px solid ${BD}`}}><h2 style={{margin:0,fontSize:17,fontWeight:800}}>Registrar pagamento</h2><p style={{margin:"5px 0 0",fontSize:12,color:MUTED}}>{parcela?.NOME_CLIENTE||"Cliente"} · Parcela {parcela?.NUM_PARCELA||parcela?.NUMERO_PARCELA||parcela?.ID_PARCELA||"—"}</p></div>
+        <div style={{padding:20,display:"flex",flexDirection:"column",gap:12}}>
+          <div><span style={LS}>Tipo</span><select value={tipo} onChange={e=>setTipo(e.target.value)} style={IS}><option value="total">Pagamento total</option><option value="parcial">Somente juros</option></select></div>
+          <div><span style={LS}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} style={IS}/></div>
+          <div><span style={LS}>Data</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS}/></div>
+          {msg&&<div style={{padding:10,borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:12,fontWeight:700}}>{msg.t}</div>}
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:4}}><button onClick={onFechar} style={{padding:"10px 14px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:700}}>Cancelar</button><button onClick={registrar} disabled={loading||!valor||!data} style={{padding:"10px 14px",borderRadius:8,border:"none",background:GRN,color:"#FFF",cursor:"pointer",fontWeight:800,opacity:loading||!valor||!data?0.6:1}}>{loading?"Registrando...":"Confirmar"}</button></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NovoContrato({contratos,onSucesso}){
   const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);const [cliente,setCliente]=useState(null);const [principal,setPrincipal]=useState("");const [nParcelas,setNParcelas]=useState("");const [taxa,setTaxa]=useState("");const [dtEmp,setDtEmp]=useState(hojeStr());const [dtVenc,setDtVenc]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const ref=useRef();
   useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
@@ -353,6 +376,7 @@ function App() {
   const [finDe, setFinDe] = useState(null);
   const [finAte, setFinAte] = useState(null);
   const [finCalOpen, setFinCalOpen] = useState(false);
+  const [pagamentoHoje, setPagamentoHoje] = useState(null);
 
   const carregar=()=>{setLoading(true);fetch(API_URL).then(r=>r.json()).then(d=>{setRaw(d);setLoading(false);}).catch(()=>setLoading(false));};
   useEffect(()=>{carregar();},[]);
@@ -380,6 +404,18 @@ function App() {
     const pagJuros=(pagamentos||[]).filter(p=>p.TIPO_PAGAMENTO==="somente_juros").length;
     return{vAtivos,vAtrasoTotal,taxaInad,lucroTotal:receitaExtra,receitaTotal,receitaExtra,qtyProrrogadas,pagNormais,pagAtraso,pagJuros};
   },[contratos,parcelas,pagamentos]);
+
+
+  const parcelasHoje=useMemo(()=>{
+    const base=new Date();base.setHours(0,0,0,0);
+    return (parcelas||[]).filter(p=>{
+      const status=String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase();
+      if(["pago","paga","quitado","quitada","baixado","baixada"].includes(status))return false;
+      const d=parseDate(p.DATA_VENCIMENTO);if(!d)return false;d.setHours(0,0,0,0);
+      return d.getTime()===base.getTime();
+    }).map(p=>{const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(p.ID_CLIENTE));return{...p,NOME_CLIENTE:p.NOME_CLIENTE||c?.NOME_CLIENTE||"Cliente sem nome"};}).sort((a,b)=>String(a.NOME_CLIENTE||"").localeCompare(String(b.NOME_CLIENTE||""),"pt-BR"));
+  },[parcelas,clientes]);
+  const totalParcelasHoje=useMemo(()=>parcelasHoje.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0),[parcelasHoje]);
 
   const mensal=useMemo(()=>["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map((mes,i)=>{
     const pMes=(pagamentos||[]).filter(p=>{const d=parseDate(p.DATA_PAGAMENTO);return d&&d.getMonth()===i;});
@@ -503,6 +539,20 @@ function App() {
                   </ResponsiveContainer>
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:16}}>
+
+                  <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:14}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{background:YEL+"15",color:YEL,padding:8,borderRadius:8}}>{IcoCal}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Vencem Hoje</h3></div>
+                      <Badge c={parcelasHoje.length?YEL:GRN}>{parcelasHoje.length} parcela{parcelasHoje.length===1?"":"s"}</Badge>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><span style={{fontSize:12,color:MUTED,fontWeight:700}}>Total previsto</span><strong style={{fontSize:20,color:parcelasHoje.length?YEL:GRN}}>{fmtR(totalParcelasHoje)}</strong></div>
+                    {parcelasHoje.length===0?<div style={{padding:12,borderRadius:8,background:GRN+"08",color:GRN,fontSize:12,fontWeight:700}}>Nenhuma parcela vencendo hoje.</div>:<div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:220,overflowY:"auto"}}>{parcelasHoje.map(p=>(
+                      <div key={p.ID_PARCELA||`${p.ID_CLIENTE}-${p.NUM_PARCELA}`} style={{padding:10,borderRadius:9,background:BG,border:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
+                        <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)}</div></div>
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}><div style={{fontSize:13,fontWeight:800,color:BLU}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</div><button onClick={()=>setPagamentoHoje(p)} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${GRN}35`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>Registrar pagamento</button></div>
+                      </div>
+                    ))}</div>}
+                  </div>
                   <PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} onSucesso={carregar}/>
                   <NovoContrato contratos={contratos||[]} onSucesso={carregar}/>
                 </div>
@@ -723,6 +773,7 @@ function App() {
       </div>
 
       {selCli&&<ClienteModal cliente={selCli} onFechar={()=>setSelCli(null)}/>}
+      {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} onConfirmar={()=>{setPagamentoHoje(null);carregar();}} onFechar={()=>setPagamentoHoje(null)}/>}
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {acordoModal&&<ModalAcordoPerda contrato={acordoModal} parcelas={parcelas||[]} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
       {recuperacaoModal&&<RecuperacaoModal contrato={recuperacaoModal} onConfirmar={()=>{setRecuperacaoModal(null);carregar();}} onFechar={()=>setRecuperacaoModal(null)}/>}
