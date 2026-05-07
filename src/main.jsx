@@ -417,6 +417,18 @@ function App() {
   },[parcelas,clientes]);
   const totalParcelasHoje=useMemo(()=>parcelasHoje.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0),[parcelasHoje]);
 
+
+  const parcelasAtrasadas=useMemo(()=>{
+    const base=new Date();base.setHours(0,0,0,0);
+    return (parcelas||[]).filter(p=>{
+      const status=String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase();
+      if(["pago","paga","quitado","quitada","baixado","baixada"].includes(status))return false;
+      const d=parseDate(p.DATA_VENCIMENTO);if(!d)return false;d.setHours(0,0,0,0);
+      return status==="atrasado" || d.getTime()<base.getTime();
+    }).map(p=>{const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(p.ID_CLIENTE));const d=parseDate(p.DATA_VENCIMENTO);const dias=d?Math.max(1,Math.round((new Date()-d)/86400000)):0;return{...p,NOME_CLIENTE:p.NOME_CLIENTE||c?.NOME_CLIENTE||"Cliente sem nome",DIAS_ATRASO:dias};}).sort((a,b)=>(b.DIAS_ATRASO||0)-(a.DIAS_ATRASO||0));
+  },[parcelas,clientes]);
+  const totalParcelasAtrasadas=useMemo(()=>parcelasAtrasadas.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0),[parcelasAtrasadas]);
+
   const mensal=useMemo(()=>["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map((mes,i)=>{
     const pMes=(pagamentos||[]).filter(p=>{const d=parseDate(p.DATA_PAGAMENTO);return d&&d.getMonth()===i;});
     return{m:mes,v:pMes.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0),extra:pMes.reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0)};
@@ -550,6 +562,21 @@ function App() {
                       <div key={p.ID_PARCELA||`${p.ID_CLIENTE}-${p.NUM_PARCELA}`} style={{padding:10,borderRadius:9,background:BG,border:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
                         <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)}</div></div>
                         <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}><div style={{fontSize:13,fontWeight:800,color:BLU}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</div><button onClick={()=>setPagamentoHoje(p)} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${GRN}35`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>Registrar pagamento</button></div>
+                      </div>
+                    ))}</div>}
+                  </div>
+
+
+                  <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:14}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{background:RED+"15",color:RED,padding:8,borderRadius:8}}>{IcoCob}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Em Atraso</h3></div>
+                      <Badge c={parcelasAtrasadas.length?RED:GRN}>{parcelasAtrasadas.length} parcela{parcelasAtrasadas.length===1?"":"s"}</Badge>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><span style={{fontSize:12,color:MUTED,fontWeight:700}}>Total atrasado</span><strong style={{fontSize:20,color:parcelasAtrasadas.length?RED:GRN}}>{fmtR(totalParcelasAtrasadas)}</strong></div>
+                    {parcelasAtrasadas.length===0?<div style={{padding:12,borderRadius:8,background:GRN+"08",color:GRN,fontSize:12,fontWeight:700}}>Nenhuma parcela em atraso.</div>:<div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:260,overflowY:"auto"}}>{parcelasAtrasadas.map(p=>(
+                      <div key={p.ID_PARCELA||`${p.ID_CLIENTE}-${p.NUM_PARCELA}-atraso`} style={{padding:10,borderRadius:9,background:BG,border:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
+                        <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)} · {p.DIAS_ATRASO} dia{p.DIAS_ATRASO===1?"":"s"}</div></div>
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}><div style={{fontSize:13,fontWeight:800,color:RED}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</div><button onClick={()=>setPagamentoHoje(p)} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${GRN}35`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>Registrar pagamento</button></div>
                       </div>
                     ))}</div>}
                   </div>
