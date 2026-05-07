@@ -1232,9 +1232,31 @@ function App() {
             </div>
           )}
 
-          {/* FINANCEIRO */}
+                    {/* FINANCEIRO */}
           {tab==="financeiro"&&(
             <div style={{display:"flex",flexDirection:"column",gap:20}}>
+
+              {/* FILTRO DE PERÍODO — TOPO */}
+              <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:TEXT}}>Período</div>
+                  <div style={{fontSize:11,color:MUTED,marginTop:2}}>{finDe?labelPeriodo:"Todos os pagamentos"}</div>
+                </div>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  {finDe&&<button onClick={()=>{setFinDe(null);setFinAte(null);}} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,fontSize:12,cursor:"pointer",fontWeight:600}}>✕ Limpar</button>}
+                  <div style={{position:"relative"}}>
+                    <button onClick={()=>setFinCalOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${finDe?BLU:BD}`,background:finDe?"#EFF6FF":CARD,color:finDe?BLU:MUTED,fontSize:12,fontWeight:finDe?700:400,cursor:"pointer"}}>
+                      {IcoCal} {finDe?labelPeriodo:"Filtrar por período"}
+                    </button>
+                    {finCalOpen&&(
+                      <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,zIndex:200}} onClick={e=>e.stopPropagation()}>
+                        <CalendarioRange de={finDe} ate={finAte} onSelecionar={(d,a)=>{setFinDe(d);setFinAte(a);}} onLimpar={()=>{setFinDe(null);setFinAte(null);setFinCalOpen(false);}}/>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
                 {[
                   {icon:"💵",label:"Receita Total",      val:fmtR(M.receitaTotal),  c:BLU},
@@ -1264,24 +1286,9 @@ function App() {
                 </ResponsiveContainer>
               </div>
               <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
-                <div style={{padding:"14px 18px",borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
-                  <div>
-                    <h3 style={{margin:0,fontSize:15,fontWeight:700}}>{finDe?"Pagamentos do Período":"Últimos Pagamentos"}</h3>
-                    <p style={{margin:"3px 0 0",fontSize:11,color:MUTED}}>{finDe?`${totaisFin.count} pagamento(s) — ${labelPeriodo}`:`${(pagamentos||[]).length} pagamentos no total`}</p>
-                  </div>
-                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                    {finDe&&<button onClick={()=>{setFinDe(null);setFinAte(null);}} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,fontSize:12,cursor:"pointer",fontWeight:600}}>✕ Limpar</button>}
-                    <div style={{position:"relative"}}>
-                      <button onClick={()=>setFinCalOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${finDe?BLU:BD}`,background:finDe?"#EFF6FF":CARD,color:finDe?BLU:MUTED,fontSize:12,fontWeight:finDe?700:400,cursor:"pointer"}}>
-                        {IcoCal} {finDe?labelPeriodo:"Filtrar por período"}
-                      </button>
-                      {finCalOpen&&(
-                        <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,zIndex:200}} onClick={e=>e.stopPropagation()}>
-                          <CalendarioRange de={finDe} ate={finAte} onSelecionar={(d,a)=>{setFinDe(d);setFinAte(a);}} onLimpar={()=>{setFinDe(null);setFinAte(null);setFinCalOpen(false);}}/>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                <div style={{padding:"14px 18px",borderBottom:`1px solid ${BD}`}}>
+                  <h3 style={{margin:0,fontSize:15,fontWeight:700}}>{finDe?"Pagamentos do Período":"Últimos Pagamentos"}</h3>
+                  <p style={{margin:"3px 0 0",fontSize:11,color:MUTED}}>{finDe?`${totaisFin.count} pagamento(s) — ${labelPeriodo}`:`${(pagamentos||[]).length} pagamentos no total`}</p>
                 </div>
                 {finDe&&(
                   <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:0,borderBottom:`1px solid ${BD}`}}>
