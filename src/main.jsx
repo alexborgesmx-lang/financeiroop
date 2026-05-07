@@ -300,12 +300,13 @@ function ClienteModal({cliente,onFechar}){
   );
 }
 
-function PagamentoDrop({contratos,parcelas,onSucesso}){
+function PagamentoDrop({contratos,parcelas,onSucesso,onSelecionarParcela}){
   const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);const [cliente,setCliente]=useState(null);const [parcela,setParcela]=useState(null);const [tipo,setTipo]=useState(null);const [data,setData]=useState(hojeStr());const [valor,setValor]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const ref=useRef();
   useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
   const clis=useMemo(()=>{if(busca.length<2)return[];const ids=new Set();return (contratos||[]).filter(c=>{const m=(c.NOME_CLIENTE||"").toLowerCase().includes(busca.toLowerCase())||String(c.ID_CLIENTE||"").toLowerCase().includes(busca.toLowerCase());if(m&&!ids.has(c.ID_CLIENTE)){ids.add(c.ID_CLIENTE);return true;}return false;}).slice(0,6);},[busca,contratos]);
   const pars=useMemo(()=>cliente?(parcelas||[]).filter(p=>String(p.ID_CLIENTE)===String(cliente.ID_CLIENTE)&&p.STATUS==="pendente").sort((a,b)=>toNum(a.DATA_VENCIMENTO)-toNum(b.DATA_VENCIMENTO)):[],[cliente,parcelas]);
   const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||"Sucesso!"});setTimeout(onSucesso,1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
+  const selecionarParcela=p=>{if(!p)return;if(onSelecionarParcela){setParcela(null);setTipo(null);setValor("");onSelecionarParcela(p);return;}setParcela(p);setTipo("total");setValor(p.VALOR_PARCELA);};
   return(
     <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}><div style={{background:GRN+"15",color:GRN,padding:8,borderRadius:8}}>{IcoPag}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Registrar Pagamento</h3></div>
@@ -315,7 +316,7 @@ function PagamentoDrop({contratos,parcelas,onSucesso}){
           <div style={{position:"relative"}}><div style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)"}}>{IcoSrch}</div><input value={cliente?cliente.NOME_CLIENTE:busca} onChange={e=>{setBusca(e.target.value);setCliente(null);setParcela(null);setShowDrop(true);}} onFocus={()=>setShowDrop(true)} placeholder="Nome ou ID..." style={{...IS,paddingLeft:32}}/>{cliente&&<button onClick={()=>{setCliente(null);setBusca("");}} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:MUTED,fontSize:16}}>×</button>}</div>
           {showDrop&&clis.length>0&&<div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BD}`,borderRadius:8,marginTop:4,zIndex:100,boxShadow:"0 10px 30px rgba(0,0,0,0.1)"}}>{clis.map(c=><div key={c.ID_CLIENTE} onClick={()=>{setCliente(c);setShowDrop(false);}} style={{padding:"10px 14px",cursor:"pointer",fontSize:13,borderBottom:`1px solid ${BG}`}} onMouseEnter={e=>e.currentTarget.style.background=BG} onMouseLeave={e=>e.currentTarget.style.background=CARD}><strong>{c.ID_CLIENTE}</strong> - {c.NOME_CLIENTE}</div>)}</div>}
         </div>
-        {cliente&&<div><span style={LS}>Parcela</span>{pars.length>0?<select value={parcela?.ID_PARCELA||""} onChange={e=>{const p=pars.find(x=>x.ID_PARCELA===e.target.value);setParcela(p);setValor(p.VALOR_PARCELA);}} style={IS}><option value="">Selecione...</option>{pars.map(p=><option key={p.ID_PARCELA} value={p.ID_PARCELA}>Parc {p.NUM_PARCELA} ({fmtDt(p.DATA_VENCIMENTO)}) - {fmtR(p.VALOR_PARCELA)}</option>)}</select>:<div style={{padding:8,background:RED+"08",color:RED,fontSize:12,borderRadius:6}}>Nenhuma parcela pendente.</div>}</div>}
+        {cliente&&<div><span style={LS}>Parcela</span>{pars.length>0?<select value={onSelecionarParcela?"":(parcela?.ID_PARCELA||"")} onChange={e=>{const p=pars.find(x=>String(x.ID_PARCELA)===String(e.target.value));selecionarParcela(p);}} style={IS}><option value="">Selecione...</option>{pars.map(p=><option key={p.ID_PARCELA} value={p.ID_PARCELA}>Parc {p.NUM_PARCELA} ({fmtDt(p.DATA_VENCIMENTO)}) - {fmtR(p.VALOR_PARCELA)}</option>)}</select>:<div style={{padding:8,background:RED+"08",color:RED,fontSize:12,borderRadius:6}}>Nenhuma parcela pendente.</div>}</div>}
         {parcela&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <div><span style={LS}>Tipo</span><select value={tipo||""} onChange={e=>setTipo(e.target.value)} style={IS}><option value="">Selecione...</option><option value="total">Total</option><option value="parcial">Somente Juros</option></select></div>
           <div><span style={LS}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} style={IS}/></div>
@@ -646,7 +647,7 @@ function App() {
                       </div>
                     ))}</div>}
                   </div>
-                  <PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} onSucesso={carregar}/>
+                  <PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} onSucesso={carregar} onSelecionarParcela={setPagamentoHoje}/>
                   <NovoContrato contratos={contratos||[]} onSucesso={carregar}/>
               </div>
             </div>
