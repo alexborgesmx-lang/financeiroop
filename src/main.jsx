@@ -936,9 +936,9 @@ function ContratoModal({ contrato, parcelas, pagamentos, onRegistrarPagamento, o
         <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",borderBottom:`1px solid ${BD}`,background:CARD}}>
           {[
             {l:"Principal",      v:fmtR(contrato.VALOR_PRINCIPAL),  c:TEXT},
-            {l:"Total c/ Juros", v:fmtR(contrato.VALOR_TOTAL),      c:TEXT},
+            {l:"Total c/ Juros", v:fmtR(contrato.VALOR_TOTAL||contrato.VALOR_TOTAL_FINAL),      c:TEXT},
             {l:"Parcelas",       v:`${contrato.NUM_PARCELAS}x ${fmtR(contrato.VALOR_PARCELA)}`, c:TEXT},
-            {l:"Taxa Mensal",    v:`${(parseFloat(contrato.TAXA_JUROS_MENSAL||0)*100).toFixed(1)}%`, c:BLU},
+            {l:"Taxa Mensal",    v:`${(parseFloat(contrato.TAXA_JUROS_MENSAL||contrato["TAXA_MENSAL_%"]||0)*100).toFixed(1)}%`, c:BLU},
             {l:"Total Recebido", v:fmtR(totalPago),                  c:totalPago>0?GRN:MUTED},
           ].map((k,i)=>(
             <div key={k.l} style={{padding:"12px 16px",borderRight:i<4?`1px solid ${BD}`:"none"}}>
