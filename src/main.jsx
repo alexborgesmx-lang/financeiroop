@@ -904,7 +904,9 @@ function ContratoModal({ contrato, parcelas, pagamentos, onRegistrarPagamento, o
     .filter(p => String(p.ID_CONTRATO) === String(contrato.ID_CONTRATO))
     .sort((a,b) => toNum(b.DATA_PAGAMENTO) - toNum(a.DATA_PAGAMENTO));
 
-  const totalPago    = pags.reduce((s,p) => s + parseFloat(p.VALOR_PAGO||0), 0);
+  const totalPagoParcelas = ps.filter(p=>["pago","quitacao_antecipada"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase())).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+  const totalPagoPagamentos = pags.reduce((s,p) => s + parseFloat(p.VALOR_PAGO||0), 0);
+  const totalPago = totalPagoParcelas > totalPagoPagamentos ? totalPagoParcelas : totalPagoPagamentos;
   const pendentes    = ps.filter(p => !["pago","baixado_como_prejuizo","cancelado"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase()));
   const pct          = parseFloat(contrato.VALOR_PRINCIPAL||0) > 0
     ? (totalPago / parseFloat(contrato.VALOR_TOTAL||contrato.VALOR_PRINCIPAL||1)) * 100 : 0;
