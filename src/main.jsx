@@ -774,8 +774,8 @@ function RecuperacaoModal({contrato,onConfirmar,onFechar}){
   );
 }
 
-function ClienteModal({cliente,onFechar,onAtualizar}){
-  const [t,setT]=useState("perfil");
+function ClienteModal({cliente,onFechar,onAtualizar,abaInicial}){
+  const [t,setT]=useState(abaInicial||"perfil");
   const [edit,setEdit]=useState({
     NOME:         cliente.NOME||cliente.NOME_CLIENTE||"",
     TELEFONE_WPP: cliente.TELEFONE_WPP||cliente.TELEFONE||"",
@@ -813,17 +813,35 @@ function ClienteModal({cliente,onFechar,onAtualizar}){
     setSaving(false);
   };
 
-  const Campo=({label:lb,field,tipo="text",opts})=>(
-    <div>
-      <span style={LS}>{lb}</span>
-      {opts
-        ?<select value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} style={IS}>
-            {opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
-          </select>
-        :<input type={tipo} value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} style={IS}/>
-      }
-    </div>
-  );
+  const validar=(field,val)=>{
+    const v=String(val||"").trim();
+    if(!v)return null;
+    if(field==="NOME"){if(/\d/.test(v))return "Nome não deve conter números";}
+    if(field==="CPF"){const d=v.replace(/\D/g,"");if(d.length!==11)return "CPF deve ter 11 dígitos";if(/\D/.test(v))return "CPF deve conter apenas números";}
+    if(field==="RG"){if(/[^0-9xX\s\-]/.test(v))return "RG com caracteres inválidos";}
+    if(field==="CEP"){const d=v.replace(/\D/g,"");if(d.length!==8)return "CEP deve ter 8 dígitos";if(/[.\-\/]/.test(v))return "CEP deve conter apenas números";}
+    if(field==="TELEFONE_WPP"){const d=v.replace(/\D/g,"");if(d.length<10||d.length>11)return "Telefone deve ter 10 ou 11 dígitos";}
+    if(field==="EMAIL"){if(v&&!v.includes("@"))return "Email inválido";}
+    return null;
+  };
+  const erros=Object.fromEntries(Object.entries(edit).map(([k,v])=>[k,validar(k,v)]).filter(([,e])=>e));
+  const temErros=Object.keys(erros).length>0;
+
+  const Campo=({label:lb,field,tipo="text",opts})=>{
+    const erro=erros[field];
+    return(
+      <div>
+        <span style={LS}>{lb}</span>
+        {opts
+          ?<select value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} style={IS}>
+              {opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+            </select>
+          :<input type={tipo} value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} style={{...IS,border:`1px solid ${erro?RED:BD}`,background:erro?RED+"06":CARD}}/>
+        }
+        {erro&&<div style={{fontSize:10,color:RED,fontWeight:600,marginTop:3}}>⚠ {erro}</div>}
+      </div>
+    );
+  };
 
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -1232,6 +1250,7 @@ function App() {
   const [dashPeriodo, setDashPeriodo] = useState(()=>mesAtualRange());
   const [novaPromessa, setNovaPromessa] = useState(false);
   const [filtroPromessa, setFiltroPromessa] = useState("todos");
+  const [selCliAba, setSelCliAba] = useState("perfil");
 
   const carregar=()=>{setLoading(true);fetch(API_URL).then(r=>r.json()).then(d=>{setRaw(d);setLoading(false);}).catch(()=>setLoading(false));};
   useEffect(()=>{carregar();},[]);
@@ -1402,6 +1421,14 @@ function App() {
   function dStrFin(d){return d?d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}):""}
   const labelPeriodo=finDe&&finAte?`${dStrFin(finDe)} → ${dStrFin(finAte)}`:finDe?`A partir de ${dStrFin(finDe)}`:"Selecionar período";
 
+  const aguardando=useMemo(()=>(clientes||[]).filter(c=>c.STATUS_CLIENTE==="aguardando_conferencia"),[clientes]);
+
+  const abrirConferencia=(c)=>{
+    setSelCliAba("editar");
+    setSelCli(c);
+    setTab("clientes");
+  };
+
   const Nav=({id,label,ico})=>(
     <div onClick={()=>setTab(id)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderRadius:10,cursor:"pointer",background:tab===id?BLU:"transparent",color:tab===id?"#FFF":MUTED,marginBottom:4}} onMouseEnter={e=>tab!==id&&(e.currentTarget.style.background=BG)} onMouseLeave={e=>tab!==id&&(e.currentTarget.style.background="transparent")}>
       {ico}<span style={{fontSize:14,fontWeight:600}}>{label}</span>
@@ -1460,6 +1487,41 @@ function App() {
           {/* DASHBOARD */}
           {tab==="dashboard"&&(
             <div style={{display:"flex",flexDirection:"column",gap:24}}>
+
+              {/* AVISO: clientes aguardando conferência */}
+              {aguardando.length>0&&(
+                <div style={{background:YEL+"0E",border:`1.5px solid ${YEL}50`,borderRadius:12,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{background:YEL+"20",color:YEL,padding:8,borderRadius:8,fontSize:18}}>⏳</div>
+                    <div>
+                      <div style={{fontWeight:800,fontSize:14,color:TEXT}}>
+                        {aguardando.length} cliente{aguardando.length>1?"s":""} aguardando conferência
+                      </div>
+                      <div style={{fontSize:12,color:MUTED,marginTop:2}}>
+                        Cadastro recebido via formulário — revisar e aprovar os dados
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {aguardando.slice(0,3).map(c=>(
+                      <button key={c.ID_CLIENTE} onClick={()=>abrirConferencia(c)}
+                        style={{padding:"7px 13px",borderRadius:8,border:`1px solid ${YEL}50`,background:YEL+"15",color:TEXT,cursor:"pointer",fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{width:22,height:22,background:YEL,borderRadius:6,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:800,flexShrink:0}}>
+                          {(c.NOME||c.NOME_CLIENTE||"?")[0].toUpperCase()}
+                        </span>
+                        {c.NOME||c.NOME_CLIENTE||"Sem nome"}
+                      </button>
+                    ))}
+                    {aguardando.length>3&&(
+                      <button onClick={()=>setTab("clientes")}
+                        style={{padding:"7px 13px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontSize:12,fontWeight:600}}>
+                        +{aguardando.length-3} mais →
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:16,flexWrap:"wrap"}}>
                 <div>
                   <div style={{fontSize:12,color:MUTED,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em"}}>Período do Dashboard</div>
@@ -1550,7 +1612,7 @@ function App() {
                     <td style={{padding:"13px 18px"}}><div style={{fontWeight:700}}>{nomeCliente(c)}</div><div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"} · Score {scoreCliente(c)}</div></td>
                     <td><Badge c={c.STATUS_CLIENTE==="ativo"?GRN:YEL}>{(c.STATUS_CLIENTE||"").toUpperCase()}</Badge></td>
                     <td style={{color:MUTED}}>{telCliente(c)}</td>
-                    <td style={{padding:"13px 18px",textAlign:"right"}}><button onClick={()=>setSelCli(c)} style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,fontWeight:600}}>Detalhes</button></td>
+                    <td style={{padding:"13px 18px",textAlign:"right"}}><button onClick={()=>{setSelCliAba("perfil");setSelCli(c);}} style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,fontWeight:600}}>Detalhes</button></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -1939,7 +2001,7 @@ function App() {
 
       {/* ── MODAIS ── */}
       {novaPromessa&&<NovaPromessaModal contratos={contratos||[]} clientes={clientes||[]} onConfirmar={()=>{setNovaPromessa(false);carregar();}} onFechar={()=>setNovaPromessa(false)}/>}
-      {selCli&&<ClienteModal cliente={selCli} onFechar={()=>setSelCli(null)} onAtualizar={()=>{setSelCli(null);carregar();}}/>}
+      {selCli&&<ClienteModal cliente={selCli} abaInicial={selCliAba} onFechar={()=>{setSelCli(null);setSelCliAba("perfil");}} onAtualizar={()=>{setSelCli(null);setSelCliAba("perfil");carregar();}}/>}
       {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} onConfirmar={()=>{setPagamentoHoje(null);carregar();}} onFechar={()=>setPagamentoHoje(null)}/>}
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {acordoModal&&<ModalAcordoPerda contrato={acordoModal} parcelas={parcelas||[]} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
