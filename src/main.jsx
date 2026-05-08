@@ -781,6 +781,7 @@ function CampoEdit({label,field,tipo,opts,edit,setEdit,erros}){
       <span style={LS}>{label}</span>
       {opts
         ?<select value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} style={IS}>
+            {edit[field]&&!opts.some(o=>o.v===edit[field])&&<option value={edit[field]}>{edit[field]} ⚠ (valor original — normalizar)</option>}
             {opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
           </select>
         :<input type={tipo||"text"} value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} style={{...IS,border:`1px solid ${erro?RED:BD}`,background:erro?RED+"06":CARD}}/>
