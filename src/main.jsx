@@ -754,7 +754,7 @@ function RecuperacaoModal({contrato,onConfirmar,onFechar}){
   const [valor,setValor]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);
   const confirmar=async()=>{
     if(!valor)return;setLoading(true);setMsg(null);
-    const res=await postAction({action:"recuperacaoAposBaixa",idContrato:contrato.ID_CONTRATO,dados:{valor:parseFloat(valor),data:hojeStr()}});
+    const res=await postAction({action:"recuperacaoAposBaixa",idContrato:contrato.ID_CONTRATO,dados:{valorPago:parseFloat(valor),data:hojeStr()}});
     if(res.ok)onConfirmar();else setMsg(res.erro||"Erro.");setLoading(false);
   };
   return(
@@ -940,7 +940,7 @@ function ContratoModal({ contrato, parcelas, pagamentos, onRegistrarPagamento, o
             {l:"Principal",      v:fmtR(contrato.VALOR_PRINCIPAL),  c:TEXT},
             {l:"Total c/ Juros", v:fmtR(contrato.VALOR_TOTAL||contrato.VALOR_TOTAL_FINAL),      c:TEXT},
             {l:"Parcelas",       v:`${contrato.NUM_PARCELAS}x ${fmtR(contrato.VALOR_PARCELA)}`, c:TEXT},
-            {l:"Taxa Mensal",    v:`${(parseFloat(contrato.TAXA_JUROS_MENSAL||contrato["TAXA_MENSAL_%"]||0)*100).toFixed(1)}%`, c:BLU},
+            {l:"Taxa Mensal",    v:`${(parseFloat(contrato.TAXA_JUROS_MENSAL||0)*100).toFixed(1)}%`, c:BLU},
             {l:"Total Recebido", v:fmtR(totalPago),                  c:totalPago>0?GRN:MUTED},
           ].map((k,i)=>(
             <div key={k.l} style={{padding:"12px 16px",borderRight:i<4?`1px solid ${BD}`:"none"}}>
