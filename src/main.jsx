@@ -1867,8 +1867,9 @@ function App() {
                       <th>Data Prevista</th>
                       <th>Registrada em</th>
                       <th>Valor</th>
-                      <th style={{padding:"10px 18px"}}>Status</th>
+                      <th>Status</th>
                       <th>Observação</th>
+                      <th style={{padding:"10px 18px"}}></th>
                     </tr></thead>
                     <tbody>{promessasFiltradas.map((p,i)=>{
                       const st=String(p.STATUS_PROMESSA||"PENDENTE").toUpperCase();
@@ -1876,6 +1877,7 @@ function App() {
                       const hoje=new Date();hoje.setHours(0,0,0,0);
                       const dtPrev=parseDate(p.DATA_PREVISTA_PAGAMENTO);
                       const vencida=st==="PENDENTE"&&dtPrev&&dtPrev<hoje;
+                      const pendente=st==="PENDENTE";
                       return(
                         <tr key={p.ID_PROMESSA||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:vencida?RED+"05":i%2===0?CARD:"#FAFAFA"}}>
                           <td style={{padding:"12px 18px"}}><div style={{fontWeight:700}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED}}>ID {p.ID_CLIENTE}</div></td>
@@ -1883,8 +1885,28 @@ function App() {
                           <td style={{fontWeight:600,color:vencida?RED:TEXT}}>{fmtDt(dtPrev)}{vencida&&<span style={{fontSize:10,color:RED,marginLeft:6,fontWeight:700}}>VENCIDA</span>}</td>
                           <td style={{color:MUTED}}>{fmtDt(parseDate(p.DATA_PROMESSA))}</td>
                           <td style={{fontWeight:700,color:BLU}}>{fmtR(parseFloat(p.VALOR_PROMETIDO||0))}</td>
-                          <td style={{padding:"12px 18px"}}><Badge c={stCor}>{st}</Badge></td>
+                          <td><Badge c={stCor}>{st}</Badge></td>
                           <td style={{color:MUTED,fontSize:12}}>{p.OBSERVACAO||"—"}</td>
+                          <td style={{padding:"12px 18px"}}>
+                            {pendente&&(
+                              <div style={{display:"flex",gap:6}}>
+                                <button
+                                  onClick={async()=>{
+                                    const res=await postAction({action:"atualizarPromessa",idPromessa:p.ID_PROMESSA,status:"CUMPRIDA",dataCumprimento:hojeStr()});
+                                    if(res.ok)carregar();else alert(res.erro||"Erro");
+                                  }}
+                                  style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${GRN}40`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}
+                                >✓ Cumprida</button>
+                                <button
+                                  onClick={async()=>{
+                                    const res=await postAction({action:"atualizarPromessa",idPromessa:p.ID_PROMESSA,status:"QUEBRADA",dataCumprimento:hojeStr()});
+                                    if(res.ok)carregar();else alert(res.erro||"Erro");
+                                  }}
+                                  style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${RED}40`,background:RED+"10",color:RED,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}
+                                >✗ Quebrada</button>
+                              </div>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}</tbody>
