@@ -791,6 +791,17 @@ function CampoEdit({label,field,tipo,opts,edit,setEdit,erros}){
   );
 }
 
+function normEstadoCivil(v){
+  if(!v)return"";
+  const s=String(v).toLowerCase().replace(/\s+/g,"");
+  if(s.includes("casad"))return"Casado(a)";
+  if(s.includes("solteir"))return"Solteiro(a)";
+  if(s.includes("divorciad"))return"Divorciado(a)";
+  if(s.includes("viuv")||s.includes("viúv"))return"Viúvo(a)";
+  if(s.includes("uniao")||s.includes("união"))return"União Estável";
+  return v;
+}
+
 function ClienteModal({cliente,onFechar,onAtualizar,abaInicial}){
   const [t,setT]=useState(abaInicial||"perfil");
   const [edit,setEdit]=useState({
@@ -800,7 +811,7 @@ function ClienteModal({cliente,onFechar,onAtualizar,abaInicial}){
     CPF:          cliente.CPF||"",
     RG:           cliente.RG||"",
     PROFISSAO:    cliente.PROFISSAO||"",
-    ESTADO_CIVIL: cliente.ESTADO_CIVIL||"",
+    ESTADO_CIVIL: normEstadoCivil(cliente.ESTADO_CIVIL||""),
     NACIONALIDADE:cliente.NACIONALIDADE||"",
     SCORE:        cliente.SCORE||"",
     STATUS_CLIENTE:cliente.STATUS_CLIENTE||"ativo",
