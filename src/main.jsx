@@ -774,13 +774,57 @@ function RecuperacaoModal({contrato,onConfirmar,onFechar}){
   );
 }
 
-function ClienteModal({cliente,onFechar}){
+function ClienteModal({cliente,onFechar,onAtualizar}){
   const [t,setT]=useState("perfil");
+  const [edit,setEdit]=useState({
+    NOME:         cliente.NOME||cliente.NOME_CLIENTE||"",
+    TELEFONE_WPP: cliente.TELEFONE_WPP||cliente.TELEFONE||"",
+    EMAIL:        cliente.EMAIL||"",
+    CPF:          cliente.CPF||"",
+    RG:           cliente.RG||"",
+    PROFISSAO:    cliente.PROFISSAO||"",
+    ESTADO_CIVIL: cliente.ESTADO_CIVIL||"",
+    NACIONALIDADE:cliente.NACIONALIDADE||"",
+    SCORE:        cliente.SCORE||"",
+    STATUS_CLIENTE:cliente.STATUS_CLIENTE||"ativo",
+    DIA_VENCIMENTO_PREFERIDO:cliente.DIA_VENCIMENTO_PREFERIDO||"",
+    CONTATO_CONFIANCA_1: cliente.CONTATO_CONFIANCA_1||"",
+    TEL_CONFIANCA_1:     cliente.TEL_CONFIANCA_1||"",
+    CONTATO_CONFIANCA_2: cliente.CONTATO_CONFIANCA_2||"",
+    TEL_CONFIANCA_2:     cliente.TEL_CONFIANCA_2||"",
+    PADRINHO:     cliente.PADRINHO||"",
+    TEL_PADRINHO: cliente.TEL_PADRINHO||"",
+    OBSERVACOES:  cliente.OBSERVACOES||"",
+  });
+  const [saving,setSaving]=useState(false);
+  const [saveMsg,setSaveMsg]=useState(null);
+
   const nome=cliente.NOME_CLIENTE||cliente.NOME||cliente.CLIENTE||"Cliente sem nome";
   const tel=cliente.TELEFONE||cliente.TELEFONE_WPP||cliente.WHATSAPP||"—";
-  const score=cliente.SCORE||cliente.SCORE_CLIENTE||cliente.SCORE_SERASA||cliente.SCORING||cliente.SPC_SCORE||cliente.SERASA_SCORE||"Não informado";
+  const score=cliente.SCORE||cliente.SCORE_CLIENTE||cliente.SCORE_SERASA||"Não informado";
   const label=k=>String(k).replaceAll("_"," ").toLowerCase().replace(/\b\w/g,m=>m.toUpperCase());
   const campos=Object.entries(cliente||{}).filter(([_,v])=>v!==null&&v!==undefined&&String(v).trim()!=="");
+
+  const salvar=async()=>{
+    setSaving(true);setSaveMsg(null);
+    const res=await postAction({action:"atualizarCliente",idCliente:cliente.ID_CLIENTE,campos:edit});
+    if(res.ok){setSaveMsg({ok:true,t:"Dados atualizados com sucesso!"});if(onAtualizar)setTimeout(onAtualizar,1200);}
+    else setSaveMsg({ok:false,t:res.erro||"Erro ao salvar."});
+    setSaving(false);
+  };
+
+  const Campo=({label:lb,field,tipo="text",opts})=>(
+    <div>
+      <span style={LS}>{lb}</span>
+      {opts
+        ?<select value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} style={IS}>
+            {opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+          </select>
+        :<input type={tipo} value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} style={IS}/>
+      }
+    </div>
+  );
+
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:BG,borderRadius:16,width:"100%",maxWidth:980,height:"86vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 30px 90px rgba(0,0,0,0.3)"}}>
@@ -789,10 +833,10 @@ function ClienteModal({cliente,onFechar}){
           <button onClick={onFechar} style={{background:BG,border:"none",width:32,height:32,borderRadius:8,cursor:"pointer"}}>×</button>
         </div>
         <div style={{display:"flex",background:CARD,padding:"0 20px",borderBottom:`1px solid ${BD}`,gap:20}}>
-          {["perfil","todos os dados"].map(tab=><button key={tab} onClick={()=>setT(tab)} style={{padding:"14px 4px",background:"none",border:"none",borderBottom:t===tab?`2px solid ${BLU}`:"2px solid transparent",color:t===tab?BLU:MUTED,fontWeight:600,cursor:"pointer",fontSize:13,textTransform:"capitalize"}}>{tab}</button>)}
+          {["perfil","editar","todos os dados"].map(tab=><button key={tab} onClick={()=>{setT(tab);setSaveMsg(null);}} style={{padding:"14px 4px",background:"none",border:"none",borderBottom:t===tab?`2px solid ${BLU}`:"2px solid transparent",color:t===tab?BLU:MUTED,fontWeight:600,cursor:"pointer",fontSize:13,textTransform:"capitalize"}}>{tab}</button>)}
         </div>
         <div style={{flex:1,overflowY:"auto",padding:20}}>
-          {t==="perfil"?(
+          {t==="perfil"&&(
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16}}>
               {[
                 {l:"Nome",v:nome},{l:"Score",v:score},{l:"CPF",v:cliente.CPF},{l:"RG",v:cliente.RG},{l:"Telefone/WhatsApp",v:tel},{l:"Email",v:cliente.EMAIL},
@@ -803,7 +847,48 @@ function ClienteModal({cliente,onFechar}){
                 {l:"Vencimento preferido",v:cliente.DIA_VENCIMENTO_PREFERIDO},{l:"Cadastro",v:fmtDt(cliente.DATA_CADASTRO)},{l:"Observações",v:cliente.OBSERVACOES}
               ].map(i=><div key={i.l} style={{background:CARD,padding:15,borderRadius:10,border:`1px solid ${BD}`,gridColumn:i.l==="Endereço"||i.l==="Observações"?"1/-1":"auto"}}><span style={LS}>{i.l}</span><div style={{fontSize:13,fontWeight:600,wordBreak:"break-word"}}>{i.v||"—"}</div></div>)}
             </div>
-          ):(
+          )}
+          {t==="editar"&&(
+            <div style={{display:"flex",flexDirection:"column",gap:20,maxWidth:720}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                <Campo label="Nome completo" field="NOME"/>
+                <Campo label="Telefone/WhatsApp" field="TELEFONE_WPP"/>
+                <Campo label="Email" field="EMAIL" tipo="email"/>
+                <Campo label="CPF" field="CPF"/>
+                <Campo label="RG" field="RG"/>
+                <Campo label="Profissão" field="PROFISSAO"/>
+                <Campo label="Estado Civil" field="ESTADO_CIVIL" opts={[{v:"",l:"—"},{v:"Solteiro(a)",l:"Solteiro(a)"},{v:"Casado(a)",l:"Casado(a)"},{v:"Divorciado(a)",l:"Divorciado(a)"},{v:"Viúvo(a)",l:"Viúvo(a)"},{v:"União Estável",l:"União Estável"}]}/>
+                <Campo label="Nacionalidade" field="NACIONALIDADE"/>
+                <Campo label="Score" field="SCORE"/>
+                <Campo label="Status" field="STATUS_CLIENTE" opts={[{v:"ativo",l:"Ativo"},{v:"inativo",l:"Inativo"},{v:"aguardando_conferencia",l:"Aguardando Conferência"},{v:"bloqueado",l:"Bloqueado"}]}/>
+                <Campo label="Dia vencimento preferido" field="DIA_VENCIMENTO_PREFERIDO"/>
+              </div>
+              <div style={{borderTop:`1px solid ${BD}`,paddingTop:16}}>
+                <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:12}}>Contatos de Confiança</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                  <Campo label="Contato confiança 1" field="CONTATO_CONFIANCA_1"/>
+                  <Campo label="Telefone confiança 1" field="TEL_CONFIANCA_1"/>
+                  <Campo label="Contato confiança 2" field="CONTATO_CONFIANCA_2"/>
+                  <Campo label="Telefone confiança 2" field="TEL_CONFIANCA_2"/>
+                  <Campo label="Padrinho" field="PADRINHO"/>
+                  <Campo label="Tel. Padrinho" field="TEL_PADRINHO"/>
+                </div>
+              </div>
+              <div>
+                <span style={LS}>Observações</span>
+                <textarea value={edit.OBSERVACOES} onChange={e=>setEdit(p=>({...p,OBSERVACOES:e.target.value}))} style={{...IS,height:80,resize:"none"}}/>
+              </div>
+              {saveMsg&&(
+                <div style={{padding:"10px 14px",borderRadius:8,background:saveMsg.ok?GRN+"10":RED+"10",color:saveMsg.ok?GRN:RED,fontSize:13,fontWeight:700,border:`1px solid ${saveMsg.ok?GRN:RED}25`}}>
+                  {saveMsg.ok?"✓ ":"⚠ "}{saveMsg.t}
+                </div>
+              )}
+              <button onClick={salvar} disabled={saving} style={{padding:"13px",borderRadius:9,border:"none",background:BLU,color:"#FFF",fontWeight:800,cursor:"pointer",fontSize:14,opacity:saving?0.6:1}}>
+                {saving?"Salvando...":"💾 Salvar Alterações"}
+              </button>
+            </div>
+          )}
+          {t==="todos os dados"&&(
             <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>{campos.map(([k,v])=><div key={k} style={{background:CARD,padding:13,borderRadius:10,border:`1px solid ${BD}`}}><span style={LS}>{label(k)}</span><div style={{fontSize:13,fontWeight:600,wordBreak:"break-word"}}>{String(v)}</div></div>)}</div>
           )}
         </div>
@@ -1024,6 +1109,100 @@ function ContratoModal({ contrato, parcelas, pagamentos, onRegistrarPagamento, o
   );
 }
 
+const IcoProm = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>;
+
+function NovaPromessaModal({contratos,clientes,onConfirmar,onFechar}){
+  const [busca,setBusca]=useState("");
+  const [showDrop,setShowDrop]=useState(false);
+  const [cliente,setCliente]=useState(null);
+  const [contratoId,setContratoId]=useState("");
+  const [dataPrevista,setDataPrevista]=useState(hojeStr());
+  const [valorPrometido,setValorPrometido]=useState("");
+  const [observacao,setObservacao]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [msg,setMsg]=useState(null);
+  const ref=useRef();
+
+  useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
+
+  const clis=useMemo(()=>{
+    if(busca.length<2)return[];
+    const ids=new Set();
+    return (clientes||[]).filter(c=>{
+      const m=(c.NOME||c.NOME_CLIENTE||"").toLowerCase().includes(busca.toLowerCase())||String(c.ID_CLIENTE||"").includes(busca);
+      if(m&&!ids.has(c.ID_CLIENTE)){ids.add(c.ID_CLIENTE);return true;}return false;
+    }).slice(0,6);
+  },[busca,clientes]);
+
+  const contratosCliente=useMemo(()=>
+    cliente?(contratos||[]).filter(c=>String(c.ID_CLIENTE)===String(cliente.ID_CLIENTE)&&!["quitado","cancelado","baixado_como_prejuizo"].includes(c.STATUS_CONTRATO)):[]
+  ,[cliente,contratos]);
+
+  useEffect(()=>{if(contratosCliente.length===1)setContratoId(contratosCliente[0].ID_CONTRATO);},[contratosCliente]);
+
+  const confirmar=async()=>{
+    if(!cliente||!contratoId||!dataPrevista||!valorPrometido)return;
+    setLoading(true);setMsg(null);
+    const ctr=contratos.find(c=>String(c.ID_CONTRATO)===String(contratoId));
+    const res=await postAction({action:"registrarPromessa",dados:{
+      idContrato:contratoId,
+      idCliente:cliente.ID_CLIENTE,
+      nomeCliente:cliente.NOME||cliente.NOME_CLIENTE||"",
+      dataPrevista:apiDateStr(dataPrevista),
+      valorPrometido:parseFloat(valorPrometido),
+      observacao
+    }});
+    if(res.ok){setMsg({ok:true,t:"Promessa registrada!"});setTimeout(onConfirmar,1200);}
+    else setMsg({ok:false,t:res.erro||"Erro."});
+    setLoading(false);
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onFechar}>
+      <div onClick={e=>e.stopPropagation()} style={{background:BG,borderRadius:16,width:"100%",maxWidth:500,boxShadow:"0 30px 80px rgba(0,0,0,0.3)",overflow:"hidden"}}>
+        <div style={{background:CARD,padding:"18px 22px",borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:16,fontWeight:800}}>📋 Nova Promessa de Pagamento</div>
+          <button onClick={onFechar} style={{background:BG,border:`1px solid ${BD}`,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:18,color:MUTED}}>×</button>
+        </div>
+        <div style={{padding:22,display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{position:"relative"}} ref={ref}>
+            <span style={LS}>Buscar Cliente</span>
+            <div style={{position:"relative"}}>
+              <div style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)"}}>{IcoSrch}</div>
+              <input value={cliente?`${cliente.ID_CLIENTE} - ${cliente.NOME||cliente.NOME_CLIENTE}`:busca} onChange={e=>{setBusca(e.target.value);setCliente(null);setContratoId("");setShowDrop(true);}} onFocus={()=>setShowDrop(true)} placeholder="Nome ou ID..." style={{...IS,paddingLeft:32}}/>
+              {cliente&&<button onClick={()=>{setCliente(null);setBusca("");setContratoId("");}} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:MUTED,fontSize:16}}>×</button>}
+            </div>
+            {showDrop&&clis.length>0&&<div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BD}`,borderRadius:8,marginTop:4,zIndex:100,boxShadow:"0 10px 30px rgba(0,0,0,0.1)"}}>
+              {clis.map(c=><div key={c.ID_CLIENTE} onClick={()=>{setCliente(c);setShowDrop(false);}} style={{padding:"10px 14px",cursor:"pointer",fontSize:13,borderBottom:`1px solid ${BG}`}} onMouseEnter={e=>e.currentTarget.style.background=BG} onMouseLeave={e=>e.currentTarget.style.background=CARD}><strong>{c.ID_CLIENTE}</strong> — {c.NOME||c.NOME_CLIENTE}</div>)}
+            </div>}
+          </div>
+          {cliente&&(
+            <div>
+              <span style={LS}>Contrato</span>
+              <select value={contratoId} onChange={e=>setContratoId(e.target.value)} style={IS}>
+                <option value="">Selecione...</option>
+                {contratosCliente.map(c=><option key={c.ID_CONTRATO} value={c.ID_CONTRATO}>{c.ID_CONTRATO} — {fmtR(c.VALOR_PRINCIPAL)} — {c.NUM_PARCELAS}x — {c.STATUS_CONTRATO}</option>)}
+              </select>
+            </div>
+          )}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div><span style={LS}>Data Prevista</span><input type="date" value={dataPrevista} onChange={e=>setDataPrevista(e.target.value)} style={IS}/></div>
+            <div><span style={LS}>Valor Prometido (R$)</span><input type="number" value={valorPrometido} onChange={e=>setValorPrometido(e.target.value)} placeholder="0.00" style={IS}/></div>
+          </div>
+          <div><span style={LS}>Observação</span><input value={observacao} onChange={e=>setObservacao(e.target.value)} placeholder="Opcional" style={IS}/></div>
+          {msg&&<div style={{padding:"10px 14px",borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:13,fontWeight:700,border:`1px solid ${msg.ok?GRN:RED}25`}}>{msg.ok?"✓ ":"⚠ "}{msg.t}</div>}
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={onFechar} style={{flex:1,padding:12,borderRadius:8,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontWeight:600,color:MUTED}}>Cancelar</button>
+            <button onClick={confirmar} disabled={loading||!cliente||!contratoId||!dataPrevista||!valorPrometido} style={{flex:2,padding:12,borderRadius:8,border:"none",background:BLU,color:"#FFF",fontWeight:800,cursor:"pointer",fontSize:13,opacity:loading||!cliente||!contratoId||!dataPrevista||!valorPrometido?0.6:1}}>
+              {loading?"Registrando...":"✓ Registrar Promessa"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── APP ─────────────────────────────────────────────────────────
 function App() {
   const [raw, setRaw] = useState(null);
@@ -1051,6 +1230,8 @@ function App() {
   const [dashCalOpen, setDashCalOpen] = useState(false);
   const [pagamentoHoje, setPagamentoHoje] = useState(null);
   const [dashPeriodo, setDashPeriodo] = useState(()=>mesAtualRange());
+  const [novaPromessa, setNovaPromessa] = useState(false);
+  const [filtroPromessa, setFiltroPromessa] = useState("todos");
 
   const carregar=()=>{setLoading(true);fetch(API_URL).then(r=>r.json()).then(d=>{setRaw(d);setLoading(false);}).catch(()=>setLoading(false));};
   useEffect(()=>{carregar();},[]);
@@ -1059,6 +1240,17 @@ function App() {
   const contratos = useMemo(()=>raw?.CONTRATOS || raw?.contratos || [], [raw]);
   const parcelas  = useMemo(()=>raw?.PARCELAS  || raw?.parcelas  || [], [raw]);
   const pagamentos= useMemo(()=>raw?.PAGAMENTOS|| raw?.pagamentos|| [], [raw]);
+  const promessas = useMemo(()=>raw?.PROMESSAS || [], [raw]);
+  const acordos   = useMemo(()=>raw?.ACORDOS   || [], [raw]);
+
+  const promessasFiltradas = useMemo(()=>{
+    const lista=[...promessas].sort((a,b)=>{
+      const da=parseDate(a.DATA_PREVISTA_PAGAMENTO),db=parseDate(b.DATA_PREVISTA_PAGAMENTO);
+      return (da||new Date(0))-(db||new Date(0));
+    });
+    if(filtroPromessa==="todos")return lista;
+    return lista.filter(p=>String(p.STATUS_PROMESSA||"").toUpperCase()===filtroPromessa);
+  },[promessas,filtroPromessa]);
   const nomeCliente=c=>c?.NOME_CLIENTE||c?.NOME||c?.CLIENTE||c?.NOME_COMPLETO||"Cliente sem nome";
   const telCliente=c=>c?.TELEFONE||c?.TELEFONE_WPP||c?.WHATSAPP||"—";
   const scoreCliente=c=>c?.SCORE||c?.SCORE_CLIENTE||c?.SCORE_SERASA||c?.SCORING||c?.SPC_SCORE||c?.SERASA_SCORE||"—";
@@ -1242,6 +1434,7 @@ function App() {
           <Nav id="cobranca"   label="Cobrança"         ico={IcoCob}/>
           <Nav id="financeiro" label="Financeiro"       ico={IcoFin}/>
           <Nav id="perdas"     label="Perdas & Recup."  ico={IcoLoss}/>
+          <Nav id="promessas"  label="Promessas"        ico={IcoProm}/>
           <Nav id="simulador"  label="Simulador"        ico={IcoSim}/>
         </div>
         <div style={{padding:16,borderTop:`1px solid ${BD}`}}>
@@ -1607,6 +1800,97 @@ function App() {
                   ))}</tbody>
                 </table>
               </div>
+              {acordos.length>0&&(
+                <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
+                  <div style={{padding:"14px 18px",borderBottom:`1px solid ${BD}`,background:"#F0FDFA"}}>
+                    <h3 style={{margin:0,fontSize:15,fontWeight:700,color:"#0891B2"}}>🤝 Acordos Registrados ({acordos.length})</h3>
+                  </div>
+                  <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
+                    <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}>
+                      <th style={{padding:"10px 18px"}}>Acordo</th>
+                      <th>Cliente</th>
+                      <th>Data</th>
+                      <th>Dívida Original</th>
+                      <th>Valor Acordado</th>
+                      <th>Desconto Capital</th>
+                      <th style={{padding:"10px 18px"}}>Juros Cancelados</th>
+                    </tr></thead>
+                    <tbody>{[...acordos].sort((a,b)=>toNum(b.DATA)-toNum(a.DATA)).map((a,i)=>(
+                      <tr key={a.ID_ACORDO||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:"#FAFAFA"}}>
+                        <td style={{padding:"12px 18px"}}><div style={{fontWeight:700}}>{a.ID_ACORDO}</div><div style={{fontSize:11,color:MUTED}}>{a.ID_CONTRATO}</div></td>
+                        <td style={{fontWeight:600}}>{a.NOME_CLIENTE}</td>
+                        <td style={{color:MUTED}}>{fmtDt(parseDate(a.DATA))}</td>
+                        <td style={{color:MUTED}}>{fmtR(parseFloat(a.VALOR_DIVIDA_ORIGINAL||0))}</td>
+                        <td style={{fontWeight:700,color:"#0891B2"}}>{fmtR(parseFloat(a.VALOR_ACORDADO||0))}</td>
+                        <td style={{color:RED,fontWeight:600}}>{fmtR(parseFloat(a.DESCONTO_PRINCIPAL||0))}</td>
+                        <td style={{padding:"12px 18px",color:ORG,fontWeight:600}}>{fmtR(parseFloat(a.DESCONTO_JUROS||0))}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* PROMESSAS */}
+          {tab==="promessas"&&(
+            <div style={{display:"flex",flexDirection:"column",gap:20}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+                {[
+                  {l:"Pendentes",v:promessas.filter(p=>p.STATUS_PROMESSA==="PENDENTE").length,c:YEL},
+                  {l:"Cumpridas",v:promessas.filter(p=>p.STATUS_PROMESSA==="CUMPRIDA").length,c:GRN},
+                  {l:"Quebradas",v:promessas.filter(p=>p.STATUS_PROMESSA==="QUEBRADA").length,c:RED},
+                ].map(k=>(
+                  <div key={k.l} style={{background:CARD,padding:18,borderRadius:12,border:`1px solid ${BD}`}}>
+                    <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:4}}>{k.l}</div>
+                    <div style={{fontSize:26,fontWeight:900,color:k.c}}>{k.v}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
+                <div style={{padding:16,borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+                  <div style={{display:"flex",gap:8}}>
+                    {["todos","PENDENTE","CUMPRIDA","QUEBRADA"].map(f=>(
+                      <button key={f} onClick={()=>setFiltroPromessa(f)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${filtroPromessa===f?BLU:BD}`,background:filtroPromessa===f?BLU+"10":CARD,color:filtroPromessa===f?BLU:MUTED,cursor:"pointer",fontSize:12,fontWeight:600}}>
+                        {f==="todos"?"Todos":f==="PENDENTE"?"Pendentes":f==="CUMPRIDA"?"Cumpridas":"Quebradas"}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={()=>setNovaPromessa(true)} style={{padding:"8px 16px",borderRadius:8,border:"none",background:BLU,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Nova Promessa</button>
+                </div>
+                {promessasFiltradas.length===0
+                  ?<div style={{padding:"32px 18px",textAlign:"center",color:MUTED,fontSize:13}}>Nenhuma promessa encontrada.</div>
+                  :<table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
+                    <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}>
+                      <th style={{padding:"10px 18px"}}>Cliente</th>
+                      <th>Contrato</th>
+                      <th>Data Prevista</th>
+                      <th>Registrada em</th>
+                      <th>Valor</th>
+                      <th style={{padding:"10px 18px"}}>Status</th>
+                      <th>Observação</th>
+                    </tr></thead>
+                    <tbody>{promessasFiltradas.map((p,i)=>{
+                      const st=String(p.STATUS_PROMESSA||"PENDENTE").toUpperCase();
+                      const stCor={PENDENTE:YEL,CUMPRIDA:GRN,QUEBRADA:RED}[st]||MUTED;
+                      const hoje=new Date();hoje.setHours(0,0,0,0);
+                      const dtPrev=parseDate(p.DATA_PREVISTA_PAGAMENTO);
+                      const vencida=st==="PENDENTE"&&dtPrev&&dtPrev<hoje;
+                      return(
+                        <tr key={p.ID_PROMESSA||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:vencida?RED+"05":i%2===0?CARD:"#FAFAFA"}}>
+                          <td style={{padding:"12px 18px"}}><div style={{fontWeight:700}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED}}>ID {p.ID_CLIENTE}</div></td>
+                          <td style={{color:MUTED,fontWeight:600}}>{p.ID_CONTRATO}</td>
+                          <td style={{fontWeight:600,color:vencida?RED:TEXT}}>{fmtDt(dtPrev)}{vencida&&<span style={{fontSize:10,color:RED,marginLeft:6,fontWeight:700}}>VENCIDA</span>}</td>
+                          <td style={{color:MUTED}}>{fmtDt(parseDate(p.DATA_PROMESSA))}</td>
+                          <td style={{fontWeight:700,color:BLU}}>{fmtR(parseFloat(p.VALOR_PROMETIDO||0))}</td>
+                          <td style={{padding:"12px 18px"}}><Badge c={stCor}>{st}</Badge></td>
+                          <td style={{color:MUTED,fontSize:12}}>{p.OBSERVACAO||"—"}</td>
+                        </tr>
+                      );
+                    })}</tbody>
+                  </table>
+                }
+              </div>
             </div>
           )}
 
@@ -1632,7 +1916,8 @@ function App() {
       </div>
 
       {/* ── MODAIS ── */}
-      {selCli&&<ClienteModal cliente={selCli} onFechar={()=>setSelCli(null)}/>}
+      {novaPromessa&&<NovaPromessaModal contratos={contratos||[]} clientes={clientes||[]} onConfirmar={()=>{setNovaPromessa(false);carregar();}} onFechar={()=>setNovaPromessa(false)}/>}
+      {selCli&&<ClienteModal cliente={selCli} onFechar={()=>setSelCli(null)} onAtualizar={()=>{setSelCli(null);carregar();}}/>}
       {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} onConfirmar={()=>{setPagamentoHoje(null);carregar();}} onFechar={()=>setPagamentoHoje(null)}/>}
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {acordoModal&&<ModalAcordoPerda contrato={acordoModal} parcelas={parcelas||[]} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
