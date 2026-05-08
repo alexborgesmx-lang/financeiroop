@@ -835,7 +835,7 @@ function ClienteModal({cliente,onFechar,onAtualizar,abaInicial}){
 
   const salvar=async()=>{
     setSaving(true);setSaveMsg(null);
-    const res=await postAction({action:"atualizarCliente",idCliente:cliente.ID_CLIENTE,campos:edit});
+    const res=await postAction({action:"atualizarCliente",idCliente:cliente.ID_CLIENTE,campos:{...edit,STATUS_CLIENTE:"ativo"}});
     if(res.ok){setSaveMsg({ok:true,t:"Dados atualizados com sucesso!"});if(onAtualizar)setTimeout(onAtualizar,1200);}
     else setSaveMsg({ok:false,t:res.erro||"Erro ao salvar."});
     setSaving(false);
