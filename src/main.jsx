@@ -774,6 +774,22 @@ function RecuperacaoModal({contrato,onConfirmar,onFechar}){
   );
 }
 
+function CampoEdit({label,field,tipo,opts,edit,setEdit,erros}){
+  const erro=erros[field];
+  return(
+    <div>
+      <span style={LS}>{label}</span>
+      {opts
+        ?<select value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} style={IS}>
+            {opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+          </select>
+        :<input type={tipo||"text"} value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} style={{...IS,border:`1px solid ${erro?RED:BD}`,background:erro?RED+"06":CARD}}/>
+      }
+      {erro&&<div style={{fontSize:10,color:RED,fontWeight:600,marginTop:3}}>⚠ {erro}</div>}
+    </div>
+  );
+}
+
 function ClienteModal({cliente,onFechar,onAtualizar,abaInicial}){
   const [t,setT]=useState(abaInicial||"perfil");
   const [edit,setEdit]=useState({
@@ -827,22 +843,6 @@ function ClienteModal({cliente,onFechar,onAtualizar,abaInicial}){
   const erros=Object.fromEntries(Object.entries(edit).map(([k,v])=>[k,validar(k,v)]).filter(([,e])=>e));
   const temErros=Object.keys(erros).length>0;
 
-  const Campo=({label:lb,field,tipo="text",opts})=>{
-    const erro=erros[field];
-    return(
-      <div>
-        <span style={LS}>{lb}</span>
-        {opts
-          ?<select value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} style={IS}>
-              {opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
-            </select>
-          :<input type={tipo} value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} style={{...IS,border:`1px solid ${erro?RED:BD}`,background:erro?RED+"06":CARD}}/>
-        }
-        {erro&&<div style={{fontSize:10,color:RED,fontWeight:600,marginTop:3}}>⚠ {erro}</div>}
-      </div>
-    );
-  };
-
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:BG,borderRadius:16,width:"100%",maxWidth:980,height:"86vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 30px 90px rgba(0,0,0,0.3)"}}>
@@ -869,27 +869,27 @@ function ClienteModal({cliente,onFechar,onAtualizar,abaInicial}){
           {t==="editar"&&(
             <div style={{display:"flex",flexDirection:"column",gap:20,maxWidth:720}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                <Campo label="Nome completo" field="NOME"/>
-                <Campo label="Telefone/WhatsApp" field="TELEFONE_WPP"/>
-                <Campo label="Email" field="EMAIL" tipo="email"/>
-                <Campo label="CPF" field="CPF"/>
-                <Campo label="RG" field="RG"/>
-                <Campo label="Profissão" field="PROFISSAO"/>
-                <Campo label="Estado Civil" field="ESTADO_CIVIL" opts={[{v:"",l:"—"},{v:"Solteiro(a)",l:"Solteiro(a)"},{v:"Casado(a)",l:"Casado(a)"},{v:"Divorciado(a)",l:"Divorciado(a)"},{v:"Viúvo(a)",l:"Viúvo(a)"},{v:"União Estável",l:"União Estável"}]}/>
-                <Campo label="Nacionalidade" field="NACIONALIDADE"/>
-                <Campo label="Score" field="SCORE"/>
-                <Campo label="Status" field="STATUS_CLIENTE" opts={[{v:"ativo",l:"Ativo"},{v:"inativo",l:"Inativo"},{v:"aguardando_conferencia",l:"Aguardando Conferência"},{v:"bloqueado",l:"Bloqueado"}]}/>
-                <Campo label="Dia vencimento preferido" field="DIA_VENCIMENTO_PREFERIDO"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Nome completo" field="NOME"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Telefone/WhatsApp" field="TELEFONE_WPP"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Email" field="EMAIL" tipo="email"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="CPF" field="CPF"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="RG" field="RG"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Profissão" field="PROFISSAO"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Estado Civil" field="ESTADO_CIVIL" opts={[{v:"",l:"—"},{v:"Solteiro(a)",l:"Solteiro(a)"},{v:"Casado(a)",l:"Casado(a)"},{v:"Divorciado(a)",l:"Divorciado(a)"},{v:"Viúvo(a)",l:"Viúvo(a)"},{v:"União Estável",l:"União Estável"}]}/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Nacionalidade" field="NACIONALIDADE"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Score" field="SCORE"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Status" field="STATUS_CLIENTE" opts={[{v:"ativo",l:"Ativo"},{v:"inativo",l:"Inativo"},{v:"aguardando_conferencia",l:"Aguardando Conferência"},{v:"bloqueado",l:"Bloqueado"}]}/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Dia vencimento preferido" field="DIA_VENCIMENTO_PREFERIDO"/>
               </div>
               <div style={{borderTop:`1px solid ${BD}`,paddingTop:16}}>
                 <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:12}}>Contatos de Confiança</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                  <Campo label="Contato confiança 1" field="CONTATO_CONFIANCA_1"/>
-                  <Campo label="Telefone confiança 1" field="TEL_CONFIANCA_1"/>
-                  <Campo label="Contato confiança 2" field="CONTATO_CONFIANCA_2"/>
-                  <Campo label="Telefone confiança 2" field="TEL_CONFIANCA_2"/>
-                  <Campo label="Padrinho" field="PADRINHO"/>
-                  <Campo label="Tel. Padrinho" field="TEL_PADRINHO"/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Contato confiança 1" field="CONTATO_CONFIANCA_1"/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Telefone confiança 1" field="TEL_CONFIANCA_1"/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Contato confiança 2" field="CONTATO_CONFIANCA_2"/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Telefone confiança 2" field="TEL_CONFIANCA_2"/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Padrinho" field="PADRINHO"/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Tel. Padrinho" field="TEL_PADRINHO"/>
                 </div>
               </div>
               <div>
