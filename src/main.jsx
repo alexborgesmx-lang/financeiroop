@@ -1336,6 +1336,11 @@ function App() {
     const taxaInad=vAtivos>0?(vAtrasoTotal/vAtivos*100):0;
     const receitaTotal=(pagamentosPeriodo||[]).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
     const receitaExtra=(pagamentosPeriodo||[]).reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0);
+    const lucro=(pagamentosPeriodo||[]).reduce((s,pag)=>{
+      const parc=(parcelas||[]).find(p=>String(p.ID_PARCELA)===String(pag.ID_PARCELA));
+      const jurosBase=parc?parseFloat(parc.VALOR_JUROS||0):0;
+      return s+jurosBase+parseFloat(pag.RECEITA_EXTRA_ATRASO||0);
+    },0);
     const qtyProrrogadas=(parcelasPeriodo||[]).filter(p=>p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros").length;
     const pagNormais=(pagamentosPeriodo||[]).filter(p=>p.TIPO_PAGAMENTO==="pagamento_normal").length;
     const pagAtraso=(pagamentosPeriodo||[]).filter(p=>p.TIPO_PAGAMENTO==="pagamento_com_atraso").length;
@@ -1344,7 +1349,7 @@ function App() {
     const totalRecebidoGeral=(pagamentos||[]).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
     const principalLiberadoGeral=(contratos||[]).reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
     const caixaAtual=totalRecebidoGeral-principalLiberadoGeral;
-    return{vAtivos,vAtrasoTotal,taxaInad,lucroTotal:receitaExtra,receitaTotal,receitaExtra,qtyProrrogadas,pagNormais,pagAtraso,pagJuros,totalCobrancas:(parcelasPeriodo||[]).length,parcelasPagas:parcelasPagas.length,parcelasPendentes:parcelasAbertas.length,vPendente,contratosAtivos:ativos.length,caixaAtual,pagamentosPeriodo:pagamentosPeriodo.length};
+    return{vAtivos,vAtrasoTotal,taxaInad,lucroTotal:receitaExtra,receitaTotal,receitaExtra,lucro,qtyProrrogadas,pagNormais,pagAtraso,pagJuros,totalCobrancas:(parcelasPeriodo||[]).length,parcelasPagas:parcelasPagas.length,parcelasPendentes:parcelasAbertas.length,vPendente,contratosAtivos:ativos.length,caixaAtual,pagamentosPeriodo:pagamentosPeriodo.length};
   },[contratos,parcelas,pagamentos,periodoDash]);
 
   const parcelasHoje=useMemo(()=>{
@@ -1770,6 +1775,15 @@ function App() {
                     )}
                   </div>
                 </div>
+              </div>
+
+              <div style={{background:"linear-gradient(135deg,#16a34a 0%,#15803d 100%)",borderRadius:14,padding:"20px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
+                <div>
+                  <p style={{color:"rgba(255,255,255,0.75)",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.6px",margin:"0 0 6px"}}>Lucro do Período</p>
+                  <p style={{color:"#fff",fontSize:28,fontWeight:800,margin:0,letterSpacing:"-0.5px"}}>{fmtR(M.lucro)}</p>
+                  <p style={{color:"rgba(255,255,255,0.65)",fontSize:11,margin:"5px 0 0"}}>Juros recebidos + receita extra por atraso</p>
+                </div>
+                <div style={{fontSize:40,opacity:0.5}}>📈</div>
               </div>
 
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
