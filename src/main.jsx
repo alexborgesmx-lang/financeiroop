@@ -1435,6 +1435,29 @@ function App() {
     count:pagsFiltrados.length,
   }),[pagsFiltrados]);
 
+  const finKpis=useMemo(()=>{
+    const pags=pagsFiltrados;
+    const ini=finDe?new Date(finDe):null;if(ini)ini.setHours(0,0,0,0);
+    const fim=finAte?new Date(finAte):(finDe?new Date(finDe):null);if(fim)fim.setHours(23,59,59,999);
+    const inPeriod=(p)=>{
+      const d=parseDate(p.DATA_VENCIMENTO);if(!d)return false;d.setHours(12,0,0,0);
+      if(!ini||!fim)return true;
+      return d>=ini&&d<=fim;
+    };
+    const parcsP=finDe?(parcelas||[]).filter(p=>inPeriod(p)):(parcelas||[]);
+    const receitaTotal=pags.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+    const receitaExtra=pags.reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0);
+    const lucro=pags.reduce((s,pag)=>{
+      const parc=(parcelas||[]).find(p=>String(p.ID_PARCELA)===String(pag.ID_PARCELA));
+      return s+(parc?parseFloat(parc.VALOR_JUROS||0):0)+parseFloat(pag.RECEITA_EXTRA_ATRASO||0);
+    },0);
+    const qtyProrrogadas=parcsP.filter(p=>p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros").length;
+    const pagNormais=pags.filter(p=>p.TIPO_PAGAMENTO==="pagamento_normal").length;
+    const pagAtraso=pags.filter(p=>p.TIPO_PAGAMENTO==="pagamento_com_atraso").length;
+    const pagJuros=pags.filter(p=>p.TIPO_PAGAMENTO==="somente_juros").length;
+    return{receitaTotal,receitaExtra,lucro,qtyProrrogadas,pagNormais,pagAtraso,pagJuros};
+  },[pagsFiltrados,parcelas,finDe,finAte]);
+
   function dStrFin(d){return d?d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}):""}
   const labelPeriodo=finDe&&finAte?`${dStrFin(finDe)} → ${dStrFin(finAte)}`:finDe?`A partir de ${dStrFin(finDe)}`:"Selecionar período";
 
@@ -1780,7 +1803,7 @@ function App() {
               <div style={{background:"linear-gradient(135deg,#16a34a 0%,#15803d 100%)",borderRadius:14,padding:"20px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
                 <div>
                   <p style={{color:"rgba(255,255,255,0.75)",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.6px",margin:"0 0 6px"}}>Lucro do Período</p>
-                  <p style={{color:"#fff",fontSize:28,fontWeight:800,margin:0,letterSpacing:"-0.5px"}}>{fmtR(M.lucro)}</p>
+                  <p style={{color:"#fff",fontSize:28,fontWeight:800,margin:0,letterSpacing:"-0.5px"}}>{fmtR(finKpis.lucro)}</p>
                   <p style={{color:"rgba(255,255,255,0.65)",fontSize:11,margin:"5px 0 0"}}>Juros recebidos + receita extra por atraso</p>
                 </div>
                 <div style={{fontSize:40,opacity:0.5}}>📈</div>
@@ -1788,12 +1811,12 @@ function App() {
 
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
                 {[
-                  {icon:"💵",label:"Receita Total",      val:fmtR(M.receitaTotal),  c:BLU},
-                  {icon:"⏰",label:"Receita Extra Atraso",val:fmtR(M.receitaExtra), c:ORG},
-                  {icon:"🔄",label:"Parcelas Prorrogadas",val:M.qtyProrrogadas,     c:PUR},
-                  {icon:"✅",label:"Pagamentos Normais",  val:M.pagNormais,          c:GRN},
-                  {icon:"⚠️",label:"Com Atraso",          val:M.pagAtraso,           c:YEL},
-                  {icon:"💸",label:"Somente Juros",       val:M.pagJuros,            c:RED},
+                  {icon:"💵",label:"Receita Total",      val:fmtR(finKpis.receitaTotal),  c:BLU},
+                  {icon:"⏰",label:"Receita Extra Atraso",val:fmtR(finKpis.receitaExtra), c:ORG},
+                  {icon:"🔄",label:"Parcelas Prorrogadas",val:finKpis.qtyProrrogadas,     c:PUR},
+                  {icon:"✅",label:"Pagamentos Normais",  val:finKpis.pagNormais,          c:GRN},
+                  {icon:"⚠️",label:"Com Atraso",          val:finKpis.pagAtraso,           c:YEL},
+                  {icon:"💸",label:"Somente Juros",       val:finKpis.pagJuros,            c:RED},
                 ].map(k=>(
                   <div key={k.label} style={{background:CARD,borderRadius:12,padding:18,border:`1px solid ${BD}`}}>
                     <p style={{color:MUTED,fontSize:11,margin:"0 0 6px"}}>{k.icon} {k.label}</p>
