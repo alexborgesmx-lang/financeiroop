@@ -1338,7 +1338,7 @@ function App() {
     const receitaExtra=(pagamentosPeriodo||[]).reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0);
     const lucro=(pagamentosPeriodo||[]).reduce((s,pag)=>{
       const parc=(parcelas||[]).find(p=>String(p.ID_PARCELA)===String(pag.ID_PARCELA));
-      const jurosBase=parc?parseFloat(parc.VALOR_JUROS||0):0;
+      const jurosBase=parc?parseFloat(parc.VALOR_JUROS||0)-parseFloat(parc.DESCONTO_APLICADO||0):0;
       return s+jurosBase+parseFloat(pag.RECEITA_EXTRA_ATRASO||0);
     },0);
     const qtyProrrogadas=(parcelasPeriodo||[]).filter(p=>p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros").length;
@@ -1449,7 +1449,8 @@ function App() {
     const receitaExtra=pags.reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0);
     const lucro=pags.reduce((s,pag)=>{
       const parc=(parcelas||[]).find(p=>String(p.ID_PARCELA)===String(pag.ID_PARCELA));
-      return s+(parc?parseFloat(parc.VALOR_JUROS||0):0)+parseFloat(pag.RECEITA_EXTRA_ATRASO||0);
+      const jurosEfetivos=parc?parseFloat(parc.VALOR_JUROS||0)-parseFloat(parc.DESCONTO_APLICADO||0):0;
+      return s+jurosEfetivos+parseFloat(pag.RECEITA_EXTRA_ATRASO||0);
     },0);
     const qtyProrrogadas=parcsP.filter(p=>p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros").length;
     const pagNormais=pags.filter(p=>p.TIPO_PAGAMENTO==="pagamento_normal").length;
