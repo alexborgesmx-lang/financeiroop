@@ -934,8 +934,8 @@ function PagamentoDrop({contratos,parcelas,onSucesso,onSelecionarParcela}){
   useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
   const clis=useMemo(()=>{if(busca.length<2)return[];const ids=new Set();return (contratos||[]).filter(c=>{const m=(c.NOME_CLIENTE||"").toLowerCase().includes(busca.toLowerCase())||String(c.ID_CLIENTE||"").toLowerCase().includes(busca.toLowerCase());if(m&&!ids.has(c.ID_CLIENTE)){ids.add(c.ID_CLIENTE);return true;}return false;}).slice(0,6);},[busca,contratos]);
   const pars=useMemo(()=>cliente?(parcelas||[]).filter(p=>String(p.ID_CLIENTE)===String(cliente.ID_CLIENTE)&&["pendente","atrasado","vence_hoje"].includes(p.STATUS)).sort((a,b)=>toNum(a.DATA_VENCIMENTO)-toNum(b.DATA_VENCIMENTO)):[],[cliente,parcelas]);
-  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||"Sucesso!"});setTimeout(onSucesso,1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
-  const selecionarParcela=p=>{if(!p)return;if(onSelecionarParcela){setParcela(null);setTipo(null);setValor("");onSelecionarParcela(p);return;}setParcela(p);setTipo("total");setValor(p.VALOR_PARCELA);};
+  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||(res.contratoQuitado?"✓ Contrato QUITADO!":"Sucesso!")});setTimeout(()=>onSucesso(res,parcela),1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
+  const selecionarParcela=p=>{if(!p)return;if(onSelecionarParcela){setParcela(null);setTipo(null);setValor("");onSelecionarParcela(p);return;}setParcela(p);setTipo("total");setValor(parseFloat(p.VALOR_PARCELA||0).toFixed(2));};
   return(
     <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}><div style={{background:GRN+"15",color:GRN,padding:8,borderRadius:8}}>{IcoPag}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Registrar Pagamento</h3></div>
@@ -947,7 +947,7 @@ function PagamentoDrop({contratos,parcelas,onSucesso,onSelecionarParcela}){
         </div>
         {cliente&&<div><span style={LS}>Parcela</span>{pars.length>0?<select value={onSelecionarParcela?"":(parcela?.ID_PARCELA||"")} onChange={e=>{const p=pars.find(x=>String(x.ID_PARCELA)===String(e.target.value));selecionarParcela(p);}} style={IS}><option value="">Selecione...</option>{pars.map(p=><option key={p.ID_PARCELA} value={p.ID_PARCELA}>Parc {p.NUM_PARCELA} ({fmtDt(p.DATA_VENCIMENTO)}) - {fmtR(p.VALOR_PARCELA)}</option>)}</select>:<div style={{padding:8,background:RED+"08",color:RED,fontSize:12,borderRadius:6}}>Nenhuma parcela pendente.</div>}</div>}
         {parcela&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <div><span style={LS}>Tipo</span><select value={tipo||""} onChange={e=>setTipo(e.target.value)} style={IS}><option value="">Selecione...</option><option value="total">Total</option><option value="parcial">Somente Juros</option></select></div>
+          <div><span style={LS}>Tipo</span><select value={tipo||""} onChange={e=>{const t=e.target.value;setTipo(t);if(t==="total")setValor(parseFloat(parcela?.VALOR_PARCELA||0).toFixed(2));else if(t==="parcial")setValor(parseFloat(parcela?.VALOR_JUROS||0).toFixed(2));}} style={IS}><option value="">Selecione...</option><option value="total">Total</option><option value="parcial">Somente Juros</option></select></div>
           <div><span style={LS}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} style={IS}/></div>
           <div style={{gridColumn:"1/-1"}}><span style={LS}>Data</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS}/></div>
           <button onClick={registrar} disabled={loading||!tipo} style={{gridColumn:"1/-1",padding:"11px",borderRadius:8,border:"none",background:GRN,color:"#FFF",fontWeight:700,cursor:"pointer",opacity:loading||!tipo?0.6:1}}>{loading?"Processando...":"Confirmar"}</button>
@@ -1776,7 +1776,7 @@ function App() {
                     </div>
                   ))}</div>}
                 </div>
-                <PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} onSucesso={carregar} onSelecionarParcela={setPagamentoHoje}/>
+                <PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} onSucesso={async(res,parc)=>{await carregar();if(res?.contratoQuitado&&parc?.ID_CONTRATO)setComprovantePrompt({idContrato:parc.ID_CONTRATO,idCliente:parc.ID_CLIENTE});}} onSelecionarParcela={setPagamentoHoje}/>
                 <NovoContrato contratos={contratos||[]} onSucesso={carregar}/>
               </div>
             </div>
