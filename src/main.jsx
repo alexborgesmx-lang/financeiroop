@@ -1276,11 +1276,12 @@ function gerarComprovante(contrato, parcelasContrato, cliente) {
 <title>Comprovante de Quitação - ${contrato.ID_CONTRATO}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Arial,sans-serif;font-size:13px;color:#222;padding:40px;max-width:800px;margin:0 auto}
-h1{font-size:28px;font-weight:900;color:#2563EB;margin-bottom:4px}
+body{font-family:Arial,sans-serif;font-size:13px;color:#222;max-width:800px;margin:0 auto}
+.content{padding:28px 40px 40px}
+h1{font-size:26px;font-weight:900;color:#1D4ED8;margin-bottom:4px}
 .sub{color:#555;font-size:13px;margin-bottom:28px;line-height:1.8}
-.box-info{border:1px solid #E5E7EB;border-left:4px solid #2563EB;border-radius:6px;padding:16px 20px;margin-bottom:20px}
-.box-info h3{color:#2563EB;font-size:12px;font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+.box-info{border:1px solid #E5E7EB;border-left:4px solid #1D4ED8;border-radius:6px;padding:16px 20px;margin-bottom:20px}
+.box-info h3{color:#1D4ED8;font-size:12px;font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
 .box-info p{margin-bottom:4px}
 .box-info label{font-weight:700}
 .box-total{border:1px solid #86EFAC;border-left:4px solid #16A34A;border-radius:6px;padding:16px 20px;margin-bottom:24px;background:#F0FDF4}
@@ -1292,11 +1293,35 @@ th{padding:10px 14px;text-align:left;font-size:12px;font-weight:700;color:#37415
 th:last-child{text-align:right}
 td{padding:14px;border-bottom:1px solid #F3F4F6;vertical-align:middle}
 .saldo td{font-weight:700;border-top:2px solid #E5E7EB;background:#FAFAFA}
-.assin{margin-top:60px;text-align:center;border-top:1px solid #999;padding-top:12px;width:320px;margin-left:auto;margin-right:auto}
+.assin{margin-top:50px;text-align:center;border-top:1px solid #999;padding-top:12px;width:320px;margin-left:auto;margin-right:auto;margin-bottom:40px}
 .assin p{font-size:13px;font-weight:600}
 .assin .cpf{font-size:12px;color:#555}
-@media print{body{padding:20px}}
+.topo{background:#111;padding:18px 28px;display:flex;align-items:center;justify-content:space-between}
+.topo-txt .marca{color:#fff;font-size:26px;font-weight:900;letter-spacing:-.5px}
+.topo-txt .slogan{color:#C9A227;font-size:10px;font-weight:700;letter-spacing:3.5px;text-transform:uppercase;margin-top:2px}
+.logo{position:relative;width:68px;height:56px}
+.lb{position:absolute;background:#C9A227;border-radius:2px;transform:skewX(-10deg)}
+.rodape-contato{padding:14px 28px 12px;display:flex;flex-direction:column;gap:6px}
+.rodape-contato .linha{display:flex;align-items:center;gap:10px;font-size:12px;color:#222}
+.ico-circle{width:22px;height:22px;border-radius:50%;background:#C9A227;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;color:#000}
+.rodape-bar{background:#111;height:14px}
+@media print{body{margin:0}@page{margin:0}}
 </style></head><body>
+
+<div class="topo">
+  <div class="topo-txt">
+    <div class="marca">Borges</div>
+    <div class="slogan">Assessoria Financeira</div>
+  </div>
+  <div class="logo">
+    <div class="lb" style="top:0;left:0;width:29px;height:22px"></div>
+    <div class="lb" style="top:0;left:35px;width:22px;height:22px"></div>
+    <div class="lb" style="top:28px;left:5px;width:22px;height:22px"></div>
+    <div class="lb" style="top:28px;left:38px;width:29px;height:22px"></div>
+  </div>
+</div>
+
+<div class="content">
 <h1>Comprovante de Quitação</h1>
 <div class="sub">
   <div>Gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
@@ -1325,6 +1350,14 @@ td{padding:14px;border-bottom:1px solid #F3F4F6;vertical-align:middle}
   </tbody>
 </table>
 <div class="assin"><p>${nome}</p><p class="cpf">${cpf}</p></div>
+</div>
+
+<div class="rodape-contato">
+  <div class="linha"><div class="ico-circle">📞</div><span>(62) 98487-7843</span></div>
+  <div class="linha"><div class="ico-circle">✉</div><span>borgesassessoriafinanceira@gmail.com</span></div>
+</div>
+<div class="rodape-bar"></div>
+
 <script>window.onload=function(){window.print();}</script>
 </body></html>`;
 
