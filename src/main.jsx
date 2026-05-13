@@ -1275,7 +1275,7 @@ function gerarComprovante(contrato, parcelasContrato, cliente) {
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>Comprovante de Quitação - ${contrato.ID_CONTRATO}</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 body{font-family:Arial,sans-serif;font-size:13px;color:#222;max-width:800px;margin:0 auto}
 .content{padding:28px 40px 40px}
 h1{font-size:26px;font-weight:900;color:#1D4ED8;margin-bottom:4px}
