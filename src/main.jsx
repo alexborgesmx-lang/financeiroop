@@ -1369,7 +1369,7 @@ function abrirWhatsApp(telefone, nomeCliente) {
   const num = String(telefone||'').replace(/\D/g,'');
   if(!num || num.length < 10) { alert('Telefone do cliente não cadastrado.'); return; }
   const numFull = num.startsWith('55') ? num : '55' + num;
-  const msg = encodeURIComponent(`Parabéns, seu contrato de empréstimo foi finalizado com sucesso ✅\n\nQuero agradecer pela confiança e pela seriedade em cumprir nosso acordo. Foi um prazer poder te ajudar!\nSempre que precisar, estarei à disposição para um novo empréstimo.\n\nDesejo uma ótima tarde e uma semana incrível! 🙌`);
+  const msg = encodeURIComponent("Parabens, seu contrato de emprestimo foi finalizado com sucesso!\n\nQuero agradecer pela confianca e pela seriedade em cumprir nosso acordo. Foi um prazer poder te ajudar!\nSempre que precisar, estarei a disposicao para um novo emprestimo.\n\nDesejo uma otima tarde e uma semana incrivel!");
   window.open(`https://wa.me/${numFull}?text=${msg}`,'_blank');
 }
 
