@@ -964,7 +964,7 @@ function PagamentoParcelaModal({parcela,onConfirmar,onFechar}){
   const [valor,setValor]=useState(String(parcela?.VALOR_PARCELA||""));
   const [loading,setLoading]=useState(false);
   const [msg,setMsg]=useState(null);
-  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||"Pagamento registrado!"});setTimeout(onConfirmar,900);}else setMsg({ok:false,t:res.erro||"Erro ao registrar pagamento"});setLoading(false);};
+  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||(res.contratoQuitado?"✓ Contrato QUITADO!":"Pagamento registrado!")});setTimeout(()=>onConfirmar(res),900);}else setMsg({ok:false,t:res.erro||"Erro ao registrar pagamento"});setLoading(false);};
   return(
     <div style={{position:"fixed",inset:0,zIndex:300,background:"rgba(15,23,42,0.35)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onFechar}>
       <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:CARD,borderRadius:14,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.22)",overflow:"hidden"}}>
@@ -1010,7 +1010,7 @@ function NovoContrato({contratos,onSucesso}){
 }
 
 // ─── MODAL CONTRATO ──────────────────────────────────────────────
-function ContratoModal({ contrato, parcelas, pagamentos, onRegistrarPagamento, onBaixar, onQuitacaoAntecipada, onFechar }) {
+function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPagamento, onBaixar, onQuitacaoAntecipada, onComprovante, onFechar }) {
   const [abaM, setAbaM] = useState("parcelas");
 
   const ps = (parcelas||[])
@@ -1131,10 +1131,13 @@ function ContratoModal({ contrato, parcelas, pagamentos, onRegistrarPagamento, o
         </div>
 
         {/* FOOTER */}
-        <div style={{padding:"14px 20px",borderTop:`1px solid ${BD}`,background:CARD,display:"flex",gap:10,justifyContent:"flex-end"}}>
-          {podeBaixar&&<button onClick={()=>onBaixar(contrato)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontSize:13,fontWeight:700}}>⚠️ Baixar Prejuízo</button>}
-          {podeRegistrar&&pendentes.length>0&&<button onClick={()=>onQuitacaoAntecipada&&onQuitacaoAntecipada(contrato)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${BLU}30`,background:BLU+"08",color:BLU,cursor:"pointer",fontSize:13,fontWeight:700}}>⚡ Quitar Antecipado</button>}
-          {podeRegistrar&&pendentes.length>0&&<button onClick={()=>onRegistrarPagamento(pendentes[0])} style={{padding:"9px 16px",borderRadius:8,border:"none",background:GRN,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:700}}>💳 Registrar Pagamento</button>}
+        <div style={{padding:"14px 20px",borderTop:`1px solid ${BD}`,background:CARD,display:"flex",gap:10,justifyContent:"space-between",alignItems:"center"}}>
+          <button onClick={()=>{const cli=(clientes||[]).find(c=>String(c.ID_CLIENTE)===String(contrato.ID_CLIENTE));onComprovante&&onComprovante(contrato,ps,cli);}} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${BLU}30`,background:BLU+"08",color:BLU,cursor:"pointer",fontSize:13,fontWeight:700}}>📄 Comprovante</button>
+          <div style={{display:"flex",gap:10}}>
+            {podeBaixar&&<button onClick={()=>onBaixar(contrato)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontSize:13,fontWeight:700}}>⚠️ Baixar Prejuízo</button>}
+            {podeRegistrar&&pendentes.length>0&&<button onClick={()=>onQuitacaoAntecipada&&onQuitacaoAntecipada(contrato)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${BLU}30`,background:BLU+"08",color:BLU,cursor:"pointer",fontSize:13,fontWeight:700}}>⚡ Quitar Antecipado</button>}
+            {podeRegistrar&&pendentes.length>0&&<button onClick={()=>onRegistrarPagamento(pendentes[0])} style={{padding:"9px 16px",borderRadius:8,border:"none",background:GRN,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:700}}>💳 Registrar Pagamento</button>}
+          </div>
         </div>
       </div>
     </div>
@@ -1235,6 +1238,108 @@ function NovaPromessaModal({contratos,clientes,onConfirmar,onFechar}){
   );
 }
 
+// ─── COMPROVANTE DE QUITAÇÃO ─────────────────────────────────────
+function gerarComprovante(contrato, parcelasContrato, cliente) {
+  const ords = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª','11ª','12ª','13ª','14ª','15ª','16ª','17ª','18ª','19ª','20ª','21ª','22ª','23ª','24ª'];
+  const ord = n => ords[(parseInt(n)||1)-1] || `${n}ª`;
+  const fD = d => { if(!d) return '—'; const dt = d instanceof Date ? d : parseDate(d); return dt && !isNaN(dt) ? dt.toLocaleDateString('pt-BR') : '—'; };
+  const fR = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  const ps = [...parcelasContrato].sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
+  const totalPago = ps.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+  const saldo = Math.max(0, parseFloat(contrato.VALOR_TOTAL||contrato.VALOR_TOTAL_FINAL||0) - totalPago);
+  const datas = ps.map(p=>parseDate(p.DATA_PAGAMENTO)).filter(Boolean);
+  const primPag = datas.length ? datas.reduce((a,b)=>a<b?a:b) : null;
+  const ultPag  = datas.length ? datas.reduce((a,b)=>a>b?a:b) : null;
+  const primVenc = ps.length ? parseDate(ps[0].DATA_VENCIMENTO) : null;
+  const nome = contrato.NOME_CLIENTE || cliente?.NOME_CLIENTE || '—';
+  const cpf  = contrato.CPF || cliente?.CPF || '—';
+
+  const sit = p => {
+    const v = parseDate(p.DATA_VENCIMENTO), pg = parseDate(p.DATA_PAGAMENTO);
+    if(!pg) return {label:'pendente', data:''};
+    const label = pg > v ? 'quitado com atraso' : pg < v ? 'quitado adiantado' : 'quitado';
+    return {label, data: fD(pg)};
+  };
+
+  const rows = ps.map((p,i) => {
+    const s = sit(p);
+    return `<tr>
+      <td>${ord(p.NUM_PARCELA||i+1)} parcela</td>
+      <td>${fD(p.DATA_VENCIMENTO)}</td>
+      <td style="color:#555;font-size:12px">${s.label}<br/><span style="color:#aaa">${s.data}</span></td>
+      <td style="text-align:right;font-weight:700">${parseFloat(p.VALOR_PAGO||0)>0?fR(p.VALOR_PAGO):'—'}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Comprovante de Quitação - ${contrato.ID_CONTRATO}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,sans-serif;font-size:13px;color:#222;padding:40px;max-width:800px;margin:0 auto}
+h1{font-size:28px;font-weight:900;color:#2563EB;margin-bottom:4px}
+.sub{color:#555;font-size:13px;margin-bottom:28px;line-height:1.8}
+.box-info{border:1px solid #E5E7EB;border-left:4px solid #2563EB;border-radius:6px;padding:16px 20px;margin-bottom:20px}
+.box-info h3{color:#2563EB;font-size:12px;font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+.box-info p{margin-bottom:4px}
+.box-info label{font-weight:700}
+.box-total{border:1px solid #86EFAC;border-left:4px solid #16A34A;border-radius:6px;padding:16px 20px;margin-bottom:24px;background:#F0FDF4}
+.box-total .tv{font-size:20px;font-weight:900;color:#15803D;margin-bottom:6px}
+.box-total .ts{font-size:12px;color:#16A34A;font-weight:700;line-height:1.8}
+table{width:100%;border-collapse:collapse;margin-bottom:10px}
+thead tr{background:#F3F4F6}
+th{padding:10px 14px;text-align:left;font-size:12px;font-weight:700;color:#374151;border-bottom:1px solid #E5E7EB}
+th:last-child{text-align:right}
+td{padding:14px;border-bottom:1px solid #F3F4F6;vertical-align:middle}
+.saldo td{font-weight:700;border-top:2px solid #E5E7EB;background:#FAFAFA}
+.assin{margin-top:60px;text-align:center;border-top:1px solid #999;padding-top:12px;width:320px;margin-left:auto;margin-right:auto}
+.assin p{font-size:13px;font-weight:600}
+.assin .cpf{font-size:12px;color:#555}
+@media print{body{padding:20px}}
+</style></head><body>
+<h1>Comprovante de Quitação</h1>
+<div class="sub">
+  <div>Gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+  ${primVenc?`<div>Primeiro pagamento deve ser ${fD(primVenc)}</div>`:''}
+</div>
+<div class="box-info">
+  <h3>Informações da Cobrança</h3>
+  <p><label>Cliente:</label> ${nome}</p>
+  <p><label>CPF/CNPJ:</label> ${cpf}</p>
+  <br/>
+  <p><label>Cobrança:</label> PCL-Nº ${contrato.ID_CONTRATO} &nbsp;&nbsp; <label>Tipo de Cobrança:</label> Mensal</p>
+  <p><label>Quantidade de Parcelas:</label> ${contrato.NUM_PARCELAS}x &nbsp;&nbsp; <label>Valor:</label> ${fR(contrato.VALOR_PRINCIPAL)}</p>
+</div>
+<div class="box-total">
+  <div class="tv">Total: ${fR(totalPago)}</div>
+  <div class="ts">
+    ${primPag?`<div>Pagamento iniciado em ${fD(primPag)}</div>`:''}
+    ${ultPag?`<div>Último pagamento em ${fD(ultPag)}</div>`:''}
+  </div>
+</div>
+<table>
+  <thead><tr><th>Descrição</th><th>Vencimento</th><th>Situação</th><th>Valor</th></tr></thead>
+  <tbody>
+    ${rows}
+    ${saldo>0?`<tr class="saldo"><td colspan="3"><strong>Saldo Devedor</strong></td><td style="text-align:right">${fR(saldo)}</td></tr>`:''}
+  </tbody>
+</table>
+<div class="assin"><p>${nome}</p><p class="cpf">${cpf}</p></div>
+<script>window.onload=function(){window.print();}</script>
+</body></html>`;
+
+  const w = window.open('','_blank','width=900,height=700');
+  if(w){ w.document.write(html); w.document.close(); }
+}
+
+function abrirWhatsApp(telefone, nomeCliente, idContrato) {
+  const num = String(telefone||'').replace(/\D/g,'');
+  if(!num || num.length < 10) { alert('Telefone do cliente não cadastrado.'); return; }
+  const numFull = num.startsWith('55') ? num : '55' + num;
+  const msg = encodeURIComponent(`Olá ${nomeCliente}! 😊\n\nSeu contrato PCL-Nº ${idContrato} está quitado. Em anexo segue o comprovante de quitação.\n\nObrigado pela confiança! ✅`);
+  window.open(`https://wa.me/${numFull}?text=${msg}`,'_blank');
+}
+
 // ─── APP ─────────────────────────────────────────────────────────
 function App() {
   const [raw, setRaw] = useState(null);
@@ -1267,8 +1372,9 @@ function App() {
   const [selCliAba, setSelCliAba] = useState("perfil");
   const [privacy, setPrivacy] = useState(false);
   const priv = v => privacy ? <span style={{filter:"blur(8px)",userSelect:"none",pointerEvents:"none"}}>{v}</span> : v;
+  const [comprovantePrompt, setComprovantePrompt] = useState(null);
 
-  const carregar=()=>{setLoading(true);fetch(API_URL).then(r=>r.json()).then(d=>{setRaw(d);setLoading(false);}).catch(()=>setLoading(false));};
+  const carregar=()=>{setLoading(true);return fetch(API_URL).then(r=>r.json()).then(d=>{setRaw(d);setLoading(false);}).catch(()=>setLoading(false));};
   useEffect(()=>{carregar();},[]);
 
   const clientes  = useMemo(()=>raw?.CLIENTES  || raw?.clientes  || [], [raw]);
@@ -2060,7 +2166,7 @@ function App() {
       {/* ── MODAIS ── */}
       {novaPromessa&&<NovaPromessaModal contratos={contratos||[]} clientes={clientes||[]} onConfirmar={()=>{setNovaPromessa(false);carregar();}} onFechar={()=>setNovaPromessa(false)}/>}
       {selCli&&<ClienteModal cliente={selCli} abaInicial={selCliAba} onFechar={()=>{setSelCli(null);setSelCliAba("perfil");}} onAtualizar={()=>{setSelCli(null);setSelCliAba("perfil");carregar();}}/>}
-      {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} onConfirmar={()=>{setPagamentoHoje(null);carregar();}} onFechar={()=>setPagamentoHoje(null)}/>}
+      {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} onConfirmar={async(res)=>{const p=pagamentoHoje;setPagamentoHoje(null);await carregar();if(res?.contratoQuitado&&p?.ID_CONTRATO)setComprovantePrompt({idContrato:p.ID_CONTRATO,idCliente:p.ID_CLIENTE});}} onFechar={()=>setPagamentoHoje(null)}/>}
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {acordoModal&&<ModalAcordoPerda contrato={acordoModal} parcelas={parcelas||[]} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
       {quitacaoModal&&<QuitacaoAntecipadaModal contrato={quitacaoModal} parcelas={parcelas||[]} onConfirmar={()=>{setQuitacaoModal(null);carregar();}} onFechar={()=>setQuitacaoModal(null)}/>}
@@ -2072,12 +2178,38 @@ function App() {
           contrato={contratoSel}
           parcelas={parcelas||[]}
           pagamentos={pagamentos||[]}
+          clientes={clientes||[]}
           onRegistrarPagamento={p=>{setContratoSel(null);setPagamentoHoje(p);}}
           onBaixar={c=>{setContratoSel(null);setBaixaModal(c);}}
           onQuitacaoAntecipada={c=>{setContratoSel(null);setQuitacaoModal(c);}}
+          onComprovante={(c,ps,cli)=>gerarComprovante(c,ps,cli)}
           onFechar={()=>setContratoSel(null)}
         />
       )}
+
+      {/* ── DIALOG COMPROVANTE DE QUITAÇÃO ── */}
+      {comprovantePrompt&&(()=>{
+        const c=contratos.find(x=>String(x.ID_CONTRATO)===String(comprovantePrompt.idContrato));
+        const cli=clientes.find(x=>String(x.ID_CLIENTE)===String(comprovantePrompt.idCliente));
+        const ps=(parcelas||[]).filter(x=>String(x.ID_CONTRATO)===String(comprovantePrompt.idContrato)).sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
+        const tel=cli?.TELEFONE_WPP||cli?.TELEFONE||c?.TELEFONE||'';
+        const nome=c?.NOME_CLIENTE||cli?.NOME_CLIENTE||'cliente';
+        const idC=c?.ID_CONTRATO||comprovantePrompt.idContrato;
+        return(
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+            <div style={{background:CARD,borderRadius:16,padding:28,maxWidth:420,width:"100%",boxShadow:"0 30px 80px rgba(0,0,0,0.3)",textAlign:"center"}}>
+              <div style={{fontSize:40,marginBottom:12}}>🎉</div>
+              <h2 style={{fontSize:18,fontWeight:900,marginBottom:8}}>Contrato Quitado!</h2>
+              <p style={{color:MUTED,fontSize:13,marginBottom:20}}>Deseja gerar o comprovante de quitação para <strong>{nome}</strong>?</p>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <button onClick={()=>{if(c)gerarComprovante(c,ps,cli);setComprovantePrompt(null);}} style={{padding:"11px 16px",borderRadius:9,border:"none",background:BLU,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:800}}>📄 Gerar Comprovante (PDF)</button>
+                <button onClick={()=>{if(c)gerarComprovante(c,ps,cli);abrirWhatsApp(tel,nome,idC);setComprovantePrompt(null);}} style={{padding:"11px 16px",borderRadius:9,border:"none",background:GRN,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:800}}>📱 Gerar + Enviar WhatsApp</button>
+                <button onClick={()=>setComprovantePrompt(null)} style={{padding:"11px 16px",borderRadius:9,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontSize:13,fontWeight:600}}>Agora não</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── MODAL COBRANÇA (NOVO) ── */}
       {cobModal&&(
