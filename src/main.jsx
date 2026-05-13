@@ -1788,6 +1788,7 @@ function App() {
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   {finDe&&<button onClick={()=>{setFinDe(null);setFinAte(null);}} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,fontSize:12,cursor:"pointer",fontWeight:600}}>✕ Limpar</button>}
+                  <button onClick={()=>{const r=mesAtualRange();setFinDe(r.ini);setFinAte(r.fim);}} style={{padding:"7px 11px",borderRadius:8,border:`1px solid ${BLU}30`,background:BLU+"10",color:BLU,cursor:"pointer",fontSize:12,fontWeight:800}}>Mês atual</button>
                   <div style={{position:"relative"}}>
                     <button onClick={()=>setFinCalOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${finDe?BLU:BD}`,background:finDe?"#EFF6FF":CARD,color:finDe?BLU:MUTED,fontSize:12,fontWeight:finDe?700:400,cursor:"pointer"}}>
                       {IcoCal} {finDe?labelPeriodo:"Filtrar por período"}
