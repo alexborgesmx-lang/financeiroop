@@ -96,6 +96,8 @@ const IcoCtr  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stro
 const IcoPag  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>;
 const IcoKpi  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>;
 const IcoCal  = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+const IcoEye    = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
+const IcoEyeOff = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>;
 
 function Badge({c,children}){ return <span style={{display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:20,fontSize:10,fontWeight:600,background:c+"18",color:c,border:`1px solid ${c}30`}}>{children}</span>; }
 
@@ -1263,6 +1265,8 @@ function App() {
   const [novaPromessa, setNovaPromessa] = useState(false);
   const [filtroPromessa, setFiltroPromessa] = useState("todos");
   const [selCliAba, setSelCliAba] = useState("perfil");
+  const [privacy, setPrivacy] = useState(false);
+  const priv = v => privacy ? <span style={{filter:"blur(8px)",userSelect:"none",pointerEvents:"none"}}>{v}</span> : v;
 
   const carregar=()=>{setLoading(true);fetch(API_URL).then(r=>r.json()).then(d=>{setRaw(d);setLoading(false);}).catch(()=>setLoading(false));};
   useEffect(()=>{carregar();},[]);
@@ -1520,7 +1524,10 @@ function App() {
             <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{background:BG,border:"none",padding:8,borderRadius:8,cursor:"pointer",color:MUTED}}>{IcoArr}</button>
             <h2 style={{fontSize:18,fontWeight:700,margin:0,textTransform:"capitalize"}}>{tab}</h2>
           </div>
-          <div style={{color:MUTED,cursor:"pointer"}}>{IcoBell}</div>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <button onClick={()=>setPrivacy(p=>!p)} title={privacy?"Mostrar números":"Ocultar números"} style={{background:privacy?RED+"12":BG,border:`1px solid ${privacy?RED+"40":BD}`,padding:"6px 8px",borderRadius:8,cursor:"pointer",color:privacy?RED:MUTED,display:"flex",alignItems:"center"}}>{privacy?IcoEyeOff:IcoEye}</button>
+            <div style={{color:MUTED,cursor:"pointer"}}>{IcoBell}</div>
+          </div>
         </header>
 
         <main style={{flex:1,overflowY:"auto",padding:24}}>
@@ -1598,8 +1605,8 @@ function App() {
                 ].map(k=>(
                   <div key={k.l} style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`,minHeight:118,display:"flex",flexDirection:"column",justifyContent:"space-between",boxShadow:"0 10px 24px rgba(15,23,42,0.04)"}}>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:12}}><div style={{fontSize:13,color:TEXT,fontWeight:800}}>{k.l}</div><div style={{color:k.c}}>{k.i}</div></div>
-                    <div style={{fontSize:26,fontWeight:900,letterSpacing:"-0.8px",color:TEXT,lineHeight:1}}>{k.v}</div>
-                    <div style={{fontSize:11,color:k.c,fontWeight:700,marginTop:10}}>{k.sub}</div>
+                    <div style={{fontSize:26,fontWeight:900,letterSpacing:"-0.8px",color:TEXT,lineHeight:1}}>{priv(k.v)}</div>
+                    <div style={{fontSize:11,color:k.c,fontWeight:700,marginTop:10}}>{priv(k.sub)}</div>
                   </div>
                 ))}
               </div>
@@ -1805,7 +1812,7 @@ function App() {
               <div style={{background:"linear-gradient(135deg,#16a34a 0%,#15803d 100%)",borderRadius:14,padding:"20px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
                 <div>
                   <p style={{color:"rgba(255,255,255,0.75)",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.6px",margin:"0 0 6px"}}>Lucro do Período</p>
-                  <p style={{color:"#fff",fontSize:28,fontWeight:800,margin:0,letterSpacing:"-0.5px"}}>{fmtR(finKpis.lucro)}</p>
+                  <p style={{color:"#fff",fontSize:28,fontWeight:800,margin:0,letterSpacing:"-0.5px"}}>{priv(fmtR(finKpis.lucro))}</p>
                   <p style={{color:"rgba(255,255,255,0.65)",fontSize:11,margin:"5px 0 0"}}>Juros recebidos + receita extra por atraso</p>
                 </div>
                 <div style={{fontSize:40,opacity:0.5}}>📈</div>
@@ -1822,7 +1829,7 @@ function App() {
                 ].map(k=>(
                   <div key={k.label} style={{background:CARD,borderRadius:12,padding:18,border:`1px solid ${BD}`}}>
                     <p style={{color:MUTED,fontSize:11,margin:"0 0 6px"}}>{k.icon} {k.label}</p>
-                    <p style={{fontSize:20,fontWeight:700,color:k.c,margin:0}}>{k.val}</p>
+                    <p style={{fontSize:20,fontWeight:700,color:k.c,margin:0}}>{priv(k.val)}</p>
                   </div>
                 ))}
               </div>
@@ -1849,7 +1856,7 @@ function App() {
                     {[{l:"Total Recebido",v:fmtR(totaisFin.total),c:BLU},{l:"Receita Extra",v:fmtR(totaisFin.extra),c:ORG},{l:"Nº Pagamentos",v:totaisFin.count,c:GRN}].map((k,i)=>(
                       <div key={k.l} style={{padding:"10px 18px",background:"#F8FAFC",borderRight:i<2?`1px solid ${BD}`:"none"}}>
                         <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:2}}>{k.l}</div>
-                        <div style={{fontSize:16,fontWeight:800,color:k.c}}>{k.v}</div>
+                        <div style={{fontSize:16,fontWeight:800,color:k.c}}>{priv(k.v)}</div>
                       </div>
                     ))}
                   </div>
