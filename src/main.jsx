@@ -1365,11 +1365,11 @@ td{padding:14px;border-bottom:1px solid #F3F4F6;vertical-align:middle}
   if(w){ w.document.write(html); w.document.close(); }
 }
 
-function abrirWhatsApp(telefone, nomeCliente, idContrato) {
+function abrirWhatsApp(telefone, nomeCliente) {
   const num = String(telefone||'').replace(/\D/g,'');
   if(!num || num.length < 10) { alert('Telefone do cliente não cadastrado.'); return; }
   const numFull = num.startsWith('55') ? num : '55' + num;
-  const msg = encodeURIComponent(`Olá ${nomeCliente}! 😊\n\nSeu contrato PCL-Nº ${idContrato} está quitado. Em anexo segue o comprovante de quitação.\n\nObrigado pela confiança! ✅`);
+  const msg = encodeURIComponent(`Parabéns, seu contrato de empréstimo foi finalizado com sucesso ✅\n\nQuero agradecer pela confiança e pela seriedade em cumprir nosso acordo. Foi um prazer poder te ajudar!\nSempre que precisar, estarei à disposição para um novo empréstimo.\n\nDesejo uma ótima tarde e uma semana incrível! 🙌`);
   window.open(`https://wa.me/${numFull}?text=${msg}`,'_blank');
 }
 
@@ -2235,9 +2235,9 @@ function App() {
               <h2 style={{fontSize:18,fontWeight:900,marginBottom:8}}>Contrato Quitado!</h2>
               <p style={{color:MUTED,fontSize:13,marginBottom:20}}>Deseja gerar o comprovante de quitação para <strong>{nome}</strong>?</p>
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                <button onClick={()=>{if(c)gerarComprovante(c,ps,cli);setComprovantePrompt(null);}} style={{padding:"11px 16px",borderRadius:9,border:"none",background:BLU,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:800}}>📄 Gerar Comprovante (PDF)</button>
-                <button onClick={()=>{if(c)gerarComprovante(c,ps,cli);abrirWhatsApp(tel,nome,idC);setComprovantePrompt(null);}} style={{padding:"11px 16px",borderRadius:9,border:"none",background:GRN,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:800}}>📱 Gerar + Enviar WhatsApp</button>
-                <button onClick={()=>setComprovantePrompt(null)} style={{padding:"11px 16px",borderRadius:9,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontSize:13,fontWeight:600}}>Agora não</button>
+                <button onClick={()=>{if(c)gerarComprovante(c,ps,cli);}} style={{padding:"11px 16px",borderRadius:9,border:"none",background:BLU,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:800}}>📄 1. Baixar Comprovante</button>
+                <button onClick={()=>{abrirWhatsApp(tel,nome);setComprovantePrompt(null);}} style={{padding:"11px 16px",borderRadius:9,border:"none",background:GRN,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:800}}>📱 2. Abrir WhatsApp</button>
+                <button onClick={()=>setComprovantePrompt(null)} style={{padding:"11px 16px",borderRadius:9,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontSize:13,fontWeight:600}}>Fechar</button>
               </div>
             </div>
           </div>
