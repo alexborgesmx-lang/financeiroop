@@ -961,7 +961,7 @@ function PagamentoDrop({contratos,parcelas,onSucesso,onSelecionarParcela}){
 function PagamentoParcelaModal({parcela,onConfirmar,onFechar}){
   const [tipo,setTipo]=useState("total");
   const [data,setData]=useState(hojeStr());
-  const [valor,setValor]=useState(String(parcela?.VALOR_PARCELA||""));
+  const [valor,setValor]=useState(parseFloat(parcela?.VALOR_PARCELA||0).toFixed(2));
   const [loading,setLoading]=useState(false);
   const [msg,setMsg]=useState(null);
   const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||(res.contratoQuitado?"✓ Contrato QUITADO!":"Pagamento registrado!")});setTimeout(()=>onConfirmar(res),900);}else setMsg({ok:false,t:res.erro||"Erro ao registrar pagamento"});setLoading(false);};
@@ -970,7 +970,7 @@ function PagamentoParcelaModal({parcela,onConfirmar,onFechar}){
       <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:CARD,borderRadius:14,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.22)",overflow:"hidden"}}>
         <div style={{padding:"18px 20px",borderBottom:`1px solid ${BD}`}}><h2 style={{margin:0,fontSize:17,fontWeight:800}}>Registrar pagamento</h2><p style={{margin:"5px 0 0",fontSize:12,color:MUTED}}>{parcela?.NOME_CLIENTE||"Cliente"} · Parcela {parcela?.NUM_PARCELA||parcela?.NUMERO_PARCELA||parcela?.ID_PARCELA||"—"}</p></div>
         <div style={{padding:20,display:"flex",flexDirection:"column",gap:12}}>
-          <div><span style={LS}>Tipo</span><select value={tipo} onChange={e=>setTipo(e.target.value)} style={IS}><option value="total">Pagamento total</option><option value="parcial">Somente juros</option></select></div>
+          <div><span style={LS}>Tipo</span><select value={tipo} onChange={e=>{const t=e.target.value;setTipo(t);if(t==="total")setValor(parseFloat(parcela?.VALOR_PARCELA||0).toFixed(2));else setValor(parseFloat(parcela?.VALOR_JUROS||0).toFixed(2));}} style={IS}><option value="total">Pagamento total</option><option value="parcial">Somente juros</option></select></div>
           <div><span style={LS}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} style={IS}/></div>
           <div><span style={LS}>Data</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS}/></div>
           {msg&&<div style={{padding:10,borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:12,fontWeight:700}}>{msg.t}</div>}
