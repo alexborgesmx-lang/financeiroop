@@ -1542,7 +1542,9 @@ function NovaPromessaModal({contratos,clientes,onConfirmar,onFechar}){
 function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, onReabrir}) {
   const [loading, setLoading] = React.useState(false);
   const [sharing, setSharing] = React.useState(false);
-  const parcela = (parcelas||[]).find(p=>String(p.ID_CONTRATO||"").trim()===String(pag.ID_CONTRATO||"").trim()&&String(p.NUM_PARCELA||"").trim()===String(pag.NUM_PARCELA||"").trim());
+  // PAGAMENTOS não tem NUM_PARCELA — buscar por ID_PARCELA
+  const parcela = (parcelas||[]).find(p=>String(p.ID_PARCELA||"").trim()===String(pag.ID_PARCELA||"").trim());
+  const numParc = parcela?.NUM_PARCELA || pag.NUM_PARCELA;
   const contrato = (contratos||[]).find(c=>String(c.ID_CONTRATO||"").trim()===String(pag.ID_CONTRATO||"").trim());
   const cliente = (clientes||[]).find(c=>String(c.ID_CLIENTE||"").trim()===String(pag.ID_CLIENTE||"").trim());
   const telefone = String(cliente?.TELEFONE_WPP||cliente?.TELEFONE||"").replace(/\D/g,"");
@@ -1554,7 +1556,7 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
   const gerarPdfBlob=()=>{
     const fD=d=>{if(!d)return'—';const dt=d instanceof Date?d:parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):'—';};
     const fR=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-    const pNum=parseInt(pag.NUM_PARCELA||0);
+    const pNum=parseInt(numParc||0);
     const doc=new jsPDF({unit:'mm',format:'a4'});
     const W=210,pad=18;
     let y=20;
@@ -1563,7 +1565,7 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
     doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);
     doc.text('Comprovante de Pagamento',pad,y);y+=8;
     doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(100,100,100);
-    doc.text(`Emitido em ${new Date().toLocaleString('pt-BR')} · ${pag.ID_CONTRATO} · Parcela ${pag.NUM_PARCELA||'—'}/${contrato?.NUM_PARCELAS||'—'}`,pad,y);y+=10;
+    doc.text(`Emitido em ${new Date().toLocaleString('pt-BR')} · ${pag.ID_CONTRATO} · Parcela ${numParc||'—'}/${contrato?.NUM_PARCELAS||'—'}`,pad,y);y+=10;
 
     // Linha divisória
     doc.setDrawColor(229,231,235);doc.setLineWidth(0.4);doc.line(pad,y,W-pad,y);y+=8;
@@ -1609,7 +1611,7 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
     hist.filter(p=>parseInt(p.NUM_PARCELA||0)<=pNum).forEach(p=>{
       const venc=parseDate(p.DATA_VENCIMENTO),pago=parseDate(p.DATA_PAGAMENTO);
       const st=!pago?'pendente':pago>venc?'com atraso':'em dia';
-      const isAtual=String(p.NUM_PARCELA||"")===String(pag.NUM_PARCELA||"");
+      const isAtual=String(p.NUM_PARCELA||"")===String(numParc||"");
       if(isAtual){doc.setFillColor(219,234,254);doc.rect(pad,y-4,W-2*pad,6,'F');}
       doc.setFont('helvetica',isAtual?'bold':'normal');doc.setFontSize(8);doc.setTextColor(30,30,30);
       doc.text(String(p.NUM_PARCELA||''),cols[0],y);
@@ -1632,7 +1634,7 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
     setSharing(true);
     try{
       const blob=gerarPdfBlob();
-      const nome=`Comprovante_${pag.ID_CONTRATO}_P${pag.NUM_PARCELA}.pdf`;
+      const nome=`Comprovante_${pag.ID_CONTRATO}_P${numParc||pag.ID_PARCELA}.pdf`;
       // 1. Baixa o PDF automaticamente
       const url=URL.createObjectURL(blob);
       const a=document.createElement('a');a.href=url;a.download=nome;document.body.appendChild(a);a.click();document.body.removeChild(a);
@@ -1646,10 +1648,11 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
   };
 
   const reabrir=async()=>{
-    if(!window.confirm(`Reabrir parcela ${pag.NUM_PARCELA}/${contrato?.NUM_PARCELAS||'?'} do contrato ${pag.ID_CONTRATO}?\n\nIsso desfaz o pagamento e volta a parcela para pendente/atrasado.`))return;
+    if(!numParc){alert("Não foi possível identificar o número da parcela.");return;}
+    if(!window.confirm(`Reabrir parcela ${numParc}/${contrato?.NUM_PARCELAS||'?'} do contrato ${pag.ID_CONTRATO}?\n\nIsso desfaz o pagamento e volta a parcela para pendente/atrasado.`))return;
     setLoading(true);
     try{
-      const res=await postAction({action:"reabrirParcela",idContrato:pag.ID_CONTRATO,numParcela:pag.NUM_PARCELA,idPagamento:pag.ID_PAGAMENTO,idCliente:pag.ID_CLIENTE});
+      const res=await postAction({action:"reabrirParcela",idContrato:pag.ID_CONTRATO,numParcela:String(numParc),idPagamento:pag.ID_PAGAMENTO,idCliente:pag.ID_CLIENTE});
       if(res.ok){onReabrir();onFechar();}else alert("Erro: "+(res.erro||"falha ao reabrir"));
     }catch(e){alert("Erro: "+e.message);}
     setLoading(false);
@@ -1661,7 +1664,7 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
         <div style={{padding:"18px 24px",borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:CARD,zIndex:1}}>
           <div>
             <div style={{fontWeight:800,fontSize:15}}>Detalhe do Pagamento</div>
-            <div style={{fontSize:11,color:MUTED,marginTop:1}}>{pag.NOME_CLIENTE} · {pag.ID_CONTRATO} · Parcela {pag.NUM_PARCELA||"—"}/{contrato?.NUM_PARCELAS||"—"}</div>
+            <div style={{fontSize:11,color:MUTED,marginTop:1}}>{pag.NOME_CLIENTE} · {pag.ID_CONTRATO} · Parcela {numParc||"—"}/{contrato?.NUM_PARCELAS||"—"}</div>
           </div>
           <button onClick={onFechar} style={{background:BG,border:`1px solid ${BD}`,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:18,color:MUTED,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
         </div>
@@ -1694,7 +1697,7 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
                   <thead><tr style={{background:BG,color:MUTED,fontSize:10,textTransform:"uppercase"}}><th style={{padding:"7px 12px",textAlign:"left"}}>#</th><th style={{padding:"7px 12px",textAlign:"left"}}>Vencimento</th><th style={{padding:"7px 12px",textAlign:"right"}}>Valor</th><th style={{padding:"7px 12px",textAlign:"left"}}>Status</th><th style={{padding:"7px 12px",textAlign:"right"}}>Pago</th></tr></thead>
                   <tbody>{hist.map((p,i)=>{
                     const isPago=["pago","quitacao_antecipada"].includes(String(p.STATUS||"").toLowerCase());
-                    const isAtual=String(p.NUM_PARCELA||"")===String(pag.NUM_PARCELA||"");
+                    const isAtual=String(p.NUM_PARCELA||"")===String(numParc||"");
                     return<tr key={i} style={{borderTop:`1px solid ${BD}`,background:isAtual?BLU+"08":"transparent"}}>
                       <td style={{padding:"7px 12px",fontWeight:isAtual?800:400,color:isAtual?BLU:TEXT}}>{p.NUM_PARCELA}</td>
                       <td style={{padding:"7px 12px",color:MUTED}}>{fmtDt(parseDate(p.DATA_VENCIMENTO))}</td>
