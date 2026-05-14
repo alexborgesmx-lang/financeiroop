@@ -1853,8 +1853,11 @@ function App() {
   const [comprovantePrompt, setComprovantePrompt] = useState(null);
   const [selPagDetalhe, setSelPagDetalhe] = useState(null);
 
-  const carregar=()=>{setLoading(true);return fetch(API_URL).then(r=>r.json()).then(d=>{setRaw(d);setLoading(false);}).catch(()=>setLoading(false));};
+  const [ultimaAt, setUltimaAt] = useState(null);
+  const _fetching = useRef(false);
+  const carregar=()=>{if(_fetching.current)return Promise.resolve();_fetching.current=true;setLoading(true);return fetch(API_URL).then(r=>r.json()).then(d=>{setRaw(d);setLoading(false);setUltimaAt(new Date());_fetching.current=false;}).catch(()=>{setLoading(false);_fetching.current=false;});};
   useEffect(()=>{carregar();},[]);
+  useEffect(()=>{const id=setInterval(carregar,30000);return()=>clearInterval(id);},[]);
 
   const clientes  = useMemo(()=>raw?.CLIENTES  || raw?.clientes  || [], [raw]);
   const contratos = useMemo(()=>raw?.CONTRATOS || raw?.contratos || [], [raw]);
@@ -2120,6 +2123,8 @@ function App() {
             <h2 style={{fontSize:18,fontWeight:700,margin:0,textTransform:"capitalize"}}>{tab}</h2>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
+            {ultimaAt&&<span style={{fontSize:11,color:MUTED,display:"flex",alignItems:"center",gap:5}}>{loading?<><span style={{width:8,height:8,borderRadius:"50%",border:`2px solid ${BLU}`,borderTopColor:"transparent",display:"inline-block",animation:"spin 0.8s linear infinite"}}/>Atualizando...</>:<><span style={{width:7,height:7,borderRadius:"50%",background:GRN,display:"inline-block"}}/>Atualizado às {ultimaAt.toLocaleTimeString('pt-BR')}</>}</span>}
+            <button onClick={carregar} disabled={loading} title="Atualizar dados" style={{background:BG,border:`1px solid ${BD}`,padding:"6px 8px",borderRadius:8,cursor:loading?"not-allowed":"pointer",color:MUTED,display:"flex",alignItems:"center",opacity:loading?0.5:1}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
             <button onClick={()=>setPrivacy(p=>!p)} title={privacy?"Mostrar números":"Ocultar números"} style={{background:privacy?RED+"12":BG,border:`1px solid ${privacy?RED+"40":BD}`,padding:"6px 8px",borderRadius:8,cursor:"pointer",color:privacy?RED:MUTED,display:"flex",alignItems:"center"}}>{privacy?IcoEyeOff:IcoEye}</button>
             <div style={{color:MUTED,cursor:"pointer"}}>{IcoBell}</div>
           </div>
