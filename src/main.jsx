@@ -1407,24 +1407,26 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
     return doc.output('blob');
   };
 
+  const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
   const enviarWpp=async()=>{
     setSharing(true);
     try{
       const blob=gerarPdfBlob();
       const nome=`Comprovante_${pag.ID_CONTRATO}_P${pag.NUM_PARCELA}.pdf`;
-      const file=new File([blob],nome,{type:'application/pdf'});
-      if(navigator.canShare?.({files:[file]})){
-        await navigator.share({files:[file],title:'Comprovante de Pagamento',text:`Comprovante de pagamento - ${pag.NOME_CLIENTE} - Parcela ${pag.NUM_PARCELA}/${contrato?.NUM_PARCELAS||'?'}`});
+      // Mobile: Web Share API nativa (share sheet do sistema)
+      if(isMobile&&navigator.canShare?.({files:[new File([blob],nome,{type:'application/pdf'})]})){
+        const file=new File([blob],nome,{type:'application/pdf'});
+        await navigator.share({files:[file],title:'Comprovante de Pagamento',text:`Comprovante - ${pag.NOME_CLIENTE} - Parcela ${pag.NUM_PARCELA}/${contrato?.NUM_PARCELAS||'?'}`});
       } else {
-        // Desktop: baixa o PDF e abre WhatsApp Web na conversa do cliente
+        // Desktop: baixa PDF + abre WhatsApp Web na conversa do cliente
         const url=URL.createObjectURL(blob);
-        const a=document.createElement('a');a.href=url;a.download=nome;a.click();
-        setTimeout(()=>URL.revokeObjectURL(url),2000);
-        if(telefone){
-          setTimeout(()=>window.open(`https://wa.me/55${telefone}`,'_blank'),500);
-        }
+        const a=document.createElement('a');a.href=url;a.download=nome;document.body.appendChild(a);a.click();document.body.removeChild(a);
+        setTimeout(()=>URL.revokeObjectURL(url),3000);
+        const tel=telefone?`55${telefone}`:'';
+        setTimeout(()=>window.open(tel?`https://wa.me/${tel}`:'https://web.whatsapp.com','_blank'),800);
       }
-    }catch(e){if(e.name!=='AbortError')alert('Erro ao compartilhar: '+e.message);}
+    }catch(e){if(e.name!=='AbortError')alert('Erro: '+e.message);}
     setSharing(false);
   };
 
