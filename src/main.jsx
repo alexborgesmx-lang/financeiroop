@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { jsPDF } from "jspdf";
 
 const API_URL  = "/api/sheets";
 const POST_URL = "/api/action";
@@ -1319,35 +1320,112 @@ function NovaPromessaModal({contratos,clientes,onConfirmar,onFechar}){
 }
 
 // ─── MODAL DETALHE PAGAMENTO ─────────────────────────────────────
-function PagamentoDetalheModal({pag, parcelas, contratos, onFechar, onReabrir}) {
+function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, onReabrir}) {
   const [loading, setLoading] = React.useState(false);
+  const [sharing, setSharing] = React.useState(false);
   const parcela = (parcelas||[]).find(p=>String(p.ID_CONTRATO||"").trim()===String(pag.ID_CONTRATO||"").trim()&&String(p.NUM_PARCELA||"").trim()===String(pag.NUM_PARCELA||"").trim());
   const contrato = (contratos||[]).find(c=>String(c.ID_CONTRATO||"").trim()===String(pag.ID_CONTRATO||"").trim());
+  const cliente = (clientes||[]).find(c=>String(c.ID_CLIENTE||"").trim()===String(pag.ID_CLIENTE||"").trim());
+  const telefone = String(cliente?.TELEFONE_WPP||cliente?.TELEFONE||"").replace(/\D/g,"");
   const hist = (parcelas||[]).filter(p=>String(p.ID_CONTRATO||"").trim()===String(pag.ID_CONTRATO||"").trim()).sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
   const tCor={pagamento_normal:GRN,pagamento_com_atraso:YEL,somente_juros:RED,recuperacao_apos_baixa:PUR}[pag.TIPO_PAGAMENTO]||MUTED;
   const tLbl={pagamento_normal:"Normal",pagamento_com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação"}[pag.TIPO_PAGAMENTO]||pag.TIPO_PAGAMENTO||"—";
   const Info=({l,v,c})=><div style={{background:BG,borderRadius:8,padding:"10px 14px"}}><div style={{fontSize:10,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:3}}>{l}</div><div style={{fontWeight:700,fontSize:13,color:c||TEXT}}>{v||"—"}</div></div>;
 
-  const gerarComprovanteInd=()=>{
-    const pNum=parseInt(pag.NUM_PARCELA||0);
+  const gerarPdfBlob=()=>{
     const fD=d=>{if(!d)return'—';const dt=d instanceof Date?d:parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):'—';};
     const fR=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-    const rows=hist.filter(p=>parseInt(p.NUM_PARCELA||0)<=pNum).map(p=>{
+    const pNum=parseInt(pag.NUM_PARCELA||0);
+    const doc=new jsPDF({unit:'mm',format:'a4'});
+    const W=210,pad=18;
+    let y=20;
+
+    // Cabeçalho
+    doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);
+    doc.text('Comprovante de Pagamento',pad,y);y+=8;
+    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(100,100,100);
+    doc.text(`Emitido em ${new Date().toLocaleString('pt-BR')} · ${pag.ID_CONTRATO} · Parcela ${pag.NUM_PARCELA||'—'}/${contrato?.NUM_PARCELAS||'—'}`,pad,y);y+=10;
+
+    // Linha divisória
+    doc.setDrawColor(229,231,235);doc.setLineWidth(0.4);doc.line(pad,y,W-pad,y);y+=8;
+
+    // Seção Cliente
+    doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);
+    doc.text('CLIENTE',pad,y);y+=5;
+    const cliRows=[['Nome',pag.NOME_CLIENTE||'—'],['ID',String(pag.ID_CLIENTE||'—')],['Contrato',pag.ID_CONTRATO||'—']];
+    cliRows.forEach(([l,v])=>{
+      doc.setFont('helvetica','bold');doc.setTextColor(100,100,100);doc.setFontSize(8);doc.text(l+':',pad,y);
+      doc.setFont('helvetica','normal');doc.setTextColor(30,30,30);doc.text(v,pad+28,y);y+=5;
+    });y+=3;
+
+    // Seção Pagamento
+    doc.setDrawColor(229,231,235);doc.line(pad,y,W-pad,y);y+=6;
+    doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);doc.text('PAGAMENTO',pad,y);y+=5;
+    const multa=parseFloat(pag.VALOR_MULTA||0),mora=parseFloat(pag.VALOR_MORA||0),extra=parseFloat(pag.RECEITA_EXTRA_ATRASO||0);
+    const pagRows=[
+      ['Data Pagamento',fD(pag.DATA_PAGAMENTO)],
+      ['Valor Pago',fR(pag.VALOR_PAGO)],
+      ['Tipo',tLbl],
+      ['Vencimento',fD(parcela?.DATA_VENCIMENTO)],
+      ...(multa>0?[['Multa',fR(multa)]]:[]),
+      ...(mora>0?[['Mora',fR(mora)]]:[]),
+      ...(extra>0?[['Receita Extra',fR(extra)]]:[]),
+      ['Forma',pag.FORMA_PAGAMENTO||'manual'],
+    ];
+    pagRows.forEach(([l,v])=>{
+      doc.setFont('helvetica','bold');doc.setTextColor(100,100,100);doc.setFontSize(8);doc.text(l+':',pad,y);
+      doc.setFont('helvetica','normal');doc.setTextColor(30,30,30);doc.text(v,pad+36,y);y+=5;
+    });y+=3;
+
+    // Histórico
+    doc.setDrawColor(229,231,235);doc.line(pad,y,W-pad,y);y+=6;
+    doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);
+    doc.text('HISTÓRICO DO CONTRATO ATÉ ESTA PARCELA',pad,y);y+=6;
+    // Cabeçalho tabela
+    doc.setFillColor(243,244,246);doc.rect(pad,y-4,W-2*pad,7,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(100,100,100);
+    const cols=[pad,pad+10,pad+42,pad+90,pad+120,pad+152];
+    ['#','Vencimento','Valor','Situação','Data Pgto','Valor Pago'].forEach((h,i)=>doc.text(h,cols[i],y));y+=5;
+    // Linhas
+    hist.filter(p=>parseInt(p.NUM_PARCELA||0)<=pNum).forEach(p=>{
       const venc=parseDate(p.DATA_VENCIMENTO),pago=parseDate(p.DATA_PAGAMENTO);
       const st=!pago?'pendente':pago>venc?'com atraso':'em dia';
-      const cor=!pago?'#888':pago>venc?'#D97706':'#16A34A';
-      return`<tr><td>${p.NUM_PARCELA||'—'}</td><td>${fD(p.DATA_VENCIMENTO)}</td><td>${fR(p.VALOR_PARCELA)}</td><td style="color:${cor};font-weight:600">${st}</td><td>${fD(p.DATA_PAGAMENTO)||'—'}</td><td style="text-align:right;font-weight:700">${parseFloat(p.VALOR_PAGO||0)>0?fR(p.VALOR_PAGO):'—'}</td></tr>`;
-    }).join('');
-    const multa=parseFloat(pag.VALOR_MULTA||0),mora=parseFloat(pag.VALOR_MORA||0),extra=parseFloat(pag.RECEITA_EXTRA_ATRASO||0);
-    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comprovante</title><style>*{margin:0;padding:0;box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}body{font-family:Arial,sans-serif;font-size:13px;color:#222;max-width:800px;margin:0 auto;padding:32px 40px}h1{font-size:22px;font-weight:900;color:#1D4ED8;margin-bottom:4px}.sub{color:#666;font-size:11px;margin-bottom:24px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}.card{border:1px solid #E5E7EB;border-radius:8px;padding:10px 14px}.lbl{font-size:10px;color:#888;font-weight:700;text-transform:uppercase;margin-bottom:3px}.val{font-weight:700;font-size:13px}h2{font-size:11px;font-weight:700;text-transform:uppercase;color:#1D4ED8;margin:20px 0 8px;padding-bottom:4px;border-bottom:1px solid #E5E7EB}table{width:100%;border-collapse:collapse}th{background:#F3F4F6;padding:7px 10px;text-align:left;font-size:10px;color:#666;text-transform:uppercase;border:1px solid #E5E7EB}td{padding:7px 10px;border:1px solid #E5E7EB}.btn{margin-top:24px;text-align:center}.btn button{padding:9px 24px;background:#1D4ED8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700}@media print{.btn{display:none}}</style></head><body>
-<h1>Comprovante de Pagamento</h1>
-<div class="sub">Emitido em ${new Date().toLocaleString('pt-BR')} · ${pag.ID_CONTRATO} · Parcela ${pag.NUM_PARCELA||'—'}/${contrato?.NUM_PARCELAS||'—'}</div>
-<h2>Cliente</h2><div class="grid"><div class="card"><div class="lbl">Nome</div><div class="val">${pag.NOME_CLIENTE||'—'}</div></div><div class="card"><div class="lbl">ID</div><div class="val">${pag.ID_CLIENTE||'—'}</div></div><div class="card"><div class="lbl">Contrato</div><div class="val">${pag.ID_CONTRATO||'—'}</div></div></div>
-<h2>Pagamento</h2><div class="grid"><div class="card"><div class="lbl">Data</div><div class="val">${fD(pag.DATA_PAGAMENTO)}</div></div><div class="card"><div class="lbl">Valor Pago</div><div class="val" style="color:#16A34A">${fR(pag.VALOR_PAGO)}</div></div><div class="card"><div class="lbl">Tipo</div><div class="val">${tLbl}</div></div><div class="card"><div class="lbl">Vencimento</div><div class="val">${fD(parcela?.DATA_VENCIMENTO)}</div></div>${multa>0?`<div class="card"><div class="lbl">Multa</div><div class="val" style="color:#D97706">${fR(multa)}</div></div>`:''} ${mora>0?`<div class="card"><div class="lbl">Mora</div><div class="val" style="color:#D97706">${fR(mora)}</div></div>`:''} ${extra>0?`<div class="card"><div class="lbl">Receita Extra</div><div class="val" style="color:#D97706">${fR(extra)}</div></div>`:''}<div class="card"><div class="lbl">Forma</div><div class="val">${pag.FORMA_PAGAMENTO||'manual'}</div></div></div>
-<h2>Histórico do Contrato até esta Parcela</h2><table><thead><tr><th>#</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th>Data Pgto</th><th style="text-align:right">Valor Pago</th></tr></thead><tbody>${rows}</tbody></table>
-<div class="btn"><button onclick="window.print()">Imprimir / Salvar PDF</button></div>
-</body></html>`;
-    const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}
+      const isAtual=String(p.NUM_PARCELA||"")===String(pag.NUM_PARCELA||"");
+      if(isAtual){doc.setFillColor(219,234,254);doc.rect(pad,y-4,W-2*pad,6,'F');}
+      doc.setFont('helvetica',isAtual?'bold':'normal');doc.setFontSize(8);doc.setTextColor(30,30,30);
+      doc.text(String(p.NUM_PARCELA||''),cols[0],y);
+      doc.text(fD(p.DATA_VENCIMENTO),cols[1],y);
+      doc.text(fR(p.VALOR_PARCELA),cols[2],y);
+      doc.setTextColor(!pago?100:pago>venc?180:22,!pago?100:pago>venc?70:163,!pago?100:pago>venc?0:74);
+      doc.text(st,cols[3],y);
+      doc.setTextColor(30,30,30);
+      doc.text(fD(p.DATA_PAGAMENTO)||'—',cols[4],y);
+      doc.text(parseFloat(p.VALOR_PAGO||0)>0?fR(p.VALOR_PAGO):'—',cols[5],y);
+      y+=6;
+    });
+
+    return doc.output('blob');
+  };
+
+  const enviarWpp=async()=>{
+    setSharing(true);
+    try{
+      const blob=gerarPdfBlob();
+      const nome=`Comprovante_${pag.ID_CONTRATO}_P${pag.NUM_PARCELA}.pdf`;
+      const file=new File([blob],nome,{type:'application/pdf'});
+      if(navigator.canShare?.({files:[file]})){
+        await navigator.share({files:[file],title:'Comprovante de Pagamento',text:`Comprovante de pagamento - ${pag.NOME_CLIENTE} - Parcela ${pag.NUM_PARCELA}/${contrato?.NUM_PARCELAS||'?'}`});
+      } else {
+        // Desktop: baixa o PDF e abre WhatsApp Web na conversa do cliente
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement('a');a.href=url;a.download=nome;a.click();
+        setTimeout(()=>URL.revokeObjectURL(url),2000);
+        if(telefone){
+          setTimeout(()=>window.open(`https://wa.me/55${telefone}`,'_blank'),500);
+        }
+      }
+    }catch(e){if(e.name!=='AbortError')alert('Erro ao compartilhar: '+e.message);}
+    setSharing(false);
   };
 
   const reabrir=async()=>{
@@ -1414,8 +1492,10 @@ function PagamentoDetalheModal({pag, parcelas, contratos, onFechar, onReabrir}) 
           )}
         </div>
         <div style={{padding:"16px 24px",borderTop:`1px solid ${BD}`,display:"flex",gap:10,position:"sticky",bottom:0,background:CARD}}>
-          <button onClick={gerarComprovanteInd} style={{flex:1,padding:11,borderRadius:8,border:`1px solid ${BLU}30`,background:BLU+"08",color:BLU,cursor:"pointer",fontWeight:700,fontSize:13}}>📄 Gerar Comprovante</button>
-          <button onClick={reabrir} disabled={loading} style={{flex:1,padding:11,borderRadius:8,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontWeight:700,fontSize:13,opacity:loading?0.7:1}}>{loading?"Processando...":"↩ Reabrir Parcela"}</button>
+          <button onClick={enviarWpp} disabled={sharing} style={{flex:2,padding:11,borderRadius:8,border:"none",background:"#25D366",color:"#fff",cursor:"pointer",fontWeight:800,fontSize:13,opacity:sharing?0.7:1}}>
+            {sharing?"Gerando...":"📲 Enviar pelo WhatsApp"}
+          </button>
+          <button onClick={reabrir} disabled={loading} style={{flex:1,padding:11,borderRadius:8,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontWeight:700,fontSize:13,opacity:loading?0.7:1}}>{loading?"Processando...":"↩ Reabrir"}</button>
         </div>
       </div>
     </div>
@@ -2393,7 +2473,7 @@ function App() {
 
       {/* ── MODAIS ── */}
       {novaPromessa&&<NovaPromessaModal contratos={contratos||[]} clientes={clientes||[]} onConfirmar={()=>{setNovaPromessa(false);carregar();}} onFechar={()=>setNovaPromessa(false)}/>}
-      {selPagDetalhe&&<PagamentoDetalheModal pag={selPagDetalhe} parcelas={parcelas||[]} contratos={contratos||[]} onFechar={()=>setSelPagDetalhe(null)} onReabrir={()=>{setSelPagDetalhe(null);carregar();}}/>}
+      {selPagDetalhe&&<PagamentoDetalheModal pag={selPagDetalhe} parcelas={parcelas||[]} contratos={contratos||[]} clientes={clientes||[]} onFechar={()=>setSelPagDetalhe(null)} onReabrir={()=>{setSelPagDetalhe(null);carregar();}}/>}
       {selCli&&<ClienteModal cliente={selCli} contratos={contratos||[]} parcelas={parcelas||[]} abaInicial={selCliAba} onFechar={()=>{setSelCli(null);setSelCliAba("perfil");}} onAtualizar={()=>{setSelCli(null);setSelCliAba("perfil");carregar();}}/>}
       {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} onConfirmar={async(res)=>{const p=pagamentoHoje;setPagamentoHoje(null);await carregar();if(res?.contratoQuitado&&p?.ID_CONTRATO)setComprovantePrompt({idContrato:p.ID_CONTRATO,idCliente:p.ID_CLIENTE});}} onFechar={()=>setPagamentoHoje(null)}/>}
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
