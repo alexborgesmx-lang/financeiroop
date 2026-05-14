@@ -833,8 +833,8 @@ function ClienteModal({cliente,contratos,onFechar,onAtualizar,abaInicial}){
   const nome=cliente.NOME_CLIENTE||cliente.NOME||cliente.CLIENTE||"Cliente sem nome";
   const tel=cliente.TELEFONE||cliente.TELEFONE_WPP||cliente.WHATSAPP||"—";
   const score=cliente.SCORE||cliente.SCORE_CLIENTE||cliente.SCORE_SERASA||"Não informado";
-  const ST_ATIVOS_LIM=["ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","em_recuperacao","recuperado_parcialmente","ativo","renegociado"];
-  const principalEmUso=(contratos||[]).filter(c=>String(c.ID_CLIENTE)===String(cliente.ID_CLIENTE)&&ST_ATIVOS_LIM.includes(c.STATUS_CONTRATO)).reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
+  const ST_TERMINAIS_LIM=["quitado","cancelado","baixado_como_prejuizo","recuperado_integralmente","encerrado_sem_recuperacao"];
+  const principalEmUso=(contratos||[]).filter(c=>String(c.ID_CLIENTE).trim()===String(cliente.ID_CLIENTE).trim()&&!ST_TERMINAIS_LIM.includes(String(c.STATUS_CONTRATO).trim())).reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
   const limite=parseFloat(cliente.LIMITE_CREDITO||0);
   const disponivel=Math.max(0,limite-principalEmUso);
   const pctUso=limite>0?Math.min(100,(principalEmUso/limite)*100):0;
