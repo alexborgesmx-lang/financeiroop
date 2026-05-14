@@ -1081,17 +1081,64 @@ function PagamentoParcelaModal({parcela,onConfirmar,onFechar}){
   const [valor,setValor]=useState(parseFloat(parcela?.VALOR_PARCELA||0).toFixed(2));
   const [loading,setLoading]=useState(false);
   const [msg,setMsg]=useState(null);
+  const [modo,setModo]=useState("pagamento"); // "pagamento" | "reagendar"
+  const [promData,setPromData]=useState("");
+  const [promObs,setPromObs]=useState("");
+
   const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||(res.contratoQuitado?"✓ Contrato QUITADO!":"Pagamento registrado!")});setTimeout(()=>onConfirmar(res),900);}else setMsg({ok:false,t:res.erro||"Erro ao registrar pagamento"});setLoading(false);};
+
+  const reagendar=async()=>{
+    if(!promData)return;
+    setLoading(true);setMsg(null);
+    const res=await postAction({action:"registrarPromessa",dados:{
+      idContrato:parcela.ID_CONTRATO,
+      idCliente:parcela.ID_CLIENTE,
+      nomeCliente:parcela.NOME_CLIENTE||"",
+      dataPrevista:promData,
+      valorPrometido:parseFloat(parcela.VALOR_PARCELA||0),
+      observacao:promObs||`Promessa ref. Parcela ${parcela.NUM_PARCELA}`
+    }});
+    if(res.ok){setMsg({ok:true,t:"Promessa registrada!"});setTimeout(onFechar,1200);}
+    else setMsg({ok:false,t:res.erro||"Erro."});
+    setLoading(false);
+  };
+
   return(
     <div style={{position:"fixed",inset:0,zIndex:300,background:"rgba(15,23,42,0.35)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onFechar}>
       <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:CARD,borderRadius:14,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.22)",overflow:"hidden"}}>
-        <div style={{padding:"18px 20px",borderBottom:`1px solid ${BD}`}}><h2 style={{margin:0,fontSize:17,fontWeight:800}}>Registrar pagamento</h2><p style={{margin:"5px 0 0",fontSize:12,color:MUTED}}>{parcela?.NOME_CLIENTE||"Cliente"} · Parcela {parcela?.NUM_PARCELA||parcela?.NUMERO_PARCELA||parcela?.ID_PARCELA||"—"}</p></div>
+        <div style={{padding:"18px 20px",borderBottom:`1px solid ${BD}`}}>
+          <h2 style={{margin:0,fontSize:17,fontWeight:800}}>{modo==="reagendar"?"Reagendar Parcela":"Registrar pagamento"}</h2>
+          <p style={{margin:"5px 0 0",fontSize:12,color:MUTED}}>{parcela?.NOME_CLIENTE||"Cliente"} · Parcela {parcela?.NUM_PARCELA||parcela?.NUMERO_PARCELA||parcela?.ID_PARCELA||"—"}</p>
+        </div>
         <div style={{padding:20,display:"flex",flexDirection:"column",gap:12}}>
+        {modo==="pagamento"?(
+          <>
           <div><span style={LS}>Tipo</span><select value={tipo} onChange={e=>{const t=e.target.value;setTipo(t);if(t==="total")setValor(parseFloat(parcela?.VALOR_PARCELA||0).toFixed(2));else setValor(parseFloat(parcela?.VALOR_JUROS||0).toFixed(2));}} style={IS}><option value="total">Pagamento total</option><option value="parcial">Somente juros</option></select></div>
           <div><span style={LS}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} style={IS}/></div>
           <div><span style={LS}>Data</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS}/></div>
           {msg&&<div style={{padding:10,borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:12,fontWeight:700}}>{msg.t}</div>}
-          <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:4}}><button onClick={onFechar} style={{padding:"10px 14px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:700}}>Cancelar</button><button onClick={registrar} disabled={loading||!valor||!data} style={{padding:"10px 14px",borderRadius:8,border:"none",background:GRN,color:"#FFF",cursor:"pointer",fontWeight:800,opacity:loading||!valor||!data?0.6:1}}>{loading?"Registrando...":"Confirmar"}</button></div>
+          <div style={{display:"flex",gap:8,marginTop:4}}>
+            <button onClick={()=>setModo("reagendar")} style={{padding:"10px 14px",borderRadius:8,border:`1px solid ${ORG}30`,background:ORG+"08",color:ORG,cursor:"pointer",fontWeight:700,fontSize:13}}>📅 Reagendar</button>
+            <div style={{flex:1}}/>
+            <button onClick={onFechar} style={{padding:"10px 14px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:700}}>Cancelar</button>
+            <button onClick={registrar} disabled={loading||!valor||!data} style={{padding:"10px 14px",borderRadius:8,border:"none",background:GRN,color:"#FFF",cursor:"pointer",fontWeight:800,opacity:loading||!valor||!data?0.6:1}}>{loading?"Registrando...":"Confirmar"}</button>
+          </div>
+          </>
+        ):(
+          <>
+          <div style={{background:ORG+"08",border:`1px solid ${ORG}30`,borderRadius:8,padding:"10px 14px",fontSize:12,color:ORG,fontWeight:600}}>
+            📌 A data de vencimento original da parcela não será alterada. Apenas um lembrete de promessa será registrado.
+          </div>
+          <div><span style={LS}>Data que o cliente prometeu pagar</span><input type="date" value={promData} onChange={e=>setPromData(e.target.value)} style={IS}/></div>
+          <div><span style={LS}>Observação (opcional)</span><input value={promObs} onChange={e=>setPromObs(e.target.value)} placeholder="Ex: Cliente disse que paga na sexta" style={IS}/></div>
+          {msg&&<div style={{padding:10,borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:12,fontWeight:700}}>{msg.t}</div>}
+          <div style={{display:"flex",gap:8,marginTop:4}}>
+            <button onClick={()=>{setModo("pagamento");setMsg(null);}} style={{padding:"10px 14px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:700}}>← Voltar</button>
+            <div style={{flex:1}}/>
+            <button onClick={reagendar} disabled={loading||!promData} style={{padding:"10px 14px",borderRadius:8,border:"none",background:ORG,color:"#FFF",cursor:"pointer",fontWeight:800,opacity:loading||!promData?0.6:1}}>{loading?"Salvando...":"Registrar Promessa"}</button>
+          </div>
+          </>
+        )}
         </div>
       </div>
     </div>
