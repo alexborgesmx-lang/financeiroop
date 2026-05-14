@@ -1075,7 +1075,7 @@ function PagamentoDrop({contratos,parcelas,onSucesso,onSelecionarParcela}){
   );
 }
 
-function PagamentoParcelaModal({parcela,onConfirmar,onFechar}){
+function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,onFechar}){
   const [tipo,setTipo]=useState("total");
   const [data,setData]=useState(hojeStr());
   const [valor,setValor]=useState(parseFloat(parcela?.VALOR_PARCELA||0).toFixed(2));
@@ -1085,7 +1085,74 @@ function PagamentoParcelaModal({parcela,onConfirmar,onFechar}){
   const [promData,setPromData]=useState("");
   const [promObs,setPromObs]=useState("");
 
-  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||(res.contratoQuitado?"✓ Contrato QUITADO!":"Pagamento registrado!")});setTimeout(()=>onConfirmar(res),900);}else setMsg({ok:false,t:res.erro||"Erro ao registrar pagamento"});setLoading(false);};
+  const gerarEEnviarComprovante=(valorPago,dataPago)=>{
+    try{
+      const contrato=(contratos||[]).find(c=>String(c.ID_CONTRATO||"").trim()===String(parcela.ID_CONTRATO||"").trim());
+      const cliente=(clientes||[]).find(c=>String(c.ID_CLIENTE||"").trim()===String(parcela.ID_CLIENTE||"").trim());
+      const telefone=String(cliente?.TELEFONE_WPP||cliente?.TELEFONE||"").replace(/\D/g,"");
+      const hist=(parcelas||[]).filter(p=>String(p.ID_CONTRATO||"").trim()===String(parcela.ID_CONTRATO||"").trim()).sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
+      const pNum=parseInt(parcela.NUM_PARCELA||0);
+      const tipoPag=tipo==="parcial"?"Somente Juros":"Pagamento Total";
+      const fD=d=>{if(!d)return'—';const dt=d instanceof Date?d:parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):'—';};
+      const fR=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+      const now=new Date();
+      const ts=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
+      const nomeArq=`comprovante-de-pagamento-${parcela.ID_CONTRATO}-${ts}.pdf`;
+      const doc=new jsPDF({unit:'mm',format:'a4'});
+      const W=210,pad=18;let y=20;
+      doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);
+      doc.text('Comprovante de Pagamento',pad,y);y+=8;
+      doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(100,100,100);
+      doc.text(`Emitido em ${now.toLocaleString('pt-BR')} · ${parcela.ID_CONTRATO} · Parcela ${parcela.NUM_PARCELA}/${contrato?.NUM_PARCELAS||'—'}`,pad,y);y+=10;
+      doc.setDrawColor(229,231,235);doc.setLineWidth(0.4);doc.line(pad,y,W-pad,y);y+=8;
+      doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);doc.text('CLIENTE',pad,y);y+=5;
+      [['Nome',parcela.NOME_CLIENTE||cliente?.NOME||'—'],['ID',String(parcela.ID_CLIENTE||'—')],['Contrato',parcela.ID_CONTRATO||'—']].forEach(([l,v])=>{
+        doc.setFont('helvetica','bold');doc.setTextColor(100,100,100);doc.setFontSize(8);doc.text(l+':',pad,y);
+        doc.setFont('helvetica','normal');doc.setTextColor(30,30,30);doc.text(v,pad+28,y);y+=5;
+      });y+=3;
+      doc.setDrawColor(229,231,235);doc.line(pad,y,W-pad,y);y+=6;
+      doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);doc.text('PAGAMENTO',pad,y);y+=5;
+      [['Data Pagamento',fD(dataPago)],['Valor Pago',fR(valorPago)],['Tipo',tipoPag],['Vencimento',fD(parcela.DATA_VENCIMENTO)],['Forma','dinheiro']].forEach(([l,v])=>{
+        doc.setFont('helvetica','bold');doc.setTextColor(100,100,100);doc.setFontSize(8);doc.text(l+':',pad,y);
+        doc.setFont('helvetica','normal');doc.setTextColor(30,30,30);doc.text(v,pad+36,y);y+=5;
+      });y+=3;
+      doc.setDrawColor(229,231,235);doc.line(pad,y,W-pad,y);y+=6;
+      doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);doc.text('HISTÓRICO DO CONTRATO ATÉ ESTA PARCELA',pad,y);y+=6;
+      doc.setFillColor(243,244,246);doc.rect(pad,y-4,W-2*pad,7,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(100,100,100);
+      const cols=[pad,pad+10,pad+42,pad+90,pad+120,pad+152];
+      ['#','Vencimento','Valor','Situação','Data Pgto','Valor Pago'].forEach((h,i)=>doc.text(h,cols[i],y));y+=5;
+      hist.filter(p=>parseInt(p.NUM_PARCELA||0)<=pNum).forEach(p=>{
+        const isAtual=String(p.NUM_PARCELA||"")===String(parcela.NUM_PARCELA||"");
+        const dpPago=isAtual?parseDate(dataPago):parseDate(p.DATA_PAGAMENTO);
+        const dpVenc=parseDate(p.DATA_VENCIMENTO);
+        const st=isAtual?(dpPago&&dpVenc&&dpPago>dpVenc?'com atraso':'em dia'):(!p.DATA_PAGAMENTO?'pendente':parseDate(p.DATA_PAGAMENTO)>parseDate(p.DATA_VENCIMENTO)?'com atraso':'em dia');
+        const vlPago=isAtual?parseFloat(valorPago||0):parseFloat(p.VALOR_PAGO||0);
+        const dtPago=isAtual?fD(dataPago):fD(p.DATA_PAGAMENTO);
+        if(isAtual){doc.setFillColor(219,234,254);doc.rect(pad,y-4,W-2*pad,6,'F');}
+        doc.setFont('helvetica',isAtual?'bold':'normal');doc.setFontSize(8);doc.setTextColor(30,30,30);
+        doc.text(String(p.NUM_PARCELA||''),cols[0],y);
+        doc.text(fD(p.DATA_VENCIMENTO),cols[1],y);
+        doc.text(fR(p.VALOR_PARCELA),cols[2],y);
+        if(st==='pendente')doc.setTextColor(100,100,100);else if(st==='com atraso')doc.setTextColor(180,70,0);else doc.setTextColor(22,163,74);
+        doc.text(st,cols[3],y);
+        doc.setTextColor(30,30,30);
+        doc.text(dtPago||'—',cols[4],y);
+        doc.text(vlPago>0?fR(vlPago):'—',cols[5],y);
+        y+=6;
+      });
+      const blob=doc.output('blob');
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download=nomeArq;document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),3000);
+      const tel=telefone?`55${telefone}`:'';
+      const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const wppUrl=tel?`https://wa.me/${tel}`:(isMobile?'https://wa.me':'https://web.whatsapp.com');
+      setTimeout(()=>window.open(wppUrl,'_blank'),700);
+    }catch(e){console.error('Comprovante error:',e);}
+  };
+
+  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||(res.contratoQuitado?"✓ Contrato QUITADO!":"Pagamento registrado!")});gerarEEnviarComprovante(parseFloat(valor),data);setTimeout(()=>onConfirmar(res),900);}else setMsg({ok:false,t:res.erro||"Erro ao registrar pagamento"});setLoading(false);};
 
   const reagendar=async()=>{
     if(!promData)return;
@@ -2588,7 +2655,7 @@ function App() {
       {novaPromessa&&<NovaPromessaModal contratos={contratos||[]} clientes={clientes||[]} onConfirmar={()=>{setNovaPromessa(false);carregar();}} onFechar={()=>setNovaPromessa(false)}/>}
       {selPagDetalhe&&<PagamentoDetalheModal pag={selPagDetalhe} parcelas={parcelas||[]} contratos={contratos||[]} clientes={clientes||[]} onFechar={()=>setSelPagDetalhe(null)} onReabrir={()=>{setSelPagDetalhe(null);carregar();}}/>}
       {selCli&&<ClienteModal cliente={selCli} contratos={contratos||[]} parcelas={parcelas||[]} abaInicial={selCliAba} onFechar={()=>{setSelCli(null);setSelCliAba("perfil");}} onAtualizar={()=>{setSelCli(null);setSelCliAba("perfil");carregar();}}/>}
-      {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} onConfirmar={async(res)=>{const p=pagamentoHoje;setPagamentoHoje(null);await carregar();if(res?.contratoQuitado&&p?.ID_CONTRATO)setComprovantePrompt({idContrato:p.ID_CONTRATO,idCliente:p.ID_CLIENTE});}} onFechar={()=>setPagamentoHoje(null)}/>}
+      {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} parcelas={parcelas||[]} contratos={contratos||[]} clientes={clientes||[]} onConfirmar={async(res)=>{const p=pagamentoHoje;setPagamentoHoje(null);await carregar();if(res?.contratoQuitado&&p?.ID_CONTRATO)setComprovantePrompt({idContrato:p.ID_CONTRATO,idCliente:p.ID_CLIENTE});}} onFechar={()=>setPagamentoHoje(null)}/>}
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {acordoModal&&<ModalAcordoPerda contrato={acordoModal} parcelas={parcelas||[]} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
       {quitacaoModal&&<QuitacaoAntecipadaModal contrato={quitacaoModal} parcelas={parcelas||[]} onConfirmar={()=>{setQuitacaoModal(null);carregar();}} onFechar={()=>setQuitacaoModal(null)}/>}
