@@ -1885,11 +1885,11 @@ function App() {
               <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
                 <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"10px 18px"}}>Cliente</th><th>Status</th><th>Telefone</th><th style={{padding:"10px 18px",textAlign:"right"}}>Ações</th></tr></thead>
                 <tbody>{filtrados.map(c=>(
-                  <tr key={c.ID_CLIENTE} style={{borderBottom:`1px solid ${BD}`,fontSize:13}} onMouseEnter={e=>e.currentTarget.style.background=BG+"30"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <tr key={c.ID_CLIENTE} onClick={()=>{setSelCliAba("perfil");setSelCli(c);}} style={{borderBottom:`1px solid ${BD}`,fontSize:13,cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=BG+"80"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <td style={{padding:"13px 18px"}}><div style={{fontWeight:700,display:"flex",alignItems:"center",gap:8}}>{nomeCliente(c)}{scoreBadge(c)}</div><div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"}</div></td>
                     <td><Badge c={c.STATUS_CLIENTE==="ativo"?GRN:YEL}>{(c.STATUS_CLIENTE||"").toUpperCase()}</Badge></td>
                     <td style={{color:MUTED}}>{telCliente(c)}</td>
-                    <td style={{padding:"13px 18px",textAlign:"right"}}><button onClick={()=>{setSelCliAba("perfil");setSelCli(c);}} style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,fontWeight:600}}>Detalhes</button></td>
+                    <td style={{padding:"13px 18px"}}></td>
                   </tr>
                 ))}</tbody>
               </table>
