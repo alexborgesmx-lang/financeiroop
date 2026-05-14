@@ -804,7 +804,7 @@ function normEstadoCivil(v){
   return v;
 }
 
-function ClienteModal({cliente,onFechar,onAtualizar,abaInicial}){
+function ClienteModal({cliente,contratos,onFechar,onAtualizar,abaInicial}){
   const [t,setT]=useState(abaInicial||"perfil");
   const [edit,setEdit]=useState({
     NOME:         cliente.NOME||cliente.NOME_CLIENTE||"",
@@ -818,6 +818,7 @@ function ClienteModal({cliente,onFechar,onAtualizar,abaInicial}){
     SCORE:        cliente.SCORE||"",
     STATUS_CLIENTE:cliente.STATUS_CLIENTE||"ativo",
     DIA_VENCIMENTO_PREFERIDO:cliente.DIA_VENCIMENTO_PREFERIDO||"",
+    LIMITE_CREDITO:cliente.LIMITE_CREDITO||"",
     CONTATO_CONFIANCA_1: cliente.CONTATO_CONFIANCA_1||"",
     TEL_CONFIANCA_1:     cliente.TEL_CONFIANCA_1||"",
     CONTATO_CONFIANCA_2: cliente.CONTATO_CONFIANCA_2||"",
@@ -832,6 +833,11 @@ function ClienteModal({cliente,onFechar,onAtualizar,abaInicial}){
   const nome=cliente.NOME_CLIENTE||cliente.NOME||cliente.CLIENTE||"Cliente sem nome";
   const tel=cliente.TELEFONE||cliente.TELEFONE_WPP||cliente.WHATSAPP||"—";
   const score=cliente.SCORE||cliente.SCORE_CLIENTE||cliente.SCORE_SERASA||"Não informado";
+  const ST_ATIVOS_LIM=["ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","em_recuperacao","recuperado_parcialmente","ativo","renegociado"];
+  const principalEmUso=(contratos||[]).filter(c=>String(c.ID_CLIENTE)===String(cliente.ID_CLIENTE)&&ST_ATIVOS_LIM.includes(c.STATUS_CONTRATO)).reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
+  const limite=parseFloat(cliente.LIMITE_CREDITO||0);
+  const disponivel=Math.max(0,limite-principalEmUso);
+  const pctUso=limite>0?Math.min(100,(principalEmUso/limite)*100):0;
   const label=k=>String(k).replaceAll("_"," ").toLowerCase().replace(/\b\w/g,m=>m.toUpperCase());
   const campos=Object.entries(cliente||{}).filter(([_,v])=>v!==null&&v!==undefined&&String(v).trim()!=="");
 
@@ -878,6 +884,24 @@ function ClienteModal({cliente,onFechar,onAtualizar,abaInicial}){
                 {l:"Contato confiança 2",v:[cliente.CONTATO_CONFIANCA_2,cliente.TEL_CONFIANCA_2].filter(Boolean).join(" · ")},{l:"Padrinho",v:[cliente.PADRINHO,cliente.TEL_PADRINHO].filter(Boolean).join(" · ")},
                 {l:"Vencimento preferido",v:cliente.DIA_VENCIMENTO_PREFERIDO},{l:"Cadastro",v:fmtDt(cliente.DATA_CADASTRO)},{l:"Observações",v:cliente.OBSERVACOES}
               ].map(i=><div key={i.l} style={{background:CARD,padding:15,borderRadius:10,border:`1px solid ${BD}`,gridColumn:i.l==="Endereço"||i.l==="Observações"?"1/-1":"auto"}}><span style={LS}>{i.l}</span><div style={{fontSize:13,fontWeight:600,wordBreak:"break-word"}}>{i.v||"—"}</div></div>)}
+              <div style={{background:CARD,padding:16,borderRadius:10,border:`1px solid ${limite>0&&pctUso>80?RED+"50":BD}`,gridColumn:"1/-1"}}>
+                <span style={LS}>Limite de Crédito</span>
+                {limite>0?(
+                  <>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",margin:"8px 0 6px"}}>
+                      <span style={{fontSize:13,color:MUTED}}>{fmtR(principalEmUso)} em uso</span>
+                      <span style={{fontSize:14,fontWeight:800,color:BLU}}>{fmtR(limite)} total</span>
+                    </div>
+                    <div style={{background:BD,borderRadius:8,height:10,overflow:"hidden"}}>
+                      <div style={{width:`${pctUso}%`,height:"100%",background:pctUso>80?RED:pctUso>50?YEL:GRN,borderRadius:8,transition:"width 0.5s"}}/>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
+                      <span style={{fontSize:11,color:pctUso>80?RED:MUTED,fontWeight:700}}>{pctUso.toFixed(0)}% utilizado</span>
+                      <span style={{fontSize:11,color:GRN,fontWeight:700}}>Disponivel: {fmtR(disponivel)}</span>
+                    </div>
+                  </>
+                ):<div style={{fontSize:13,color:MUTED,marginTop:6}}>Não definido — edite o cliente para cadastrar.</div>}
+              </div>
             </div>
           )}
           {t==="editar"&&(
@@ -894,6 +918,7 @@ function ClienteModal({cliente,onFechar,onAtualizar,abaInicial}){
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Score" field="SCORE"/>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Status" field="STATUS_CLIENTE" opts={[{v:"ativo",l:"Ativo"},{v:"inativo",l:"Inativo"},{v:"aguardando_conferencia",l:"Aguardando Conferência"},{v:"bloqueado",l:"Bloqueado"}]}/>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Dia vencimento preferido" field="DIA_VENCIMENTO_PREFERIDO"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Limite de Credito (R$)" field="LIMITE_CREDITO" tipo="number"/>
               </div>
               <div style={{borderTop:`1px solid ${BD}`,paddingTop:16}}>
                 <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:12}}>Contatos de Confiança</div>
@@ -2198,7 +2223,7 @@ function App() {
 
       {/* ── MODAIS ── */}
       {novaPromessa&&<NovaPromessaModal contratos={contratos||[]} clientes={clientes||[]} onConfirmar={()=>{setNovaPromessa(false);carregar();}} onFechar={()=>setNovaPromessa(false)}/>}
-      {selCli&&<ClienteModal cliente={selCli} abaInicial={selCliAba} onFechar={()=>{setSelCli(null);setSelCliAba("perfil");}} onAtualizar={()=>{setSelCli(null);setSelCliAba("perfil");carregar();}}/>}
+      {selCli&&<ClienteModal cliente={selCli} contratos={contratos||[]} abaInicial={selCliAba} onFechar={()=>{setSelCli(null);setSelCliAba("perfil");}} onAtualizar={()=>{setSelCli(null);setSelCliAba("perfil");carregar();}}/>}
       {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} onConfirmar={async(res)=>{const p=pagamentoHoje;setPagamentoHoje(null);await carregar();if(res?.contratoQuitado&&p?.ID_CONTRATO)setComprovantePrompt({idContrato:p.ID_CONTRATO,idCliente:p.ID_CLIENTE});}} onFechar={()=>setPagamentoHoje(null)}/>}
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {acordoModal&&<ModalAcordoPerda contrato={acordoModal} parcelas={parcelas||[]} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
@@ -2223,9 +2248,10 @@ function App() {
       {/* ── DIALOG COMPROVANTE DE QUITAÇÃO ── */}
       {comprovantePrompt&&(()=>{
         const c=contratos.find(x=>String(x.ID_CONTRATO)===String(comprovantePrompt.idContrato));
-        const cli=clientes.find(x=>String(x.ID_CLIENTE)===String(comprovantePrompt.idCliente));
+        const cliId=comprovantePrompt.idCliente||c?.ID_CLIENTE;
+        const cli=clientes.find(x=>String(x.ID_CLIENTE)===String(cliId));
         const ps=(parcelas||[]).filter(x=>String(x.ID_CONTRATO)===String(comprovantePrompt.idContrato)).sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
-        const tel=cli?.TELEFONE_WPP||cli?.TELEFONE||c?.TELEFONE||'';
+        const tel=cli?.TELEFONE_WPP||cli?.TELEFONE||cli?.WHATSAPP||'';
         const nome=c?.NOME_CLIENTE||cli?.NOME_CLIENTE||'cliente';
         const idC=c?.ID_CONTRATO||comprovantePrompt.idContrato;
         return(
