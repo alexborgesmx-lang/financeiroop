@@ -1507,6 +1507,16 @@ function App() {
   const nomeCliente=c=>c?.NOME_CLIENTE||c?.NOME||c?.CLIENTE||c?.NOME_COMPLETO||"Cliente sem nome";
   const telCliente=c=>c?.TELEFONE||c?.TELEFONE_WPP||c?.WHATSAPP||"—";
   const scoreCliente=c=>c?.SCORE||c?.SCORE_CLIENTE||c?.SCORE_SERASA||c?.SCORING||c?.SPC_SCORE||c?.SERASA_SCORE||"—";
+  const scoreBadge=c=>{
+    const sc=parseFloat(c?.SCORE||0);
+    const faixa=c?.SCORE_FAIXA||"";
+    const bloq=String(c?.SCORE_BLOQUEADO||"").toUpperCase()==="SIM";
+    if(!sc&&!faixa)return null;
+    const cor=bloq?RED:sc>=75?GRN:sc>=45?YEL:RED;
+    return<span style={{display:"inline-flex",alignItems:"center",gap:3,background:cor+"18",color:cor,fontSize:10,fontWeight:800,padding:"1px 7px",borderRadius:20,border:`1px solid ${cor}35`,verticalAlign:"middle"}}>
+      {sc}{faixa&&` · ${faixa}`}{bloq&&" · BLOQ"}
+    </span>;
+  };
 
   const filtrados=useMemo(()=>(clientes||[]).filter(c=>{const busca=filtroBusca.toLowerCase();const m=nomeCliente(c).toLowerCase().includes(busca)||String(c.ID_CLIENTE||"").toLowerCase().includes(busca)||String(telCliente(c)||"").toLowerCase().includes(busca)||String(c.CPF||"").toLowerCase().includes(busca);const s=filtroStatus==="todos"||c.STATUS_CLIENTE===filtroStatus;return m&&s;}),[clientes,filtroBusca,filtroStatus]);
 
@@ -1875,7 +1885,7 @@ function App() {
                 <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"10px 18px"}}>Cliente</th><th>Status</th><th>Telefone</th><th style={{padding:"10px 18px",textAlign:"right"}}>Ações</th></tr></thead>
                 <tbody>{filtrados.map(c=>(
                   <tr key={c.ID_CLIENTE} style={{borderBottom:`1px solid ${BD}`,fontSize:13}} onMouseEnter={e=>e.currentTarget.style.background=BG+"30"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    <td style={{padding:"13px 18px"}}><div style={{fontWeight:700}}>{nomeCliente(c)}</div><div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"} · Score {scoreCliente(c)}</div></td>
+                    <td style={{padding:"13px 18px"}}><div style={{fontWeight:700,display:"flex",alignItems:"center",gap:8}}>{nomeCliente(c)}{scoreBadge(c)}</div><div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"}</div></td>
                     <td><Badge c={c.STATUS_CLIENTE==="ativo"?GRN:YEL}>{(c.STATUS_CLIENTE||"").toUpperCase()}</Badge></td>
                     <td style={{color:MUTED}}>{telCliente(c)}</td>
                     <td style={{padding:"13px 18px",textAlign:"right"}}><button onClick={()=>{setSelCliAba("perfil");setSelCli(c);}} style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,fontWeight:600}}>Detalhes</button></td>
@@ -1980,7 +1990,7 @@ function App() {
                       onMouseLeave={e=>e.currentTarget.style.background="transparent"}
                     >
                       <td style={{padding:"13px 18px"}}>
-                        <div style={{fontWeight:700}}>{nomeCliente(c)}</div>
+                        <div style={{fontWeight:700,display:"flex",alignItems:"center",gap:8}}>{nomeCliente(c)}{scoreBadge(c)}</div>
                         <div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"} · {telCliente(c)}</div>
                       </td>
                       <td style={{fontWeight:600}}>{c.qtdContratos}</td>
