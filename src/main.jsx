@@ -162,11 +162,78 @@ function CalendarioRange({ de, ate, onSelecionar, onLimpar }) {
   );
 }
 
+// ─── HELPER: GERAR E ENVIAR COMPROVANTE PDF VIA WHATSAPP ─────────
+function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes){
+  try{
+    const contrato=(contratos||[]).find(c=>String(c.ID_CONTRATO||"").trim()===String(parcela.ID_CONTRATO||"").trim());
+    const cliente=(clientes||[]).find(c=>String(c.ID_CLIENTE||"").trim()===String(parcela.ID_CLIENTE||"").trim());
+    const telefone=String(cliente?.TELEFONE_WPP||cliente?.TELEFONE||"").replace(/\D/g,"");
+    const hist=(parcelas||[]).filter(p=>String(p.ID_CONTRATO||"").trim()===String(parcela.ID_CONTRATO||"").trim()).sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
+    const pNum=parseInt(parcela.NUM_PARCELA||0);
+    const fD=d=>{if(!d)return'—';const dt=d instanceof Date?d:parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):'—';};
+    const fR=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const now=new Date();
+    const ts=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
+    const nomeArq=`comprovante-de-pagamento-${parcela.ID_CONTRATO}-${ts}.pdf`;
+    const doc=new jsPDF({unit:'mm',format:'a4'});
+    const W=210,pad=18;let y=20;
+    doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);
+    doc.text('Comprovante de Pagamento',pad,y);y+=8;
+    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(100,100,100);
+    doc.text(`Emitido em ${now.toLocaleString('pt-BR')} · ${parcela.ID_CONTRATO} · Parcela ${parcela.NUM_PARCELA}/${contrato?.NUM_PARCELAS||'—'}`,pad,y);y+=10;
+    doc.setDrawColor(229,231,235);doc.setLineWidth(0.4);doc.line(pad,y,W-pad,y);y+=8;
+    doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);doc.text('CLIENTE',pad,y);y+=5;
+    [['Nome',parcela.NOME_CLIENTE||cliente?.NOME||'—'],['ID',String(parcela.ID_CLIENTE||'—')],['Contrato',parcela.ID_CONTRATO||'—']].forEach(([l,v])=>{
+      doc.setFont('helvetica','bold');doc.setTextColor(100,100,100);doc.setFontSize(8);doc.text(l+':',pad,y);
+      doc.setFont('helvetica','normal');doc.setTextColor(30,30,30);doc.text(v,pad+28,y);y+=5;
+    });y+=3;
+    doc.setDrawColor(229,231,235);doc.line(pad,y,W-pad,y);y+=6;
+    doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);doc.text('PAGAMENTO',pad,y);y+=5;
+    [['Data Pagamento',fD(dataPago)],['Valor Pago',fR(valorPago)],['Tipo',tipoLabel],['Vencimento',fD(parcela.DATA_VENCIMENTO)],['Forma','dinheiro']].forEach(([l,v])=>{
+      doc.setFont('helvetica','bold');doc.setTextColor(100,100,100);doc.setFontSize(8);doc.text(l+':',pad,y);
+      doc.setFont('helvetica','normal');doc.setTextColor(30,30,30);doc.text(v,pad+36,y);y+=5;
+    });y+=3;
+    doc.setDrawColor(229,231,235);doc.line(pad,y,W-pad,y);y+=6;
+    doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);doc.text('HISTÓRICO DO CONTRATO ATÉ ESTA PARCELA',pad,y);y+=6;
+    doc.setFillColor(243,244,246);doc.rect(pad,y-4,W-2*pad,7,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(100,100,100);
+    const cols=[pad,pad+10,pad+42,pad+90,pad+120,pad+152];
+    ['#','Vencimento','Valor','Situação','Data Pgto','Valor Pago'].forEach((h,i)=>doc.text(h,cols[i],y));y+=5;
+    hist.filter(p=>parseInt(p.NUM_PARCELA||0)<=pNum).forEach(p=>{
+      const isAtual=String(p.NUM_PARCELA||"")===String(parcela.NUM_PARCELA||"");
+      const dpPago=isAtual?parseDate(dataPago):parseDate(p.DATA_PAGAMENTO);
+      const dpVenc=parseDate(p.DATA_VENCIMENTO);
+      const st=isAtual?(dpPago&&dpVenc&&dpPago>dpVenc?'com atraso':'em dia'):(!p.DATA_PAGAMENTO?'pendente':parseDate(p.DATA_PAGAMENTO)>parseDate(p.DATA_VENCIMENTO)?'com atraso':'em dia');
+      const vlPago=isAtual?parseFloat(valorPago||0):parseFloat(p.VALOR_PAGO||0);
+      const dtPago=isAtual?fD(dataPago):fD(p.DATA_PAGAMENTO);
+      if(isAtual){doc.setFillColor(219,234,254);doc.rect(pad,y-4,W-2*pad,6,'F');}
+      doc.setFont('helvetica',isAtual?'bold':'normal');doc.setFontSize(8);doc.setTextColor(30,30,30);
+      doc.text(String(p.NUM_PARCELA||''),cols[0],y);
+      doc.text(fD(p.DATA_VENCIMENTO),cols[1],y);
+      doc.text(fR(p.VALOR_PARCELA),cols[2],y);
+      if(st==='pendente')doc.setTextColor(100,100,100);else if(st==='com atraso')doc.setTextColor(180,70,0);else doc.setTextColor(22,163,74);
+      doc.text(st,cols[3],y);
+      doc.setTextColor(30,30,30);
+      doc.text(dtPago||'—',cols[4],y);
+      doc.text(vlPago>0?fR(vlPago):'—',cols[5],y);
+      y+=6;
+    });
+    const blob=doc.output('blob');
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=nomeArq;document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),3000);
+    const tel=telefone?`55${telefone}`:'';
+    const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const wppUrl=tel?`https://wa.me/${tel}`:(isMobile?'https://wa.me':'https://web.whatsapp.com');
+    setTimeout(()=>window.open(wppUrl,'_blank'),700);
+  }catch(e){console.error('Comprovante error:',e);}
+}
+
 // ─── MODAL COBRANÇA ──────────────────────────────────────────────
 // Abre ao clicar numa linha da fila de cobrança.
 // Coluna esquerda: parcelas em atraso do cliente.
 // Coluna direita:  formulário de pagamento para a parcela selecionada.
-function CobrancaModal({ cliente, parcelasCliente, onSucesso, onFechar }) {
+function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onSucesso, onFechar }) {
   const MULTA_PCT   = 10;      // 10% sobre o valor da parcela
   const MORA_DIARIO = 0.033;   // 0.033% ao dia
 
@@ -221,6 +288,7 @@ function CobrancaModal({ cliente, parcelasCliente, onSucesso, onFechar }) {
     if (res.ok) {
       setMsg({ ok: true, t: res.msg || "Pagamento registrado com sucesso!" });
       setPagoIds(prev => new Set([...prev, parcelaSel.ID_PARCELA]));
+      gerarEEnviarComprovante(parcelaSel,parseFloat(valor),data,tipo==="somente_juros"?"Somente Juros":"Pagamento Total",todasParcelas||[],contratos||[],[cliente]);
       setTimeout(() => { setParcelaSel(null); setMsg(null); onSucesso(); }, 1400);
     } else {
       setMsg({ ok: false, t: res.erro || "Erro ao registrar pagamento." });
@@ -1010,12 +1078,12 @@ function ClienteModal({cliente,contratos,parcelas,onFechar,onAtualizar,abaInicia
   );
 }
 
-function PagamentoDrop({contratos,parcelas,onSucesso,onSelecionarParcela}){
+function PagamentoDrop({contratos,parcelas,clientes,onSucesso,onSelecionarParcela}){
   const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);const [cliente,setCliente]=useState(null);const [parcela,setParcela]=useState(null);const [tipo,setTipo]=useState(null);const [data,setData]=useState(hojeStr());const [valor,setValor]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const ref=useRef();
   useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
   const clis=useMemo(()=>{if(busca.length<2)return[];const ids=new Set();return (contratos||[]).filter(c=>{const m=(c.NOME_CLIENTE||"").toLowerCase().includes(busca.toLowerCase())||String(c.ID_CLIENTE||"").toLowerCase().includes(busca.toLowerCase());if(m&&!ids.has(c.ID_CLIENTE)){ids.add(c.ID_CLIENTE);return true;}return false;}).slice(0,6);},[busca,contratos]);
   const pars=useMemo(()=>cliente?(parcelas||[]).filter(p=>String(p.ID_CLIENTE)===String(cliente.ID_CLIENTE)&&["pendente","atrasado","vence_hoje"].includes(p.STATUS)).sort((a,b)=>toNum(a.DATA_VENCIMENTO)-toNum(b.DATA_VENCIMENTO)):[],[cliente,parcelas]);
-  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||(res.contratoQuitado?"✓ Contrato QUITADO!":"Sucesso!")});setTimeout(()=>onSucesso(res,parcela),1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
+  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||(res.contratoQuitado?"✓ Contrato QUITADO!":"Sucesso!")});gerarEEnviarComprovante(parcela,parseFloat(valor),data,tipo==="parcial"?"Somente Juros":"Pagamento Total",parcelas,contratos,clientes);setTimeout(()=>onSucesso(res,parcela),1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
   const [showParsDrop,setShowParsDrop]=useState(false);
   const selecionarParcela=p=>{if(!p)return;setShowParsDrop(false);if(onSelecionarParcela){setParcela(null);setTipo(null);setValor("");onSelecionarParcela(p);return;}setParcela(p);setTipo("total");setValor(parseFloat(p.VALOR_PARCELA||0).toFixed(2));};
   const _hoje=new Date();_hoje.setHours(0,0,0,0);
@@ -1085,74 +1153,7 @@ function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,
   const [promData,setPromData]=useState("");
   const [promObs,setPromObs]=useState("");
 
-  const gerarEEnviarComprovante=(valorPago,dataPago)=>{
-    try{
-      const contrato=(contratos||[]).find(c=>String(c.ID_CONTRATO||"").trim()===String(parcela.ID_CONTRATO||"").trim());
-      const cliente=(clientes||[]).find(c=>String(c.ID_CLIENTE||"").trim()===String(parcela.ID_CLIENTE||"").trim());
-      const telefone=String(cliente?.TELEFONE_WPP||cliente?.TELEFONE||"").replace(/\D/g,"");
-      const hist=(parcelas||[]).filter(p=>String(p.ID_CONTRATO||"").trim()===String(parcela.ID_CONTRATO||"").trim()).sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
-      const pNum=parseInt(parcela.NUM_PARCELA||0);
-      const tipoPag=tipo==="parcial"?"Somente Juros":"Pagamento Total";
-      const fD=d=>{if(!d)return'—';const dt=d instanceof Date?d:parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):'—';};
-      const fR=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-      const now=new Date();
-      const ts=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
-      const nomeArq=`comprovante-de-pagamento-${parcela.ID_CONTRATO}-${ts}.pdf`;
-      const doc=new jsPDF({unit:'mm',format:'a4'});
-      const W=210,pad=18;let y=20;
-      doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);
-      doc.text('Comprovante de Pagamento',pad,y);y+=8;
-      doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(100,100,100);
-      doc.text(`Emitido em ${now.toLocaleString('pt-BR')} · ${parcela.ID_CONTRATO} · Parcela ${parcela.NUM_PARCELA}/${contrato?.NUM_PARCELAS||'—'}`,pad,y);y+=10;
-      doc.setDrawColor(229,231,235);doc.setLineWidth(0.4);doc.line(pad,y,W-pad,y);y+=8;
-      doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);doc.text('CLIENTE',pad,y);y+=5;
-      [['Nome',parcela.NOME_CLIENTE||cliente?.NOME||'—'],['ID',String(parcela.ID_CLIENTE||'—')],['Contrato',parcela.ID_CONTRATO||'—']].forEach(([l,v])=>{
-        doc.setFont('helvetica','bold');doc.setTextColor(100,100,100);doc.setFontSize(8);doc.text(l+':',pad,y);
-        doc.setFont('helvetica','normal');doc.setTextColor(30,30,30);doc.text(v,pad+28,y);y+=5;
-      });y+=3;
-      doc.setDrawColor(229,231,235);doc.line(pad,y,W-pad,y);y+=6;
-      doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);doc.text('PAGAMENTO',pad,y);y+=5;
-      [['Data Pagamento',fD(dataPago)],['Valor Pago',fR(valorPago)],['Tipo',tipoPag],['Vencimento',fD(parcela.DATA_VENCIMENTO)],['Forma','dinheiro']].forEach(([l,v])=>{
-        doc.setFont('helvetica','bold');doc.setTextColor(100,100,100);doc.setFontSize(8);doc.text(l+':',pad,y);
-        doc.setFont('helvetica','normal');doc.setTextColor(30,30,30);doc.text(v,pad+36,y);y+=5;
-      });y+=3;
-      doc.setDrawColor(229,231,235);doc.line(pad,y,W-pad,y);y+=6;
-      doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);doc.text('HISTÓRICO DO CONTRATO ATÉ ESTA PARCELA',pad,y);y+=6;
-      doc.setFillColor(243,244,246);doc.rect(pad,y-4,W-2*pad,7,'F');
-      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(100,100,100);
-      const cols=[pad,pad+10,pad+42,pad+90,pad+120,pad+152];
-      ['#','Vencimento','Valor','Situação','Data Pgto','Valor Pago'].forEach((h,i)=>doc.text(h,cols[i],y));y+=5;
-      hist.filter(p=>parseInt(p.NUM_PARCELA||0)<=pNum).forEach(p=>{
-        const isAtual=String(p.NUM_PARCELA||"")===String(parcela.NUM_PARCELA||"");
-        const dpPago=isAtual?parseDate(dataPago):parseDate(p.DATA_PAGAMENTO);
-        const dpVenc=parseDate(p.DATA_VENCIMENTO);
-        const st=isAtual?(dpPago&&dpVenc&&dpPago>dpVenc?'com atraso':'em dia'):(!p.DATA_PAGAMENTO?'pendente':parseDate(p.DATA_PAGAMENTO)>parseDate(p.DATA_VENCIMENTO)?'com atraso':'em dia');
-        const vlPago=isAtual?parseFloat(valorPago||0):parseFloat(p.VALOR_PAGO||0);
-        const dtPago=isAtual?fD(dataPago):fD(p.DATA_PAGAMENTO);
-        if(isAtual){doc.setFillColor(219,234,254);doc.rect(pad,y-4,W-2*pad,6,'F');}
-        doc.setFont('helvetica',isAtual?'bold':'normal');doc.setFontSize(8);doc.setTextColor(30,30,30);
-        doc.text(String(p.NUM_PARCELA||''),cols[0],y);
-        doc.text(fD(p.DATA_VENCIMENTO),cols[1],y);
-        doc.text(fR(p.VALOR_PARCELA),cols[2],y);
-        if(st==='pendente')doc.setTextColor(100,100,100);else if(st==='com atraso')doc.setTextColor(180,70,0);else doc.setTextColor(22,163,74);
-        doc.text(st,cols[3],y);
-        doc.setTextColor(30,30,30);
-        doc.text(dtPago||'—',cols[4],y);
-        doc.text(vlPago>0?fR(vlPago):'—',cols[5],y);
-        y+=6;
-      });
-      const blob=doc.output('blob');
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement('a');a.href=url;a.download=nomeArq;document.body.appendChild(a);a.click();document.body.removeChild(a);
-      setTimeout(()=>URL.revokeObjectURL(url),3000);
-      const tel=telefone?`55${telefone}`:'';
-      const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      const wppUrl=tel?`https://wa.me/${tel}`:(isMobile?'https://wa.me':'https://web.whatsapp.com');
-      setTimeout(()=>window.open(wppUrl,'_blank'),700);
-    }catch(e){console.error('Comprovante error:',e);}
-  };
-
-  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||(res.contratoQuitado?"✓ Contrato QUITADO!":"Pagamento registrado!")});gerarEEnviarComprovante(parseFloat(valor),data);setTimeout(()=>onConfirmar(res),900);}else setMsg({ok:false,t:res.erro||"Erro ao registrar pagamento"});setLoading(false);};
+  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||(res.contratoQuitado?"✓ Contrato QUITADO!":"Pagamento registrado!")});gerarEEnviarComprovante(parcela,parseFloat(valor),data,tipo==="parcial"?"Somente Juros":"Pagamento Total",parcelas,contratos,clientes);setTimeout(()=>onConfirmar(res),900);}else setMsg({ok:false,t:res.erro||"Erro ao registrar pagamento"});setLoading(false);};
 
   const reagendar=async()=>{
     if(!promData)return;
@@ -2231,7 +2232,7 @@ function App() {
                     </div>
                   ))}</div>}
                 </div>
-                <PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} onSucesso={async(res,parc)=>{await carregar();if(res?.contratoQuitado&&parc?.ID_CONTRATO)setComprovantePrompt({idContrato:parc.ID_CONTRATO,idCliente:parc.ID_CLIENTE});}} onSelecionarParcela={setPagamentoHoje}/>
+                <PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} clientes={clientes||[]} onSucesso={async(res,parc)=>{await carregar();if(res?.contratoQuitado&&parc?.ID_CONTRATO)setComprovantePrompt({idContrato:parc.ID_CONTRATO,idCliente:parc.ID_CLIENTE});}} onSelecionarParcela={setPagamentoHoje}/>
                 <NovoContrato contratos={contratos||[]} clientes={clientes||[]} onSucesso={carregar}/>
               </div>
             </div>
@@ -2706,6 +2707,8 @@ function App() {
         <CobrancaModal
           cliente={cobModal}
           parcelasCliente={cobModal.parcelasAtrasadas || []}
+          todasParcelas={parcelas||[]}
+          contratos={contratos||[]}
           onSucesso={()=>{ carregar(); }}
           onFechar={()=>setCobModal(null)}
         />
