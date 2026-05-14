@@ -333,6 +333,7 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
   const totalAtraso  = parcelas.reduce((s, p) => s + parseFloat(p.VALOR_PARCELA || 0), 0);
 
   return (
+    <>
     <div
       style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
       onClick={onFechar}
@@ -540,6 +541,7 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
       </div>
     </div>
     {comprovanteData&&<ComprovanteEnvioModal parcela={comprovanteData.parcela} valorPago={comprovanteData.valorPago} dataPago={comprovanteData.dataPago} tipoLabel={comprovanteData.tipoLabel} parcelas={todasParcelas||[]} contratos={contratos||[]} clientes={[cliente]} onFechar={()=>{setComprovanteData(null);setParcelaSel(null);setMsg(null);onFechar();onSucesso();}}/>}
+    </>
   );
 }
 
