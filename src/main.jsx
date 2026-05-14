@@ -1145,10 +1145,30 @@ function PagamentoParcelaModal({parcela,onConfirmar,onFechar}){
   );
 }
 
-function NovoContrato({contratos,onSucesso}){
+function NovoContrato({contratos,clientes,onSucesso}){
   const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);const [cliente,setCliente]=useState(null);const [principal,setPrincipal]=useState("");const [nParcelas,setNParcelas]=useState("");const [taxa,setTaxa]=useState("");const [dtEmp,setDtEmp]=useState(hojeStr());const [dtVenc,setDtVenc]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const ref=useRef();
   useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
-  const clis=useMemo(()=>{if(busca.length<2)return[];const ids=new Set();return (contratos||[]).filter(c=>{const m=(c.NOME_CLIENTE||"").toLowerCase().includes(busca.toLowerCase())||String(c.ID_CLIENTE||"").toLowerCase().includes(busca.toLowerCase());if(m&&!ids.has(c.ID_CLIENTE)){ids.add(c.ID_CLIENTE);return true;}return false;}).slice(0,6);},[busca,contratos]);
+
+  const ST_BLOQ=["ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente"];
+  const idsComAtivo=useMemo(()=>{const s=new Set();(contratos||[]).forEach(c=>{if(ST_BLOQ.includes(c.STATUS_CONTRATO))s.add(String(c.ID_CLIENTE));});return s;},[contratos]);
+
+  const clis=useMemo(()=>{
+    if(busca.length<2)return[];
+    const q=busca.toLowerCase();
+    const ids=new Set();const res=[];
+    // Busca em clientes (cadastro completo)
+    (clientes||[]).forEach(c=>{
+      const m=(c.NOME||c.NOME_CLIENTE||"").toLowerCase().includes(q)||String(c.ID_CLIENTE||"").toLowerCase().includes(q);
+      if(m&&!ids.has(String(c.ID_CLIENTE))){ids.add(String(c.ID_CLIENTE));res.push({ID_CLIENTE:c.ID_CLIENTE,NOME_CLIENTE:c.NOME||c.NOME_CLIENTE});}
+    });
+    // Fallback: busca em contratos se clientes vazio
+    if(res.length===0)(contratos||[]).forEach(c=>{
+      const m=(c.NOME_CLIENTE||"").toLowerCase().includes(q)||String(c.ID_CLIENTE||"").toLowerCase().includes(q);
+      if(m&&!ids.has(String(c.ID_CLIENTE))){ids.add(String(c.ID_CLIENTE));res.push({ID_CLIENTE:c.ID_CLIENTE,NOME_CLIENTE:c.NOME_CLIENTE});}
+    });
+    return res.slice(0,8);
+  },[busca,clientes,contratos]);
+
   const criar=async()=>{if(!cliente||!principal||!nParcelas||!taxa||!dtEmp||!dtVenc)return;setLoading(true);setMsg(null);const res=await postAction({action:"novoContrato",dados:{idCliente:cliente.ID_CLIENTE,nomeCliente:cliente.NOME_CLIENTE,principal,parcelas:nParcelas,taxa,dataEmprestimo:apiDateStr(dtEmp),dataVencimento:apiDateStr(dtVenc)}});if(res.ok){setMsg({ok:true,t:"Contrato criado!"});setTimeout(onSucesso,1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
   return(
     <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
@@ -1157,7 +1177,19 @@ function NovoContrato({contratos,onSucesso}){
         <div style={{position:"relative"}} ref={ref}>
           <span style={LS}>Buscar Cliente</span>
           <div style={{position:"relative"}}><div style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)"}}>{IcoSrch}</div><input value={cliente?cliente.NOME_CLIENTE:busca} onChange={e=>{setBusca(e.target.value);setCliente(null);setShowDrop(true);}} onFocus={()=>setShowDrop(true)} placeholder="Nome ou ID..." style={{...IS,paddingLeft:32}}/>{cliente&&<button onClick={()=>{setCliente(null);setBusca("");}} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:MUTED,fontSize:16}}>×</button>}</div>
-          {showDrop&&clis.length>0&&<div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BD}`,borderRadius:8,marginTop:4,zIndex:100,boxShadow:"0 10px 30px rgba(0,0,0,0.1)"}}>{clis.map(c=><div key={c.ID_CLIENTE} onClick={()=>{setCliente(c);setShowDrop(false);}} style={{padding:"10px 14px",cursor:"pointer",fontSize:13,borderBottom:`1px solid ${BG}`}} onMouseEnter={e=>e.currentTarget.style.background=BG} onMouseLeave={e=>e.currentTarget.style.background=CARD}><strong>{c.ID_CLIENTE}</strong> - {c.NOME_CLIENTE}</div>)}</div>}
+          {showDrop&&clis.length>0&&<div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BD}`,borderRadius:8,marginTop:4,zIndex:100,boxShadow:"0 10px 30px rgba(0,0,0,0.1)"}}>
+            {clis.map(c=>{
+              const bloq=idsComAtivo.has(String(c.ID_CLIENTE));
+              return<div key={c.ID_CLIENTE}
+                onClick={()=>{if(!bloq){setCliente(c);setShowDrop(false);}}}
+                style={{padding:"10px 14px",cursor:bloq?"not-allowed":"pointer",fontSize:13,borderBottom:`1px solid ${BG}`,background:bloq?RED+"05":CARD,display:"flex",justifyContent:"space-between",alignItems:"center",opacity:bloq?0.7:1}}
+                onMouseEnter={e=>!bloq&&(e.currentTarget.style.background=BG)}
+                onMouseLeave={e=>e.currentTarget.style.background=bloq?RED+"05":CARD}>
+                <span style={{color:bloq?MUTED:TEXT}}><strong style={{color:bloq?MUTED:TEXT}}>{c.ID_CLIENTE}</strong> — {c.NOME_CLIENTE}</span>
+                {bloq&&<span style={{fontSize:11,fontWeight:700,color:RED,background:RED+"12",padding:"2px 8px",borderRadius:99,whiteSpace:"nowrap",marginLeft:8}}>🔒 contrato ativo</span>}
+              </div>;
+            })}
+          </div>}
         </div>
         {cliente&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <div><span style={LS}>Principal</span><input type="number" value={principal} onChange={e=>setPrincipal(e.target.value)} placeholder="0.00" style={IS}/></div>
@@ -2133,7 +2165,7 @@ function App() {
                   ))}</div>}
                 </div>
                 <PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} onSucesso={async(res,parc)=>{await carregar();if(res?.contratoQuitado&&parc?.ID_CONTRATO)setComprovantePrompt({idContrato:parc.ID_CONTRATO,idCliente:parc.ID_CLIENTE});}} onSelecionarParcela={setPagamentoHoje}/>
-                <NovoContrato contratos={contratos||[]} onSucesso={carregar}/>
+                <NovoContrato contratos={contratos||[]} clientes={clientes||[]} onSucesso={carregar}/>
               </div>
             </div>
           )}
