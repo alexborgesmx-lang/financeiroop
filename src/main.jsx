@@ -163,7 +163,8 @@ function CalendarioRange({ de, ate, onSelecionar, onLimpar }) {
 }
 
 // ─── HELPER: GERAR E ENVIAR COMPROVANTE PDF VIA WHATSAPP ─────────
-function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes){
+function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes,opts={}){
+  // opts.wpp=true abre WhatsApp após download (default false para ser chamado explicitamente)
   try{
     const contrato=(contratos||[]).find(c=>String(c.ID_CONTRATO||"").trim()===String(parcela.ID_CONTRATO||"").trim());
     const cliente=(clientes||[]).find(c=>String(c.ID_CLIENTE||"").trim()===String(parcela.ID_CLIENTE||"").trim());
@@ -222,11 +223,42 @@ function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,c
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');a.href=url;a.download=nomeArq;document.body.appendChild(a);a.click();document.body.removeChild(a);
     setTimeout(()=>URL.revokeObjectURL(url),3000);
-    const tel=telefone?`55${telefone}`:'';
-    const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const wppUrl=tel?`https://wa.me/${tel}`:(isMobile?'https://wa.me':'https://web.whatsapp.com');
-    setTimeout(()=>window.open(wppUrl,'_blank'),700);
+    if(opts.wpp){
+      const tel=telefone?`55${telefone}`:'';
+      const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const wppUrl=tel?`https://wa.me/${tel}`:(isMobile?'https://wa.me':'https://web.whatsapp.com');
+      setTimeout(()=>window.open(wppUrl,'_blank'),700);
+    }
   }catch(e){console.error('Comprovante error:',e);}
+}
+
+function ComprovanteEnvioModal({parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes,onFechar}){
+  const fR=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fD=d=>{if(!d)return'—';const dt=d instanceof Date?d:parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):'—';};
+  return(
+    <div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{width:"100%",maxWidth:380,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.25)",overflow:"hidden"}}>
+        <div style={{background:GRN,padding:"22px 24px",textAlign:"center"}}>
+          <div style={{fontSize:38,marginBottom:6}}>✓</div>
+          <div style={{color:"#FFF",fontWeight:800,fontSize:17}}>Pagamento registrado!</div>
+          <div style={{color:"rgba(255,255,255,0.8)",fontSize:12,marginTop:4}}>{parcela.NOME_CLIENTE} · {parcela.ID_CONTRATO} · Parcela {parcela.NUM_PARCELA}</div>
+        </div>
+        <div style={{padding:"18px 20px"}}>
+          <div style={{background:BG,borderRadius:10,padding:"12px 16px",marginBottom:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Valor pago</div><div style={{fontWeight:800,fontSize:15,color:GRN}}>{fR(valorPago)}</div></div>
+            <div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Data</div><div style={{fontWeight:700,fontSize:13}}>{fD(dataPago)}</div></div>
+            <div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Tipo</div><div style={{fontWeight:700,fontSize:13}}>{tipoLabel}</div></div>
+            <div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Vencimento</div><div style={{fontWeight:700,fontSize:13}}>{fD(parcela.DATA_VENCIMENTO)}</div></div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <button onClick={()=>gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes,{wpp:false})} style={{padding:"11px",borderRadius:9,border:`1px solid ${BD}`,background:BG,color:TEXT,cursor:"pointer",fontWeight:700,fontSize:13}}>📥 Salvar comprovante (PDF)</button>
+            <button onClick={()=>gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes,{wpp:true})} style={{padding:"12px",borderRadius:9,border:"none",background:"#25D366",color:"#FFF",cursor:"pointer",fontWeight:800,fontSize:13}}>📲 Enviar pelo WhatsApp</button>
+            <button onClick={onFechar} style={{padding:"10px",borderRadius:9,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:600,fontSize:13,marginTop:2}}>Fechar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── MODAL COBRANÇA ──────────────────────────────────────────────
@@ -244,6 +276,7 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
   const [loading, setLoading]       = useState(false);
   const [msg, setMsg]               = useState(null);
   const [pagoIds, setPagoIds]       = useState(new Set());
+  const [comprovanteData, setComprovanteData] = useState(null);
 
   const calcComAtraso = (p) => {
     const vOrig = parseFloat(p.VALOR_PARCELA || 0);
@@ -286,10 +319,8 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
       forma: "dinheiro"
     });
     if (res.ok) {
-      setMsg({ ok: true, t: res.msg || "Pagamento registrado com sucesso!" });
       setPagoIds(prev => new Set([...prev, parcelaSel.ID_PARCELA]));
-      gerarEEnviarComprovante(parcelaSel,parseFloat(valor),data,tipo==="somente_juros"?"Somente Juros":"Pagamento Total",todasParcelas||[],contratos||[],[cliente]);
-      setTimeout(() => { setParcelaSel(null); setMsg(null); onSucesso(); }, 1400);
+      setComprovanteData({parcela:parcelaSel,valorPago:parseFloat(valor),dataPago:data,tipoLabel:tipo==="somente_juros"?"Somente Juros":"Pagamento Total"});
     } else {
       setMsg({ ok: false, t: res.erro || "Erro ao registrar pagamento." });
     }
@@ -508,6 +539,7 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
         </div>
       </div>
     </div>
+    {comprovanteData&&<ComprovanteEnvioModal parcela={comprovanteData.parcela} valorPago={comprovanteData.valorPago} dataPago={comprovanteData.dataPago} tipoLabel={comprovanteData.tipoLabel} parcelas={todasParcelas||[]} contratos={contratos||[]} clientes={[cliente]} onFechar={()=>{setComprovanteData(null);setParcelaSel(null);setMsg(null);onFechar();onSucesso();}}/>}
   );
 }
 
@@ -1152,8 +1184,10 @@ function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,
   const [modo,setModo]=useState("pagamento"); // "pagamento" | "reagendar"
   const [promData,setPromData]=useState("");
   const [promObs,setPromObs]=useState("");
+  const [comprovanteData,setComprovanteData]=useState(null);
+  const resRef=useRef(null);
 
-  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||(res.contratoQuitado?"✓ Contrato QUITADO!":"Pagamento registrado!")});gerarEEnviarComprovante(parcela,parseFloat(valor),data,tipo==="parcial"?"Somente Juros":"Pagamento Total",parcelas,contratos,clientes);setTimeout(()=>onConfirmar(res),900);}else setMsg({ok:false,t:res.erro||"Erro ao registrar pagamento"});setLoading(false);};
+  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){resRef.current=res;setComprovanteData({valorPago:parseFloat(valor),dataPago:data,tipoLabel:tipo==="parcial"?"Somente Juros":"Pagamento Total"});}else setMsg({ok:false,t:res.erro||"Erro ao registrar pagamento"});setLoading(false);};
 
   const reagendar=async()=>{
     if(!promData)return;
@@ -1170,6 +1204,8 @@ function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,
     else setMsg({ok:false,t:res.erro||"Erro."});
     setLoading(false);
   };
+
+  if(comprovanteData) return <ComprovanteEnvioModal parcela={parcela} valorPago={comprovanteData.valorPago} dataPago={comprovanteData.dataPago} tipoLabel={comprovanteData.tipoLabel} parcelas={parcelas} contratos={contratos} clientes={clientes} onFechar={()=>{setComprovanteData(null);onConfirmar(resRef.current);}}/>;
 
   return(
     <div style={{position:"fixed",inset:0,zIndex:300,background:"rgba(15,23,42,0.35)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onFechar}>
