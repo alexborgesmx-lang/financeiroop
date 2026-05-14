@@ -804,7 +804,7 @@ function normEstadoCivil(v){
   return v;
 }
 
-function ClienteModal({cliente,contratos,onFechar,onAtualizar,abaInicial}){
+function ClienteModal({cliente,contratos,parcelas,onFechar,onAtualizar,abaInicial}){
   const [t,setT]=useState(abaInicial||"perfil");
   const [edit,setEdit]=useState({
     NOME:         cliente.NOME||cliente.NOME_CLIENTE||"",
@@ -837,7 +837,8 @@ function ClienteModal({cliente,contratos,onFechar,onAtualizar,abaInicial}){
   const tel=cliente.TELEFONE||cliente.TELEFONE_WPP||cliente.WHATSAPP||"—";
   const score=cliente.SCORE||cliente.SCORE_CLIENTE||cliente.SCORE_SERASA||"Não informado";
   const ST_TERMINAIS_LIM=["quitado","cancelado","baixado_como_prejuizo","recuperado_integralmente","encerrado_sem_recuperacao"];
-  const principalEmUso=(contratos||[]).filter(c=>String(c.ID_CLIENTE).trim()===String(cliente.ID_CLIENTE).trim()&&!ST_TERMINAIS_LIM.includes(String(c.STATUS_CONTRATO).trim())).reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
+  const idsContratosDoCliente=new Set((parcelas||[]).filter(p=>String(p.ID_CLIENTE||"").trim()===String(cliente.ID_CLIENTE||"").trim()).map(p=>String(p.ID_CONTRATO||"").trim()).filter(Boolean));
+  const principalEmUso=(contratos||[]).filter(c=>idsContratosDoCliente.has(String(c.ID_CONTRATO||"").trim())&&!ST_TERMINAIS_LIM.includes(String(c.STATUS_CONTRATO||"").trim())).reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
   const limite=parseFloat(cliente.LIMITE_CREDITO||0);
   const disponivel=Math.max(0,limite-principalEmUso);
   const pctUso=limite>0?Math.min(100,(principalEmUso/limite)*100):0;
@@ -2287,7 +2288,7 @@ function App() {
 
       {/* ── MODAIS ── */}
       {novaPromessa&&<NovaPromessaModal contratos={contratos||[]} clientes={clientes||[]} onConfirmar={()=>{setNovaPromessa(false);carregar();}} onFechar={()=>setNovaPromessa(false)}/>}
-      {selCli&&<ClienteModal cliente={selCli} contratos={contratos||[]} abaInicial={selCliAba} onFechar={()=>{setSelCli(null);setSelCliAba("perfil");}} onAtualizar={()=>{setSelCli(null);setSelCliAba("perfil");carregar();}}/>}
+      {selCli&&<ClienteModal cliente={selCli} contratos={contratos||[]} parcelas={parcelas||[]} abaInicial={selCliAba} onFechar={()=>{setSelCli(null);setSelCliAba("perfil");}} onAtualizar={()=>{setSelCli(null);setSelCliAba("perfil");carregar();}}/>}
       {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} onConfirmar={async(res)=>{const p=pagamentoHoje;setPagamentoHoje(null);await carregar();if(res?.contratoQuitado&&p?.ID_CONTRATO)setComprovantePrompt({idContrato:p.ID_CONTRATO,idCliente:p.ID_CLIENTE});}} onFechar={()=>setPagamentoHoje(null)}/>}
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {acordoModal&&<ModalAcordoPerda contrato={acordoModal} parcelas={parcelas||[]} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
