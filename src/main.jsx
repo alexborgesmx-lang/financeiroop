@@ -1318,6 +1318,110 @@ function NovaPromessaModal({contratos,clientes,onConfirmar,onFechar}){
   );
 }
 
+// ─── MODAL DETALHE PAGAMENTO ─────────────────────────────────────
+function PagamentoDetalheModal({pag, parcelas, contratos, onFechar, onReabrir}) {
+  const [loading, setLoading] = React.useState(false);
+  const parcela = (parcelas||[]).find(p=>String(p.ID_CONTRATO||"").trim()===String(pag.ID_CONTRATO||"").trim()&&String(p.NUM_PARCELA||"").trim()===String(pag.NUM_PARCELA||"").trim());
+  const contrato = (contratos||[]).find(c=>String(c.ID_CONTRATO||"").trim()===String(pag.ID_CONTRATO||"").trim());
+  const hist = (parcelas||[]).filter(p=>String(p.ID_CONTRATO||"").trim()===String(pag.ID_CONTRATO||"").trim()).sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
+  const tCor={pagamento_normal:GRN,pagamento_com_atraso:YEL,somente_juros:RED,recuperacao_apos_baixa:PUR}[pag.TIPO_PAGAMENTO]||MUTED;
+  const tLbl={pagamento_normal:"Normal",pagamento_com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação"}[pag.TIPO_PAGAMENTO]||pag.TIPO_PAGAMENTO||"—";
+  const Info=({l,v,c})=><div style={{background:BG,borderRadius:8,padding:"10px 14px"}}><div style={{fontSize:10,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:3}}>{l}</div><div style={{fontWeight:700,fontSize:13,color:c||TEXT}}>{v||"—"}</div></div>;
+
+  const gerarComprovanteInd=()=>{
+    const pNum=parseInt(pag.NUM_PARCELA||0);
+    const fD=d=>{if(!d)return'—';const dt=d instanceof Date?d:parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):'—';};
+    const fR=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const rows=hist.filter(p=>parseInt(p.NUM_PARCELA||0)<=pNum).map(p=>{
+      const venc=parseDate(p.DATA_VENCIMENTO),pago=parseDate(p.DATA_PAGAMENTO);
+      const st=!pago?'pendente':pago>venc?'com atraso':'em dia';
+      const cor=!pago?'#888':pago>venc?'#D97706':'#16A34A';
+      return`<tr><td>${p.NUM_PARCELA||'—'}</td><td>${fD(p.DATA_VENCIMENTO)}</td><td>${fR(p.VALOR_PARCELA)}</td><td style="color:${cor};font-weight:600">${st}</td><td>${fD(p.DATA_PAGAMENTO)||'—'}</td><td style="text-align:right;font-weight:700">${parseFloat(p.VALOR_PAGO||0)>0?fR(p.VALOR_PAGO):'—'}</td></tr>`;
+    }).join('');
+    const multa=parseFloat(pag.VALOR_MULTA||0),mora=parseFloat(pag.VALOR_MORA||0),extra=parseFloat(pag.RECEITA_EXTRA_ATRASO||0);
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comprovante</title><style>*{margin:0;padding:0;box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}body{font-family:Arial,sans-serif;font-size:13px;color:#222;max-width:800px;margin:0 auto;padding:32px 40px}h1{font-size:22px;font-weight:900;color:#1D4ED8;margin-bottom:4px}.sub{color:#666;font-size:11px;margin-bottom:24px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}.card{border:1px solid #E5E7EB;border-radius:8px;padding:10px 14px}.lbl{font-size:10px;color:#888;font-weight:700;text-transform:uppercase;margin-bottom:3px}.val{font-weight:700;font-size:13px}h2{font-size:11px;font-weight:700;text-transform:uppercase;color:#1D4ED8;margin:20px 0 8px;padding-bottom:4px;border-bottom:1px solid #E5E7EB}table{width:100%;border-collapse:collapse}th{background:#F3F4F6;padding:7px 10px;text-align:left;font-size:10px;color:#666;text-transform:uppercase;border:1px solid #E5E7EB}td{padding:7px 10px;border:1px solid #E5E7EB}.btn{margin-top:24px;text-align:center}.btn button{padding:9px 24px;background:#1D4ED8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700}@media print{.btn{display:none}}</style></head><body>
+<h1>Comprovante de Pagamento</h1>
+<div class="sub">Emitido em ${new Date().toLocaleString('pt-BR')} · ${pag.ID_CONTRATO} · Parcela ${pag.NUM_PARCELA||'—'}/${contrato?.NUM_PARCELAS||'—'}</div>
+<h2>Cliente</h2><div class="grid"><div class="card"><div class="lbl">Nome</div><div class="val">${pag.NOME_CLIENTE||'—'}</div></div><div class="card"><div class="lbl">ID</div><div class="val">${pag.ID_CLIENTE||'—'}</div></div><div class="card"><div class="lbl">Contrato</div><div class="val">${pag.ID_CONTRATO||'—'}</div></div></div>
+<h2>Pagamento</h2><div class="grid"><div class="card"><div class="lbl">Data</div><div class="val">${fD(pag.DATA_PAGAMENTO)}</div></div><div class="card"><div class="lbl">Valor Pago</div><div class="val" style="color:#16A34A">${fR(pag.VALOR_PAGO)}</div></div><div class="card"><div class="lbl">Tipo</div><div class="val">${tLbl}</div></div><div class="card"><div class="lbl">Vencimento</div><div class="val">${fD(parcela?.DATA_VENCIMENTO)}</div></div>${multa>0?`<div class="card"><div class="lbl">Multa</div><div class="val" style="color:#D97706">${fR(multa)}</div></div>`:''} ${mora>0?`<div class="card"><div class="lbl">Mora</div><div class="val" style="color:#D97706">${fR(mora)}</div></div>`:''} ${extra>0?`<div class="card"><div class="lbl">Receita Extra</div><div class="val" style="color:#D97706">${fR(extra)}</div></div>`:''}<div class="card"><div class="lbl">Forma</div><div class="val">${pag.FORMA_PAGAMENTO||'manual'}</div></div></div>
+<h2>Histórico do Contrato até esta Parcela</h2><table><thead><tr><th>#</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th>Data Pgto</th><th style="text-align:right">Valor Pago</th></tr></thead><tbody>${rows}</tbody></table>
+<div class="btn"><button onclick="window.print()">Imprimir / Salvar PDF</button></div>
+</body></html>`;
+    const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}
+  };
+
+  const reabrir=async()=>{
+    if(!window.confirm(`Reabrir parcela ${pag.NUM_PARCELA}/${contrato?.NUM_PARCELAS||'?'} do contrato ${pag.ID_CONTRATO}?\n\nIsso desfaz o pagamento e volta a parcela para pendente/atrasado.`))return;
+    setLoading(true);
+    try{
+      const res=await postAction({action:"reabrirParcela",idContrato:pag.ID_CONTRATO,numParcela:pag.NUM_PARCELA,idPagamento:pag.ID_PAGAMENTO,idCliente:pag.ID_CLIENTE});
+      if(res.ok){onReabrir();onFechar();}else alert("Erro: "+(res.erro||"falha ao reabrir"));
+    }catch(e){alert("Erro: "+e.message);}
+    setLoading(false);
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:CARD,borderRadius:16,width:"100%",maxWidth:560,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",maxHeight:"88vh",overflowY:"auto"}}>
+        <div style={{padding:"18px 24px",borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:CARD,zIndex:1}}>
+          <div>
+            <div style={{fontWeight:800,fontSize:15}}>Detalhe do Pagamento</div>
+            <div style={{fontSize:11,color:MUTED,marginTop:1}}>{pag.NOME_CLIENTE} · {pag.ID_CONTRATO} · Parcela {pag.NUM_PARCELA||"—"}/{contrato?.NUM_PARCELAS||"—"}</div>
+          </div>
+          <button onClick={onFechar} style={{background:BG,border:`1px solid ${BD}`,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:18,color:MUTED,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+        </div>
+        <div style={{padding:24,display:"flex",flexDirection:"column",gap:20}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:10}}>Pagamento</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              <Info l="Data" v={fmtDt(parseDate(pag.DATA_PAGAMENTO))}/>
+              <Info l="Valor Pago" v={fmtR(pag.VALOR_PAGO)} c={GRN}/>
+              <div style={{background:BG,borderRadius:8,padding:"10px 14px"}}><div style={{fontSize:10,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:3}}>Tipo</div><Badge c={tCor}>{tLbl}</Badge></div>
+              {parseFloat(pag.VALOR_MULTA||0)>0&&<Info l="Multa" v={fmtR(pag.VALOR_MULTA)} c={ORG}/>}
+              {parseFloat(pag.VALOR_MORA||0)>0&&<Info l="Mora" v={fmtR(pag.VALOR_MORA)} c={ORG}/>}
+              {parseFloat(pag.RECEITA_EXTRA_ATRASO||0)>0&&<Info l="Receita Extra" v={fmtR(pag.RECEITA_EXTRA_ATRASO)} c={ORG}/>}
+              <Info l="Forma" v={pag.FORMA_PAGAMENTO||"manual"}/>
+            </div>
+          </div>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:10}}>Parcela</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              <Info l="Vencimento" v={parcela?fmtDt(parseDate(parcela.DATA_VENCIMENTO)):"—"}/>
+              <Info l="Valor Original" v={fmtR(parcela?.VALOR_PARCELA||pag.VALOR_ORIGINAL_PARCELA||pag.VALOR_PARCELA)}/>
+              {parseInt(parcela?.DIAS_ATRASO||0)>0&&<Info l="Dias de Atraso" v={`${parcela.DIAS_ATRASO} dia(s)`} c={YEL}/>}
+            </div>
+          </div>
+          {hist.length>0&&(
+            <div>
+              <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:10}}>Histórico do Contrato</div>
+              <div style={{border:`1px solid ${BD}`,borderRadius:8,overflow:"hidden"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead><tr style={{background:BG,color:MUTED,fontSize:10,textTransform:"uppercase"}}><th style={{padding:"7px 12px",textAlign:"left"}}>#</th><th style={{padding:"7px 12px",textAlign:"left"}}>Vencimento</th><th style={{padding:"7px 12px",textAlign:"right"}}>Valor</th><th style={{padding:"7px 12px",textAlign:"left"}}>Status</th><th style={{padding:"7px 12px",textAlign:"right"}}>Pago</th></tr></thead>
+                  <tbody>{hist.map((p,i)=>{
+                    const isPago=["pago","quitacao_antecipada"].includes(String(p.STATUS||"").toLowerCase());
+                    const isAtual=String(p.NUM_PARCELA||"")===String(pag.NUM_PARCELA||"");
+                    return<tr key={i} style={{borderTop:`1px solid ${BD}`,background:isAtual?BLU+"08":"transparent"}}>
+                      <td style={{padding:"7px 12px",fontWeight:isAtual?800:400,color:isAtual?BLU:TEXT}}>{p.NUM_PARCELA}</td>
+                      <td style={{padding:"7px 12px",color:MUTED}}>{fmtDt(parseDate(p.DATA_VENCIMENTO))}</td>
+                      <td style={{padding:"7px 12px",textAlign:"right"}}>{fmtR(p.VALOR_PARCELA)}</td>
+                      <td style={{padding:"7px 12px"}}><Badge c={isPago?GRN:YEL}>{p.STATUS||"—"}</Badge></td>
+                      <td style={{padding:"7px 12px",textAlign:"right",fontWeight:700,color:isPago?GRN:MUTED}}>{isPago?fmtR(p.VALOR_PAGO):"—"}</td>
+                    </tr>;
+                  })}</tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+        <div style={{padding:"16px 24px",borderTop:`1px solid ${BD}`,display:"flex",gap:10,position:"sticky",bottom:0,background:CARD}}>
+          <button onClick={gerarComprovanteInd} style={{flex:1,padding:11,borderRadius:8,border:`1px solid ${BLU}30`,background:BLU+"08",color:BLU,cursor:"pointer",fontWeight:700,fontSize:13}}>📄 Gerar Comprovante</button>
+          <button onClick={reabrir} disabled={loading} style={{flex:1,padding:11,borderRadius:8,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontWeight:700,fontSize:13,opacity:loading?0.7:1}}>{loading?"Processando...":"↩ Reabrir Parcela"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── COMPROVANTE DE QUITAÇÃO ─────────────────────────────────────
 function gerarComprovante(contrato, parcelasContrato, cliente) {
   const ords = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª','11ª','12ª','13ª','14ª','15ª','16ª','17ª','18ª','19ª','20ª','21ª','22ª','23ª','24ª'];
@@ -1486,6 +1590,7 @@ function App() {
   const [privacy, setPrivacy] = useState(false);
   const priv = v => privacy ? <span style={{filter:"blur(8px)",userSelect:"none",pointerEvents:"none"}}>{v}</span> : v;
   const [comprovantePrompt, setComprovantePrompt] = useState(null);
+  const [selPagDetalhe, setSelPagDetalhe] = useState(null);
 
   const carregar=()=>{setLoading(true);return fetch(API_URL).then(r=>r.json()).then(d=>{setRaw(d);setLoading(false);}).catch(()=>setLoading(false));};
   useEffect(()=>{carregar();},[]);
@@ -2100,7 +2205,7 @@ function App() {
                         const tLabel={pagamento_normal:"Normal",pagamento_com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação"}[p.TIPO_PAGAMENTO]||p.TIPO_PAGAMENTO||"—";
                         const extra=parseFloat(p.RECEITA_EXTRA_ATRASO||0);
                         return(
-                          <tr key={i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:"#FAFAFA"}}>
+                          <tr key={i} onClick={()=>setSelPagDetalhe(p)} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:"#FAFAFA",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=BG+"80"} onMouseLeave={e=>e.currentTarget.style.background=i%2===0?CARD:"#FAFAFA"}>
                             <td style={{padding:"11px 18px",color:MUTED,whiteSpace:"nowrap"}}>{fmtDt(parseDate(p.DATA_PAGAMENTO))}</td>
                             <td style={{fontWeight:600}}>{p.NOME_CLIENTE}</td>
                             <td><Badge c={tCor}>{tLabel}</Badge></td>
@@ -2288,6 +2393,7 @@ function App() {
 
       {/* ── MODAIS ── */}
       {novaPromessa&&<NovaPromessaModal contratos={contratos||[]} clientes={clientes||[]} onConfirmar={()=>{setNovaPromessa(false);carregar();}} onFechar={()=>setNovaPromessa(false)}/>}
+      {selPagDetalhe&&<PagamentoDetalheModal pag={selPagDetalhe} parcelas={parcelas||[]} contratos={contratos||[]} onFechar={()=>setSelPagDetalhe(null)} onReabrir={()=>{setSelPagDetalhe(null);carregar();}}/>}
       {selCli&&<ClienteModal cliente={selCli} contratos={contratos||[]} parcelas={parcelas||[]} abaInicial={selCliAba} onFechar={()=>{setSelCli(null);setSelCliAba("perfil");}} onAtualizar={()=>{setSelCli(null);setSelCliAba("perfil");carregar();}}/>}
       {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} onConfirmar={async(res)=>{const p=pagamentoHoje;setPagamentoHoje(null);await carregar();if(res?.contratoQuitado&&p?.ID_CONTRATO)setComprovantePrompt({idContrato:p.ID_CONTRATO,idCliente:p.ID_CLIENTE});}} onFechar={()=>setPagamentoHoje(null)}/>}
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
