@@ -1018,6 +1018,8 @@ function PagamentoDrop({contratos,parcelas,onSucesso,onSelecionarParcela}){
   const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||(res.contratoQuitado?"✓ Contrato QUITADO!":"Sucesso!")});setTimeout(()=>onSucesso(res,parcela),1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
   const [showParsDrop,setShowParsDrop]=useState(false);
   const selecionarParcela=p=>{if(!p)return;setShowParsDrop(false);if(onSelecionarParcela){setParcela(null);setTipo(null);setValor("");onSelecionarParcela(p);return;}setParcela(p);setTipo("total");setValor(parseFloat(p.VALOR_PARCELA||0).toFixed(2));};
+  const _hoje=new Date();_hoje.setHours(0,0,0,0);
+  const isHoje=p=>{const d=parseDate(p.DATA_VENCIMENTO);if(!d)return false;const dd=new Date(d);dd.setHours(0,0,0,0);return dd.getTime()===_hoje.getTime();};
   const isAtrasada=p=>p.STATUS==='atrasado'||parseInt(p.DIAS_ATRASO||0)>0||p.STATUS==='vence_hoje';
   return(
     <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
@@ -1035,6 +1037,7 @@ function PagamentoDrop({contratos,parcelas,onSucesso,onSelecionarParcela}){
                 ?<span style={{color:isAtrasada(parcela)?RED:TEXT,fontWeight:isAtrasada(parcela)?700:400}}>
                     {isAtrasada(parcela)&&"⚠ "}Parc {parcela.NUM_PARCELA} ({fmtDt(parcela.DATA_VENCIMENTO)}) — {fmtR(parcela.VALOR_PARCELA)}
                     {parseInt(parcela.DIAS_ATRASO||0)>0&&<span style={{fontSize:11,marginLeft:4,color:RED}}>{parcela.DIAS_ATRASO}d atraso</span>}
+                    {isHoje(parcela)&&!isAtrasada(parcela)&&<span style={{fontSize:11,marginLeft:4,color:ORG}}>vence hoje</span>}
                   </span>
                 :<span style={{color:MUTED}}>Selecione...</span>}
               <span style={{color:MUTED,fontSize:10}}>▾</span>
@@ -1052,7 +1055,7 @@ function PagamentoDrop({contratos,parcelas,onSucesso,onSelecionarParcela}){
                   </span>
                   <span style={{display:"flex",alignItems:"center",gap:8}}>
                     {dias>0&&<span style={{fontSize:11,fontWeight:700,color:RED,background:RED+"12",padding:"2px 7px",borderRadius:99}}>{dias}d</span>}
-                    {p.STATUS==='vence_hoje'&&<span style={{fontSize:11,fontWeight:700,color:ORG,background:ORG+"15",padding:"2px 7px",borderRadius:99}}>hoje</span>}
+                    {(p.STATUS==='vence_hoje'||isHoje(p))&&!isAtrasada(p)&&<span style={{fontSize:11,fontWeight:700,color:ORG,background:ORG+"15",padding:"2px 7px",borderRadius:99}}>hoje</span>}
                     <span style={{fontWeight:700,color:atrasada?RED:TEXT,fontSize:13}}>{fmtR(p.VALOR_PARCELA)}</span>
                   </span>
                 </div>;
