@@ -815,10 +815,13 @@ function ClienteModal({cliente,contratos,onFechar,onAtualizar,abaInicial}){
     PROFISSAO:    cliente.PROFISSAO||"",
     ESTADO_CIVIL: normEstadoCivil(cliente.ESTADO_CIVIL||""),
     NACIONALIDADE:cliente.NACIONALIDADE||"",
-    SCORE:        cliente.SCORE||"",
     STATUS_CLIENTE:cliente.STATUS_CLIENTE||"ativo",
     DIA_VENCIMENTO_PREFERIDO:cliente.DIA_VENCIMENTO_PREFERIDO||"",
     LIMITE_CREDITO:cliente.LIMITE_CREDITO||"",
+    RENDA_MENSAL:  cliente.RENDA_MENSAL||"",
+    TIPO_RENDA:    cliente.TIPO_RENDA||"",
+    RENDA_COMPROVADA: cliente.RENDA_COMPROVADA||"",
+    QUALIDADE_COMUNICACAO: cliente.QUALIDADE_COMUNICACAO||"",
     CONTATO_CONFIANCA_1: cliente.CONTATO_CONFIANCA_1||"",
     TEL_CONFIANCA_1:     cliente.TEL_CONFIANCA_1||"",
     CONTATO_CONFIANCA_2: cliente.CONTATO_CONFIANCA_2||"",
@@ -884,6 +887,54 @@ function ClienteModal({cliente,contratos,onFechar,onAtualizar,abaInicial}){
                 {l:"Contato confiança 2",v:[cliente.CONTATO_CONFIANCA_2,cliente.TEL_CONFIANCA_2].filter(Boolean).join(" · ")},{l:"Padrinho",v:[cliente.PADRINHO,cliente.TEL_PADRINHO].filter(Boolean).join(" · ")},
                 {l:"Vencimento preferido",v:cliente.DIA_VENCIMENTO_PREFERIDO},{l:"Cadastro",v:fmtDt(cliente.DATA_CADASTRO)},{l:"Observações",v:cliente.OBSERVACOES}
               ].map(i=><div key={i.l} style={{background:CARD,padding:15,borderRadius:10,border:`1px solid ${BD}`,gridColumn:i.l==="Endereço"||i.l==="Observações"?"1/-1":"auto"}}><span style={LS}>{i.l}</span><div style={{fontSize:13,fontWeight:600,wordBreak:"break-word"}}>{i.v||"—"}</div></div>)}
+              {(()=>{
+                const sc=parseFloat(cliente.SCORE||0);
+                const faixa=cliente.SCORE_FAIXA||"";
+                const decisao=cliente.SCORE_DECISAO||"";
+                const bloq=String(cliente.SCORE_BLOQUEADO||"").toUpperCase()==="SIM";
+                const motivos=String(cliente.SCORE_MOTIVOS||"").split("|").map(s=>s.trim()).filter(Boolean);
+                const limSug=parseFloat(cliente.SCORE_LIMITE_SUGERIDO||0);
+                const parMax=parseFloat(cliente.SCORE_PARCELA_MAX||0);
+                const prazo=parseInt(cliente.SCORE_PRAZO_MAX||0);
+                const taxa=cliente.SCORE_TAXA_LABEL||"";
+                const dtSc=cliente.SCORE_DATA;
+                const scCor=sc>=75?GRN:sc>=45?YEL:RED;
+                const hasScore=faixa!=="";
+                return(
+                  <div style={{background:CARD,padding:16,borderRadius:10,border:`1px solid ${bloq?RED+"50":hasScore?scCor+"30":BD}`,gridColumn:"1/-1"}}>
+                    <span style={LS}>Score de Crédito</span>
+                    {!hasScore?<div style={{fontSize:13,color:MUTED,marginTop:8}}>Score não calculado. Preencha os dados financeiros e execute "Recalcular Todos os Scores" na planilha.</div>:(
+                      <>
+                        <div style={{display:"flex",gap:20,alignItems:"center",marginTop:12,flexWrap:"wrap"}}>
+                          <div style={{width:90,height:90,borderRadius:"50%",flexShrink:0,background:`conic-gradient(${scCor} 0% ${sc}%, #2a2a3e ${sc}% 100%)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                            <div style={{width:68,height:68,borderRadius:"50%",background:BG,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                              <span style={{fontSize:22,fontWeight:900,color:scCor,lineHeight:1}}>{sc}</span>
+                              <span style={{fontSize:9,color:MUTED,fontWeight:700}}>/100</span>
+                            </div>
+                          </div>
+                          <div style={{flex:1,minWidth:160}}>
+                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                              <span style={{fontSize:17,fontWeight:800,color:scCor}}>{faixa}</span>
+                              {bloq&&<span style={{background:RED+"20",color:RED,fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20,border:`1px solid ${RED}40`}}>BLOQUEADO</span>}
+                            </div>
+                            <div style={{fontSize:12,color:MUTED,marginBottom:10}}>Decisão: <span style={{fontWeight:700,color:sc>=60?GRN:sc>=45?YEL:RED}}>{decisao}</span></div>
+                            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+                              {[{l:"Limite sugerido",v:fmtR(limSug)},{l:"Parcela máx.",v:fmtR(parMax)},{l:"Prazo máx.",v:prazo>0?`${prazo}x`:"—"},{l:"Taxa",v:taxa||"—"}].map(m=>(
+                                <div key={m.l} style={{background:BG,padding:"8px 10px",borderRadius:8,border:`1px solid ${BD}`}}>
+                                  <div style={{fontSize:9,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:3}}>{m.l}</div>
+                                  <div style={{fontSize:12,fontWeight:800,color:m.v==="—"?MUTED:BLU}}>{m.v}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        {motivos.length>0&&<div style={{marginTop:12,display:"flex",flexWrap:"wrap",gap:6}}>{motivos.map((m,i)=>{const pos=m.startsWith("+");const neg=m.startsWith("-")||m.startsWith("BLOQ");return<span key={i} style={{fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:700,background:pos?GRN+"15":neg?RED+"15":MUTED+"15",color:pos?GRN:neg?RED:MUTED,border:`1px solid ${pos?GRN:neg?RED:MUTED}30`}}>{m}</span>})}</div>}
+                        {dtSc&&<div style={{fontSize:10,color:MUTED,marginTop:8}}>Atualizado: {fmtDt(dtSc)}</div>}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
               <div style={{background:CARD,padding:16,borderRadius:10,border:`1px solid ${limite>0&&pctUso>80?RED+"50":BD}`,gridColumn:"1/-1"}}>
                 <span style={LS}>Limite de Crédito</span>
                 {limite>0?(
@@ -915,10 +966,13 @@ function ClienteModal({cliente,contratos,onFechar,onAtualizar,abaInicial}){
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Profissão" field="PROFISSAO"/>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Estado Civil" field="ESTADO_CIVIL" opts={[{v:"",l:"—"},{v:"Solteiro(a)",l:"Solteiro(a)"},{v:"Casado(a)",l:"Casado(a)"},{v:"Divorciado(a)",l:"Divorciado(a)"},{v:"Viúvo(a)",l:"Viúvo(a)"},{v:"União Estável",l:"União Estável"}]}/>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Nacionalidade" field="NACIONALIDADE"/>
-                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Score" field="SCORE"/>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Status" field="STATUS_CLIENTE" opts={[{v:"ativo",l:"Ativo"},{v:"inativo",l:"Inativo"},{v:"aguardando_conferencia",l:"Aguardando Conferência"},{v:"bloqueado",l:"Bloqueado"}]}/>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Dia vencimento preferido" field="DIA_VENCIMENTO_PREFERIDO"/>
-                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Limite de Credito (R$)" field="LIMITE_CREDITO" tipo="number"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Limite de Crédito (R$)" field="LIMITE_CREDITO" tipo="number"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Renda Mensal (R$)" field="RENDA_MENSAL" tipo="number"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Tipo de Renda" field="TIPO_RENDA" opts={[{v:"",l:"—"},{v:"CLT",l:"CLT"},{v:"Servidor",l:"Servidor Público"},{v:"Aposentado",l:"Aposentado"},{v:"Pensionista",l:"Pensionista"},{v:"Autonomo",l:"Autônomo"},{v:"Informal",l:"Informal"}]}/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Renda Comprovada" field="RENDA_COMPROVADA" opts={[{v:"",l:"—"},{v:"Sim",l:"Sim"},{v:"Parcial",l:"Parcial"},{v:"Nao",l:"Não"}]}/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Qualidade da Comunicação" field="QUALIDADE_COMUNICACAO" opts={[{v:"",l:"—"},{v:"Boa",l:"Boa"},{v:"Regular",l:"Regular"},{v:"Ruim",l:"Ruim"}]}/>
               </div>
               <div style={{borderTop:`1px solid ${BD}`,paddingTop:16}}>
                 <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:12}}>Contatos de Confiança</div>
