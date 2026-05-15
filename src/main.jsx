@@ -101,6 +101,7 @@ const IcoEye    = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" st
 const IcoEyeOff = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>;
 
 function Badge({c,children}){ return <span style={{display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:20,fontSize:10,fontWeight:600,background:c+"18",color:c,border:`1px solid ${c}30`}}>{children}</span>; }
+function isUltima(p,parcs){const id=String(p.ID_CONTRATO);const max=(parcs||[]).reduce((m,pp)=>String(pp.ID_CONTRATO)===id?Math.max(m,parseInt(pp.NUM_PARCELA||0)):m,0);return parseInt(p.NUM_PARCELA||0)===max&&max>0;}
 
 // ─── CALENDÁRIO ──────────────────────────────────────────────────
 function CalendarioRange({ de, ate, onSelecionar, onLimpar }) {
@@ -417,7 +418,7 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
                         <div>
                           <div style={{fontSize:12,fontWeight:800,color:isSel ? BLU : TEXT,display:"flex",alignItems:"center",gap:6}}>
-                            {p.ID_CONTRATO} · Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS}{parseInt(p.NUM_PARCELA)===parseInt(p.TOTAL_PARCELAS)&&parseInt(p.TOTAL_PARCELAS)>0&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 6px",borderRadius:99}}>última</span>}
+                            {p.ID_CONTRATO} · Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS}{isUltima(p,todasParcelas)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 6px",borderRadius:99}}>última</span>}
                           </div>
                           <div style={{fontSize:11,color:MUTED,marginTop:2}}>Venc: {fmtDt(p.DATA_VENCIMENTO)}</div>
                         </div>
@@ -809,7 +810,7 @@ function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
                         </div>
                         <div style={{flex:1,display:"flex",justifyContent:"space-between",alignItems:"center",minWidth:0}}>
                           <div>
-                            <div style={{fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS} · venc. {fmtDt(p.DATA_VENCIMENTO)}{parseInt(p.NUM_PARCELA)===parseInt(p.TOTAL_PARCELAS)&&parseInt(p.TOTAL_PARCELAS)>0&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 6px",borderRadius:99}}>última</span>}</div>
+                            <div style={{fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS} · venc. {fmtDt(p.DATA_VENCIMENTO)}{isUltima(p,todasParcelas)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 6px",borderRadius:99}}>última</span>}</div>
                             <div style={{fontSize:11,color:MUTED,marginTop:2}}>Principal: {fmtR(p.VALOR_PRINCIPAL||0)} · Juros: {fmtR(p.VALOR_JUROS||0)}</div>
                           </div>
                           <div style={{textAlign:"right",flexShrink:0}}>
@@ -1164,7 +1165,7 @@ function PagamentoDrop({contratos,parcelas,clientes,onSucesso,onSelecionarParcel
               {parcela
                 ?<span style={{color:isAtrasada(parcela)?RED:TEXT,fontWeight:isAtrasada(parcela)?700:400,display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
                     {isAtrasada(parcela)&&"⚠ "}Parc {parcela.NUM_PARCELA} ({fmtDt(parcela.DATA_VENCIMENTO)}) — {fmtR(parcela.VALOR_PARCELA)}
-                    {parseInt(parcela.NUM_PARCELA)===parseInt(parcela.TOTAL_PARCELAS)&&parseInt(parcela.TOTAL_PARCELAS)>0&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 6px",borderRadius:99}}>última</span>}
+                    {isUltima(parcela,parcelas)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 6px",borderRadius:99}}>última</span>}
                     {parseInt(parcela.DIAS_ATRASO||0)>0&&<span style={{fontSize:11,color:RED}}>{parcela.DIAS_ATRASO}d atraso</span>}
                     {isHoje(parcela)&&!isAtrasada(parcela)&&<span style={{fontSize:11,color:ORG}}>vence hoje</span>}
                   </span>
@@ -1180,7 +1181,7 @@ function PagamentoDrop({contratos,parcelas,clientes,onSucesso,onSelecionarParcel
                   onMouseEnter={e=>e.currentTarget.style.background=atrasada?RED+"12":BG}
                   onMouseLeave={e=>e.currentTarget.style.background=atrasada?RED+"06":CARD}>
                   <span style={{fontWeight:600,color:atrasada?RED:TEXT,fontSize:13,display:"flex",alignItems:"center",gap:5}}>
-                    {atrasada&&"⚠ "}Parc {p.NUM_PARCELA} ({fmtDt(p.DATA_VENCIMENTO)}){parseInt(p.NUM_PARCELA)===parseInt(p.TOTAL_PARCELAS)&&parseInt(p.TOTAL_PARCELAS)>0&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 6px",borderRadius:99}}>última</span>}
+                    {atrasada&&"⚠ "}Parc {p.NUM_PARCELA} ({fmtDt(p.DATA_VENCIMENTO)}){isUltima(p,parcelas)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 6px",borderRadius:99}}>última</span>}
                   </span>
                   <span style={{display:"flex",alignItems:"center",gap:8}}>
                     {dias>0&&<span style={{fontSize:11,fontWeight:700,color:RED,background:RED+"12",padding:"2px 7px",borderRadius:99}}>{dias}d</span>}
@@ -1428,7 +1429,7 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
                 const cor=stCor[st]||MUTED;
                 return(
                   <tr key={p.ID_PARCELA||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:"#FAFAFA"}}>
-                    <td style={{padding:"11px 18px",color:MUTED,fontWeight:600}}>{p.NUM_PARCELA}/{p.TOTAL_PARCELAS}{parseInt(p.NUM_PARCELA)===parseInt(p.TOTAL_PARCELAS)&&parseInt(p.TOTAL_PARCELAS)>0&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 5px",borderRadius:99,marginLeft:5}}>última</span>}</td>
+                    <td style={{padding:"11px 18px",color:MUTED,fontWeight:600}}>{p.NUM_PARCELA}/{p.TOTAL_PARCELAS}{isUltima(p,ps)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 5px",borderRadius:99,marginLeft:5}}>última</span>}</td>
                     <td style={{fontWeight:600}}>{fmtDt(p.DATA_VENCIMENTO)}</td>
                     <td>{fmtR(p.VALOR_PARCELA)}</td>
                     <td><Badge c={cor}>{stLabel[st]||st}</Badge></td>
@@ -2221,7 +2222,7 @@ function App() {
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><span style={{fontSize:12,color:MUTED,fontWeight:700}}>Total previsto</span><strong style={{fontSize:20,color:parcelasHoje.length?YEL:GRN}}>{fmtR(totalParcelasHoje)}</strong></div>
                   {parcelasHoje.length===0?<div style={{padding:12,borderRadius:8,background:GRN+"08",color:GRN,fontSize:12,fontWeight:700}}>Nenhuma parcela vencendo hoje.</div>:<div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:220,overflowY:"auto"}}>{parcelasHoje.map(p=>(
                     <div key={p.ID_PARCELA||`${p.ID_CLIENTE}-${p.NUM_PARCELA}`} style={{padding:10,borderRadius:9,background:BG,border:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
-                      <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2,display:"flex",alignItems:"center",gap:4}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)}{parseInt(p.NUM_PARCELA)===parseInt(p.TOTAL_PARCELAS)&&parseInt(p.TOTAL_PARCELAS)>0&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 5px",borderRadius:99}}>última</span>}</div></div>
+                      <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2,display:"flex",alignItems:"center",gap:4}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)}{isUltima(p,parcelas)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 5px",borderRadius:99}}>última</span>}</div></div>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}><div style={{fontSize:13,fontWeight:800,color:BLU}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</div><button onClick={()=>setPagamentoHoje(p)} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${GRN}35`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>Registrar pagamento</button></div>
                     </div>
                   ))}</div>}
@@ -2234,7 +2235,7 @@ function App() {
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><span style={{fontSize:12,color:MUTED,fontWeight:700}}>Total atrasado</span><strong style={{fontSize:20,color:parcelasAtrasadas.length?RED:GRN}}>{fmtR(totalParcelasAtrasadas)}</strong></div>
                   {parcelasAtrasadas.length===0?<div style={{padding:12,borderRadius:8,background:GRN+"08",color:GRN,fontSize:12,fontWeight:700}}>Nenhuma parcela em atraso.</div>:<div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:260,overflowY:"auto"}}>{parcelasAtrasadas.map(p=>(
                     <div key={p.ID_PARCELA||`${p.ID_CLIENTE}-${p.NUM_PARCELA}-atraso`} style={{padding:10,borderRadius:9,background:BG,border:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
-                      <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2,display:"flex",alignItems:"center",gap:4}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)} · {p.DIAS_ATRASO} dia{p.DIAS_ATRASO===1?"":"s"}{parseInt(p.NUM_PARCELA)===parseInt(p.TOTAL_PARCELAS)&&parseInt(p.TOTAL_PARCELAS)>0&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 5px",borderRadius:99}}>última</span>}</div></div>
+                      <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2,display:"flex",alignItems:"center",gap:4}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)} · {p.DIAS_ATRASO} dia{p.DIAS_ATRASO===1?"":"s"}{isUltima(p,parcelas)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 5px",borderRadius:99}}>última</span>}</div></div>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}><div style={{fontSize:13,fontWeight:800,color:RED}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</div><button onClick={()=>setPagamentoHoje(p)} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${GRN}35`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>Registrar pagamento</button></div>
                     </div>
                   ))}</div>}

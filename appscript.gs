@@ -1476,6 +1476,7 @@ function registrarPagamentoAPI(idParcela, data, valor, forma) {
     }
   }
   try { calcularScore(idCliente); } catch(eScore) { Logger.log("Score err: "+eScore.message); }
+  try { atualizarStatusContratos(); } catch(eSt) { Logger.log("Status err: "+eSt.message); }
   return { contratoQuitado: todasPagas, idContrato: idContrato };
 }
 
@@ -1567,6 +1568,16 @@ function registrarPagamentoParcial(idParcela, data) {
     valorPrincipal:parcelPrinc,valorJuros:parcelJuros,valorTotal:parcelJuros,
     observacoes:"Juros pagos. Nova parcela: "+String(ultimaIdP).padStart(5,"0")});
   try { calcularScore(idCliente); } catch(eScore) { Logger.log("Score err: "+eScore.message); }
+  // Corrigir TOTAL_PARCELAS de todas as parcelas existentes deste contrato
+  if (cm["TOTAL_PARCELAS"]) {
+    var novoTotal = maxNP + 1;
+    for (var tp = 1; tp < todasP.length; tp++) {
+      if (String(todasP[tp][idxIC]) === idContrato) {
+        abaP.getRange(tp+1, cm["TOTAL_PARCELAS"]).setValue(novoTotal);
+      }
+    }
+  }
+  try { atualizarStatusContratos(); } catch(eSt) { Logger.log("Status err: "+eSt.message); }
 }
 
 function criarContrato(v) {
