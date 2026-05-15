@@ -807,10 +807,13 @@ function reabrirParcelaAPI(v) {
         novoSt = hoje > dtVObj ? "atrasado" : "pendente";
       }
       if (cmP["STATUS"])           abaP.getRange(parcelaLin, cmP["STATUS"]).setValue(novoSt);
+      if (cmP["STATUS_PAGAMENTO"]) abaP.getRange(parcelaLin, cmP["STATUS_PAGAMENTO"]).setValue(novoSt);
       if (cmP["DATA_PAGAMENTO"])   abaP.getRange(parcelaLin, cmP["DATA_PAGAMENTO"]).setValue("");
       if (cmP["VALOR_PAGO"])       abaP.getRange(parcelaLin, cmP["VALOR_PAGO"]).setValue("");
+      if (cmP["VALOR_RECEBIDO"])   abaP.getRange(parcelaLin, cmP["VALOR_RECEBIDO"]).setValue("");
+      if (cmP["DIFERENCA_PAGA"])   abaP.getRange(parcelaLin, cmP["DIFERENCA_PAGA"]).setValue("");
+      if (cmP["DESCONTO_APLICADO"])abaP.getRange(parcelaLin, cmP["DESCONTO_APLICADO"]).setValue("");
       if (cmP["DIAS_ATRASO"])      abaP.getRange(parcelaLin, cmP["DIAS_ATRASO"]).setValue(0);
-      if (cmP["STATUS_PAGAMENTO"]) abaP.getRange(parcelaLin, cmP["STATUS_PAGAMENTO"]).setValue("");
       if (cmP["TIPO_PAGAMENTO"])   abaP.getRange(parcelaLin, cmP["TIPO_PAGAMENTO"]).setValue("");
       break;
     }
@@ -829,7 +832,7 @@ function reabrirParcelaAPI(v) {
     }
   }
 
-  // ── 2b. Se era somente_juros, deletar parcela gerada automaticamente ──
+  // ── 2b. Se era somente_juros, deletar parcela gerada automaticamente e corrigir TOTAL_PARCELAS ──
   if (tipoAnterior === "somente_juros" && idParcelaOriginal) {
     var cOrig = (cmP["ORIGEM_PARCELA"]    || 16) - 1;
     var cOId  = (cmP["ID_PARCELA_ORIGEM"] || 17) - 1;
@@ -842,21 +845,27 @@ function reabrirParcelaAPI(v) {
         break;
       }
     }
-  }
-
-  // ── 3. Atualizar status do contrato ──
-  var dadosC = abaC.getDataRange().getValues();
-  for (var c = 1; c < dadosC.length; c++) {
-    if (String(dadosC[c][(cmC["ID_CONTRATO"]||1)-1]).trim() === idContrato) {
-      var stAtual = String(dadosC[c][(cmC["STATUS_CONTRATO"]||16)-1]||"").trim();
-      // Se estava quitado, voltar para ativo
-      if (stAtual === "quitado") {
-        var novoStC = hoje > new Date(dadosC[c][(cmC["DATA_1_VENCIMENTO"]||5)-1]) ? "ativo_em_atraso" : "ativo_em_dia";
-        if (cmC["STATUS_CONTRATO"]) abaC.getRange(c+1, cmC["STATUS_CONTRATO"]).setValue(novoStC);
+    // Recalcular TOTAL_PARCELAS para as parcelas restantes deste contrato
+    if (cmP["TOTAL_PARCELAS"]) {
+      var dadosPAtual = abaP.getDataRange().getValues();
+      var maxNPAtual = 0;
+      for (var m = 1; m < dadosPAtual.length; m++) {
+        if (String(dadosPAtual[m][(cmP["ID_CONTRATO"]||2)-1]).trim() === idContrato) {
+          var np = parseInt(dadosPAtual[m][(cmP["NUM_PARCELA"]||5)-1])||0;
+          if (np > maxNPAtual) maxNPAtual = np;
+        }
       }
-      break;
+      for (var m2 = 1; m2 < dadosPAtual.length; m2++) {
+        if (String(dadosPAtual[m2][(cmP["ID_CONTRATO"]||2)-1]).trim() === idContrato) {
+          abaP.getRange(m2+1, cmP["TOTAL_PARCELAS"]).setValue(maxNPAtual);
+        }
+      }
     }
   }
+
+  // ── 3. Recalcular status do contrato e todas as parcelas ──
+  try { atualizarStatusParcelas(); } catch(eSP) { Logger.log("Status parcelas err: "+eSP.message); }
+  try { atualizarStatusContratos(); } catch(eSC) { Logger.log("Status contrato err: "+eSC.message); }
 
   // ── 4. Log de evento ──
   try {
