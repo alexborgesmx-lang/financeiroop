@@ -1572,74 +1572,61 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
     const fD=d=>{if(!d)return'—';const dt=d instanceof Date?d:parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):'—';};
     const fR=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
     const pNum=parseInt(numParc||0);
+    const totalParc=parseInt(contrato?.NUM_PARCELAS||hist.length||0);
+    const pagas=hist.filter(p=>["pago","quitacao_antecipada"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase()));
+    const totalJaPago=pagas.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+    const valorOriginal=parseFloat(contrato?.VALOR_PRINCIPAL||contrato?.VALOR_TOTAL||0);
+    const parcelasRestantes=Math.max(0,totalParc-pagas.length);
+    const saldo=Math.max(0,valorOriginal-totalJaPago);
     const doc=new jsPDF({unit:'mm',format:'a4'});
-    const W=210,pad=18;
-    let y=20;
-
-    // Cabeçalho
-    doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);
-    doc.text('Comprovante de Pagamento',pad,y);y+=8;
-    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(100,100,100);
-    doc.text(`Emitido em ${new Date().toLocaleString('pt-BR')} · ${pag.ID_CONTRATO} · Parcela ${numParc||'—'}/${contrato?.NUM_PARCELAS||'—'}`,pad,y);y+=10;
-
-    // Linha divisória
-    doc.setDrawColor(229,231,235);doc.setLineWidth(0.4);doc.line(pad,y,W-pad,y);y+=8;
-
-    // Seção Cliente
-    doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);
-    doc.text('CLIENTE',pad,y);y+=5;
-    const cliRows=[['Nome',pag.NOME_CLIENTE||'—'],['ID',String(pag.ID_CLIENTE||'—')],['Contrato',pag.ID_CONTRATO||'—']];
-    cliRows.forEach(([l,v])=>{
-      doc.setFont('helvetica','bold');doc.setTextColor(100,100,100);doc.setFontSize(8);doc.text(l+':',pad,y);
-      doc.setFont('helvetica','normal');doc.setTextColor(30,30,30);doc.text(v,pad+28,y);y+=5;
-    });y+=3;
-
-    // Seção Pagamento
-    doc.setDrawColor(229,231,235);doc.line(pad,y,W-pad,y);y+=6;
-    doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);doc.text('PAGAMENTO',pad,y);y+=5;
-    const multa=parseFloat(pag.VALOR_MULTA||0),mora=parseFloat(pag.VALOR_MORA||0),extra=parseFloat(pag.RECEITA_EXTRA_ATRASO||0);
-    const pagRows=[
-      ['Data Pagamento',fD(pag.DATA_PAGAMENTO)],
-      ['Valor Pago',fR(pag.VALOR_PAGO)],
-      ['Tipo',tLbl],
-      ['Vencimento',fD(parcela?.DATA_VENCIMENTO)],
-      ...(multa>0?[['Multa',fR(multa)]]:[]),
-      ...(mora>0?[['Mora',fR(mora)]]:[]),
-      ...(extra>0?[['Receita Extra',fR(extra)]]:[]),
-      ['Forma',pag.FORMA_PAGAMENTO||'manual'],
-    ];
-    pagRows.forEach(([l,v])=>{
-      doc.setFont('helvetica','bold');doc.setTextColor(100,100,100);doc.setFontSize(8);doc.text(l+':',pad,y);
-      doc.setFont('helvetica','normal');doc.setTextColor(30,30,30);doc.text(v,pad+36,y);y+=5;
-    });y+=3;
-
-    // Histórico
-    doc.setDrawColor(229,231,235);doc.line(pad,y,W-pad,y);y+=6;
-    doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(29,78,216);
-    doc.text('HISTÓRICO DO CONTRATO ATÉ ESTA PARCELA',pad,y);y+=6;
-    // Cabeçalho tabela
-    doc.setFillColor(243,244,246);doc.rect(pad,y-4,W-2*pad,7,'F');
-    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(100,100,100);
-    const cols=[pad,pad+10,pad+42,pad+90,pad+120,pad+152];
-    ['#','Vencimento','Valor','Situação','Data Pgto','Valor Pago'].forEach((h,i)=>doc.text(h,cols[i],y));y+=5;
-    // Linhas
-    hist.filter(p=>parseInt(p.NUM_PARCELA||0)<=pNum).forEach(p=>{
-      const venc=parseDate(p.DATA_VENCIMENTO),pago=parseDate(p.DATA_PAGAMENTO);
-      const st=!pago?'pendente':pago>venc?'com atraso':'em dia';
-      const isAtual=String(p.NUM_PARCELA||"")===String(numParc||"");
-      if(isAtual){doc.setFillColor(219,234,254);doc.rect(pad,y-4,W-2*pad,6,'F');}
-      doc.setFont('helvetica',isAtual?'bold':'normal');doc.setFontSize(8);doc.setTextColor(30,30,30);
-      doc.text(String(p.NUM_PARCELA||''),cols[0],y);
-      doc.text(fD(p.DATA_VENCIMENTO),cols[1],y);
-      doc.text(fR(p.VALOR_PARCELA),cols[2],y);
-      doc.setTextColor(!pago?100:pago>venc?180:22,!pago?100:pago>venc?70:163,!pago?100:pago>venc?0:74);
-      doc.text(st,cols[3],y);
-      doc.setTextColor(30,30,30);
-      doc.text(fD(p.DATA_PAGAMENTO)||'—',cols[4],y);
-      doc.text(parseFloat(p.VALOR_PAGO||0)>0?fR(p.VALOR_PAGO):'—',cols[5],y);
-      y+=6;
-    });
-
+    const W=210,pd=16;
+    const G=[34,197,94],GL=[22,163,74],DK=[30,30,30],MT=[107,114,128],BDC=[209,213,219],RD=[220,38,38];
+    let y=18;
+    doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(...DK);doc.text('BORGES ASSESSORIA',pd,y);
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...GL);doc.text('COMPROVANTE DE PAGAMENTO DE PARCELA',pd,y+6);
+    ['Responsável: Alex Moreira Borges','E-mail: alexborges.mx@gmail.com','Banco: 077 - Banco Inter','Chave Pix: alexborges.mx@gmail.com'].forEach((l,i)=>{doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);doc.text(l,W-pd,y-4+i*4.5,{align:'right'});});
+    y+=12;doc.setDrawColor(...BDC);doc.setLineWidth(0.5);doc.line(pd,y,W-pd,y);y+=8;
+    doc.setFillColor(...G);doc.roundedRect(pd,y,W-2*pd,11,2,2,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);doc.text('PAGAMENTO CONFIRMADO',W/2,y+7.5,{align:'center'});
+    y+=19;
+    const sect=(title,rows)=>{
+      const rH=11,sH=9+rows.length*rH+2;
+      doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.rect(pd,y,W-2*pd,sH);
+      doc.setFillColor(248,250,252);doc.rect(pd,y,W-2*pd,8,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...DK);doc.text(title,pd+4,y+5.5);
+      let ry=y+12;const mx=pd+(W-2*pd)/2;
+      rows.forEach(r=>{
+        doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...GL);if(r.ll)doc.text(r.ll,pd+4,ry);
+        doc.setFont('helvetica',r.lvB?'bold':'normal');doc.setFontSize(8.5);doc.setTextColor(...DK);doc.text(r.lv||'—',pd+4,ry+4.5);
+        if(r.rl){doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...GL);doc.text(r.rl,mx+4,ry);
+          doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...(r.rvR?RD:DK));doc.text(r.rv||'—',mx+4,ry+4.5);}
+        ry+=rH;
+      });
+      y+=sH+5;
+    };
+    sect('DADOS DO CLIENTE E DO CONTRATO',[
+      {ll:'NOME DO CLIENTE',lv:String(pag.NOME_CLIENTE||'—'),rl:'NÚMERO DO CONTRATO',rv:String(pag.ID_CONTRATO)},
+      {ll:'CPF',lv:String(cliente?.CPF||'—'),rl:'DATA DO CONTRATO',rv:fD(contrato?.DATA_EMPRESTIMO||contrato?.DATA_CONTRATO)},
+    ]);
+    sect('DETALHES DO PAGAMENTO',[
+      {ll:'PARCELA PAGA',lv:`${pNum} de ${totalParc}`,rl:'DATA DE VENCIMENTO',rv:fD(parcela?.DATA_VENCIMENTO)},
+      {ll:'VALOR DA PARCELA',lv:fR(pag.VALOR_PAGO),lvB:true,rl:'DATA DO PAGAMENTO',rv:fD(pag.DATA_PAGAMENTO)},
+      {ll:'FORMA DE PAGAMENTO',lv:String(pag.FORMA_PAGAMENTO||tLbl||'—'),rl:'CÓDIGO DE TRANSAÇÃO',rv:String(pag.ID_PARCELA||parcela?.ID_PARCELA||'—')},
+    ]);
+    sect('RESUMO FINANCEIRO ATUALIZADO',[
+      {ll:'VALOR TOTAL DO EMPRÉSTIMO',lv:fR(valorOriginal),rl:'PARCELAS RESTANTES',rv:String(parcelasRestantes)},
+      {ll:'VALOR TOTAL JÁ PAGO',lv:fR(totalJaPago),rl:'SALDO DEVEDOR ESTIMADO',rv:fR(saldo),rvR:true},
+    ]);
+    y+=2;
+    const qt='"Declaramos, para os devidos fins, que o pagamento acima identificado foi recebido e registrado em nosso controle interno, referente à parcela informada neste comprovante."';
+    doc.setFont('helvetica','italic');doc.setFontSize(8.5);doc.setTextColor(...MT);
+    const qtL=doc.splitTextToSize(qt,W-2*pd-8);doc.text(qtL,W/2,y,{align:'center'});y+=qtL.length*5+7;
+    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);
+    doc.text(`Documento emitido em: ${new Date().toLocaleDateString('pt-BR')}`,W/2,y,{align:'center'});y+=6;
+    const ds='Este comprovante confirma exclusivamente o recebimento da parcela indicada, não representando quitação total do contrato, salvo quando expressamente informado.';
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...DK);
+    const dsL=doc.splitTextToSize(ds,W-2*pd-8);doc.text(dsL,W/2,y,{align:'center'});y+=dsL.length*5+5;
+    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...GL);doc.text('Borges Assessoria | Gestão de Crédito Pessoal',W/2,y,{align:'center'});
     return doc.output('blob');
   };
 
