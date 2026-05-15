@@ -1853,7 +1853,6 @@ function App() {
   const [selCliAba, setSelCliAba] = useState("perfil");
   const [privacy, setPrivacy] = useState(false);
   const priv = v => privacy ? <span style={{filter:"blur(8px)",userSelect:"none",pointerEvents:"none"}}>{v}</span> : v;
-  const [comprovantePrompt, setComprovantePrompt] = useState(null);
   const [selPagDetalhe, setSelPagDetalhe] = useState(null);
 
   const [ultimaAt, setUltimaAt] = useState(null);
@@ -2240,7 +2239,7 @@ function App() {
                     </div>
                   ))}</div>}
                 </div>
-                <PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} clientes={clientes||[]} onSucesso={async(res,parc)=>{await carregar();if(res?.contratoQuitado&&parc?.ID_CONTRATO)setComprovantePrompt({idContrato:parc.ID_CONTRATO,idCliente:parc.ID_CLIENTE});}} onSelecionarParcela={setPagamentoHoje}/>
+                <PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} clientes={clientes||[]} onSucesso={async()=>{await carregar();}} onSelecionarParcela={setPagamentoHoje}/>
                 <NovoContrato contratos={contratos||[]} clientes={clientes||[]} onSucesso={()=>carregar(true)}/>
               </div>
             </div>
@@ -2664,10 +2663,10 @@ function App() {
       {novaPromessa&&<NovaPromessaModal contratos={contratos||[]} clientes={clientes||[]} onConfirmar={()=>{setNovaPromessa(false);carregar();}} onFechar={()=>setNovaPromessa(false)}/>}
       {selPagDetalhe&&<PagamentoDetalheModal pag={selPagDetalhe} parcelas={parcelas||[]} contratos={contratos||[]} clientes={clientes||[]} onFechar={()=>setSelPagDetalhe(null)} onReabrir={()=>{setSelPagDetalhe(null);carregar();}}/>}
       {selCli&&<ClienteModal cliente={selCli} contratos={contratos||[]} parcelas={parcelas||[]} abaInicial={selCliAba} onFechar={()=>{setSelCli(null);setSelCliAba("perfil");}} onAtualizar={()=>{setSelCli(null);setSelCliAba("perfil");carregar();}}/>}
-      {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} parcelas={parcelas||[]} contratos={contratos||[]} clientes={clientes||[]} onConfirmar={async(res)=>{const p=pagamentoHoje;setPagamentoHoje(null);await carregar();if(res?.contratoQuitado&&p?.ID_CONTRATO)setComprovantePrompt({idContrato:p.ID_CONTRATO,idCliente:p.ID_CLIENTE});}} onFechar={()=>setPagamentoHoje(null)}/>}
+      {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} parcelas={parcelas||[]} contratos={contratos||[]} clientes={clientes||[]} onConfirmar={async()=>{setPagamentoHoje(null);await carregar();}} onFechar={()=>setPagamentoHoje(null)}/>}
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {acordoModal&&<ModalAcordoPerda contrato={acordoModal} parcelas={parcelas||[]} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
-      {quitacaoModal&&<QuitacaoAntecipadaModal contrato={quitacaoModal} parcelas={parcelas||[]} onConfirmar={(c)=>{setQuitacaoModal(null);carregar();if(c)setComprovantePrompt({idContrato:c.ID_CONTRATO,idCliente:c.ID_CLIENTE});}} onFechar={()=>setQuitacaoModal(null)}/>}
+      {quitacaoModal&&<QuitacaoAntecipadaModal contrato={quitacaoModal} parcelas={parcelas||[]} onConfirmar={()=>{setQuitacaoModal(null);carregar();}} onFechar={()=>setQuitacaoModal(null)}/>}
       {recuperacaoModal&&<RecuperacaoModal contrato={recuperacaoModal} onConfirmar={()=>{setRecuperacaoModal(null);carregar();}} onFechar={()=>setRecuperacaoModal(null)}/>}
 
       {/* ── MODAL CONTRATO ── */}
@@ -2686,29 +2685,6 @@ function App() {
       )}
 
       {/* ── DIALOG COMPROVANTE DE QUITAÇÃO ── */}
-      {comprovantePrompt&&(()=>{
-        const c=contratos.find(x=>String(x.ID_CONTRATO)===String(comprovantePrompt.idContrato));
-        const cliId=comprovantePrompt.idCliente||c?.ID_CLIENTE;
-        const cli=clientes.find(x=>String(x.ID_CLIENTE)===String(cliId));
-        const ps=(parcelas||[]).filter(x=>String(x.ID_CONTRATO)===String(comprovantePrompt.idContrato)).sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
-        const tel=cli?.TELEFONE_WPP||cli?.TELEFONE||cli?.WHATSAPP||'';
-        const nome=c?.NOME_CLIENTE||cli?.NOME_CLIENTE||'cliente';
-        const idC=c?.ID_CONTRATO||comprovantePrompt.idContrato;
-        return(
-          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-            <div style={{background:CARD,borderRadius:16,padding:28,maxWidth:420,width:"100%",boxShadow:"0 30px 80px rgba(0,0,0,0.3)",textAlign:"center"}}>
-              <div style={{fontSize:40,marginBottom:12}}>🎉</div>
-              <h2 style={{fontSize:18,fontWeight:900,marginBottom:8}}>Contrato Quitado!</h2>
-              <p style={{color:MUTED,fontSize:13,marginBottom:20}}>Deseja gerar o comprovante de quitação para <strong>{nome}</strong>?</p>
-              <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                <button onClick={()=>{if(c)gerarComprovante(c,ps,cli);}} style={{padding:"11px 16px",borderRadius:9,border:"none",background:BLU,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:800}}>📄 1. Baixar Comprovante</button>
-                <button onClick={()=>{abrirWhatsApp(tel,nome);setComprovantePrompt(null);}} style={{padding:"11px 16px",borderRadius:9,border:"none",background:GRN,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:800}}>📱 2. Abrir WhatsApp</button>
-                <button onClick={()=>setComprovantePrompt(null)} style={{padding:"11px 16px",borderRadius:9,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontSize:13,fontWeight:600}}>Fechar</button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* ── MODAL COBRANÇA (NOVO) ── */}
       {cobModal&&(
