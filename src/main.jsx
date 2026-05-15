@@ -184,7 +184,7 @@ function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,c
     const saldo=Math.max(0,parcelasRestantes*valorParcOrig);
     const doc=new jsPDF({unit:'mm',format:'a4'});
     const W=210,pd=16;
-    const G=[46,160,90],GL=[100,155,130],DK=[30,30,30],MT=[107,114,128],BDC=[209,213,219];
+    const G=[46,160,90],GL=[120,120,120],DK=[30,30,30],MT=[130,130,130],BDC=[209,213,219];
     let y=18;
     doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(...DK);doc.text('BORGES ASSESSORIA',pd,y);
     doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...GL);doc.text('COMPROVANTE DE PAGAMENTO DE PARCELA',pd,y+6);
@@ -195,9 +195,9 @@ function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,c
     y+=19;
     const sect=(title,rows)=>{
       const rH=11,sH=9+rows.length*rH+2;
-      doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.rect(pd,y,W-2*pd,sH);
-      doc.setFillColor(248,250,252);doc.rect(pd,y,W-2*pd,8,'F');
+      doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.roundedRect(pd,y,W-2*pd,sH,3,3,'D');
       doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...DK);doc.text(title,pd+4,y+5.5);
+      doc.setDrawColor(...BDC);doc.setLineWidth(0.2);doc.line(pd,y+8,W-pd,y+8);
       let ry=y+12;const mx=pd+(W-2*pd)/2;
       rows.forEach(r=>{
         doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...GL);if(r.ll)doc.text(r.ll,pd+4,ry);
@@ -1581,7 +1581,7 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
     const saldo=Math.max(0,parcelasRestantes*valorParcOrig);
     const doc=new jsPDF({unit:'mm',format:'a4'});
     const W=210,pd=16;
-    const G=[46,160,90],GL=[100,155,130],DK=[30,30,30],MT=[107,114,128],BDC=[209,213,219];
+    const G=[46,160,90],GL=[120,120,120],DK=[30,30,30],MT=[130,130,130],BDC=[209,213,219];
     let y=18;
     doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(...DK);doc.text('BORGES ASSESSORIA',pd,y);
     doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...GL);doc.text('COMPROVANTE DE PAGAMENTO DE PARCELA',pd,y+6);
@@ -1592,9 +1592,9 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
     y+=19;
     const sect=(title,rows)=>{
       const rH=11,sH=9+rows.length*rH+2;
-      doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.rect(pd,y,W-2*pd,sH);
-      doc.setFillColor(248,250,252);doc.rect(pd,y,W-2*pd,8,'F');
+      doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.roundedRect(pd,y,W-2*pd,sH,3,3,'D');
       doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...DK);doc.text(title,pd+4,y+5.5);
+      doc.setDrawColor(...BDC);doc.setLineWidth(0.2);doc.line(pd,y+8,W-pd,y+8);
       let ry=y+12;const mx=pd+(W-2*pd)/2;
       rows.forEach(r=>{
         doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...GL);if(r.ll)doc.text(r.ll,pd+4,ry);
@@ -1751,9 +1751,9 @@ function gerarComprovante(contrato, parcelasContrato, cliente) {
     y+=19;
     const sect=(title,rows)=>{
       const rH=11,sH=9+rows.length*rH+2;
-      doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.rect(pd,y,W-2*pd,sH);
-      doc.setFillColor(248,250,252);doc.rect(pd,y,W-2*pd,8,'F');
+      doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.roundedRect(pd,y,W-2*pd,sH,3,3,'D');
       doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...DK);doc.text(title,pd+4,y+5.5);
+      doc.setDrawColor(...BDC);doc.setLineWidth(0.2);doc.line(pd,y+8,W-pd,y+8);
       let ry=y+12;const mx=pd+(W-2*pd)/2;
       rows.forEach(r=>{
         doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...GL);if(r.ll)doc.text(r.ll,pd+4,ry);
