@@ -832,7 +832,7 @@ function reabrirParcelaAPI(v) {
     }
   }
 
-  // ── 2b. Se era somente_juros, deletar parcela gerada automaticamente e corrigir TOTAL_PARCELAS ──
+  // ── 2b. Se era somente_juros, deletar parcela gerada automaticamente ──
   if (tipoAnterior === "somente_juros" && idParcelaOriginal) {
     var cOrig = (cmP["ORIGEM_PARCELA"]    || 16) - 1;
     var cOId  = (cmP["ID_PARCELA_ORIGEM"] || 17) - 1;
@@ -842,23 +842,27 @@ function reabrirParcelaAPI(v) {
           String(dadosP[k][cOId] ||"").trim() === idParcelaOriginal &&
           String(dadosP[k][cIdCt]||"").trim() === idContrato) {
         abaP.deleteRow(k + 1);
+        SpreadsheetApp.flush();
         break;
       }
     }
-    // Recalcular TOTAL_PARCELAS para as parcelas restantes deste contrato
-    if (cmP["TOTAL_PARCELAS"]) {
-      var dadosPAtual = abaP.getDataRange().getValues();
-      var maxNPAtual = 0;
-      for (var m = 1; m < dadosPAtual.length; m++) {
-        if (String(dadosPAtual[m][(cmP["ID_CONTRATO"]||2)-1]).trim() === idContrato) {
-          var np = parseInt(dadosPAtual[m][(cmP["NUM_PARCELA"]||5)-1])||0;
-          if (np > maxNPAtual) maxNPAtual = np;
-        }
+  }
+
+  // ── 2c. Recalcular TOTAL_PARCELAS para todas as parcelas deste contrato ──
+  if (cmP["TOTAL_PARCELAS"]) {
+    var dadosPAtual = abaP.getDataRange().getValues();
+    var cIC2 = (cmP["ID_CONTRATO"]||2)-1;
+    var cNP2 = (cmP["NUM_PARCELA"]||5)-1;
+    var maxNPAtual = 0;
+    for (var m = 1; m < dadosPAtual.length; m++) {
+      if (String(dadosPAtual[m][cIC2]).trim() === idContrato) {
+        var np2 = parseInt(dadosPAtual[m][cNP2])||0;
+        if (np2 > maxNPAtual) maxNPAtual = np2;
       }
-      for (var m2 = 1; m2 < dadosPAtual.length; m2++) {
-        if (String(dadosPAtual[m2][(cmP["ID_CONTRATO"]||2)-1]).trim() === idContrato) {
-          abaP.getRange(m2+1, cmP["TOTAL_PARCELAS"]).setValue(maxNPAtual);
-        }
+    }
+    for (var m2 = 1; m2 < dadosPAtual.length; m2++) {
+      if (String(dadosPAtual[m2][cIC2]).trim() === idContrato) {
+        abaP.getRange(m2+1, cmP["TOTAL_PARCELAS"]).setValue(maxNPAtual);
       }
     }
   }
