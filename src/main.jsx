@@ -188,7 +188,7 @@ function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,c
     let y=18;
     doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(...DK);doc.text('BORGES ASSESSORIA',pd,y);
     doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...GL);doc.text('COMPROVANTE DE PAGAMENTO DE PARCELA',pd,y+6);
-    ['Responsável: Alex Moreira Borges','E-mail: alexborges.mx@gmail.com','Banco: 077 - Banco Inter','Chave Pix: alexborges.mx@gmail.com'].forEach((l,i)=>{doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);doc.text(l,W-pd,y-4+i*4.5,{align:'right'});});
+    ['Borges Assessoria Financeira','CNPJ: 63.124.205/0001-07','E-mail: borgesassessoriafinanceira@gmail.com','Tel/WPP: (62) 98487-7843'].forEach((l,i)=>{doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);doc.text(l,W-pd,y-4+i*4.5,{align:'right'});});
     y+=12;doc.setDrawColor(...BDC);doc.setLineWidth(0.5);doc.line(pd,y,W-pd,y);y+=8;
     doc.setFillColor(...G);doc.roundedRect(pd,y,W-2*pd,11,2,2,'F');
     doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);doc.text('PAGAMENTO CONFIRMADO',W/2,y+7.5,{align:'center'});
@@ -1584,7 +1584,7 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
     let y=18;
     doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(...DK);doc.text('BORGES ASSESSORIA',pd,y);
     doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...GL);doc.text('COMPROVANTE DE PAGAMENTO DE PARCELA',pd,y+6);
-    ['Responsável: Alex Moreira Borges','E-mail: alexborges.mx@gmail.com','Banco: 077 - Banco Inter','Chave Pix: alexborges.mx@gmail.com'].forEach((l,i)=>{doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);doc.text(l,W-pd,y-4+i*4.5,{align:'right'});});
+    ['Borges Assessoria Financeira','CNPJ: 63.124.205/0001-07','E-mail: borgesassessoriafinanceira@gmail.com','Tel/WPP: (62) 98487-7843'].forEach((l,i)=>{doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);doc.text(l,W-pd,y-4+i*4.5,{align:'right'});});
     y+=12;doc.setDrawColor(...BDC);doc.setLineWidth(0.5);doc.line(pd,y,W-pd,y);y+=8;
     doc.setFillColor(...G);doc.roundedRect(pd,y,W-2*pd,11,2,2,'F');
     doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);doc.text('PAGAMENTO CONFIRMADO',W/2,y+7.5,{align:'center'});
@@ -1743,7 +1743,7 @@ function gerarComprovante(contrato, parcelasContrato, cliente) {
     let y=18;
     doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(...DK);doc.text('BORGES ASSESSORIA',pd,y);
     doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...GL);doc.text('COMPROVANTE DE QUITAÇÃO DE CONTRATO',pd,y+6);
-    ['Responsável: Alex Moreira Borges','E-mail: alexborges.mx@gmail.com','Banco: 077 - Banco Inter','Chave Pix: alexborges.mx@gmail.com'].forEach((l,i)=>{doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);doc.text(l,W-pd,y-4+i*4.5,{align:'right'});});
+    ['Borges Assessoria Financeira','CNPJ: 63.124.205/0001-07','E-mail: borgesassessoriafinanceira@gmail.com','Tel/WPP: (62) 98487-7843'].forEach((l,i)=>{doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);doc.text(l,W-pd,y-4+i*4.5,{align:'right'});});
     y+=12;doc.setDrawColor(...BDC);doc.setLineWidth(0.5);doc.line(pd,y,W-pd,y);y+=8;
     doc.setFillColor(...G);doc.roundedRect(pd,y,W-2*pd,11,2,2,'F');
     doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);doc.text('CONTRATO QUITADO',W/2,y+7.5,{align:'center'});
