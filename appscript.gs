@@ -164,7 +164,7 @@ function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
     if      (body.action === "pagamento")             { var rPag=registrarPagamentoAPI(body.idParcela, body.data, body.valor, body.forma||"dinheiro"); res={ok:true, contratoQuitado: rPag?rPag.contratoQuitado:false}; }
-    else if (body.action === "pagamentoParcial")       { registrarPagamentoParcial(body.idParcela, body.data); res={ok:true,msg:"Juros registrados. Principal rolado para nova parcela."}; }
+    else if (body.action === "pagamentoParcial")       { registrarPagamentoParcial(body.idParcela, body.data, body.valor); res={ok:true,msg:"Juros registrados. Principal rolado para nova parcela."}; }
     else if (body.action === "atualizarCliente")       { atualizarDadosCliente(body.idCliente, body.campos); res={ok:true}; }
     else if (body.action === "ativarCliente")          { atualizarCampoCliente(body.idCliente, "STATUS_CLIENTE", "ativo"); res={ok:true}; }
     else if (body.action === "novoContrato")           { var id=criarContrato(body.dados); var docUrl=""; var docId=""; var docErro=""; try{var docRes=gerarDocContrato(id,body.dados.idCliente,body.dados);docUrl=docRes.docUrl||"";docId=docRes.docId||"";}catch(eDoc){docErro=eDoc.message;Logger.log("Doc err: "+eDoc.message);} var dadosBoleto=buscarDadosBoleto(id,body.dados.idCliente||body.dados.clienteId||""); res={ok:true,idContrato:id,docUrl:docUrl,docId:docId,docErro:docErro,parcelas:dadosBoleto.parcelas,cliente:dadosBoleto.cliente}; }
@@ -1480,7 +1480,7 @@ function registrarPagamentoAPI(idParcela, data, valor, forma) {
   return { contratoQuitado: todasPagas, idContrato: idContrato };
 }
 
-function registrarPagamentoParcial(idParcela, data) {
+function registrarPagamentoParcial(idParcela, data, valorRecebido) {
   var ss     = SpreadsheetApp.getActiveSpreadsheet();
   var abaP   = ss.getSheetByName(ABAS.PARCELAS);
   var abaC   = ss.getSheetByName(ABAS.CONTRATOS);
@@ -1517,18 +1517,20 @@ function registrarPagamentoParcial(idParcela, data) {
   function sp(h,v){if(cmPag[h]&&cmPag[h]<=nc)rPag[cmPag[h]-1]=v;}
   sp("ID_PAGAMENTO",idPag); sp("ID_PARCELA",idParcela); sp("ID_CONTRATO",idContrato);
   sp("ID_CLIENTE",idCliente); sp("NOME_CLIENTE",nomeCliente); sp("DATA_PAGAMENTO",dtPag);
-  sp("VALOR_ORIGINAL_PARCELA",valorParcela); sp("VALOR_PAGO",parcelJuros);
-  sp("DIFERENCA_RECEBIDA",0); sp("RECEITA_EXTRA_ATRASO",0);
+  var vlPago = valorRecebido ? parseFloat(valorRecebido) : parcelJuros;
+  var extraMulta = Math.max(0, vlPago - parcelJuros);
+  sp("VALOR_ORIGINAL_PARCELA",valorParcela); sp("VALOR_PAGO",vlPago);
+  sp("DIFERENCA_RECEBIDA",extraMulta); sp("RECEITA_EXTRA_ATRASO",extraMulta);
   sp("TIPO_PAGAMENTO","somente_juros"); sp("FORMA_PAGAMENTO","dinheiro");
-  sp("OBSERVACOES","Somente juros. Principal R$ "+parcelPrinc.toFixed(2)+" rolado.");
+  sp("OBSERVACOES","Somente juros. Principal R$ "+parcelPrinc.toFixed(2)+" rolado."+(extraMulta>0?" Multa/extra: R$ "+extraMulta.toFixed(2):""));
   var ul = abaPag.getLastRow()+1;
   abaPag.getRange(ul,1,1,nc).setValues([rPag]);
   if(cmPag["DATA_PAGAMENTO"]) abaPag.getRange(ul,cmPag["DATA_PAGAMENTO"]).setNumberFormat("dd/mm/yyyy");
   if(cmPag["VALOR_PAGO"])     abaPag.getRange(ul,cmPag["VALOR_PAGO"]).setNumberFormat("R$ #,##0.00");
   var stCol = cm["STATUS"]||cm["STATUS_PAGAMENTO"];
   setCel(abaP,linha,cm,"DATA_PAGAMENTO",dtPag,"dd/mm/yyyy");
-  setCel(abaP,linha,cm,"VALOR_PAGO",parcelJuros,"R$ #,##0.00");
-  setCel(abaP,linha,cm,"VALOR_RECEBIDO",parcelJuros,"R$ #,##0.00");
+  setCel(abaP,linha,cm,"VALOR_PAGO",vlPago,"R$ #,##0.00");
+  setCel(abaP,linha,cm,"VALOR_RECEBIDO",vlPago,"R$ #,##0.00");
   setCel(abaP,linha,cm,"DIFERENCA_PAGA",0,"R$ #,##0.00");
   setCel(abaP,linha,cm,"TIPO_PAGAMENTO","somente_juros");
   if(stCol) abaP.getRange(linha,stCol).setValue("pago");
@@ -1565,7 +1567,7 @@ function registrarPagamentoParcial(idParcela, data) {
   if(cm["VALOR_PARCELA"])   abaP.getRange(nl,cm["VALOR_PARCELA"]).setNumberFormat("R$ #,##0.00");
   if(cm["DIFERENCA_PAGA"])  abaP.getRange(nl,cm["DIFERENCA_PAGA"]).setNumberFormat("R$ #,##0.00");
   registrarEvento({idContrato:idContrato,idCliente:idCliente,nomeCliente:nomeCliente,idParcela:idParcela,tipoEvento:"PAGAMENTO_SOMENTE_JUROS",
-    valorPrincipal:parcelPrinc,valorJuros:parcelJuros,valorTotal:parcelJuros,
+    valorPrincipal:parcelPrinc,valorJuros:parcelJuros,valorTotal:vlPago,valorExtraAtraso:extraMulta,
     observacoes:"Juros pagos. Nova parcela: "+String(ultimaIdP).padStart(5,"0")});
   try { calcularScore(idCliente); } catch(eScore) { Logger.log("Score err: "+eScore.message); }
   // Corrigir TOTAL_PARCELAS de todas as parcelas existentes deste contrato
