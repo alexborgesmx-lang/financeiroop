@@ -1575,6 +1575,7 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
     const totalParc=parseInt(contrato?.NUM_PARCELAS||hist.length||0);
     const pagas=hist.filter(p=>["pago","quitacao_antecipada"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase()));
     const totalJaPago=pagas.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+    const valorOriginal=parseFloat(contrato?.VALOR_PRINCIPAL||contrato?.VALOR_TOTAL||0);
     const parcelasRestantes=Math.max(0,totalParc-pagas.length);
     const valorParcOrig=parseFloat(hist[0]?.VALOR_PARCELA||0);
     const saldo=Math.max(0,parcelasRestantes*valorParcOrig);
