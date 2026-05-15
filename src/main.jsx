@@ -179,9 +179,9 @@ function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,c
     const pagas=hist.filter(p=>["pago","quitacao_antecipada"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase()));
     const jaEstavaPaga=pagas.some(p=>String(p.NUM_PARCELA)===String(pNum));
     const totalJaPago=pagas.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0)+(jaEstavaPaga?0:parseFloat(valorPago||0));
-    const valorOriginal=parseFloat(contrato?.VALOR_PRINCIPAL||contrato?.VALOR_TOTAL||0);
     const parcelasRestantes=Math.max(0,totalParc-(pagas.length+(jaEstavaPaga?0:1)));
-    const saldo=Math.max(0,valorOriginal-totalJaPago);
+    const valorParcOrig=parseFloat(hist[0]?.VALOR_PARCELA||0);
+    const saldo=Math.max(0,parcelasRestantes*valorParcOrig);
     const doc=new jsPDF({unit:'mm',format:'a4'});
     const W=210,pd=16;
     const G=[34,197,94],GL=[22,163,74],DK=[30,30,30],MT=[107,114,128],BDC=[209,213,219],RD=[220,38,38];
@@ -219,7 +219,7 @@ function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,c
     ]);
     sect('RESUMO FINANCEIRO ATUALIZADO',[
       {ll:'VALOR TOTAL DO EMPRÉSTIMO',lv:fR(valorOriginal),rl:'PARCELAS RESTANTES',rv:String(parcelasRestantes)},
-      {ll:'VALOR TOTAL JÁ PAGO',lv:fR(totalJaPago),rl:'SALDO DEVEDOR ESTIMADO',rv:fR(saldo),rvR:true},
+      {ll:'VALOR TOTAL JÁ PAGO',lv:fR(totalJaPago),rl:'SALDO DEVEDOR ESTIMADO',rv:fR(saldo)},
     ]);
     y+=2;
     const qt='"Declaramos, para os devidos fins, que o pagamento acima identificado foi recebido e registrado em nosso controle interno, referente à parcela informada neste comprovante."';
@@ -1575,9 +1575,9 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
     const totalParc=parseInt(contrato?.NUM_PARCELAS||hist.length||0);
     const pagas=hist.filter(p=>["pago","quitacao_antecipada"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase()));
     const totalJaPago=pagas.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
-    const valorOriginal=parseFloat(contrato?.VALOR_PRINCIPAL||contrato?.VALOR_TOTAL||0);
     const parcelasRestantes=Math.max(0,totalParc-pagas.length);
-    const saldo=Math.max(0,valorOriginal-totalJaPago);
+    const valorParcOrig=parseFloat(hist[0]?.VALOR_PARCELA||0);
+    const saldo=Math.max(0,parcelasRestantes*valorParcOrig);
     const doc=new jsPDF({unit:'mm',format:'a4'});
     const W=210,pd=16;
     const G=[34,197,94],GL=[22,163,74],DK=[30,30,30],MT=[107,114,128],BDC=[209,213,219],RD=[220,38,38];
@@ -1615,7 +1615,7 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
     ]);
     sect('RESUMO FINANCEIRO ATUALIZADO',[
       {ll:'VALOR TOTAL DO EMPRÉSTIMO',lv:fR(valorOriginal),rl:'PARCELAS RESTANTES',rv:String(parcelasRestantes)},
-      {ll:'VALOR TOTAL JÁ PAGO',lv:fR(totalJaPago),rl:'SALDO DEVEDOR ESTIMADO',rv:fR(saldo),rvR:true},
+      {ll:'VALOR TOTAL JÁ PAGO',lv:fR(totalJaPago),rl:'SALDO DEVEDOR ESTIMADO',rv:fR(saldo)},
     ]);
     y+=2;
     const qt='"Declaramos, para os devidos fins, que o pagamento acima identificado foi recebido e registrado em nosso controle interno, referente à parcela informada neste comprovante."';
