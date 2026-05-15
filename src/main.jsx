@@ -1740,7 +1740,7 @@ function gerarComprovante(contrato, parcelasContrato, cliente) {
     const now=new Date();
     const doc=new jsPDF({unit:'mm',format:'a4'});
     const W=210,pd=16;
-    const G=[34,197,94],GL=[22,163,74],DK=[30,30,30],MT=[107,114,128],BDC=[209,213,219];
+    const G=[46,160,90],GL=[120,120,120],DK=[30,30,30],MT=[130,130,130],BDC=[209,213,219];
     let y=18;
     doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(...DK);doc.text('BORGES ASSESSORIA',pd,y);
     doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...GL);doc.text('COMPROVANTE DE QUITAÇÃO DE CONTRATO',pd,y+6);
