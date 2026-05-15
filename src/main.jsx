@@ -395,8 +395,8 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
                     >
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
                         <div>
-                          <div style={{fontSize:12,fontWeight:800,color:isSel ? BLU : TEXT}}>
-                            {p.ID_CONTRATO} · Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS}
+                          <div style={{fontSize:12,fontWeight:800,color:isSel ? BLU : TEXT,display:"flex",alignItems:"center",gap:6}}>
+                            {p.ID_CONTRATO} · Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS}{parseInt(p.NUM_PARCELA)===parseInt(p.TOTAL_PARCELAS)&&parseInt(p.TOTAL_PARCELAS)>0&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 6px",borderRadius:99}}>última</span>}
                           </div>
                           <div style={{fontSize:11,color:MUTED,marginTop:2}}>Venc: {fmtDt(p.DATA_VENCIMENTO)}</div>
                         </div>
@@ -743,7 +743,7 @@ function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
     if(res.ok){
       const r = res.resultado||{};
       setMsg({ok:true, t:`${r.parcelasQuitadas||selecionadas.size} parcela(s) quitadas. Recebido: ${fmtR(r.totalRecebido||totalCobrar)}${r.contratoQuitado?" · Contrato QUITADO ✓":""}`});
-      setTimeout(()=>onConfirmar(), 1800);
+      setTimeout(()=>onConfirmar(contrato), 1800);
     } else {
       setMsg({ok:false, t:res.erro||"Erro ao processar."});
     }
@@ -788,7 +788,7 @@ function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
                         </div>
                         <div style={{flex:1,display:"flex",justifyContent:"space-between",alignItems:"center",minWidth:0}}>
                           <div>
-                            <div style={{fontSize:12,fontWeight:700}}>Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS} · venc. {fmtDt(p.DATA_VENCIMENTO)}</div>
+                            <div style={{fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS} · venc. {fmtDt(p.DATA_VENCIMENTO)}{parseInt(p.NUM_PARCELA)===parseInt(p.TOTAL_PARCELAS)&&parseInt(p.TOTAL_PARCELAS)>0&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 6px",borderRadius:99}}>última</span>}</div>
                             <div style={{fontSize:11,color:MUTED,marginTop:2}}>Principal: {fmtR(p.VALOR_PRINCIPAL||0)} · Juros: {fmtR(p.VALOR_JUROS||0)}</div>
                           </div>
                           <div style={{textAlign:"right",flexShrink:0}}>
@@ -1141,10 +1141,11 @@ function PagamentoDrop({contratos,parcelas,clientes,onSucesso,onSelecionarParcel
           <div style={{position:"relative"}}>
             <div onClick={()=>setShowParsDrop(v=>!v)} style={{...IS,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",userSelect:"none"}}>
               {parcela
-                ?<span style={{color:isAtrasada(parcela)?RED:TEXT,fontWeight:isAtrasada(parcela)?700:400}}>
+                ?<span style={{color:isAtrasada(parcela)?RED:TEXT,fontWeight:isAtrasada(parcela)?700:400,display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
                     {isAtrasada(parcela)&&"⚠ "}Parc {parcela.NUM_PARCELA} ({fmtDt(parcela.DATA_VENCIMENTO)}) — {fmtR(parcela.VALOR_PARCELA)}
-                    {parseInt(parcela.DIAS_ATRASO||0)>0&&<span style={{fontSize:11,marginLeft:4,color:RED}}>{parcela.DIAS_ATRASO}d atraso</span>}
-                    {isHoje(parcela)&&!isAtrasada(parcela)&&<span style={{fontSize:11,marginLeft:4,color:ORG}}>vence hoje</span>}
+                    {parseInt(parcela.NUM_PARCELA)===parseInt(parcela.TOTAL_PARCELAS)&&parseInt(parcela.TOTAL_PARCELAS)>0&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 6px",borderRadius:99}}>última</span>}
+                    {parseInt(parcela.DIAS_ATRASO||0)>0&&<span style={{fontSize:11,color:RED}}>{parcela.DIAS_ATRASO}d atraso</span>}
+                    {isHoje(parcela)&&!isAtrasada(parcela)&&<span style={{fontSize:11,color:ORG}}>vence hoje</span>}
                   </span>
                 :<span style={{color:MUTED}}>Selecione...</span>}
               <span style={{color:MUTED,fontSize:10}}>▾</span>
@@ -1157,8 +1158,8 @@ function PagamentoDrop({contratos,parcelas,clientes,onSucesso,onSelecionarParcel
                   style={{padding:"10px 14px",cursor:"pointer",borderBottom:`1px solid ${BG}`,background:atrasada?RED+"06":CARD,display:"flex",justifyContent:"space-between",alignItems:"center"}}
                   onMouseEnter={e=>e.currentTarget.style.background=atrasada?RED+"12":BG}
                   onMouseLeave={e=>e.currentTarget.style.background=atrasada?RED+"06":CARD}>
-                  <span style={{fontWeight:600,color:atrasada?RED:TEXT,fontSize:13}}>
-                    {atrasada&&"⚠ "}Parc {p.NUM_PARCELA} ({fmtDt(p.DATA_VENCIMENTO)})
+                  <span style={{fontWeight:600,color:atrasada?RED:TEXT,fontSize:13,display:"flex",alignItems:"center",gap:5}}>
+                    {atrasada&&"⚠ "}Parc {p.NUM_PARCELA} ({fmtDt(p.DATA_VENCIMENTO)}){parseInt(p.NUM_PARCELA)===parseInt(p.TOTAL_PARCELAS)&&parseInt(p.TOTAL_PARCELAS)>0&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 6px",borderRadius:99}}>última</span>}
                   </span>
                   <span style={{display:"flex",alignItems:"center",gap:8}}>
                     {dias>0&&<span style={{fontSize:11,fontWeight:700,color:RED,background:RED+"12",padding:"2px 7px",borderRadius:99}}>{dias}d</span>}
@@ -1406,7 +1407,7 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
                 const cor=stCor[st]||MUTED;
                 return(
                   <tr key={p.ID_PARCELA||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:"#FAFAFA"}}>
-                    <td style={{padding:"11px 18px",color:MUTED,fontWeight:600}}>{p.NUM_PARCELA}/{p.TOTAL_PARCELAS}</td>
+                    <td style={{padding:"11px 18px",color:MUTED,fontWeight:600}}>{p.NUM_PARCELA}/{p.TOTAL_PARCELAS}{parseInt(p.NUM_PARCELA)===parseInt(p.TOTAL_PARCELAS)&&parseInt(p.TOTAL_PARCELAS)>0&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 5px",borderRadius:99,marginLeft:5}}>última</span>}</td>
                     <td style={{fontWeight:600}}>{fmtDt(p.DATA_VENCIMENTO)}</td>
                     <td>{fmtR(p.VALOR_PARCELA)}</td>
                     <td><Badge c={cor}>{stLabel[st]||st}</Badge></td>
@@ -2200,7 +2201,7 @@ function App() {
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><span style={{fontSize:12,color:MUTED,fontWeight:700}}>Total previsto</span><strong style={{fontSize:20,color:parcelasHoje.length?YEL:GRN}}>{fmtR(totalParcelasHoje)}</strong></div>
                   {parcelasHoje.length===0?<div style={{padding:12,borderRadius:8,background:GRN+"08",color:GRN,fontSize:12,fontWeight:700}}>Nenhuma parcela vencendo hoje.</div>:<div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:220,overflowY:"auto"}}>{parcelasHoje.map(p=>(
                     <div key={p.ID_PARCELA||`${p.ID_CLIENTE}-${p.NUM_PARCELA}`} style={{padding:10,borderRadius:9,background:BG,border:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
-                      <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)}</div></div>
+                      <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2,display:"flex",alignItems:"center",gap:4}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)}{parseInt(p.NUM_PARCELA)===parseInt(p.TOTAL_PARCELAS)&&parseInt(p.TOTAL_PARCELAS)>0&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 5px",borderRadius:99}}>última</span>}</div></div>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}><div style={{fontSize:13,fontWeight:800,color:BLU}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</div><button onClick={()=>setPagamentoHoje(p)} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${GRN}35`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>Registrar pagamento</button></div>
                     </div>
                   ))}</div>}
@@ -2213,7 +2214,7 @@ function App() {
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><span style={{fontSize:12,color:MUTED,fontWeight:700}}>Total atrasado</span><strong style={{fontSize:20,color:parcelasAtrasadas.length?RED:GRN}}>{fmtR(totalParcelasAtrasadas)}</strong></div>
                   {parcelasAtrasadas.length===0?<div style={{padding:12,borderRadius:8,background:GRN+"08",color:GRN,fontSize:12,fontWeight:700}}>Nenhuma parcela em atraso.</div>:<div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:260,overflowY:"auto"}}>{parcelasAtrasadas.map(p=>(
                     <div key={p.ID_PARCELA||`${p.ID_CLIENTE}-${p.NUM_PARCELA}-atraso`} style={{padding:10,borderRadius:9,background:BG,border:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
-                      <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)} · {p.DIAS_ATRASO} dia{p.DIAS_ATRASO===1?"":"s"}</div></div>
+                      <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2,display:"flex",alignItems:"center",gap:4}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)} · {p.DIAS_ATRASO} dia{p.DIAS_ATRASO===1?"":"s"}{parseInt(p.NUM_PARCELA)===parseInt(p.TOTAL_PARCELAS)&&parseInt(p.TOTAL_PARCELAS)>0&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 5px",borderRadius:99}}>última</span>}</div></div>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}><div style={{fontSize:13,fontWeight:800,color:RED}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</div><button onClick={()=>setPagamentoHoje(p)} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${GRN}35`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>Registrar pagamento</button></div>
                     </div>
                   ))}</div>}
@@ -2645,7 +2646,7 @@ function App() {
       {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} parcelas={parcelas||[]} contratos={contratos||[]} clientes={clientes||[]} onConfirmar={async(res)=>{const p=pagamentoHoje;setPagamentoHoje(null);await carregar();if(res?.contratoQuitado&&p?.ID_CONTRATO)setComprovantePrompt({idContrato:p.ID_CONTRATO,idCliente:p.ID_CLIENTE});}} onFechar={()=>setPagamentoHoje(null)}/>}
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {acordoModal&&<ModalAcordoPerda contrato={acordoModal} parcelas={parcelas||[]} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
-      {quitacaoModal&&<QuitacaoAntecipadaModal contrato={quitacaoModal} parcelas={parcelas||[]} onConfirmar={()=>{setQuitacaoModal(null);carregar();}} onFechar={()=>setQuitacaoModal(null)}/>}
+      {quitacaoModal&&<QuitacaoAntecipadaModal contrato={quitacaoModal} parcelas={parcelas||[]} onConfirmar={(c)=>{setQuitacaoModal(null);carregar();if(c)setComprovantePrompt({idContrato:c.ID_CONTRATO,idCliente:c.ID_CLIENTE});}} onFechar={()=>setQuitacaoModal(null)}/>}
       {recuperacaoModal&&<RecuperacaoModal contrato={recuperacaoModal} onConfirmar={()=>{setRecuperacaoModal(null);carregar();}} onFechar={()=>setRecuperacaoModal(null)}/>}
 
       {/* ── MODAL CONTRATO ── */}
