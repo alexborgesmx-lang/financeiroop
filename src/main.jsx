@@ -1292,7 +1292,7 @@ function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,
 }
 
 function NovoContrato({contratos,clientes,onSucesso}){
-  const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);const [cliente,setCliente]=useState(null);const [principal,setPrincipal]=useState("");const [nParcelas,setNParcelas]=useState("");const [taxa,setTaxa]=useState("");const [dtEmp,setDtEmp]=useState(hojeStr());const [dtVenc,setDtVenc]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const ref=useRef();
+  const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);const [cliente,setCliente]=useState(null);const [principal,setPrincipal]=useState("");const [nParcelas,setNParcelas]=useState("");const [taxa,setTaxa]=useState("");const [dtEmp,setDtEmp]=useState(hojeStr());const [dtVenc,setDtVenc]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const [contratoOk,setContratoOk]=useState(null);const ref=useRef();
   useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
 
   const ST_BLOQ=["ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente"];
@@ -1315,8 +1315,15 @@ function NovoContrato({contratos,clientes,onSucesso}){
     return res.slice(0,8);
   },[busca,clientes,contratos]);
 
-  const criar=async()=>{if(!cliente||!principal||!nParcelas||!taxa||!dtEmp||!dtVenc)return;setLoading(true);setMsg(null);const res=await postAction({action:"novoContrato",dados:{idCliente:cliente.ID_CLIENTE,nomeCliente:cliente.NOME_CLIENTE,principal,parcelas:nParcelas,taxa,dataEmprestimo:apiDateStr(dtEmp),dataVencimento:apiDateStr(dtVenc)}});if(res.ok){setMsg({ok:true,t:"Contrato criado!"});setTimeout(onSucesso,1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
-  return(
+  const criar=async()=>{if(!cliente||!principal||!nParcelas||!taxa||!dtEmp||!dtVenc)return;setLoading(true);setMsg(null);const res=await postAction({action:"novoContrato",dados:{idCliente:cliente.ID_CLIENTE,nomeCliente:cliente.NOME_CLIENTE,principal,parcelas:nParcelas,taxa,dataEmprestimo:apiDateStr(dtEmp),dataVencimento:apiDateStr(dtVenc)}});if(res.ok){setContratoOk({idContrato:res.idContrato||"",clienteId:cliente.ID_CLIENTE,nomeCliente:cliente.NOME_CLIENTE,principal,nParcelas,taxa,dtVenc});}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
+  const _fRc=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const _fDvc=d=>{const dt=parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):d||'—';};
+  const _cliOk=contratoOk?(clientes||[]).find(c=>String(c.ID_CLIENTE||"").trim()===String(contratoOk.clienteId||"").trim()):null;
+  const _telOk=contratoOk?String(_cliOk?.TELEFONE_WPP||_cliOk?.TELEFONE||"").replace(/\D/g,""):"";
+  const _pmtOk=contratoOk?(()=>{const i=parseFloat(contratoOk.taxa)/100;const n=parseInt(contratoOk.nParcelas);const pv=parseFloat(contratoOk.principal);return i>0?pv*i/(1-Math.pow(1+i,-n)):pv/n;})():0;
+  const _abrirWppNovo=()=>{if(!contratoOk)return;const tel=_telOk?`55${_telOk}`:'';const txt=`Olá, ${contratoOk.nomeCliente}!\n\nSeu contrato foi registrado na Borges Assessoria Financeira. Seguem os detalhes:\n\n*Contrato:* ${contratoOk.idContrato}\n*Valor:* ${_fRc(parseFloat(contratoOk.principal))}\n*Parcelas:* ${contratoOk.nParcelas}x de ${_fRc(_pmtOk)} (${contratoOk.taxa}% a.m.)\n*1º Vencimento:* ${_fDvc(contratoOk.dtVenc)}\n\nQualquer dúvida pode me chamar!`;const url=tel?`https://wa.me/${tel}?text=${encodeURIComponent(txt)}`:'https://web.whatsapp.com';window.open(url,'_blank');setContratoOk(null);onSucesso();};
+  return(<>
+    {contratoOk&&<div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}><div style={{width:"100%",maxWidth:400,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.25)",overflow:"hidden"}}><div style={{background:GRN,padding:"22px 24px",textAlign:"center"}}><div style={{fontSize:38,marginBottom:6}}>✓</div><div style={{color:"#FFF",fontWeight:800,fontSize:17}}>Contrato criado!</div><div style={{color:"rgba(255,255,255,0.8)",fontSize:12,marginTop:4}}>{contratoOk.nomeCliente} · {contratoOk.idContrato}</div></div><div style={{padding:"18px 20px"}}><div style={{background:BG,borderRadius:10,padding:"12px 16px",marginBottom:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Valor</div><div style={{fontWeight:800,fontSize:15,color:BLU}}>{_fRc(parseFloat(contratoOk.principal))}</div></div><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Parcelas</div><div style={{fontWeight:700,fontSize:13}}>{contratoOk.nParcelas}x de {_fRc(_pmtOk)}</div></div><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Taxa</div><div style={{fontWeight:700,fontSize:13}}>{contratoOk.taxa}% a.m.</div></div><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>1º Vencimento</div><div style={{fontWeight:700,fontSize:13}}>{_fDvc(contratoOk.dtVenc)}</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}><button onClick={_abrirWppNovo} style={{padding:"12px",borderRadius:9,border:"none",background:"#25D366",color:"#FFF",cursor:"pointer",fontWeight:800,fontSize:13}}>📲 Enviar boas-vindas pelo WhatsApp</button><button onClick={()=>{setContratoOk(null);onSucesso();}} style={{padding:"10px",borderRadius:9,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:600,fontSize:13}}>Fechar</button></div></div></div></div>}
     <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}><div style={{background:BLU+"15",color:BLU,padding:8,borderRadius:8}}>{IcoCtr}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Novo Contrato</h3></div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -1348,7 +1355,7 @@ function NovoContrato({contratos,clientes,onSucesso}){
         {msg&&<div style={{padding:10,borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:12,textAlign:"center",fontWeight:600}}>{msg.t}</div>}
       </div>
     </div>
-  );
+  </>);
 }
 
 // ─── MODAL CONTRATO ──────────────────────────────────────────────
