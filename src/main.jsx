@@ -175,23 +175,26 @@ function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,c
     const fR=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
     const now=new Date();
     const ts=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
-    const nomeArq=`comprovante-${parcela.ID_CONTRATO}-P${pNum}-${ts}.pdf`;
     const pagas=hist.filter(p=>["pago","quitacao_antecipada"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase()));
     const jaEstavaPaga=pagas.some(p=>String(p.NUM_PARCELA)===String(pNum));
     const totalJaPago=pagas.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0)+(jaEstavaPaga?0:parseFloat(valorPago||0));
     const parcelasRestantes=Math.max(0,totalParc-(pagas.length+(jaEstavaPaga?0:1)));
     const valorParcOrig=parseFloat(hist[0]?.VALOR_PARCELA||0);
     const saldo=Math.max(0,parcelasRestantes*valorParcOrig);
+    const valorOriginal=parseFloat(contrato?.VALOR_PRINCIPAL||contrato?.VALOR_TOTAL||0);
+    const isQuitado=parcelasRestantes===0;
+    const ts=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+    const nomeArq=isQuitado?`comprovante-quitacao-${parcela.ID_CONTRATO}-${ts}.pdf`:`comprovante-${parcela.ID_CONTRATO}-P${pNum}-${ts}.pdf`;
     const doc=new jsPDF({unit:'mm',format:'a4'});
     const W=210,pd=16;
     const G=[46,160,90],GL=[120,120,120],DK=[30,30,30],MT=[130,130,130],BDC=[209,213,219];
     let y=18;
     doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(...DK);doc.text('BORGES ASSESSORIA',pd,y);
-    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...GL);doc.text('COMPROVANTE DE PAGAMENTO DE PARCELA',pd,y+6);
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...GL);doc.text(isQuitado?'COMPROVANTE DE QUITAÇÃO DE CONTRATO':'COMPROVANTE DE PAGAMENTO DE PARCELA',pd,y+6);
     ['Borges Assessoria Financeira','CNPJ: 63.124.205/0001-07','E-mail: borgesassessoriafinanceira@gmail.com','Tel/WPP: (62) 98487-7843'].forEach((l,i)=>{doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);doc.text(l,W-pd,y-4+i*4.5,{align:'right'});});
     y+=12;doc.setDrawColor(...BDC);doc.setLineWidth(0.5);doc.line(pd,y,W-pd,y);y+=8;
     doc.setFillColor(...G);doc.roundedRect(pd,y,W-2*pd,11,2,2,'F');
-    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);doc.text('PAGAMENTO CONFIRMADO',W/2,y+7.5,{align:'center'});
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);doc.text(isQuitado?'CONTRATO QUITADO':'PAGAMENTO CONFIRMADO',W/2,y+7.5,{align:'center'});
     y+=19;
     const sect=(title,rows)=>{
       const rH=11,sH=9+rows.length*rH+2;
@@ -203,38 +206,57 @@ function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,c
         doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...GL);if(r.ll)doc.text(r.ll,pd+4,ry);
         doc.setFont('helvetica',r.lvB?'bold':'normal');doc.setFontSize(8.5);doc.setTextColor(...DK);doc.text(r.lv||'—',pd+4,ry+4.5);
         if(r.rl){doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...GL);doc.text(r.rl,mx+4,ry);
-          doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...(r.rvR?RD:DK));doc.text(r.rv||'—',mx+4,ry+4.5);}
+          doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...DK);doc.text(r.rv||'—',mx+4,ry+4.5);}
         ry+=rH;
       });
       y+=sH+5;
     };
+    const nome=String(parcela.NOME_CLIENTE||cliente?.NOME_CLIENTE||cliente?.NOME||'—');
     sect('DADOS DO CLIENTE E DO CONTRATO',[
-      {ll:'NOME DO CLIENTE',lv:String(parcela.NOME_CLIENTE||cliente?.NOME_CLIENTE||cliente?.NOME||'—'),rl:'NÚMERO DO CONTRATO',rv:String(parcela.ID_CONTRATO)},
+      {ll:'NOME DO CLIENTE',lv:nome,rl:'NÚMERO DO CONTRATO',rv:String(parcela.ID_CONTRATO)},
       {ll:'CPF',lv:String(cliente?.CPF||'—'),rl:'DATA DO CONTRATO',rv:fD(contrato?.DATA_EMPRESTIMO||contrato?.DATA_CONTRATO)},
     ]);
-    sect('DETALHES DO PAGAMENTO',[
-      {ll:'PARCELA PAGA',lv:`${pNum} de ${totalParc}`,rl:'DATA DE VENCIMENTO',rv:fD(parcela.DATA_VENCIMENTO)},
-      {ll:'VALOR DA PARCELA',lv:fR(valorPago),lvB:true,rl:'DATA DO PAGAMENTO',rv:fD(dataPago)},
-      {ll:'FORMA DE PAGAMENTO',lv:String(tipoLabel||'—'),rl:'CÓDIGO DE TRANSAÇÃO',rv:String(parcela.ID_PARCELA||'—')},
-    ]);
-    sect('RESUMO FINANCEIRO ATUALIZADO',[
-      {ll:'VALOR TOTAL DO EMPRÉSTIMO',lv:fR(valorOriginal),rl:'PARCELAS RESTANTES',rv:String(parcelasRestantes)},
-      {ll:'VALOR TOTAL JÁ PAGO',lv:fR(totalJaPago),rl:'SALDO DEVEDOR ESTIMADO',rv:fR(saldo)},
-    ]);
+    if(isQuitado){
+      const datas=hist.map(p=>parseDate(p.DATA_PAGAMENTO)).filter(Boolean);
+      const ultPag=datas.length?datas.reduce((a,b)=>a>b?a:b):null;
+      const parcPagas=pagas.length+(jaEstavaPaga?0:1);
+      sect('DETALHES DA QUITAÇÃO',[
+        {ll:'TOTAL DE PARCELAS',lv:String(totalParc),rl:'DATA DA ÚLTIMA PARCELA',rv:fD(ultPag||dataPago)},
+        {ll:'VALOR TOTAL PAGO',lv:fR(totalJaPago),lvB:true,rl:'STATUS',rv:'QUITADO'},
+      ]);
+      sect('RESUMO FINANCEIRO',[
+        {ll:'VALOR ORIGINAL DO CONTRATO',lv:fR(valorOriginal),rl:'PARCELAS PAGAS',rv:String(parcPagas)+' de '+String(totalParc)},
+        {ll:'VALOR TOTAL PAGO',lv:fR(totalJaPago),rl:'SALDO REMANESCENTE',rv:'R$ 0,00'},
+      ]);
+    }else{
+      sect('DETALHES DO PAGAMENTO',[
+        {ll:'PARCELA PAGA',lv:`${pNum} de ${totalParc}`,rl:'DATA DE VENCIMENTO',rv:fD(parcela.DATA_VENCIMENTO)},
+        {ll:'VALOR DA PARCELA',lv:fR(valorPago),lvB:true,rl:'DATA DO PAGAMENTO',rv:fD(dataPago)},
+        {ll:'FORMA DE PAGAMENTO',lv:String(tipoLabel||'—'),rl:'CÓDIGO DE TRANSAÇÃO',rv:String(parcela.ID_PARCELA||'—')},
+      ]);
+      sect('RESUMO FINANCEIRO ATUALIZADO',[
+        {ll:'VALOR TOTAL DO EMPRÉSTIMO',lv:fR(valorOriginal),rl:'PARCELAS RESTANTES',rv:String(parcelasRestantes)},
+        {ll:'VALOR TOTAL JÁ PAGO',lv:fR(totalJaPago),rl:'SALDO DEVEDOR ESTIMADO',rv:fR(saldo)},
+      ]);
+    }
     y+=2;
-    const qt='"Declaramos, para os devidos fins, que o pagamento acima identificado foi recebido e registrado em nosso controle interno, referente à parcela informada neste comprovante."';
+    const qt=isQuitado
+      ?'"Declaramos, para os devidos fins, que todos os pagamentos referentes ao contrato acima identificado foram recebidos e registrados, confirmando a quitação integral da dívida."'
+      :'"Declaramos, para os devidos fins, que o pagamento acima identificado foi recebido e registrado em nosso controle interno, referente à parcela informada neste comprovante."';
     doc.setFont('helvetica','italic');doc.setFontSize(8.5);doc.setTextColor(...MT);
     const qtL=doc.splitTextToSize(qt,W-2*pd-8);doc.text(qtL,W/2,y,{align:'center'});y+=qtL.length*5+7;
     doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);
     doc.text(`Documento emitido em: ${now.toLocaleDateString('pt-BR')}`,W/2,y,{align:'center'});y+=6;
-    const ds='Este comprovante confirma exclusivamente o recebimento da parcela indicada, não representando quitação total do contrato, salvo quando expressamente informado.';
+    const ds=isQuitado
+      ?'Este comprovante confirma a quitação integral do contrato identificado acima, sendo válido como prova de liquidação total da dívida contratada.'
+      :'Este comprovante confirma exclusivamente o recebimento da parcela indicada, não representando quitação total do contrato, salvo quando expressamente informado.';
     doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...DK);
     const dsL=doc.splitTextToSize(ds,W-2*pd-8);doc.text(dsL,W/2,y,{align:'center'});y+=dsL.length*5+5;
     doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...GL);doc.text('Borges Assessoria | Gestão de Crédito Pessoal',W/2,y,{align:'center'});
     const blob=doc.output('blob');const url=URL.createObjectURL(blob);
     const a=document.createElement('a');a.href=url;a.download=nomeArq;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),3000);
     if(opts.wpp){const tel=telefone?`55${telefone}`:'';const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);const wppUrl=tel?`https://wa.me/${tel}`:(isMobile?'https://wa.me':'https://web.whatsapp.com');setTimeout(()=>window.open(wppUrl,'_blank'),700);}
-  }catch(e){console.error('Comprovante error:',e);}
+  }catch(e){console.error('Comprovante error:',e);alert('Erro ao gerar comprovante: '+e.message);}
 }
 
 function ComprovanteEnvioModal({parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes,onFechar}){
