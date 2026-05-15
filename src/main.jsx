@@ -1943,7 +1943,7 @@ function App() {
 
   const [ultimaAt, setUltimaAt] = useState(null);
   const _fetching = useRef(false);
-  const carregar=()=>{if(_fetching.current)return Promise.resolve();_fetching.current=true;setLoading(true);return fetch(API_URL).then(r=>r.json()).then(d=>{setRaw(d);setLoading(false);setUltimaAt(new Date());_fetching.current=false;}).catch(()=>{setLoading(false);_fetching.current=false;});};
+  const carregar=(force=false)=>{if(!force&&_fetching.current)return Promise.resolve();_fetching.current=true;setLoading(true);return fetch(API_URL).then(r=>r.json()).then(d=>{setRaw(d);setLoading(false);setUltimaAt(new Date());_fetching.current=false;}).catch(()=>{setLoading(false);_fetching.current=false;});};
   useEffect(()=>{carregar();},[]);
   useEffect(()=>{const id=setInterval(carregar,30000);return()=>clearInterval(id);},[]);
 
@@ -2326,7 +2326,7 @@ function App() {
                   ))}</div>}
                 </div>
                 <PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} clientes={clientes||[]} onSucesso={async(res,parc)=>{await carregar();if(res?.contratoQuitado&&parc?.ID_CONTRATO)setComprovantePrompt({idContrato:parc.ID_CONTRATO,idCliente:parc.ID_CLIENTE});}} onSelecionarParcela={setPagamentoHoje}/>
-                <NovoContrato contratos={contratos||[]} clientes={clientes||[]} onSucesso={carregar}/>
+                <NovoContrato contratos={contratos||[]} clientes={clientes||[]} onSucesso={()=>carregar(true)}/>
               </div>
             </div>
           )}
