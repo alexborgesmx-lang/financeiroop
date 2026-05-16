@@ -1832,12 +1832,46 @@ function abrirWhatsApp(telefone, nomeCliente) {
   window.open(`https://wa.me/${numFull}?text=${msg}`,'_blank');
 }
 
+// ─── MOBILE HOOK ─────────────────────────────────────────────────
+function useIsMobile(bp=768){
+  const [mob,setMob]=React.useState(()=>window.innerWidth<=bp);
+  React.useEffect(()=>{
+    const h=()=>setMob(window.innerWidth<=bp);
+    window.addEventListener('resize',h);
+    return()=>window.removeEventListener('resize',h);
+  },[bp]);
+  return mob;
+}
+
+// ─── BOTTOM NAV (mobile only) ─────────────────────────────────────
+function BottomNav({tab,setTab}){
+  const items=[
+    {id:"dashboard",label:"Início",ico:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>},
+    {id:"cobranca",label:"Cobrança",ico:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>},
+    {id:"contratos",label:"Contratos",ico:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>},
+    {id:"financeiro",label:"Financeiro",ico:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>},
+    {id:"clientes",label:"Clientes",ico:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>},
+  ];
+  return(
+    <nav style={{position:"fixed",bottom:0,left:0,right:0,background:CARD,borderTop:`1px solid ${BD}`,display:"flex",zIndex:120,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
+      {items.map(i=>(
+        <button key={i.id} onClick={()=>setTab(i.id)} style={{flex:1,padding:"8px 4px 6px",border:"none",background:"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,color:tab===i.id?BLU:MUTED,transition:"color 0.15s"}}>
+          <div style={{opacity:tab===i.id?1:0.6}}>{i.ico}</div>
+          <span style={{fontSize:10,fontWeight:tab===i.id?800:500,letterSpacing:"0.01em"}}>{i.label}</span>
+          {tab===i.id&&<div style={{width:4,height:4,borderRadius:"50%",background:BLU}}/>}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 // ─── APP ─────────────────────────────────────────────────────────
 function App() {
+  const mob = useIsMobile();
   const [raw, setRaw] = useState(null);
   const [tab, setTab] = useState("dashboard");
   const [loading, setLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(()=>window.innerWidth>768);
   const [selCli, setSelCli] = useState(null);
   const [baixaModal, setBaixaModal] = useState(null);
   const [acordoModal, setAcordoModal] = useState(null);
@@ -2099,18 +2133,23 @@ function App() {
   );
 
   return(
-    <div style={{display:"flex",height:"100vh",background:BG,color:TEXT,fontFamily:"'Inter', sans-serif"}}>
+    <div style={{display:"flex",height:"100vh",background:BG,color:TEXT,fontFamily:"'Inter', sans-serif",position:"relative"}}>
 
       {finCalOpen&&<div onClick={()=>setFinCalOpen(false)} style={{position:"fixed",inset:0,zIndex:199,background:"transparent"}}/>}
       {dashCalOpen&&<div onClick={()=>setDashCalOpen(false)} style={{position:"fixed",inset:0,zIndex:199,background:"transparent"}}/>}
 
-      {/* SIDEBAR */}
-      <div style={{width:sidebarOpen?SW:0,background:CARD,borderRight:`1px solid ${BD}`,display:"flex",flexDirection:"column",overflow:"hidden",transition:"0.3s",flexShrink:0}}>
+      {/* SIDEBAR — overlay escuro em mobile */}
+      {mob&&sidebarOpen&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",zIndex:148}}/>}
+      <div style={{
+        width:sidebarOpen?SW:0,
+        ...(mob?{position:"fixed",top:0,bottom:0,left:0,zIndex:149,boxShadow:sidebarOpen?"0 0 40px rgba(0,0,0,0.18)":"none"}:{}),
+        background:CARD,borderRight:`1px solid ${BD}`,display:"flex",flexDirection:"column",overflow:"hidden",transition:"width 0.25s",flexShrink:0
+      }}>
         <div style={{padding:24,display:"flex",alignItems:"center",gap:12,borderBottom:`1px solid ${BD}`}}>
           <div style={{width:32,height:32,background:BLU,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",color:"#FFF"}}>{IcoFin}</div>
           <span style={{fontWeight:800,fontSize:18,letterSpacing:"-0.5px"}}>Financeiro<span style={{color:BLU}}>Op</span></span>
         </div>
-        <div style={{padding:16,flex:1}}>
+        <div style={{padding:16,flex:1,overflowY:"auto"}}>
           <Nav id="dashboard"  label="Dashboard"        ico={IcoDash}/>
           <Nav id="clientes"   label="Clientes"         ico={IcoCli}/>
           <Nav id="contratos"  label="Contratos"        ico={IcoCtr}/>
@@ -2130,20 +2169,25 @@ function App() {
 
       {/* MAIN */}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <header style={{height:64,background:CARD,borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 24px",zIndex:10}}>
-          <div style={{display:"flex",alignItems:"center",gap:15}}>
-            <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{background:BG,border:"none",padding:8,borderRadius:8,cursor:"pointer",color:MUTED}}>{IcoArr}</button>
-            <h2 style={{fontSize:18,fontWeight:700,margin:0,textTransform:"capitalize"}}>{tab}</h2>
+        <header style={{height:mob?56:64,background:CARD,borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:mob?"0 12px":"0 24px",zIndex:10,flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:mob?10:15}}>
+            <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{background:BG,border:"none",padding:8,borderRadius:8,cursor:"pointer",color:MUTED,display:"flex",alignItems:"center"}}>{IcoArr}</button>
+            {mob
+              ? <span style={{fontWeight:800,fontSize:15,letterSpacing:"-0.4px"}}>Financeiro<span style={{color:BLU}}>Op</span></span>
+              : <h2 style={{fontSize:18,fontWeight:700,margin:0,textTransform:"capitalize"}}>{tab}</h2>
+            }
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
-            {ultimaAt&&<span style={{fontSize:11,color:MUTED,display:"flex",alignItems:"center",gap:5}}>{loading?<><span style={{width:8,height:8,borderRadius:"50%",border:`2px solid ${BLU}`,borderTopColor:"transparent",display:"inline-block",animation:"spin 0.8s linear infinite"}}/>Atualizando...</>:<><span style={{width:7,height:7,borderRadius:"50%",background:GRN,display:"inline-block"}}/>Atualizado às {ultimaAt.toLocaleTimeString('pt-BR')}</>}</span>}
+          <div style={{display:"flex",alignItems:"center",gap:mob?8:12}}>
+            {!mob&&ultimaAt&&<span style={{fontSize:11,color:MUTED,display:"flex",alignItems:"center",gap:5}}>{loading?<><span style={{width:8,height:8,borderRadius:"50%",border:`2px solid ${BLU}`,borderTopColor:"transparent",display:"inline-block",animation:"spin 0.8s linear infinite"}}/>Atualizando...</>:<><span style={{width:7,height:7,borderRadius:"50%",background:GRN,display:"inline-block"}}/>Atualizado às {ultimaAt.toLocaleTimeString('pt-BR')}</>}</span>}
+            {mob&&loading&&<span style={{width:8,height:8,borderRadius:"50%",border:`2px solid ${BLU}`,borderTopColor:"transparent",display:"inline-block",animation:"spin 0.8s linear infinite"}}/>}
+            {mob&&!loading&&ultimaAt&&<span style={{width:7,height:7,borderRadius:"50%",background:GRN,display:"inline-block"}}/>}
             <button onClick={carregar} disabled={loading} title="Atualizar dados" style={{background:BG,border:`1px solid ${BD}`,padding:"6px 8px",borderRadius:8,cursor:loading?"not-allowed":"pointer",color:MUTED,display:"flex",alignItems:"center",opacity:loading?0.5:1}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
             <button onClick={()=>setPrivacy(p=>!p)} title={privacy?"Mostrar números":"Ocultar números"} style={{background:privacy?RED+"12":BG,border:`1px solid ${privacy?RED+"40":BD}`,padding:"6px 8px",borderRadius:8,cursor:"pointer",color:privacy?RED:MUTED,display:"flex",alignItems:"center"}}>{privacy?IcoEyeOff:IcoEye}</button>
-            <div style={{color:MUTED,cursor:"pointer"}}>{IcoBell}</div>
+            {!mob&&<div style={{color:MUTED,cursor:"pointer"}}>{IcoBell}</div>}
           </div>
         </header>
 
-        <main style={{flex:1,overflowY:"auto",padding:24}}>
+        <main style={{flex:1,overflowY:"auto",padding:mob?"12px 10px":"24px",paddingBottom:mob?76:24}}>
 
           {/* DASHBOARD */}
           {tab==="dashboard"&&(
@@ -2183,19 +2227,19 @@ function App() {
                 </div>
               )}
 
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:16,flexWrap:"wrap"}}>
-                <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:mob?"center":"flex-end",gap:12,flexWrap:"wrap"}}>
+                {!mob&&<div>
                   <div style={{fontSize:12,color:MUTED,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em"}}>Período do Dashboard</div>
                   <div style={{fontSize:14,fontWeight:800,color:TEXT,marginTop:4}}>{labelPeriodoDash}</div>
-                </div>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <button onClick={resetPeriodoMesAtual} style={{padding:"8px 11px",borderRadius:8,border:`1px solid ${BLU}30`,background:BLU+"10",color:BLU,cursor:"pointer",fontSize:12,fontWeight:800}}>Mês atual</button>
-                  <div style={{position:"relative"}}>
-                    <button onClick={()=>setDashCalOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${BLU}`,background:"#EFF6FF",color:BLU,fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                      {IcoCal} {labelPeriodoDash}
+                </div>}
+                <div style={{display:"flex",alignItems:"center",gap:8,flex:mob?1:undefined}}>
+                  <button onClick={resetPeriodoMesAtual} style={{padding:"8px 11px",borderRadius:8,border:`1px solid ${BLU}30`,background:BLU+"10",color:BLU,cursor:"pointer",fontSize:12,fontWeight:800,flex:mob?1:undefined}}>Mês atual</button>
+                  <div style={{position:"relative",flex:mob?1:undefined}}>
+                    <button onClick={()=>setDashCalOpen(o=>!o)} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${BLU}`,background:"#EFF6FF",color:BLU,fontSize:12,fontWeight:700,cursor:"pointer",width:mob?"100%":undefined}}>
+                      {IcoCal} {mob?"Período":labelPeriodoDash}
                     </button>
                     {dashCalOpen&&(
-                      <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,zIndex:200}} onClick={e=>e.stopPropagation()}>
+                      <div style={{position:"absolute",top:"calc(100% + 8px)",right:mob?undefined:0,left:mob?0:undefined,zIndex:200}} onClick={e=>e.stopPropagation()}>
                         <CalendarioRange
                           de={parseDate(dashPeriodo.ini)}
                           ate={parseDate(dashPeriodo.fim)}
@@ -2207,23 +2251,23 @@ function App() {
                   </div>
                 </div>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:14}}>
+              <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(auto-fit,minmax(210px,1fr))",gap:mob?10:14}}>
                 {[
-                  {l:"Caixa Atual",v:fmtR(M.caixaAtual),sub:"Saldo geral estimado",c:GRN,i:IcoFin},
-                  {l:"Receita Total",v:fmtR(M.receitaTotal),sub:`${M.pagamentosPeriodo} pagamentos no período`,c:BLU,i:IcoFin},
-                  {l:"Total de Cobranças",v:M.totalCobrancas,sub:`${fmtR(M.vPendente)} em aberto`,c:YEL,i:IcoCob},
+                  {l:"Caixa Atual",v:fmtR(M.caixaAtual),sub:"Saldo estimado",c:GRN,i:IcoFin},
+                  {l:"Receita Total",v:fmtR(M.receitaTotal),sub:`${M.pagamentosPeriodo} pagamentos`,c:BLU,i:IcoFin},
+                  {l:"Cobranças",v:M.totalCobrancas,sub:`${fmtR(M.vPendente)} em aberto`,c:YEL,i:IcoCob},
                   {l:"Pagos",v:M.parcelasPagas,sub:`${M.totalCobrancas?Math.round((M.parcelasPagas/M.totalCobrancas)*100):0}% do total`,c:GRN,i:IcoKpi},
                   {l:"Pendentes",v:M.parcelasPendentes,sub:`${fmtR(M.vPendente)} aguardando`,c:ORG,i:IcoCal},
                   {l:"Vencidos",v:parcelasAtrasadas.length,sub:`${fmtR(totalParcelasAtrasadas)} em atraso`,c:RED,i:IcoCob},
                 ].map(k=>(
-                  <div key={k.l} style={{background:CARD,padding:20,borderRadius:12,border:`1px solid ${BD}`,minHeight:118,display:"flex",flexDirection:"column",justifyContent:"space-between",boxShadow:"0 10px 24px rgba(15,23,42,0.04)"}}>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:12}}><div style={{fontSize:13,color:TEXT,fontWeight:800}}>{k.l}</div><div style={{color:k.c}}>{k.i}</div></div>
-                    <div style={{fontSize:26,fontWeight:900,letterSpacing:"-0.8px",color:TEXT,lineHeight:1}}>{priv(k.v)}</div>
-                    <div style={{fontSize:11,color:k.c,fontWeight:700,marginTop:10}}>{priv(k.sub)}</div>
+                  <div key={k.l} style={{background:CARD,padding:mob?"14px 12px":20,borderRadius:12,border:`1px solid ${BD}`,minHeight:mob?100:118,display:"flex",flexDirection:"column",justifyContent:"space-between",boxShadow:"0 10px 24px rgba(15,23,42,0.04)"}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:mob?8:12}}><div style={{fontSize:mob?11:13,color:TEXT,fontWeight:800,lineHeight:1.2}}>{k.l}</div><div style={{color:k.c,opacity:0.8}}>{k.i}</div></div>
+                    <div style={{fontSize:mob?22:26,fontWeight:900,letterSpacing:"-0.8px",color:TEXT,lineHeight:1}}>{priv(k.v)}</div>
+                    <div style={{fontSize:10,color:k.c,fontWeight:700,marginTop:mob?6:10}}>{priv(k.sub)}</div>
                   </div>
                 ))}
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))",gap:20,alignItems:"start"}}>
+              <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"repeat(auto-fit,minmax(360px,1fr))",gap:mob?12:20,alignItems:"start"}}>
                 <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:14}}>
                     <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{background:YEL+"15",color:YEL,padding:8,borderRadius:8}}>{IcoCal}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Vencem Hoje</h3></div>
@@ -2259,34 +2303,36 @@ function App() {
           {/* CLIENTES */}
           {tab==="clientes"&&(
             <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
-              <div style={{padding:16,borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:BG+"50"}}>
-                <div style={{display:"flex",gap:10}}>
-                  <input placeholder="Buscar..." value={filtroBusca} onChange={e=>setFiltroBusca(e.target.value)} style={{...IS,width:260}}/>
-                  <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{...IS,width:140}}><option value="todos">Todos</option><option value="ativo">Ativos</option><option value="aguardando_conferencia">Aguardando</option></select>
+              <div style={{padding:mob?12:16,borderBottom:`1px solid ${BD}`,display:"flex",flexDirection:mob?"column":"row",justifyContent:"space-between",alignItems:mob?"stretch":"center",background:BG+"50",gap:10}}>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <input placeholder="Buscar..." value={filtroBusca} onChange={e=>setFiltroBusca(e.target.value)} style={{...IS,flex:1,minWidth:140}}/>
+                  <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{...IS,flex:1,minWidth:120}}><option value="todos">Todos</option><option value="ativo">Ativos</option><option value="aguardando_conferencia">Aguardando</option></select>
                 </div>
-                <div style={{fontSize:13,color:MUTED}}><strong>{filtrados.length}</strong> clientes</div>
+                <div style={{fontSize:13,color:MUTED,textAlign:mob?"right":"inherit"}}><strong>{filtrados.length}</strong> clientes</div>
               </div>
-              <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-                <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"10px 18px"}}>Cliente</th><th>Status</th><th>Telefone</th><th style={{padding:"10px 18px",textAlign:"right"}}>Ações</th></tr></thead>
+              <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+              <table style={{width:"100%",minWidth:mob?480:"100%",borderCollapse:"collapse",textAlign:"left"}}>
+                <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"10px 18px"}}>Cliente</th><th>Status</th>{!mob&&<th>Telefone</th>}<th style={{padding:"10px 18px",textAlign:"right"}}>Ações</th></tr></thead>
                 <tbody>{filtrados.map(c=>(
                   <tr key={c.ID_CLIENTE} onClick={()=>{setSelCliAba("perfil");setSelCli(c);}} style={{borderBottom:`1px solid ${BD}`,fontSize:13,cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=BG+"80"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    <td style={{padding:"13px 18px"}}><div style={{fontWeight:700,display:"flex",alignItems:"center",gap:8}}>{nomeCliente(c)}{scoreBadge(c)}</div><div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"}</div></td>
+                    <td style={{padding:"13px 18px"}}><div style={{fontWeight:700,display:"flex",alignItems:"center",gap:8}}>{nomeCliente(c)}{scoreBadge(c)}</div><div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"}{mob&&telCliente(c)?" · "+telCliente(c):""}</div></td>
                     <td><Badge c={c.STATUS_CLIENTE==="ativo"?GRN:YEL}>{(c.STATUS_CLIENTE||"").toUpperCase()}</Badge></td>
-                    <td style={{color:MUTED}}>{telCliente(c)}</td>
+                    {!mob&&<td style={{color:MUTED}}>{telCliente(c)}</td>}
                     <td style={{padding:"13px 18px"}}></td>
                   </tr>
                 ))}</tbody>
               </table>
+              </div>
             </div>
           )}
 
           {/* CONTRATOS */}
           {tab==="contratos"&&(
             <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
-              <div style={{padding:16,borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:BG+"50",flexWrap:"wrap",gap:10}}>
-                <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-                  <input placeholder="Buscar por ID, cliente..." value={filtroCtr} onChange={e=>setFiltroCtr(e.target.value)} style={{...IS,width:260}}/>
-                  <select value={filtroStatusCtr} onChange={e=>setFiltroStatusCtr(e.target.value)} style={{...IS,width:180}}>
+              <div style={{padding:mob?12:16,borderBottom:`1px solid ${BD}`,display:"flex",flexDirection:mob?"column":"row",justifyContent:"space-between",alignItems:mob?"stretch":"center",background:BG+"50",gap:10}}>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <input placeholder="Buscar..." value={filtroCtr} onChange={e=>setFiltroCtr(e.target.value)} style={{...IS,flex:1,minWidth:140}}/>
+                  <select value={filtroStatusCtr} onChange={e=>setFiltroStatusCtr(e.target.value)} style={{...IS,flex:1,minWidth:140}}>
                     <option value="todos">Todos os status</option>
                     <option value="ativo_em_dia">Em Dia</option>
                     <option value="ativo_em_atraso">Em Atraso</option>
@@ -2301,23 +2347,24 @@ function App() {
                     <option value="renegociado">Renegociado</option>
                   </select>
                 </div>
-                <div style={{fontSize:13,color:MUTED}}><strong>{contratosFiltrados.length}</strong> contrato{contratosFiltrados.length===1?"":"s"}</div>
+                <div style={{fontSize:13,color:MUTED,textAlign:mob?"right":"inherit"}}><strong>{contratosFiltrados.length}</strong> contrato{contratosFiltrados.length===1?"":"s"}</div>
               </div>
-              <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
+              <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+              <table style={{width:"100%",minWidth:mob?480:"100%",borderCollapse:"collapse",textAlign:"left"}}>
                 <thead>
                   <tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}>
                     <th style={{padding:"10px 18px"}}>Contrato</th>
                     <th>Status</th>
-                    <th>Empréstimo</th>
+                    {!mob&&<th>Empréstimo</th>}
                     <th>Principal</th>
-                    <th>Parcelas</th>
-                    <th>Taxa</th>
+                    {!mob&&<th>Parcelas</th>}
+                    {!mob&&<th>Taxa</th>}
                     <th style={{padding:"10px 18px",textAlign:"right"}}>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {contratosFiltrados.length===0
-                    ? <tr><td colSpan={7} style={{padding:"28px 18px",textAlign:"center",color:MUTED,fontSize:13}}>Nenhum contrato encontrado.</td></tr>
+                    ? <tr><td colSpan={mob?4:7} style={{padding:"28px 18px",textAlign:"center",color:MUTED,fontSize:13}}>Nenhum contrato encontrado.</td></tr>
                     : contratosFiltrados.map((c,i)=>(
                       <tr key={c.ID_CONTRATO||i}
                         onClick={()=>setContratoSel(c)}
@@ -2327,72 +2374,92 @@ function App() {
                       >
                         <td style={{padding:"13px 18px"}}>
                           <div style={{fontWeight:700}}>{c.ID_CONTRATO}</div>
-                          <div style={{fontSize:11,color:MUTED}}>Cliente {c.ID_CLIENTE} · {c.NOME_CLIENTE}</div>
+                          <div style={{fontSize:11,color:MUTED}}>{c.NOME_CLIENTE}{mob&&<span style={{color:BLU,fontWeight:600}}> · {(parseFloat(c.TAXA_JUROS_MENSAL||0)*100).toFixed(1)}%</span>}</div>
+                          {mob&&<div style={{fontSize:11,color:MUTED,marginTop:2}}>{c.NUM_PARCELAS}x {fmtR(c.VALOR_PARCELA)}</div>}
                         </td>
                         <td><Badge c={STATUS_COR[c.STATUS_CONTRATO]||MUTED}>{STATUS_LABEL[c.STATUS_CONTRATO]||c.STATUS_CONTRATO||"—"}</Badge></td>
-                        <td style={{color:MUTED}}>{fmtDt(c.DATA_EMPRESTIMO)}</td>
+                        {!mob&&<td style={{color:MUTED}}>{fmtDt(c.DATA_EMPRESTIMO)}</td>}
                         <td style={{fontWeight:600}}>{fmtR(c.VALOR_PRINCIPAL)}</td>
-                        <td style={{color:MUTED}}>{c.NUM_PARCELAS}x {fmtR(c.VALOR_PARCELA)}</td>
-                        <td style={{color:BLU,fontWeight:600}}>{(parseFloat(c.TAXA_JUROS_MENSAL||0)*100).toFixed(1)}%</td>
+                        {!mob&&<td style={{color:MUTED}}>{c.NUM_PARCELAS}x {fmtR(c.VALOR_PARCELA)}</td>}
+                        {!mob&&<td style={{color:BLU,fontWeight:600}}>{(parseFloat(c.TAXA_JUROS_MENSAL||0)*100).toFixed(1)}%</td>}
                         <td style={{padding:"13px 18px",textAlign:"right"}}>
                           <button
                             onClick={e=>{e.stopPropagation();setContratoSel(c);}}
                             style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,fontWeight:600}}
-                          >Ver detalhes</button>
+                          >{mob?"→":"Ver detalhes"}</button>
                         </td>
                       </tr>
                     ))
                   }
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
           {/* COBRANÇA ── linha clicável abre CobrancaModal */}
           {tab==="cobranca"&&(
             <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
-              <div style={{padding:16,borderBottom:`1px solid ${BD}`,background:RED+"05",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{padding:mob?12:16,borderBottom:`1px solid ${BD}`,background:RED+"05",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <h3 style={{margin:0,fontSize:15,fontWeight:700,color:RED}}>Fila de Cobrança</h3>
-                <span style={{fontSize:12,color:MUTED}}>Clique em uma linha para registrar pagamento</span>
+                {!mob&&<span style={{fontSize:12,color:MUTED}}>Clique em uma linha para registrar pagamento</span>}
+                {mob&&<Badge c={RED}>{cobItems.length}</Badge>}
               </div>
-              <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-                <thead>
-                  <tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}>
-                    <th style={{padding:"10px 18px"}}>Cliente</th>
-                    <th>Contratos</th>
-                    <th>Atraso Máx</th>
-                    <th>Valor</th>
-                    <th style={{padding:"10px 18px",textAlign:"right"}}>Ação</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cobItems.map(c=>(
-                    <tr
-                      key={c.ID_CLIENTE}
-                      onClick={() => setCobModal(c)}
-                      style={{borderBottom:`1px solid ${BD}`,fontSize:13,cursor:"pointer",transition:"background 0.1s"}}
-                      onMouseEnter={e=>e.currentTarget.style.background=BG}
-                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                    >
-                      <td style={{padding:"13px 18px"}}>
-                        <div style={{fontWeight:700,display:"flex",alignItems:"center",gap:8}}>{nomeCliente(c)}{scoreBadge(c)}</div>
-                        <div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"} · {telCliente(c)}</div>
-                      </td>
-                      <td style={{fontWeight:600}}>{c.qtdContratos}</td>
-                      <td><Badge c={c.maxAtraso>60?RED:c.maxAtraso>30?ORG:YEL}>{c.maxAtraso} dias</Badge></td>
-                      <td style={{fontWeight:700,color:RED}}>{fmtR(c.vAtraso)}</td>
-                      <td style={{padding:"13px 18px",textAlign:"right"}}>
-                        <button
-                          onClick={e=>{e.stopPropagation();setCobModal(c);}}
-                          style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${GRN}40`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:12,fontWeight:700}}
-                        >
-                          💳 Registrar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {mob
+                ? <div style={{display:"flex",flexDirection:"column"}}>
+                    {cobItems.map(c=>(
+                      <div key={c.ID_CLIENTE} onClick={()=>setCobModal(c)}
+                        style={{padding:"14px 16px",borderBottom:`1px solid ${BD}`,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nomeCliente(c)}{scoreBadge(c)}</div>
+                          <div style={{fontSize:11,color:MUTED,marginTop:3,display:"flex",gap:8,alignItems:"center"}}>
+                            <Badge c={c.maxAtraso>60?RED:c.maxAtraso>30?ORG:YEL}>{c.maxAtraso}d</Badge>
+                            <span>{c.qtdContratos} contrato{c.qtdContratos>1?"s":""}</span>
+                          </div>
+                        </div>
+                        <div style={{textAlign:"right",flexShrink:0}}>
+                          <div style={{fontSize:15,fontWeight:800,color:RED}}>{fmtR(c.vAtraso)}</div>
+                          <div style={{fontSize:11,color:GRN,fontWeight:700,marginTop:3}}>Cobrar →</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                : <div style={{overflowX:"auto"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
+                      <thead>
+                        <tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}>
+                          <th style={{padding:"10px 18px"}}>Cliente</th>
+                          <th>Contratos</th>
+                          <th>Atraso Máx</th>
+                          <th>Valor</th>
+                          <th style={{padding:"10px 18px",textAlign:"right"}}>Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cobItems.map(c=>(
+                          <tr key={c.ID_CLIENTE} onClick={()=>setCobModal(c)}
+                            style={{borderBottom:`1px solid ${BD}`,fontSize:13,cursor:"pointer",transition:"background 0.1s"}}
+                            onMouseEnter={e=>e.currentTarget.style.background=BG}
+                            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                            <td style={{padding:"13px 18px"}}>
+                              <div style={{fontWeight:700,display:"flex",alignItems:"center",gap:8}}>{nomeCliente(c)}{scoreBadge(c)}</div>
+                              <div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"} · {telCliente(c)}</div>
+                            </td>
+                            <td style={{fontWeight:600}}>{c.qtdContratos}</td>
+                            <td><Badge c={c.maxAtraso>60?RED:c.maxAtraso>30?ORG:YEL}>{c.maxAtraso} dias</Badge></td>
+                            <td style={{fontWeight:700,color:RED}}>{fmtR(c.vAtraso)}</td>
+                            <td style={{padding:"13px 18px",textAlign:"right"}}>
+                              <button onClick={e=>{e.stopPropagation();setCobModal(c);}}
+                                style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${GRN}40`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:12,fontWeight:700}}>
+                                💳 Registrar
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+              }
             </div>
           )}
 
@@ -2717,6 +2784,9 @@ function App() {
           onFechar={()=>setCobModal(null)}
         />
       )}
+
+      {/* BOTTOM NAV — apenas mobile */}
+      {mob&&<BottomNav tab={tab} setTab={t=>{setTab(t);setSidebarOpen(false);}}/>}
     </div>
   );
 }
