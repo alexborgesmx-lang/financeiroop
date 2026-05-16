@@ -55,6 +55,20 @@ function parseDate(v){
   return d;
 }
 
+const _ST_TERMINAL = new Set(["pago","quitacao_antecipada","baixado_como_prejuizo","cancelado","renegociado"]);
+function statusEfetivo(p) {
+  const st = String(p.STATUS || p.STATUS_PAGAMENTO || "pendente").toLowerCase();
+  if (_ST_TERMINAL.has(st)) return st;
+  const dv = parseDate(p.DATA_VENCIMENTO);
+  if (!dv) return st;
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  dv.setHours(0, 0, 0, 0);
+  if (dv.getTime() < hoje.getTime()) return "atrasado";
+  if (dv.getTime() === hoje.getTime()) return "vence_hoje";
+  return "pendente";
+}
+const _ST_LABEL = { pago:"Pago", pendente:"Pendente", atrasado:"Atrasado", vence_hoje:"Vence Hoje", baixado_como_prejuizo:"Baixado", cancelado:"Cancelado", quitacao_antecipada:"Quitado" };
+
 function apiDateStr(v){
   const dt = parseDate(v);
   if(!dt) return v || "";
@@ -800,7 +814,8 @@ function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
               : <div style={{display:"flex",flexDirection:"column",gap:6}}>
                   {abertas.map(p=>{
                     const sel = selecionadas.has(p.ID_PARCELA);
-                    const stCor = {pendente:BLU,atrasado:RED,vence_hoje:ORG}[String(p.STATUS||"").toLowerCase()]||MUTED;
+                    const _stEf = statusEfetivo(p);
+                    const stCor = {pendente:BLU,atrasado:RED,vence_hoje:ORG}[_stEf]||MUTED;
                     return(
                       <div key={p.ID_PARCELA} onClick={()=>toggle(p.ID_PARCELA)}
                         style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:9,border:`2px solid ${sel?BLU:BD}`,background:sel?BLU+"06":CARD,cursor:"pointer",transition:"all 0.12s"}}
@@ -815,7 +830,7 @@ function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
                           </div>
                           <div style={{textAlign:"right",flexShrink:0}}>
                             <div style={{fontSize:13,fontWeight:800}}>{fmtR(p.VALOR_PARCELA||0)}</div>
-                            <Badge c={stCor}>{String(p.STATUS||"pendente")}</Badge>
+                            <Badge c={stCor}>{_ST_LABEL[_stEf]||_stEf}</Badge>
                           </div>
                         </div>
                       </div>
@@ -1425,14 +1440,14 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
                 <th style={{textAlign:"right",padding:"10px 18px"}}>Valor Pago</th>
               </tr></thead>
               <tbody>{ps.map((p,i)=>{
-                const st=String(p.STATUS||p.STATUS_PAGAMENTO||"pendente").toLowerCase();
+                const st=statusEfetivo(p);
                 const cor=stCor[st]||MUTED;
                 return(
                   <tr key={p.ID_PARCELA||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:"#FAFAFA"}}>
                     <td style={{padding:"11px 18px",color:MUTED,fontWeight:600}}>{p.NUM_PARCELA}/{p.TOTAL_PARCELAS}{isUltima(p,ps)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 5px",borderRadius:99,marginLeft:5}}>última</span>}</td>
                     <td style={{fontWeight:600}}>{fmtDt(p.DATA_VENCIMENTO)}</td>
                     <td>{fmtR(p.VALOR_PARCELA)}</td>
-                    <td><Badge c={cor}>{stLabel[st]||st}</Badge></td>
+                    <td><Badge c={cor}>{stLabel[st]||_ST_LABEL[st]||st}</Badge></td>
                     <td style={{color:MUTED}}>{fmtDt(p.DATA_PAGAMENTO)||"—"}</td>
                     <td style={{textAlign:"right",padding:"11px 18px",fontWeight:700,color:parseFloat(p.VALOR_PAGO||0)>0?GRN:MUTED}}>{parseFloat(p.VALOR_PAGO||0)>0?fmtR(p.VALOR_PAGO):"—"}</td>
                   </tr>
@@ -1722,13 +1737,15 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                   <thead><tr style={{background:BG,color:MUTED,fontSize:10,textTransform:"uppercase"}}><th style={{padding:"7px 12px",textAlign:"left"}}>#</th><th style={{padding:"7px 12px",textAlign:"left"}}>Vencimento</th><th style={{padding:"7px 12px",textAlign:"right"}}>Valor</th><th style={{padding:"7px 12px",textAlign:"left"}}>Status</th><th style={{padding:"7px 12px",textAlign:"right"}}>Pago</th></tr></thead>
                   <tbody>{hist.map((p,i)=>{
-                    const isPago=["pago","quitacao_antecipada"].includes(String(p.STATUS||"").toLowerCase());
+                    const _stH=statusEfetivo(p);
+                    const isPago=["pago","quitacao_antecipada"].includes(_stH);
+                    const _corH={pago:GRN,quitacao_antecipada:GRN,atrasado:RED,vence_hoje:ORG,pendente:BLU}[_stH]||YEL;
                     const isAtual=String(p.NUM_PARCELA||"")===String(numParc||"");
                     return<tr key={i} style={{borderTop:`1px solid ${BD}`,background:isAtual?BLU+"08":"transparent"}}>
                       <td style={{padding:"7px 12px",fontWeight:isAtual?800:400,color:isAtual?BLU:TEXT}}>{p.NUM_PARCELA}</td>
                       <td style={{padding:"7px 12px",color:MUTED}}>{fmtDt(parseDate(p.DATA_VENCIMENTO))}</td>
                       <td style={{padding:"7px 12px",textAlign:"right"}}>{fmtR(p.VALOR_PARCELA)}</td>
-                      <td style={{padding:"7px 12px"}}><Badge c={isPago?GRN:YEL}>{p.STATUS||"—"}</Badge></td>
+                      <td style={{padding:"7px 12px"}}><Badge c={_corH}>{_ST_LABEL[_stH]||_stH}</Badge></td>
                       <td style={{padding:"7px 12px",textAlign:"right",fontWeight:700,color:isPago?GRN:MUTED}}>{isPago?fmtR(p.VALOR_PAGO):"—"}</td>
                     </tr>;
                   })}</tbody>
