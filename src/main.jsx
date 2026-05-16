@@ -1674,16 +1674,9 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
   const enviarWpp=async()=>{
     setSharing(true);
     try{
-      const blob=gerarPdfBlob();
-      const nome=`Comprovante_${pag.ID_CONTRATO}_P${numParc||pag.ID_PARCELA}.pdf`;
-      // 1. Baixa o PDF automaticamente
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement('a');a.href=url;a.download=nome;document.body.appendChild(a);a.click();document.body.removeChild(a);
-      setTimeout(()=>URL.revokeObjectURL(url),3000);
-      // 2. Abre direto na conversa do cliente no WPP (app no mobile, web no desktop)
-      const tel=telefone?`55${telefone}`:'';
-      const wppUrl=tel?`https://wa.me/${tel}`:(isMobile?'https://wa.me':'https://web.whatsapp.com');
-      setTimeout(()=>window.open(wppUrl,'_blank'),700);
+      if(!parcela){alert('Parcela não encontrada.');setSharing(false);return;}
+      // Detecta quitado e gera PDF correto (comprovante parcela ou quitação)
+      gerarEEnviarComprovante(parcela,parseFloat(pag.VALOR_PAGO||0),pag.DATA_PAGAMENTO,tLbl,parcelas,contratos,clientes,{wpp:true});
     }catch(e){alert('Erro: '+e.message);}
     setSharing(false);
   };
@@ -2697,7 +2690,16 @@ function App() {
           onRegistrarPagamento={p=>{setContratoSel(null);setPagamentoHoje(p);}}
           onBaixar={c=>{setContratoSel(null);setBaixaModal(c);}}
           onQuitacaoAntecipada={c=>{setContratoSel(null);setQuitacaoModal(c);}}
-          onComprovante={(c,ps,cli)=>gerarComprovante(c,ps,cli)}
+          onComprovante={(c,ps,cli)=>{
+            const _pagas=[...ps].filter(p=>["pago","quitacao_antecipada"].includes(statusEfetivo(p))).sort((a,b)=>parseInt(b.NUM_PARCELA||0)-parseInt(a.NUM_PARCELA||0));
+            const _ult=_pagas[0];
+            if(_ult){
+              const _tLbl={pagamento_normal:"Normal",pagamento_com_atraso:"Com Atraso",somente_juros:"Somente Juros",quitacao_antecipada:"Quitação Antecipada"}[_ult.TIPO_PAGAMENTO]||"Pagamento";
+              gerarEEnviarComprovante(_ult,parseFloat(_ult.VALOR_PAGO||0),_ult.DATA_PAGAMENTO,_tLbl,parcelas,contratos,clientes,{wpp:false});
+            }else{
+              gerarComprovante(c,ps,cli);
+            }
+          }}
           onFechar={()=>setContratoSel(null)}
         />
       )}
