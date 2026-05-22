@@ -6,11 +6,15 @@ import { jsPDF } from "jspdf";
 const API_URL  = "/api/sheets";
 const POST_URL = "/api/action";
 
-const BG   = "#F5F6FA", CARD = "#FFFFFF", BD = "#E5E7EB";
-const TEXT = "#111827", MUTED = "#6B7280";
-const GRN  = "#10B981", RED = "#EF4444", BLU = "#3B82F6";
-const YEL  = "#F59E0B", PUR = "#8B5CF6", ORG = "#F97316";
-const SW   = 220;
+let BG   = "#fffefb", CARD = "#ffffff", BD = "#e8e0d8";
+let TEXT = "#201515", MUTED = "#939084";
+let GRN  = "#16a34a", RED = "#dc2626", BLU = "#3B82F6";
+let YEL  = "#d97706", PUR = "#8B5CF6", ORG = "#ff4f00";
+const SW = 220;
+const LIGHT={BG:"#fffefb",CARD:"#ffffff",BD:"#e8e0d8",TEXT:"#201515",MUTED:"#939084",GRN:"#16a34a",RED:"#dc2626",BLU:"#3B82F6",YEL:"#d97706",PUR:"#8B5CF6",ORG:"#ff4f00"};
+const DARK ={BG:"#111113",CARD:"#1c1c1f",BD:"#2e2e33",TEXT:"#f0ece8",MUTED:"#7a7570",GRN:"#22c55e",RED:"#f87171",BLU:"#60a5fa",YEL:"#fbbf24",PUR:"#a78bfa",ORG:"#ff6a20"};
+function applyTheme(dark){const t=dark?DARK:LIGHT;BG=t.BG;CARD=t.CARD;BD=t.BD;TEXT=t.TEXT;MUTED=t.MUTED;GRN=t.GRN;RED=t.RED;BLU=t.BLU;YEL=t.YEL;PUR=t.PUR;ORG=t.ORG;}
+function isDarkHour(){const h=new Date().getHours();return h>=18||h<6;}
 
 const fmtR  = v => "R$ " + Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtP  = v => Number(v||0).toFixed(1) + "%";
@@ -59,15 +63,20 @@ const _ST_TERMINAL = new Set(["pago","quitacao_antecipada","baixado_como_prejuiz
 function statusEfetivo(p) {
   const st = String(p.STATUS || p.STATUS_PAGAMENTO || "pendente").toLowerCase();
   if (_ST_TERMINAL.has(st)) return st;
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  // DATA_ACORDO futura → reagendado (não aparece em atraso)
+  if (p.DATA_ACORDO) {
+    const da = parseDate(p.DATA_ACORDO);
+    if (da) { da.setHours(0,0,0,0); if (da.getTime() >= hoje.getTime()) return "reagendado"; }
+  }
   const dv = parseDate(p.DATA_VENCIMENTO);
   if (!dv) return st;
-  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   dv.setHours(0, 0, 0, 0);
   if (dv.getTime() < hoje.getTime()) return "atrasado";
   if (dv.getTime() === hoje.getTime()) return "vence_hoje";
   return "pendente";
 }
-const _ST_LABEL = { pago:"Pago", pendente:"Pendente", atrasado:"Atrasado", vence_hoje:"Vence Hoje", baixado_como_prejuizo:"Baixado", cancelado:"Cancelado", quitacao_antecipada:"Quitado" };
+const _ST_LABEL = { pago:"Pago", pendente:"Pendente", atrasado:"Atrasado", vence_hoje:"Vence Hoje", baixado_como_prejuizo:"Baixado", cancelado:"Cancelado", quitacao_antecipada:"Quitado", reagendado:"Reagendado" };
 
 function apiDateStr(v){
   const dt = parseDate(v);
@@ -80,8 +89,8 @@ function apiDateStr(v){
 function toNum(d){ if(!d)return 0; const dt=d instanceof Date?d:parseDate(d); if(!dt)return 0; return dt.getFullYear()*10000+(dt.getMonth()+1)*100+dt.getDate(); }
 async function postAction(body){ const r=await fetch(POST_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); return r.json(); }
 
-const IS = {width:"100%",padding:"9px 12px",background:CARD,border:`1px solid ${BD}`,borderRadius:7,color:TEXT,fontSize:13,boxSizing:"border-box"};
-const LS = {color:MUTED,fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:4};
+const IS = ()=>({width:"100%",padding:"9px 12px",background:CARD,border:`1px solid ${BD}`,borderRadius:7,color:TEXT,fontSize:13,boxSizing:"border-box"});
+const LS = ()=>({color:MUTED,fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:4});
 
 const STATUS_LABEL = {
   ativo_em_dia:"Em Dia", ativo_em_atraso:"Em Atraso", em_cobranca:"Em Cobrança",
@@ -101,25 +110,40 @@ const STATUS_PERDA = ["em_cobranca","pre_prejuizo","baixado_como_prejuizo","em_r
 const IcoFin  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
 const IcoDash = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>;
 const IcoCli  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>;
-const IcoCob  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.19 12"/></svg>;
-const IcoLoss = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
-const IcoSim  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>;
+const IcoCob  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.19 12"/><polyline points="22,16.92 16,10.92 13,13.92"/></svg>;
+const IcoLoss = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22,7 13.5,15.5 8.5,10.5 2,17"/><polyline points="16,7 22,7 22,13"/></svg>;
+const IcoSim  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/><circle cx="20" cy="4" r="3" strokeWidth="1.5"/></svg>;
 const IcoBell = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>;
 const IcoSrch = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
 const IcoArr  = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9,18 15,12 9,6"/></svg>;
+const IcoArrL = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15,18 9,12 15,6"/></svg>;
 const IcoCtr  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>;
 const IcoPag  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>;
 const IcoKpi  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>;
 const IcoCal  = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
 const IcoEye    = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
 const IcoEyeOff = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>;
+const IcoReceipt = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>;
+const IcoZap     = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10 13,2"/></svg>;
+const IcoAlert   = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+const IcoPhone   = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.19 12 19.79 19.79 0 0 1 1.12 3.38 2 2 0 0 1 3.1 1.18h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.27a16 16 0 0 0 6.16 6.16l1.17-1.34a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 14.92z"/></svg>;
+const IcoSign    = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+const IcoDoc     = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>;
+const IcoPromise = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9,16 11,18 15,14"/></svg>;
+const IcoSpinner = ({size=13,color="currentColor"})=><span style={{display:"inline-block",width:size,height:size,borderRadius:"50%",border:`2px solid ${color}40`,borderTopColor:color,animation:"spin 0.7s linear infinite",flexShrink:0}}/>;
+const IcoTrendUp = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/></svg>;
+const IcoRepeat  = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>;
+const IcoWarnTri = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+const IcoLock    = <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+const IcoCheck   = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20,6 9,17 4,12"/></svg>;
+const IcoHandshake = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.42 4.58a5.4 5.4 0 0 0-7.65 0l-.77.78-.77-.78a5.4 5.4 0 0 0-7.65 0C1.46 6.7 1.33 10.28 4 13l8 8 8-8c2.67-2.72 2.54-6.3.42-8.42z"/></svg>;
 
 function Badge({c,children}){ return <span style={{display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:20,fontSize:10,fontWeight:600,background:c+"18",color:c,border:`1px solid ${c}30`}}>{children}</span>; }
 function isUltima(p,parcs){const id=String(p.ID_CONTRATO);const max=(parcs||[]).reduce((m,pp)=>String(pp.ID_CONTRATO)===id?Math.max(m,parseInt(pp.NUM_PARCELA||0)):m,0);return parseInt(p.NUM_PARCELA||0)===max&&max>0;}
 
 // ─── CALENDÁRIO ──────────────────────────────────────────────────
 function CalendarioRange({ de, ate, onSelecionar, onLimpar }) {
-  const [mes, setMes] = useState(() => { const d=new Date(); d.setDate(1); return d; });
+  const [mes, setMes] = useState(() => { const d=de?new Date(de):new Date(); d.setDate(1); return d; });
   const [step, setStep] = useState(0);
   const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
   const DIAS  = ["D","S","T","Q","Q","S","S"];
@@ -139,14 +163,32 @@ function CalendarioRange({ de, ate, onSelecionar, onLimpar }) {
   function ehFim(d){ return ate&&d.getTime()===ate.getTime(); }
   function noRange(d){ return de&&ate&&d>de&&d<ate; }
   function ehHoje(d){ return d.getTime()===hoje.getTime(); }
+  function atalho(ini,fim){const a=new Date(ini);a.setHours(0,0,0,0);const b=new Date(fim);b.setHours(0,0,0,0);onSelecionar(a,b);setStep(0);const nav=new Date(a);nav.setDate(1);setMes(nav);}
   return (
     <div style={{background:CARD,border:`1px solid ${BD}`,borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.14)",padding:16,minWidth:300}}>
+      <div style={{display:"flex",gap:6,marginBottom:10}}>
+        {[
+          {l:"Hoje",    fn:()=>{const d=new Date();atalho(d,d);}},
+          {l:"Ontem",   fn:()=>{const d=new Date();d.setDate(d.getDate()-1);atalho(d,d);}},
+          {l:"Mês atual",fn:()=>{const h=new Date();atalho(new Date(h.getFullYear(),h.getMonth(),1),new Date(h.getFullYear(),h.getMonth()+1,0));}},
+        ].map(a=>(
+          <button key={a.l} onClick={a.fn} style={{flex:1,padding:"5px 0",borderRadius:7,border:`1px solid ${BD}`,background:BG,color:TEXT,fontSize:11,fontWeight:700,cursor:"pointer"}}>
+            {a.l}
+          </button>
+        ))}
+      </div>
       <p style={{color:step===0?BLU:GRN,fontSize:11,fontWeight:600,margin:"0 0 10px",textAlign:"center"}}>
         {step===0?"Clique na data inicial":"Clique na data final"}
       </p>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
         <button onClick={()=>{const d=new Date(mes);d.setMonth(d.getMonth()-1);setMes(d);}} style={{width:28,height:28,borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",color:MUTED,fontSize:16}}>‹</button>
-        <span style={{fontWeight:700,fontSize:13}}>{MESES[m]} {ano}</span>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <span style={{fontWeight:700,fontSize:13}}>{MESES[m]}</span>
+          <select value={ano} onChange={e=>{const d=new Date(mes);d.setFullYear(parseInt(e.target.value));setMes(d);}}
+            style={{fontWeight:700,fontSize:13,border:`1px solid ${BD}`,borderRadius:6,padding:"2px 4px",background:CARD,color:TEXT,cursor:"pointer",outline:"none"}}>
+            {Array.from({length:15},(_,i)=>new Date().getFullYear()-10+i).map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
         <button onClick={()=>{const d=new Date(mes);d.setMonth(d.getMonth()+1);setMes(d);}} style={{width:28,height:28,borderRadius:6,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",color:MUTED,fontSize:16}}>›</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:4}}>
@@ -158,11 +200,11 @@ function CalendarioRange({ de, ate, onSelecionar, onLimpar }) {
           const ini=ehIni(d),fim=ehFim(d),dentro=noRange(d),hj=ehHoje(d),ativo=ini||fim;
           return(
             <button key={i} onClick={()=>clicar(d)}
-              style={{width:"100%",aspectRatio:"1",borderRadius:ini?"6px 0 0 6px":fim?"0 6px 6px 0":dentro?"0":"6px",border:"none",background:ativo?BLU:dentro?"#DBEAFE":CARD,color:ativo?"#fff":hj?BLU:TEXT,fontWeight:ativo||hj?700:400,fontSize:12,cursor:"pointer",position:"relative",outline:"none"}}
+              style={{width:"100%",aspectRatio:"1",borderRadius:ini?"6px 0 0 6px":fim?"0 6px 6px 0":dentro?"0":"6px",border:"none",background:ativo?ORG:dentro?ORG+"20":CARD,color:ativo?"#fff":hj?ORG:TEXT,fontWeight:ativo||hj?700:400,fontSize:12,cursor:"pointer",position:"relative",outline:"none"}}
               onMouseEnter={e=>{if(!ativo&&!dentro)e.currentTarget.style.background=BG;}}
               onMouseLeave={e=>{if(!ativo&&!dentro)e.currentTarget.style.background=CARD;}}>
               {d.getDate()}
-              {hj&&<span style={{position:"absolute",bottom:2,left:"50%",transform:"translateX(-50%)",width:3,height:3,borderRadius:"50%",background:ativo?"#fff":BLU}}/>}
+              {hj&&<span style={{position:"absolute",bottom:2,left:"50%",transform:"translateX(-50%)",width:3,height:3,borderRadius:"50%",background:ativo?"#fff":ORG}}/>}
             </button>
           );
         })}
@@ -177,6 +219,43 @@ function CalendarioRange({ de, ate, onSelecionar, onLimpar }) {
   );
 }
 
+// ─── HELPER: TABELA DE HISTÓRICO DE PARCELAS NO PDF ──────────────
+function _renderHistParcelas(doc,rows,W,pd,y,GL,DK,BDC,fD,fR,title='HISTÓRICO DE PARCELAS'){
+  const tipoMap={pagamento_normal:'Normal',normal:'Normal',pagamento_com_atraso:'Com Atraso',com_atraso:'Com Atraso',somente_juros:'Só Juros',quitacao_antecipada:'Quitação Ant.',pagamento_antecipado:'Antecipado',antecipado:'Antecipado',recuperacao_apos_baixa:'Recuperação',acordo_com_perda:'Acordo'};
+  const cols=[
+    {label:'#',w:12,key:'NUM_PARCELA',fmt:v=>String(v||'—')},
+    {label:'Vencimento',w:28,key:'DATA_VENCIMENTO',fmt:fD},
+    {label:'Valor Parcela',w:30,key:'VALOR_PARCELA',fmt:fR},
+    {label:'Data Pagamento',w:30,key:'DATA_PAGAMENTO',fmt:fD},
+    {label:'Valor Pago',w:30,key:'VALOR_PAGO',fmt:fR},
+    {label:'Tipo',w:48,key:'TIPO_PAGAMENTO',fmt:v=>tipoMap[String(v||'').toLowerCase()]||String(v||'—')},
+  ];
+  const tableW=W-2*pd;const rH=7;const hH=6;
+  doc.setFillColor(240,242,245);doc.setDrawColor(...BDC);doc.setLineWidth(0.3);
+  doc.roundedRect(pd,y,tableW,8,2,2,'FD');
+  doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...DK);
+  doc.text(title,pd+4,y+5.5);
+  y+=10;
+  doc.setFillColor(46,160,90);doc.rect(pd,y,tableW,hH,'F');
+  let x=pd;cols.forEach(c=>{doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(255,255,255);doc.text(c.label,x+2,y+4.5);x+=c.w;});
+  y+=hH;
+  rows.forEach((row,i)=>{
+    if(y+rH>285){
+      doc.addPage();y=18;
+      doc.setFillColor(46,160,90);doc.rect(pd,y,tableW,hH,'F');
+      let xx=pd;cols.forEach(c=>{doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(255,255,255);doc.text(c.label,xx+2,y+4.5);xx+=c.w;});
+      y+=hH;
+    }
+    if(i%2===0){doc.setFillColor(248,250,252);doc.rect(pd,y,tableW,rH,'F');}
+    doc.setDrawColor(...BDC);doc.setLineWidth(0.1);doc.line(pd,y+rH,pd+tableW,y+rH);
+    let x2=pd;
+    cols.forEach(c=>{doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...DK);doc.text(c.fmt(row[c.key]),x2+2,y+5);x2+=c.w;});
+    y+=rH;
+  });
+  doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.line(pd,y,pd+tableW,y);
+  return y+6;
+}
+
 // ─── HELPER: GERAR E ENVIAR COMPROVANTE PDF VIA WHATSAPP ─────────
 function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes,opts={}){
   try{
@@ -185,14 +264,22 @@ function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,c
     const telefone=String(cliente?.TELEFONE_WPP||cliente?.TELEFONE||"").replace(/\D/g,"");
     const hist=(parcelas||[]).filter(p=>String(p.ID_CONTRATO||"").trim()===String(parcela.ID_CONTRATO||"").trim()).sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
     const pNum=parseInt(parcela.NUM_PARCELA||0);
-    const totalParc=parseInt(contrato?.NUM_PARCELAS||hist.length||0);
+    const isSomenteJuros=tipoLabel==="Somente Juros";
+    // detecta se hist já tem o resultado deste pagamento (dados pós-pagamento)
+    const currentInHist=hist.find(p=>String(p.ID_PARCELA||"").trim()===String(parcela.ID_PARCELA||"").trim());
+    const isAlreadyProcessed=isSomenteJuros&&!!currentInHist&&String(currentInHist.TIPO_PAGAMENTO||"").toLowerCase()==="somente_juros";
+    const somenteJurosInHist=hist.filter(p=>String(p.TIPO_PAGAMENTO||"").toLowerCase()==="somente_juros").length;
+    // se pós-pagamento: hist.length já inclui a nova parcela, não soma +1
+    const totalParcEfetivo=(isSomenteJuros&&!isAlreadyProcessed)?hist.length+1:hist.length;
+    const totalAdded=(isSomenteJuros&&!isAlreadyProcessed)?somenteJurosInHist+1:somenteJurosInHist;
+    const originalParc=totalParcEfetivo-totalAdded;
     const fD=d=>{if(!d)return'—';const dt=d instanceof Date?d:parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):'—';};
     const fR=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
     const now=new Date();
     const pagas=hist.filter(p=>["pago","quitacao_antecipada"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase()));
     const jaEstavaPaga=pagas.some(p=>String(p.NUM_PARCELA)===String(pNum));
     const totalJaPago=pagas.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0)+(jaEstavaPaga?0:parseFloat(valorPago||0));
-    const parcelasRestantes=Math.max(0,totalParc-(pagas.length+(jaEstavaPaga?0:1)));
+    const parcelasRestantes=Math.max(0,totalParcEfetivo-(pagas.length+(jaEstavaPaga?0:1)));
     const valorParcOrig=parseFloat(hist[0]?.VALOR_PARCELA||0);
     const saldo=Math.max(0,parcelasRestantes*valorParcOrig);
     const valorOriginal=parseFloat(contrato?.VALOR_PRINCIPAL||contrato?.VALOR_TOTAL||0);
@@ -230,28 +317,44 @@ function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,c
       {ll:'NOME DO CLIENTE',lv:nome,rl:'NÚMERO DO CONTRATO',rv:String(parcela.ID_CONTRATO)},
       {ll:'CPF',lv:String(cliente?.CPF||'—'),rl:'DATA DO CONTRATO',rv:fD(contrato?.DATA_EMPRESTIMO||contrato?.DATA_CONTRATO)},
     ]);
+    const tipoLabelToKey={'Somente Juros':'somente_juros','Com Atraso':'pagamento_com_atraso','Quitação Antecipada':'quitacao_antecipada','Antecipado':'pagamento_antecipado'};
     if(isQuitado){
       const datas=hist.map(p=>parseDate(p.DATA_PAGAMENTO)).filter(Boolean);
       const ultPag=datas.length?datas.reduce((a,b)=>a>b?a:b):null;
       const parcPagas=pagas.length+(jaEstavaPaga?0:1);
       sect('DETALHES DA QUITAÇÃO',[
-        {ll:'TOTAL DE PARCELAS',lv:String(totalParc),rl:'DATA DA ÚLTIMA PARCELA',rv:fD(ultPag||dataPago)},
+        {ll:'TOTAL DE PARCELAS',lv:String(totalParcEfetivo),rl:'DATA DA ÚLTIMA PARCELA',rv:fD(ultPag||dataPago)},
         {ll:'VALOR TOTAL PAGO',lv:fR(totalJaPago),lvB:true,rl:'STATUS',rv:'QUITADO'},
       ]);
       sect('RESUMO FINANCEIRO',[
-        {ll:'VALOR ORIGINAL DO CONTRATO',lv:fR(valorOriginal),rl:'PARCELAS PAGAS',rv:String(parcPagas)+' de '+String(totalParc)},
+        {ll:'VALOR ORIGINAL DO CONTRATO',lv:fR(valorOriginal),rl:'PARCELAS PAGAS',rv:String(parcPagas)+' de '+String(totalParcEfetivo)},
         {ll:'VALOR TOTAL PAGO',lv:fR(totalJaPago),rl:'SALDO REMANESCENTE',rv:'R$ 0,00'},
       ]);
+      const histRows=[...pagas];
+      if(!jaEstavaPaga)histRows.push({...parcela,VALOR_PAGO:valorPago,DATA_PAGAMENTO:dataPago,TIPO_PAGAMENTO:tipoLabelToKey[tipoLabel]||'pagamento_normal'});
+      histRows.sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
+      y=_renderHistParcelas(doc,histRows,W,pd,y,GL,DK,BDC,fD,fR);
     }else{
       sect('DETALHES DO PAGAMENTO',[
-        {ll:'PARCELA PAGA',lv:`${pNum} de ${totalParc}`,rl:'DATA DE VENCIMENTO',rv:fD(parcela.DATA_VENCIMENTO)},
+        {ll:'PARCELA PAGA',lv:`${pNum} de ${totalParcEfetivo}`,rl:'DATA DE VENCIMENTO',rv:fD(parcela.DATA_VENCIMENTO)},
         {ll:'VALOR DA PARCELA',lv:fR(valorPago),lvB:true,rl:'DATA DO PAGAMENTO',rv:fD(dataPago)},
         {ll:'FORMA DE PAGAMENTO',lv:String(tipoLabel||'—'),rl:'CÓDIGO DE TRANSAÇÃO',rv:String(parcela.ID_PARCELA||'—')},
       ]);
       sect('RESUMO FINANCEIRO ATUALIZADO',[
         {ll:'VALOR TOTAL DO EMPRÉSTIMO',lv:fR(valorOriginal),rl:'PARCELAS RESTANTES',rv:String(parcelasRestantes)},
         {ll:'VALOR TOTAL JÁ PAGO',lv:fR(totalJaPago),rl:'SALDO DEVEDOR ESTIMADO',rv:fR(saldo)},
+        ...(isSomenteJuros?[{ll:'CONTRATO: ORIGINAL / ATUAL',lv:`${originalParc} / ${totalParcEfetivo} parcelas`,rl:'PARCELAS ADICIONADAS',rv:`${totalAdded} (somente juros)`}]:[]),
       ]);
+      if(isSomenteJuros){
+        doc.setFillColor(254,243,199);doc.roundedRect(pd,y,W-2*pd,18,2,2,'F');
+        doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(146,64,14);
+        doc.text('CONTRATO ATUALIZADO',pd+4,y+6);
+        doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(120,53,15);
+        const aviso=`Contrato original: ${originalParc} parcelas. Foram adicionadas ${totalAdded} parcelas por pagamentos de somente juros (principal rolado). Total atual do contrato: ${totalParcEfetivo} parcelas.`;
+        const avisoL=doc.splitTextToSize(aviso,W-2*pd-8);doc.text(avisoL,pd+4,y+11);
+        y+=avisoL.length*4.5+14;
+      }
+      y=_renderHistParcelas(doc,[{NUM_PARCELA:parcela.NUM_PARCELA,DATA_VENCIMENTO:parcela.DATA_VENCIMENTO,VALOR_PARCELA:parcela.VALOR_PARCELA,DATA_PAGAMENTO:dataPago,VALOR_PAGO:valorPago,TIPO_PAGAMENTO:tipoLabelToKey[tipoLabel]||'pagamento_normal'}],W,pd,y,GL,DK,BDC,fD,fR,'DETALHE DA PARCELA PAGA');
     }
     y+=2;
     const qt=isQuitado
@@ -278,7 +381,7 @@ function ComprovanteEnvioModal({parcela,valorPago,dataPago,tipoLabel,parcelas,co
   const fD=d=>{if(!d)return'—';const dt=d instanceof Date?d:parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):'—';};
   return(
     <div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{width:"100%",maxWidth:380,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.25)",overflow:"hidden"}}>
+      <div style={{width:"100%",maxWidth:380,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.25)",overflow:"hidden",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}>
         <div style={{background:GRN,padding:"22px 24px",textAlign:"center"}}>
           <div style={{fontSize:38,marginBottom:6}}>✓</div>
           <div style={{color:"#FFF",fontWeight:800,fontSize:17}}>Pagamento registrado!</div>
@@ -293,7 +396,7 @@ function ComprovanteEnvioModal({parcela,valorPago,dataPago,tipoLabel,parcelas,co
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             <button onClick={()=>gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes,{wpp:false})} style={{padding:"11px",borderRadius:9,border:`1px solid ${BD}`,background:BG,color:TEXT,cursor:"pointer",fontWeight:700,fontSize:13}}>📥 Salvar comprovante (PDF)</button>
-            <button onClick={()=>gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes,{wpp:true})} style={{padding:"12px",borderRadius:9,border:"none",background:"#25D366",color:"#FFF",cursor:"pointer",fontWeight:800,fontSize:13}}>📲 Enviar pelo WhatsApp</button>
+            <button onClick={()=>{gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes,{wpp:true});setTimeout(onFechar,800);}} style={{padding:"12px",borderRadius:9,border:"none",background:"#25D366",color:"#FFF",cursor:"pointer",fontWeight:800,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoPhone} Enviar pelo WhatsApp</button>
             <button onClick={onFechar} style={{padding:"10px",borderRadius:9,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:600,fontSize:13,marginTop:2}}>Fechar</button>
           </div>
         </div>
@@ -361,7 +464,7 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
     });
     if (res.ok) {
       setPagoIds(prev => new Set([...prev, parcelaSel.ID_PARCELA]));
-      setComprovanteData({parcela:parcelaSel,valorPago:parseFloat(valor),dataPago:data,tipoLabel:tipo==="somente_juros"?"Somente Juros":"Pagamento Total"});
+      setComprovanteData({parcela:parcelaSel,valorPago:parseFloat(valor),dataPago:data,tipoLabel:tipo==="somente_juros"?"Somente Juros":tipo==="com_atraso"?"Com Atraso":"Pagamento Total"});
     } else {
       setMsg({ ok: false, t: res.erro || "Erro ao registrar pagamento." });
     }
@@ -381,7 +484,7 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{background:BG,borderRadius:16,width:"100%",maxWidth:860,maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 30px 90px rgba(0,0,0,0.3)",overflow:"hidden"}}
+        style={{background:BG,borderRadius:16,width:"100%",maxWidth:860,maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 30px 90px rgba(0,0,0,0.3)",overflow:"hidden",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}
       >
         {/* HEADER */}
         <div style={{background:CARD,padding:"16px 22px",borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
@@ -425,13 +528,13 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
                     <div
                       key={p.ID_PARCELA}
                       onClick={() => selecionarParcela(p)}
-                      style={{padding:14,borderRadius:10,border:`2px solid ${isSel ? BLU : BD}`,background:isSel ? BLU+"08" : CARD,cursor:"pointer",transition:"border-color 0.15s, background 0.15s"}}
-                      onMouseEnter={e => { if(!isSel) e.currentTarget.style.borderColor = BLU+"60"; }}
+                      style={{padding:14,borderRadius:10,border:`2px solid ${isSel ? ORG : BD}`,background:isSel ? ORG+"08" : CARD,cursor:"pointer",transition:"border-color 0.15s, background 0.15s"}}
+                      onMouseEnter={e => { if(!isSel) e.currentTarget.style.borderColor = ORG+"60"; }}
                       onMouseLeave={e => { if(!isSel) e.currentTarget.style.borderColor = BD; }}
                     >
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
                         <div>
-                          <div style={{fontSize:12,fontWeight:800,color:isSel ? BLU : TEXT,display:"flex",alignItems:"center",gap:6}}>
+                          <div style={{fontSize:12,fontWeight:800,color:isSel ? ORG : TEXT,display:"flex",alignItems:"center",gap:6}}>
                             {p.ID_CONTRATO} · Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS}{isUltima(p,todasParcelas)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 6px",borderRadius:99}}>última</span>}
                           </div>
                           <div style={{fontSize:11,color:MUTED,marginTop:2}}>Venc: {fmtDt(p.DATA_VENCIMENTO)}</div>
@@ -451,7 +554,7 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
                         )}
                       </div>
                       {isSel && (
-                        <div style={{marginTop:8,fontSize:11,color:BLU,fontWeight:700}}>✓ Selecionada — preencha o formulário ao lado</div>
+                        <div style={{marginTop:8,fontSize:11,color:ORG,fontWeight:700}}>✓ Selecionada — preencha o formulário ao lado</div>
                       )}
                     </div>
                   );
@@ -476,8 +579,8 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
                   const { vOrig, multa, mora, total } = calcComAtraso(parcelaSel);
                   const temAtraso = parcelaSel.DIAS_ATRASO > 0;
                   return (
-                    <div style={{background:BLU+"06",border:`1px solid ${BLU}25`,borderRadius:10,padding:14}}>
-                      <div style={{fontSize:11,fontWeight:700,color:BLU,marginBottom:10}}>
+                    <div style={{background:ORG+"06",border:`1px solid ${ORG}25`,borderRadius:10,padding:14}}>
+                      <div style={{fontSize:11,fontWeight:700,color:ORG,marginBottom:10}}>
                         {parcelaSel.ID_CONTRATO} · Parcela {parcelaSel.NUM_PARCELA}/{parcelaSel.TOTAL_PARCELAS}
                       </div>
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:temAtraso ? 10 : 0}}>
@@ -511,20 +614,20 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
 
                 {/* Tipo de pagamento */}
                 <div>
-                  <span style={LS}>Tipo de Pagamento</span>
+                  <span style={LS()}>Tipo de Pagamento</span>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                     {[
-                      { v:"total",         l:"💰 Pagamento Total",   sub:"Valor original da parcela" },
-                      { v:"com_atraso",    l:"⏰ Total + Encargos",  sub:"Multa + juros de mora" },
-                      { v:"somente_juros", l:"💸 Somente Juros",     sub:"Principal rolado p/ nova parcela" },
-                      { v:"personalizado", l:"✏️ Personalizado",     sub:"Informe o valor manualmente" },
+                      { v:"total",         l:"Pagamento Total",   sub:"Valor original da parcela" },
+                      { v:"com_atraso",    l:"Total + Encargos",  sub:"Multa + juros de mora" },
+                      { v:"somente_juros", l:"Somente Juros",     sub:"Principal rolado p/ nova parcela" },
+                      { v:"personalizado", l:"Personalizado",     sub:"Informe o valor manualmente" },
                     ].map(op => (
                       <div
                         key={op.v}
                         onClick={() => changeTipo(op.v)}
-                        style={{padding:"10px 12px",borderRadius:8,border:`2px solid ${tipo === op.v ? BLU : BD}`,background:tipo === op.v ? BLU+"08" : CARD,cursor:"pointer",textAlign:"center",transition:"all 0.15s"}}
+                        style={{padding:"10px 12px",borderRadius:8,border:`2px solid ${tipo === op.v ? ORG : BD}`,background:tipo === op.v ? ORG+"08" : CARD,cursor:"pointer",textAlign:"center",transition:"all 0.15s"}}
                       >
-                        <div style={{fontSize:12,fontWeight:700,color:tipo === op.v ? BLU : TEXT}}>{op.l}</div>
+                        <div style={{fontSize:12,fontWeight:700,color:tipo === op.v ? ORG : TEXT}}>{op.l}</div>
                         <div style={{fontSize:10,color:MUTED,marginTop:2}}>{op.sub}</div>
                       </div>
                     ))}
@@ -533,12 +636,12 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
 
                 {/* Valor */}
                 <div>
-                  <span style={LS}>Valor (R$)</span>
+                  <span style={LS()}>Valor (R$)</span>
                   <input
                     type="number"
                     value={valor}
                     onChange={e => setValor(e.target.value)}
-                    style={{...IS, fontSize:20, fontWeight:800, textAlign:"center", height:52}}
+                    style={{...IS(), fontSize:20, fontWeight:800, textAlign:"center", height:52}}
                     readOnly={tipo !== "personalizado" && tipo !== "com_atraso"}
                     onFocus={() => setTipo("personalizado")}
                   />
@@ -549,14 +652,14 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
 
                 {/* Data */}
                 <div>
-                  <span style={LS}>Data do Pagamento</span>
-                  <input type="date" value={data} onChange={e => setData(e.target.value)} style={IS}/>
+                  <span style={LS()}>Data do Pagamento</span>
+                  <input type="date" value={data} onChange={e => setData(e.target.value)} style={IS()}/>
                 </div>
 
                 {/* Feedback */}
                 {msg && (
                   <div style={{padding:"10px 14px",borderRadius:8,background:msg.ok ? GRN+"10" : RED+"10",color:msg.ok ? GRN : RED,fontSize:13,fontWeight:700,textAlign:"center",border:`1px solid ${msg.ok ? GRN : RED}25`}}>
-                    {msg.ok ? "✓ " : "⚠ "}{msg.t}
+                    {""}{msg.t}
                   </div>
                 )}
 
@@ -564,16 +667,16 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
                 <button
                   onClick={registrar}
                   disabled={loading || !valor || !data || parseFloat(valor) <= 0}
-                  style={{padding:"13px",borderRadius:9,border:"none",background:GRN,color:"#FFF",fontWeight:800,cursor:"pointer",fontSize:14,opacity:loading || !valor || !data || parseFloat(valor) <= 0 ? 0.6 : 1,transition:"opacity 0.15s"}}
+                  style={{padding:"13px",borderRadius:9,border:"none",background:GRN,color:"#FFF",fontWeight:800,cursor:"pointer",fontSize:14,opacity:loading || !valor || !data || parseFloat(valor) <= 0 ? 0.6 : 1,transition:"opacity 0.15s",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}
                 >
-                  {loading ? "Registrando..." : "✓ Confirmar Pagamento"}
+                  {loading?<><IcoSpinner color="#fff"/> Registrando...</>:<>{IcoCheck} Confirmar Pagamento</>}
                 </button>
 
                 <button
                   onClick={() => setParcelaSel(null)}
-                  style={{padding:"9px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,color:MUTED,fontWeight:600}}
+                  style={{padding:"9px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontSize:12,color:MUTED,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}
                 >
-                  ← Escolher outra parcela
+                  {IcoArrL} Outra parcela
                 </button>
               </div>
             )}
@@ -594,9 +697,12 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
   const ps = (parcelas||[]).filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
   const valPrincipal = parseFloat(contrato.VALOR_PRINCIPAL||0);
   const valTotal     = parseFloat(contrato.VALOR_TOTAL||contrato.VALOR_TOTAL_FINAL||0);
-  const totalPago    = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>s+(parseFloat(p.VALOR_PAGO)||0),0);
-  const jurosJaPagos = ps.filter(p=>p.STATUS==="pago").reduce((s,p)=>s+Math.max(0,(parseFloat(p.VALOR_PAGO)||0)-(parseFloat(p.VALOR_PRINCIPAL)||0)),0);
-  const capitalRecuperado = Math.min(totalPago, valPrincipal);
+  const pagasPs    = ps.filter(p=>p.STATUS==="pago");
+  const totalPago    = pagasPs.reduce((s,p)=>s+(parseFloat(p.VALOR_PAGO)||0),0);
+  const jurosJaPagos = pagasPs.reduce((s,p)=>s+Math.max(0,(parseFloat(p.VALOR_PAGO)||0)-(parseFloat(p.VALOR_PRINCIPAL)||0)),0);
+  // usa VALOR_PRINCIPAL por parcela; fallback: divide o principal igualmente entre parcelas
+  const ppUnit = ps.length>0?valPrincipal/ps.length:0;
+  const capitalRecuperado = Math.min(valPrincipal, pagasPs.reduce((s,p)=>{const vp=parseFloat(p.VALOR_PRINCIPAL||0);return s+(vp>0?vp:ppUnit);},0));
   const prejuizoCapital   = Math.max(0, valPrincipal-capitalRecuperado);
   const jurosNaoReal      = Math.max(0, (valTotal-valPrincipal)-jurosJaPagos);
   const pctRecuperado     = valPrincipal>0?(capitalRecuperado/valPrincipal*100):0;
@@ -609,28 +715,28 @@ function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
     if(res.ok){onConfirmar();}else setMsg(res.erro||"Erro.");
     setLoading(false);
   };
-  const campo=(label,field,opts)=>(<div><span style={LS}>{label}</span>{opts?<select value={dados[field]} onChange={e=>setDados(p=>({...p,[field]:e.target.value}))} style={IS}>{opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select>:<input value={dados[field]} onChange={e=>setDados(p=>({...p,[field]:e.target.value}))} style={IS}/>}</div>);
+  const campo=(label,field,opts)=>(<div><span style={LS()}>{label}</span>{opts?<select value={dados[field]} onChange={e=>setDados(p=>({...p,[field]:e.target.value}))} style={IS()}>{opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select>:<input value={dados[field]} onChange={e=>setDados(p=>({...p,[field]:e.target.value}))} style={IS()}/>}</div>);
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:CARD,borderRadius:12,width:"100%",maxWidth:600,maxHeight:"90vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
-        <div style={{padding:"20px 24px 14px",borderBottom:`1px solid ${BD}`,background:"#FEF2F2",borderRadius:"12px 12px 0 0"}}><h2 style={{color:RED,fontSize:17,fontWeight:700,margin:0}}>⚠️ Baixar Contrato como Prejuízo</h2><p style={{fontSize:13,color:MUTED,margin:"4px 0 0"}}>Contrato {contrato.ID_CONTRATO} • {contrato.NOME_CLIENTE}</p></div>
+      <div style={{background:CARD,borderRadius:12,width:"100%",maxWidth:600,maxHeight:"90vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.2)",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}>
+        <div style={{padding:"20px 24px 14px",borderBottom:`1px solid ${BD}`,background:RED+"06",borderRadius:"12px 12px 0 0"}}><h2 style={{color:RED,fontSize:17,fontWeight:700,margin:0,display:"flex",alignItems:"center",gap:7}}>{IcoAlert} Baixar Contrato como Prejuízo</h2><p style={{fontSize:13,color:MUTED,margin:"4px 0 0"}}>Contrato {contrato.ID_CONTRATO} · {contrato.NOME_CLIENTE}</p></div>
         <div style={{padding:24,overflowY:"auto",flex:1}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:24,padding:16,background:BG,borderRadius:10}}>
-            <div><span style={LS}>Capital Emprestado</span><div style={{fontSize:15,fontWeight:700}}>{fmtR(valPrincipal)}</div></div>
-            <div><span style={LS}>Capital Recuperado</span><div style={{fontSize:15,fontWeight:700,color:GRN}}>{fmtR(capitalRecuperado)}</div></div>
-            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Prejuízo de Capital</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{fmtR(prejuizoCapital)}</div></div>
-            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Juros Não Realizados</span><div style={{fontSize:15,fontWeight:700,color:ORG}}>{fmtR(jurosNaoReal)}</div></div>
-            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Total Pago</span><div style={{fontSize:15,fontWeight:700,color:BLU}}>{fmtR(totalPago)}</div></div>
-            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>% Recuperado</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{fmtP(pctRecuperado)}</div></div>
-            <div style={{gridColumn:"1/-1",borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS}>Dias de Atraso (Máx)</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{diasAtraso} dias</div></div>
+            <div><span style={LS()}>Capital Emprestado</span><div style={{fontSize:15,fontWeight:700}}>{fmtR(valPrincipal)}</div></div>
+            <div><span style={LS()}>Capital Recuperado</span><div style={{fontSize:15,fontWeight:700,color:GRN}}>{fmtR(capitalRecuperado)}</div></div>
+            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS()}>Prejuízo de Capital</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{fmtR(prejuizoCapital)}</div></div>
+            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS()}>Juros Não Realizados</span><div style={{fontSize:15,fontWeight:700,color:ORG}}>{fmtR(jurosNaoReal)}</div></div>
+            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS()}>Total Pago</span><div style={{fontSize:15,fontWeight:700,color:BLU}}>{fmtR(totalPago)}</div></div>
+            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS()}>% Recuperado</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{fmtP(pctRecuperado)}</div></div>
+            <div style={{gridColumn:"1/-1",borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS()}>Dias de Atraso (Máx)</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{diasAtraso} dias</div></div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:16}}>
             {campo("Substatus","substatus",[{v:"CLIENTE_DESAPARECIDO",l:"Cliente Desaparecido"},{v:"SEM_BENS_PENHORAVEIS",l:"Sem Bens/Renda"},{v:"FALECIMENTO",l:"Falecimento"},{v:"FRAUDE_IDENTIFICADA",l:"Má-fé aparente"},{v:"ACORDO_VALOR_IRRISORIO",l:"Acordo Irrisório"}])}
             {campo("Motivo Detalhado (Obrigatório)","motivo")}
             {campo("Possibilidade de Recuperação","possibilidadeRecuperacao",[{v:"BAIXA",l:"Baixa"},{v:"RECURSOS_FUTUROS",l:"Remota"},{v:"JUDICIAL",l:"Judicial"}])}
             {campo("Status Jurídico","statusJuridico",[{v:"NAO_ANALISADO",l:"Não analisado"},{v:"ANALISE_INTERNA",l:"Análise Interna"},{v:"PROCESSO_AJUIZADO",l:"Processo Ajuizado"}])}
-            <div><span style={LS}>Próxima Providência</span><input value={dados.proximaProvidencia} onChange={e=>setDados(p=>({...p,proximaProvidencia:e.target.value}))} style={IS}/></div>
-            <div><span style={LS}>Observação</span><textarea value={dados.observacao} onChange={e=>setDados(p=>({...p,observacao:e.target.value}))} style={{...IS,height:80,resize:"none"}}/></div>
+            <div><span style={LS()}>Próxima Providência</span><input value={dados.proximaProvidencia} onChange={e=>setDados(p=>({...p,proximaProvidencia:e.target.value}))} style={IS()}/></div>
+            <div><span style={LS()}>Observação</span><textarea value={dados.observacao} onChange={e=>setDados(p=>({...p,observacao:e.target.value}))} style={{...IS(),height:80,resize:"none"}}/></div>
           </div>
           {msg&&<div style={{marginTop:16,padding:12,borderRadius:8,background:RED+"10",color:RED,fontSize:13,textAlign:"center",fontWeight:600}}>{msg}</div>}
         </div>
@@ -679,8 +785,8 @@ function ModalAcordoPerda({contrato,parcelas,onConfirmar,onFechar}){
 
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:"#FFF",borderRadius:16,width:"100%",maxWidth:520,padding:24,boxShadow:"0 20px 50px rgba(0,0,0,0.3)",maxHeight:"90vh",overflowY:"auto"}}>
-        <h2 style={{margin:"0 0 4px",color:"#0891B2",fontSize:18,fontWeight:800}}>🤝 Acordo com Perda</h2>
+      <div style={{background:CARD,borderRadius:16,width:"100%",maxWidth:520,padding:24,boxShadow:"0 20px 50px rgba(0,0,0,0.3)",maxHeight:"90vh",overflowY:"auto",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}>
+        <h2 style={{margin:"0 0 4px",color:TEXT,fontSize:18,fontWeight:800,display:"flex",alignItems:"center",gap:8}}>{IcoHandshake} Acordo com Perda</h2>
         <p style={{fontSize:13,color:MUTED,marginBottom:20}}>Contrato: <strong>{contrato.ID_CONTRATO}</strong> · {contrato.NOME_CLIENTE}</p>
 
         {/* Dívida atual */}
@@ -695,13 +801,13 @@ function ModalAcordoPerda({contrato,parcelas,onConfirmar,onFechar}){
 
         {/* Valor do acordo */}
         <div style={{marginBottom:16}}>
-          <span style={LS}>Valor Recebido no Acordo (R$)</span>
-          <input type="number" value={valorAcordo} onChange={e=>setValorAcordo(e.target.value)} placeholder="0.00" style={{...IS,fontSize:20,fontWeight:800,height:52,textAlign:"center"}}/>
+          <span style={LS()}>Valor Recebido no Acordo (R$)</span>
+          <input type="number" value={valorAcordo} onChange={e=>setValorAcordo(e.target.value)} placeholder="0.00" style={{...IS(),fontSize:20,fontWeight:800,height:52,textAlign:"center"}}/>
         </div>
 
         {/* Preview contábil — aparece ao digitar valor */}
         {vAcordo>0&&(
-          <div style={{background:"#F0FDF4",border:`1px solid ${GRN}40`,borderRadius:10,padding:14,marginBottom:16}}>
+          <div style={{background:GRN+"10",border:`1px solid ${GRN}40`,borderRadius:10,padding:14,marginBottom:16}}>
             <div style={{fontSize:11,fontWeight:700,color:GRN,marginBottom:10}}>RESUMO CONTÁBIL</div>
             <div style={{display:"flex",flexDirection:"column",gap:7}}>
               <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}>
@@ -727,15 +833,15 @@ function ModalAcordoPerda({contrato,parcelas,onConfirmar,onFechar}){
 
         {/* Forma e observação */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-          <div><span style={LS}>Forma</span><select value={forma} onChange={e=>setForma(e.target.value)} style={IS}><option value="dinheiro">Dinheiro</option><option value="pix">PIX</option><option value="transferencia">Transferência</option></select></div>
-          <div><span style={LS}>Observação</span><input value={observacao} onChange={e=>setObservacao(e.target.value)} placeholder="Opcional" style={IS}/></div>
+          <div><span style={LS()}>Forma</span><select value={forma} onChange={e=>setForma(e.target.value)} style={IS()}><option value="dinheiro">Dinheiro</option><option value="pix">PIX</option><option value="transferencia">Transferência</option></select></div>
+          <div><span style={LS()}>Observação</span><input value={observacao} onChange={e=>setObservacao(e.target.value)} placeholder="Opcional" style={IS()}/></div>
         </div>
 
         {msg&&<div style={{marginBottom:12,padding:10,borderRadius:8,background:RED+"10",color:RED,fontSize:13,textAlign:"center",fontWeight:600}}>{msg}</div>}
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <button onClick={onFechar} style={{padding:12,borderRadius:8,border:`1px solid ${BD}`,background:"none",cursor:"pointer",fontWeight:600}}>Cancelar</button>
-          <button onClick={confirmar} disabled={loading||vAcordo<=0} style={{padding:12,borderRadius:8,border:"none",background:"#0891B2",color:"#FFF",fontWeight:700,cursor:"pointer",opacity:loading||vAcordo<=0?0.7:1}}>{loading?"Processando...":"Confirmar Acordo"}</button>
+          <button onClick={confirmar} disabled={loading||vAcordo<=0} style={{padding:12,borderRadius:8,border:"none",background:ORG,color:"#FFF",fontWeight:700,cursor:"pointer",opacity:loading||vAcordo<=0?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{loading?<><IcoSpinner color="#fff"/> Processando...</>:"Confirmar Acordo"}</button>
         </div>
       </div>
     </div>
@@ -788,12 +894,12 @@ function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
 
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onFechar}>
-      <div onClick={e=>e.stopPropagation()} style={{background:BG,borderRadius:16,width:"100%",maxWidth:620,maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 30px 80px rgba(0,0,0,0.3)",overflow:"hidden"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:BG,borderRadius:16,width:"100%",maxWidth:620,maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 30px 80px rgba(0,0,0,0.3)",overflow:"hidden",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}>
 
         {/* Header */}
         <div style={{background:CARD,padding:"18px 22px",borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
-            <div style={{fontSize:16,fontWeight:800}}>⚡ Quitação Antecipada</div>
+            <div style={{fontSize:16,fontWeight:800,display:"flex",alignItems:"center",gap:7}}>{IcoZap} Quitação Antecipada</div>
             <div style={{fontSize:12,color:MUTED,marginTop:3}}>{contrato.ID_CONTRATO} · {contrato.NOME_CLIENTE}</div>
           </div>
           <button onClick={onFechar} style={{background:BG,border:`1px solid ${BD}`,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:18,color:MUTED}}>×</button>
@@ -805,7 +911,7 @@ function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
           <div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
               <span style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase"}}>Parcelas em Aberto ({abertas.length})</span>
-              <button onClick={toggleTodas} style={{fontSize:11,fontWeight:700,color:BLU,background:"none",border:`1px solid ${BLU}30`,borderRadius:6,padding:"4px 10px",cursor:"pointer"}}>
+              <button onClick={toggleTodas} style={{fontSize:11,fontWeight:700,color:ORG,background:"none",border:`1px solid ${ORG}40`,borderRadius:6,padding:"4px 10px",cursor:"pointer"}}>
                 {todasSel?"Desmarcar todas":"Selecionar todas"}
               </button>
             </div>
@@ -818,9 +924,9 @@ function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
                     const stCor = {pendente:BLU,atrasado:RED,vence_hoje:ORG}[_stEf]||MUTED;
                     return(
                       <div key={p.ID_PARCELA} onClick={()=>toggle(p.ID_PARCELA)}
-                        style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:9,border:`2px solid ${sel?BLU:BD}`,background:sel?BLU+"06":CARD,cursor:"pointer",transition:"all 0.12s"}}
+                        style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:9,border:`2px solid ${sel?ORG:BD}`,background:sel?ORG+"06":CARD,cursor:"pointer",transition:"all 0.12s"}}
                       >
-                        <div style={{width:18,height:18,borderRadius:5,border:`2px solid ${sel?BLU:BD}`,background:sel?BLU:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                        <div style={{width:18,height:18,borderRadius:5,border:`2px solid ${sel?ORG:BD}`,background:sel?ORG:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                           {sel&&<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2" fill="none" stroke="#fff" strokeWidth="1.8"/></svg>}
                         </div>
                         <div style={{flex:1,display:"flex",justifyContent:"space-between",alignItems:"center",minWidth:0}}>
@@ -843,35 +949,35 @@ function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
           {/* Desconto nos juros */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
             <div>
-              <span style={LS}>Desconto nos Juros (R$)</span>
-              <input type="number" value={desconto} onChange={e=>setDesconto(e.target.value)} placeholder="0.00" min="0" max={totalJuros} style={IS}/>
+              <span style={LS()}>Desconto nos Juros (R$)</span>
+              <input type="number" value={desconto} onChange={e=>setDesconto(e.target.value)} placeholder="0.00" min="0" max={totalJuros} style={IS()}/>
               {totalJuros>0&&<div style={{fontSize:10,color:MUTED,marginTop:3}}>Máx: {fmtR(totalJuros)}</div>}
             </div>
             <div>
-              <span style={LS}>Forma de Pagamento</span>
-              <select value={forma} onChange={e=>setForma(e.target.value)} style={IS}>
+              <span style={LS()}>Forma de Pagamento</span>
+              <select value={forma} onChange={e=>setForma(e.target.value)} style={IS()}>
                 <option value="dinheiro">Dinheiro</option>
                 <option value="pix">PIX</option>
                 <option value="transferencia">Transferência</option>
               </select>
             </div>
             <div style={{gridColumn:"1/-1"}}>
-              <span style={LS}>Observação</span>
-              <input value={observacao} onChange={e=>setObservacao(e.target.value)} placeholder="Opcional" style={IS}/>
+              <span style={LS()}>Observação</span>
+              <input value={observacao} onChange={e=>setObservacao(e.target.value)} placeholder="Opcional" style={IS()}/>
             </div>
           </div>
 
           {/* Preview */}
           {parcelasSel.length>0&&(
-            <div style={{background:BLU+"06",border:`1px solid ${BLU}25`,borderRadius:10,padding:14}}>
-              <div style={{fontSize:11,fontWeight:700,color:BLU,marginBottom:10,textTransform:"uppercase"}}>Resumo — {parcelasSel.length} parcela(s)</div>
+            <div style={{background:ORG+"06",border:`1px solid ${ORG}25`,borderRadius:10,padding:14}}>
+              <div style={{fontSize:11,fontWeight:700,color:ORG,marginBottom:10,textTransform:"uppercase"}}>Resumo — {parcelasSel.length} parcela(s)</div>
               <div style={{display:"flex",flexDirection:"column",gap:7}}>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:MUTED}}>Principal</span><strong>{fmtR(totalPrincipal)}</strong></div>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:MUTED}}>Juros originais</span><strong>{fmtR(totalJuros)}</strong></div>
                 {descontoNum>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:GRN}}>Desconto concedido</span><strong style={{color:GRN}}>− {fmtR(descontoNum)}</strong></div>}
-                <div style={{borderTop:`1px solid ${BLU}20`,paddingTop:8,display:"flex",justifyContent:"space-between",fontSize:15}}>
+                <div style={{borderTop:`1px solid ${ORG}20`,paddingTop:8,display:"flex",justifyContent:"space-between",fontSize:15}}>
                   <span style={{fontWeight:700}}>Total a Receber</span>
-                  <strong style={{color:BLU,fontSize:17}}>{fmtR(totalCobrar)}</strong>
+                  <strong style={{color:ORG,fontSize:17}}>{fmtR(totalCobrar)}</strong>
                 </div>
                 {todasSel&&<div style={{fontSize:11,color:GRN,fontWeight:700}}>✓ Todas as parcelas selecionadas → contrato será marcado como <strong>Quitado</strong></div>}
               </div>
@@ -880,7 +986,7 @@ function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
 
           {msg&&(
             <div style={{padding:"10px 14px",borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:13,fontWeight:700,textAlign:"center",border:`1px solid ${msg.ok?GRN:RED}25`}}>
-              {msg.ok?"✓ ":"⚠ "}{msg.t}
+              {""}{msg.t}
             </div>
           )}
         </div>
@@ -888,8 +994,8 @@ function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
         {/* Footer */}
         <div style={{padding:"14px 20px",borderTop:`1px solid ${BD}`,background:CARD,display:"flex",gap:12}}>
           <button onClick={onFechar} style={{flex:1,padding:12,borderRadius:8,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontWeight:600,color:MUTED}}>Cancelar</button>
-          <button onClick={confirmar} disabled={loading||selecionadas.size===0} style={{flex:2,padding:12,borderRadius:8,border:"none",background:BLU,color:"#FFF",fontWeight:800,cursor:"pointer",fontSize:14,opacity:loading||selecionadas.size===0?0.6:1}}>
-            {loading?"Processando...":"⚡ Confirmar Quitação"}
+          <button onClick={confirmar} disabled={loading||selecionadas.size===0} style={{flex:2,padding:12,borderRadius:8,border:"none",background:ORG,color:"#FFF",fontWeight:800,cursor:"pointer",fontSize:14,opacity:loading||selecionadas.size===0?0.6:1,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
+            {loading?<><IcoSpinner color="#fff"/> Processando...</>:<>{IcoZap} Confirmar Quitação</>}
           </button>
         </div>
       </div>
@@ -898,44 +1004,150 @@ function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
 }
 
 function RecuperacaoModal({contrato,onConfirmar,onFechar}){
-  const [valor,setValor]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);
+  const [valor,setValor]=useState("");
+  const [data,setData]=useState(hojeStr());
+  const [forma,setForma]=useState("dinheiro");
+  const [obs,setObs]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [msg,setMsg]=useState(null);
+  const vRec=parseFloat(valor)||0;
+  const prejuizoAtual=parseFloat(contrato.PREJUIZO_CAPITAL||0);
+  const jaRecuperado=parseFloat(contrato.VALOR_RECUPERADO_APOS_BAIXA||0);
+  const capitalOriginal=prejuizoAtual+jaRecuperado;
+  const novoRecuperado=jaRecuperado+vRec;
+  const novoPrejuizo=Math.max(0,prejuizoAtual-vRec);
   const confirmar=async()=>{
-    if(!valor)return;setLoading(true);setMsg(null);
-    const res=await postAction({action:"recuperacaoAposBaixa",idContrato:contrato.ID_CONTRATO,dados:{valorPago:parseFloat(valor),data:hojeStr()}});
-    if(res.ok)onConfirmar();else setMsg(res.erro||"Erro.");setLoading(false);
+    if(!vRec||vRec<=0){setMsg("Informe o valor recebido.");return;}
+    if(!data){setMsg("Informe a data.");return;}
+    setLoading(true);setMsg(null);
+    const res=await postAction({action:"recuperacaoAposBaixa",idContrato:contrato.ID_CONTRATO,dados:{valorPago:vRec,data,forma,observacao:obs||"Recuperação pós-baixa"}});
+    if(res.ok)onConfirmar();else setMsg(res.erro||"Erro.");
+    setLoading(false);
   };
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:CARD,borderRadius:12,width:"100%",maxWidth:400,padding:24,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
-        <h2 style={{fontSize:18,fontWeight:700,margin:"0 0 8px",color:PUR}}>💸 Recuperação de Crédito</h2>
-        <p style={{fontSize:13,color:MUTED,margin:"0 0 20px"}}>Contrato: {contrato.ID_CONTRATO}</p>
-        <span style={LS}>Valor Recebido</span>
-        <input type="number" value={valor} onChange={e=>setValor(e.target.value)} placeholder="0.00" style={{...IS,fontSize:16,fontWeight:700}}/>
-        {msg&&<div style={{marginTop:12,color:RED,fontSize:13}}>{msg}</div>}
-        <div style={{display:"flex",gap:12,marginTop:20}}>
-          <button onClick={onFechar} style={{flex:1,padding:10,borderRadius:8,border:`1px solid ${BD}`,background:CARD,cursor:"pointer"}}>Sair</button>
-          <button onClick={confirmar} disabled={loading} style={{flex:2,padding:10,borderRadius:8,border:"none",background:PUR,color:"#FFF",cursor:"pointer",fontWeight:700,opacity:loading?0.7:1}}>{loading?"Gravando...":"Confirmar"}</button>
+      <div style={{background:CARD,borderRadius:16,width:"100%",maxWidth:480,boxShadow:"0 20px 60px rgba(0,0,0,0.25)",display:"flex",flexDirection:"column",maxHeight:"90vh",overflow:"hidden",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}>
+        <div style={{padding:"18px 22px",borderBottom:`1px solid ${BD}`,background:PUR+"08",borderRadius:"16px 16px 0 0"}}>
+          <h2 style={{color:PUR,margin:"0 0 3px",fontSize:17,fontWeight:700}}>💸 Registrar Recuperação</h2>
+          <p style={{color:MUTED,fontSize:13,margin:0}}>{contrato.ID_CONTRATO} · {contrato.NOME_CLIENTE}</p>
+        </div>
+        <div style={{padding:20,overflowY:"auto",flex:1,display:"flex",flexDirection:"column",gap:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,background:BG,borderRadius:10,padding:14}}>
+            <div><div style={{fontSize:9,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Capital Baixado</div><div style={{fontSize:14,fontWeight:800,color:RED}}>{fmtR(capitalOriginal)}</div></div>
+            <div><div style={{fontSize:9,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Já Recuperado</div><div style={{fontSize:14,fontWeight:800,color:PUR}}>{jaRecuperado>0?fmtR(jaRecuperado):"—"}</div></div>
+            <div><div style={{fontSize:9,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Prejuízo Atual</div><div style={{fontSize:14,fontWeight:800,color:RED}}>{fmtR(prejuizoAtual)}</div></div>
+          </div>
+          <div><span style={LS()}>Valor Recebido (R$)</span>
+            <input type="number" value={valor} onChange={e=>setValor(e.target.value)} placeholder="0,00" style={{...IS(),fontSize:22,fontWeight:800,textAlign:"center",height:54}}/>
+          </div>
+          {vRec>0&&(
+            <div style={{background:GRN+"10",border:`1px solid ${GRN}40`,borderRadius:10,padding:14}}>
+              <div style={{fontSize:11,fontWeight:700,color:GRN,marginBottom:10,textTransform:"uppercase"}}>Resultado após confirmação</div>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:MUTED}}>Total recuperado</span><strong style={{color:PUR}}>{fmtR(novoRecuperado)}</strong></div>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:MUTED}}>Prejuízo remanescente</span><strong style={{color:novoPrejuizo>0?RED:GRN}}>{novoPrejuizo>0?fmtR(novoPrejuizo):"R$ 0,00"}</strong></div>
+                {novoPrejuizo<=0&&<div style={{fontSize:11,color:GRN,fontWeight:700,marginTop:4}}>✓ Prejuízo integralmente recuperado — contrato será marcado como Recuperado</div>}
+              </div>
+            </div>
+          )}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div><span style={LS()}>Data do Recebimento</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS()}/></div>
+            <div><span style={LS()}>Forma</span><select value={forma} onChange={e=>setForma(e.target.value)} style={IS()}><option value="dinheiro">Dinheiro</option><option value="pix">PIX</option><option value="transferencia">Transferência</option><option value="deposito">Depósito</option></select></div>
+          </div>
+          <div><span style={LS()}>Observação (opcional)</span><input value={obs} onChange={e=>setObs(e.target.value)} placeholder="Ex: acordo verbal, parcela única..." style={IS()}/></div>
+          {msg&&<div style={{padding:10,borderRadius:8,background:RED+"10",color:RED,fontSize:13,fontWeight:600,textAlign:"center"}}>{msg}</div>}
+        </div>
+        <div style={{padding:"14px 20px",borderTop:`1px solid ${BD}`,display:"flex",gap:12}}>
+          <button onClick={onFechar} style={{flex:1,padding:12,borderRadius:8,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontWeight:600}}>Cancelar</button>
+          <button onClick={confirmar} disabled={loading||vRec<=0} style={{flex:2,padding:12,borderRadius:8,border:"none",background:PUR,color:"#FFF",cursor:"pointer",fontWeight:700,opacity:loading||vRec<=0?0.7:1}}>{loading?"Registrando...":"Confirmar Recuperação"}</button>
         </div>
       </div>
     </div>
   );
 }
 
-function CampoEdit({label,field,tipo,opts,edit,setEdit,erros}){
+function PerdaAcoesModal({contrato,parcelas,onBaixar,onAcordo,onRecuperar,onFechar}){
+  const ps=(parcelas||[]).filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
+  const atrasadas=ps.filter(p=>["atrasado"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase()));
+  const diasAtraso=atrasadas.length>0?Math.max(...atrasadas.map(p=>{const dv=parseDate(p.DATA_VENCIMENTO);if(!dv)return 0;const d=Math.round((new Date()-dv)/86400000);return d>0?d:0;})):0;
+  const emAberto=ps.filter(p=>!["pago","cancelado","baixado_como_prejuizo","quitacao_antecipada","renegociado"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase())).reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
+  const st=contrato.STATUS_CONTRATO;
+  const podeBaixar=["em_cobranca","pre_prejuizo"].includes(st);
+  const podeAcordo=["em_cobranca","pre_prejuizo","baixado_como_prejuizo","em_recuperacao","recuperado_parcialmente"].includes(st);
+  const podeRecuperar=["baixado_como_prejuizo","em_recuperacao","recuperado_parcialmente"].includes(st);
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.45)",zIndex:450,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:CARD,borderRadius:16,width:"100%",maxWidth:380,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.25)",overflow:"hidden",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}>
+        <div style={{padding:"18px 20px",borderBottom:`1px solid ${BD}`,background:BG}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+            <div><div style={{fontWeight:800,fontSize:16}}>{contrato.ID_CONTRATO}</div><div style={{fontSize:12,color:MUTED,marginTop:2}}>{contrato.NOME_CLIENTE}</div></div>
+            <Badge c={STATUS_COR[st]||MUTED}>{STATUS_LABEL[st]||st}</Badge>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+            <div><div style={{fontSize:9,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Capital</div><div style={{fontSize:13,fontWeight:700}}>{fmtR(contrato.VALOR_PRINCIPAL)}</div></div>
+            {diasAtraso>0&&<div><div style={{fontSize:9,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Dias Atraso</div><div style={{fontSize:13,fontWeight:700,color:RED}}>{diasAtraso}d</div></div>}
+            {emAberto>0&&<div><div style={{fontSize:9,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Em Aberto</div><div style={{fontSize:13,fontWeight:700,color:ORG}}>{fmtR(emAberto)}</div></div>}
+            {parseFloat(contrato.PREJUIZO_CAPITAL||0)>0&&<div><div style={{fontSize:9,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Prejuízo</div><div style={{fontSize:13,fontWeight:700,color:RED}}>{fmtR(contrato.PREJUIZO_CAPITAL)}</div></div>}
+            {parseFloat(contrato.VALOR_RECUPERADO_APOS_BAIXA||0)>0&&<div><div style={{fontSize:9,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Recuperado</div><div style={{fontSize:13,fontWeight:700,color:PUR}}>{fmtR(contrato.VALOR_RECUPERADO_APOS_BAIXA)}</div></div>}
+          </div>
+        </div>
+        <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:10}}>
+          {podeBaixar&&<button onClick={onBaixar} style={{padding:"13px 16px",borderRadius:9,border:`1px solid ${RED}40`,background:RED+"08",color:RED,cursor:"pointer",fontWeight:700,fontSize:13,textAlign:"left",display:"flex",alignItems:"center",gap:8}}>{IcoAlert} Baixar como Prejuízo</button>}
+          {podeAcordo&&<button onClick={onAcordo} style={{padding:"13px 16px",borderRadius:9,border:`1px solid ${ORG}40`,background:ORG+"08",color:ORG,cursor:"pointer",fontWeight:700,fontSize:13,textAlign:"left",display:"flex",alignItems:"center",gap:8}}>{IcoHandshake} Registrar Acordo</button>}
+          {podeRecuperar&&<button onClick={onRecuperar} style={{padding:"13px 16px",borderRadius:9,border:`1px solid ${PUR}40`,background:PUR+"08",color:PUR,cursor:"pointer",fontWeight:700,fontSize:13,textAlign:"left"}}>💸 Registrar Recuperação</button>}
+          <button onClick={onFechar} style={{padding:"10px",borderRadius:9,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:600,fontSize:13}}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CampoEdit({label,field,tipo,opts,edit,setEdit,erros,fixup}){
   const erro=erros[field];
   return(
     <div>
-      <span style={LS}>{label}</span>
+      <span style={LS()}>{label}</span>
       {opts
-        ?<select value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} style={IS}>
+        ?<select value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} style={IS()}>
             {edit[field]&&!opts.some(o=>o.v===edit[field])&&<option value={edit[field]}>{edit[field]} ⚠ (valor original — normalizar)</option>}
             {opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
           </select>
-        :<input type={tipo||"text"} value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} style={{...IS,border:`1px solid ${erro?RED:BD}`,background:erro?RED+"06":CARD}}/>
+        :<input type={tipo||"text"} value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} onBlur={fixup?e=>{const v=fixup(e.target.value);if(v!==e.target.value)setEdit(p=>({...p,[field]:v}));}:undefined} style={{...IS(),border:`1px solid ${erro?RED:BD}`,background:erro?RED+"06":CARD}}/>
       }
       {erro&&<div style={{fontSize:10,color:RED,fontWeight:600,marginTop:3}}>⚠ {erro}</div>}
     </div>
   );
+}
+
+function calcProxVenc(diaVenc){
+  if(!diaVenc)return"";
+  const s=String(diaVenc).trim();
+  let dia;
+  if(s.includes("/"))dia=parseInt(s.split("/")[0]);
+  else if(/^\d{4}-\d{2}-\d{2}/.test(s))dia=parseInt(s.split("-")[2]);
+  else dia=parseInt(s);
+  if(!dia||isNaN(dia)||dia<1||dia>31)return"";
+  const hoje=new Date();
+  const proximo=new Date(hoje.getFullYear(),hoje.getMonth()+1,dia);
+  if(proximo.getDate()!==dia)proximo.setDate(0); // overflow: último dia do mês
+  return proximo.toISOString().split("T")[0];
+}
+
+function titleCasePT(s){
+  const PREPS=new Set(["de","da","do","dos","das","e","em","a","o","as","os","ao","aos","na","no","nas","nos","para","por","com"]);
+  return String(s||"").trim().split(/\s+/).filter(Boolean).map((w,i)=>{
+    const l=w.toLowerCase();
+    return(i===0||!PREPS.has(l))?l.charAt(0).toUpperCase()+l.slice(1):l;
+  }).join(" ");
+}
+function normTel(s){
+  const d=String(s||"").replace(/\D/g,"");
+  if(d.length===10)return d.slice(0,2)+"9"+d.slice(2);
+  return d;
+}
+function fixEmail(s){
+  const v=String(s||"").toLowerCase().trim();
+  return v.endsWith("@gmail.com.br")?v.slice(0,-3):v;
 }
 
 function normEstadoCivil(v){
@@ -949,7 +1161,7 @@ function normEstadoCivil(v){
   return v;
 }
 
-function ClienteModal({cliente,contratos,parcelas,onFechar,onAtualizar,abaInicial}){
+function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,onNovoContrato,onVerContrato,abaInicial}){
   const [t,setT]=useState(abaInicial||"perfil");
   const [edit,setEdit]=useState({
     NOME:         cliente.NOME||cliente.NOME_CLIENTE||"",
@@ -973,16 +1185,31 @@ function ClienteModal({cliente,contratos,parcelas,onFechar,onAtualizar,abaInicia
     TEL_CONFIANCA_2:     cliente.TEL_CONFIANCA_2||"",
     PADRINHO:     cliente.PADRINHO||"",
     TEL_PADRINHO: cliente.TEL_PADRINHO||"",
+    CEP:          cliente.CEP||"",
+    RUA:          cliente.RUA||"",
+    NUMERO:       cliente.NUMERO||"",
+    QUADRA:       cliente.QUADRA||"",
+    LOTE:         cliente.LOTE||"",
+    SETOR:        cliente.SETOR||"",
+    COMPLEMENTO:  cliente.COMPLEMENTO||"",
+    CIDADE_ESTADO:cliente.CIDADE_ESTADO||"",
     OBSERVACOES:  cliente.OBSERVACOES||"",
   });
   const [saving,setSaving]=useState(false);
   const [saveMsg,setSaveMsg]=useState(null);
+  const [padSearch,setPadSearch]=useState(edit.PADRINHO||"");
+  const [padDrop,setPadDrop]=useState(false);
+  const padRef=useRef();
+  useEffect(()=>{const h=e=>{if(padRef.current&&!padRef.current.contains(e.target))setPadDrop(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
+  const padSugestoes=useMemo(()=>{if(!padSearch||padSearch.length<2)return[];const q=padSearch.toLowerCase();return(clientes||[]).filter(c=>String(c.NOME||c.NOME_CLIENTE||"").toLowerCase().includes(q)&&String(c.ID_CLIENTE)!==String(cliente.ID_CLIENTE)).slice(0,6);},[padSearch,clientes,cliente.ID_CLIENTE]);
+  const selecionarPadrinho=c=>{const nome=c.NOME||c.NOME_CLIENTE||"";const tel=c.TELEFONE_WPP||c.TELEFONE||"";setPadSearch(nome);setEdit(p=>({...p,PADRINHO:nome,TEL_PADRINHO:tel}));setPadDrop(false);};
 
   const nome=cliente.NOME_CLIENTE||cliente.NOME||cliente.CLIENTE||"Cliente sem nome";
   const tel=cliente.TELEFONE||cliente.TELEFONE_WPP||cliente.WHATSAPP||"—";
   const score=cliente.SCORE||cliente.SCORE_CLIENTE||cliente.SCORE_SERASA||"Não informado";
   const ST_TERMINAIS_LIM=["quitado","cancelado","baixado_como_prejuizo","recuperado_integralmente","encerrado_sem_recuperacao"];
   const idsContratosDoCliente=new Set((parcelas||[]).filter(p=>String(p.ID_CLIENTE||"").trim()===String(cliente.ID_CLIENTE||"").trim()).map(p=>String(p.ID_CONTRATO||"").trim()).filter(Boolean));
+  const contratosDoCliente=useMemo(()=>(contratos||[]).filter(c=>String(c.ID_CLIENTE||"").trim()===String(cliente.ID_CLIENTE||"").trim()).sort((a,b)=>toNum(b.DATA_EMPRESTIMO)-toNum(a.DATA_EMPRESTIMO)),[contratos,cliente.ID_CLIENTE]);
   const principalEmUso=(contratos||[]).filter(c=>idsContratosDoCliente.has(String(c.ID_CONTRATO||"").trim())&&!ST_TERMINAIS_LIM.includes(String(c.STATUS_CONTRATO||"").trim())).reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
   const limite=parseFloat(cliente.LIMITE_CREDITO||0);
   const disponivel=Math.max(0,limite-principalEmUso);
@@ -992,47 +1219,73 @@ function ClienteModal({cliente,contratos,parcelas,onFechar,onAtualizar,abaInicia
 
   const salvar=async()=>{
     setSaving(true);setSaveMsg(null);
-    const res=await postAction({action:"atualizarCliente",idCliente:cliente.ID_CLIENTE,campos:{...edit,STATUS_CLIENTE:"ativo"}});
+    const campos={...edit,STATUS_CLIENTE:"ativo"};
+    if(String(cliente.STATUS_CLIENTE||"").toLowerCase()==="aguardando_conferencia"){
+      const OBS_PADRAO="Cadastro via formulario - aguardando conferencia";
+      if(String(campos.OBSERVACOES||"").trim().toLowerCase()===OBS_PADRAO.toLowerCase())
+        campos.OBSERVACOES="";
+    }
+    const res=await postAction({action:"atualizarCliente",idCliente:cliente.ID_CLIENTE,campos});
     if(res.ok){setSaveMsg({ok:true,t:"Dados atualizados com sucesso!"});if(onAtualizar)setTimeout(onAtualizar,1200);}
     else setSaveMsg({ok:false,t:res.erro||"Erro ao salvar."});
     setSaving(false);
   };
 
+  const _OBRIG=new Set(["NOME","TELEFONE_WPP","EMAIL","CPF","RG","PROFISSAO",
+    "DIA_VENCIMENTO_PREFERIDO","LIMITE_CREDITO","RENDA_MENSAL","TIPO_RENDA",
+    "RENDA_COMPROVADA","QUALIDADE_COMUNICACAO","CONTATO_CONFIANCA_1","TEL_CONFIANCA_1",
+    "CONTATO_CONFIANCA_2","TEL_CONFIANCA_2","PADRINHO"]);
   const validar=(field,val)=>{
     const v=String(val||"").trim();
-    if(!v)return null;
-    if(field==="NOME"){if(/\d/.test(v))return "Nome não deve conter números";}
-    if(field==="CPF"){const d=v.replace(/\D/g,"");if(d.length!==11)return "CPF deve ter 11 dígitos";if(/\D/.test(v))return "CPF deve conter apenas números";}
-    if(field==="RG"){if(/[^0-9xX\s\-]/.test(v))return "RG com caracteres inválidos";}
-    if(field==="CEP"){const d=v.replace(/\D/g,"");if(d.length!==8)return "CEP deve ter 8 dígitos";if(/[.\-\/]/.test(v))return "CEP deve conter apenas números";}
-    if(field==="TELEFONE_WPP"){const d=v.replace(/\D/g,"");if(d.length<10||d.length>11)return "Telefone deve ter 10 ou 11 dígitos";}
-    if(field==="EMAIL"){if(v&&!v.includes("@"))return "Email inválido";}
+    if(_OBRIG.has(field)&&!v) return "Obrigatório";
+    if(!v) return null;
+    if(field==="NOME"){
+      if(/\d/.test(v)) return "Não pode conter números";
+      const _PREPS_V=new Set(["de","da","do","dos","das","e","em","a","o","as","os","ao","aos","na","no","nas","nos","para","por","com"]);
+      if(v.split(/\s+/).some((w,i)=>w.length>0&&i>0&&!_PREPS_V.has(w.toLowerCase())&&w[0]!==w[0].toUpperCase())) return "Cada nome deve iniciar com maiúscula";
+    }
+    if(field==="CPF"){if(/\D/.test(v)) return "Somente números"; if(v.length!==11) return "11 dígitos";}
+    if(field==="RG"){if(/\D/.test(v)) return "Somente números";}
+    if(["TELEFONE_WPP","TEL_CONFIANCA_1","TEL_CONFIANCA_2","TEL_PADRINHO"].includes(field)){
+      if(/\D/.test(v)) return "Somente números";
+      if(v.length<10||v.length>11) return "10 ou 11 dígitos";
+    }
+    if(field==="EMAIL"){
+      if(v!==v.toLowerCase()) return "Somente letras minúsculas";
+      if(!v.includes("@")) return "Email inválido";
+    }
+    if(field==="PROFISSAO"){if(/[0-9]/.test(v)) return "Somente letras";}
+    if(field==="CEP"){const d=v.replace(/\D/g,"");if(d.length!==8)return "8 dígitos";if(/[.\-\/]/.test(v))return "Somente números";}
     return null;
   };
   const erros=Object.fromEntries(Object.entries(edit).map(([k,v])=>[k,validar(k,v)]).filter(([,e])=>e));
   const temErros=Object.keys(erros).length>0;
+  const nErros=Object.keys(erros).length;
 
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:BG,borderRadius:16,width:"100%",maxWidth:980,height:"86vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 30px 90px rgba(0,0,0,0.3)"}}>
+      <div style={{background:BG,borderRadius:16,width:"100%",maxWidth:980,height:"86vh",display:"flex",flexDirection:"column",overflow:"hidden",minWidth:0,boxShadow:"0 30px 90px rgba(0,0,0,0.3)",animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}>
         <div style={{background:CARD,padding:20,borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{display:"flex",alignItems:"center",gap:16}}><div style={{width:44,height:44,background:BLU,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",color:"#FFF",fontSize:18,fontWeight:800}}>{nome[0]||"?"}</div><div><h2 style={{margin:0,fontSize:18,fontWeight:800}}>{nome}</h2><div style={{fontSize:12,color:MUTED}}>ID {cliente.ID_CLIENTE||"—"} · Score: {score}</div></div></div>
-          <button onClick={onFechar} style={{background:BG,border:"none",width:32,height:32,borderRadius:8,cursor:"pointer"}}>×</button>
+          <div style={{display:"flex",alignItems:"center",gap:16}}><div style={{width:44,height:44,background:ORG,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",color:"#FFF",fontSize:18,fontWeight:800}}>{nome[0]||"?"}</div><div><h2 style={{margin:0,fontSize:18,fontWeight:800}}>{nome}</h2><div style={{fontSize:12,color:MUTED}}>ID {cliente.ID_CLIENTE||"—"} · Score: {score}</div></div></div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            {onNovoContrato&&<button onClick={()=>onNovoContrato(cliente)} style={{padding:"7px 13px",borderRadius:8,border:"none",background:ORG,color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>{IcoCtr} Novo Contrato</button>}
+            <button onClick={onFechar} style={{background:BG,border:"none",width:32,height:32,borderRadius:8,cursor:"pointer"}}>×</button>
+          </div>
         </div>
         <div style={{display:"flex",background:CARD,padding:"0 20px",borderBottom:`1px solid ${BD}`,gap:20}}>
-          {["perfil","editar","todos os dados"].map(tab=><button key={tab} onClick={()=>{setT(tab);setSaveMsg(null);}} style={{padding:"14px 4px",background:"none",border:"none",borderBottom:t===tab?`2px solid ${BLU}`:"2px solid transparent",color:t===tab?BLU:MUTED,fontWeight:600,cursor:"pointer",fontSize:13,textTransform:"capitalize"}}>{tab}</button>)}
+          {["perfil","editar","todos os dados",...(contratosDoCliente.length>0?[`contratos (${contratosDoCliente.length})`]:[])].map(tab=><button key={tab} onClick={()=>{setT(tab);setSaveMsg(null);}} style={{padding:"14px 4px",background:"none",border:"none",borderBottom:t===tab?`2px solid ${ORG}`:"2px solid transparent",color:t===tab?ORG:MUTED,fontWeight:600,cursor:"pointer",fontSize:13,textTransform:"capitalize"}}>{tab}</button>)}
         </div>
-        <div style={{flex:1,overflowY:"auto",padding:20}}>
+        <div style={{flex:1,overflowY:"auto",overflowX:"hidden",padding:20}}>
           {t==="perfil"&&(
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:16}}>
               {[
-                {l:"Nome",v:nome},{l:"Score",v:score},{l:"CPF",v:cliente.CPF},{l:"RG",v:cliente.RG},{l:"Telefone/WhatsApp",v:tel},{l:"Email",v:cliente.EMAIL},
+                {l:"Nome",v:nome},{l:"Score",v:score},{l:"CPF",v:cliente.CPF},{l:"RG",v:cliente.RG},{l:"WhatsApp",v:tel},{l:"Email",v:cliente.EMAIL},
                 {l:"Status",v:cliente.STATUS_CLIENTE},{l:"Profissão",v:cliente.PROFISSAO},{l:"Estado civil",v:cliente.ESTADO_CIVIL},{l:"Nacionalidade",v:cliente.NACIONALIDADE},
                 {l:"Endereço",v:[cliente.RUA,cliente.NUMERO,cliente.QUADRA&&`Qd. ${cliente.QUADRA}`,cliente.LOTE&&`Lt. ${cliente.LOTE}`,cliente.SETOR,cliente.CIDADE_ESTADO].filter(Boolean).join(", ")},
                 {l:"CEP",v:cliente.CEP},{l:"Contato confiança 1",v:[cliente.CONTATO_CONFIANCA_1,cliente.TEL_CONFIANCA_1].filter(Boolean).join(" · ")},
                 {l:"Contato confiança 2",v:[cliente.CONTATO_CONFIANCA_2,cliente.TEL_CONFIANCA_2].filter(Boolean).join(" · ")},{l:"Padrinho",v:[cliente.PADRINHO,cliente.TEL_PADRINHO].filter(Boolean).join(" · ")},
                 {l:"Vencimento preferido",v:cliente.DIA_VENCIMENTO_PREFERIDO},{l:"Cadastro",v:fmtDt(cliente.DATA_CADASTRO)},{l:"Observações",v:cliente.OBSERVACOES}
-              ].map(i=><div key={i.l} style={{background:CARD,padding:15,borderRadius:10,border:`1px solid ${BD}`,gridColumn:i.l==="Endereço"||i.l==="Observações"?"1/-1":"auto"}}><span style={LS}>{i.l}</span><div style={{fontSize:13,fontWeight:600,wordBreak:"break-word"}}>{i.v||"—"}</div></div>)}
+              ].map(i=><div key={i.l} style={{background:CARD,padding:15,borderRadius:10,border:`1px solid ${BD}`,gridColumn:i.l==="Endereço"||i.l==="Observações"?"1/-1":"auto"}}><span style={LS()}>{i.l}</span><div style={{fontSize:13,fontWeight:600,wordBreak:"break-word"}}>{i.v||"—"}</div></div>)}
               {(()=>{
                 const sc=parseFloat(cliente.SCORE||0);
                 const faixa=cliente.SCORE_FAIXA||"";
@@ -1048,7 +1301,7 @@ function ClienteModal({cliente,contratos,parcelas,onFechar,onAtualizar,abaInicia
                 const hasScore=faixa!=="";
                 return(
                   <div style={{background:CARD,padding:16,borderRadius:10,border:`1px solid ${bloq?RED+"50":hasScore?scCor+"30":BD}`,gridColumn:"1/-1"}}>
-                    <span style={LS}>Score de Crédito</span>
+                    <span style={LS()}>Score de Crédito</span>
                     {!hasScore?<div style={{fontSize:13,color:MUTED,marginTop:8}}>Score não calculado. Preencha os dados financeiros e execute "Recalcular Todos os Scores" na planilha.</div>:(
                       <>
                         <div style={{display:"flex",gap:20,alignItems:"center",marginTop:12,flexWrap:"wrap"}}>
@@ -1058,13 +1311,13 @@ function ClienteModal({cliente,contratos,parcelas,onFechar,onAtualizar,abaInicia
                               <span style={{fontSize:9,color:MUTED,fontWeight:700}}>/100</span>
                             </div>
                           </div>
-                          <div style={{flex:1,minWidth:160}}>
+                          <div style={{flex:1,minWidth:0}}>
                             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
                               <span style={{fontSize:17,fontWeight:800,color:scCor}}>{faixa}</span>
                               {bloq&&<span style={{background:RED+"20",color:RED,fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20,border:`1px solid ${RED}40`}}>BLOQUEADO</span>}
                             </div>
                             <div style={{fontSize:12,color:MUTED,marginBottom:10}}>Decisão: <span style={{fontWeight:700,color:sc>=60?GRN:sc>=45?YEL:RED}}>{decisao}</span></div>
-                            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+                            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(100px,1fr))",gap:8}}>
                               {[{l:"Limite sugerido",v:fmtR(limSug)},{l:"Parcela máx.",v:fmtR(parMax)},{l:"Prazo máx.",v:prazo>0?`${prazo}x`:"—"},{l:"Taxa",v:taxa||"—"}].map(m=>(
                                 <div key={m.l} style={{background:BG,padding:"8px 10px",borderRadius:8,border:`1px solid ${BD}`}}>
                                   <div style={{fontSize:9,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:3}}>{m.l}</div>
@@ -1082,7 +1335,7 @@ function ClienteModal({cliente,contratos,parcelas,onFechar,onAtualizar,abaInicia
                 );
               })()}
               <div style={{background:CARD,padding:16,borderRadius:10,border:`1px solid ${limite>0&&pctUso>80?RED+"50":BD}`,gridColumn:"1/-1"}}>
-                <span style={LS}>Limite de Crédito</span>
+                <span style={LS()}>Limite de Crédito</span>
                 {limite>0?(
                   <>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",margin:"8px 0 6px"}}>
@@ -1102,11 +1355,11 @@ function ClienteModal({cliente,contratos,parcelas,onFechar,onAtualizar,abaInicia
             </div>
           )}
           {t==="editar"&&(
-            <div style={{display:"flex",flexDirection:"column",gap:20,maxWidth:720}}>
+            <div style={{display:"flex",flexDirection:"column",gap:20}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Nome completo" field="NOME"/>
-                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Telefone/WhatsApp" field="TELEFONE_WPP"/>
-                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Email" field="EMAIL" tipo="email"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Nome completo" field="NOME" fixup={titleCasePT}/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Telefone/WhatsApp" field="TELEFONE_WPP" fixup={normTel}/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Email" field="EMAIL" tipo="email" fixup={fixEmail}/>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="CPF" field="CPF"/>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="RG" field="RG"/>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Profissão" field="PROFISSAO"/>
@@ -1118,35 +1371,89 @@ function ClienteModal({cliente,contratos,parcelas,onFechar,onAtualizar,abaInicia
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Renda Mensal (R$)" field="RENDA_MENSAL" tipo="number"/>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Tipo de Renda" field="TIPO_RENDA" opts={[{v:"",l:"—"},{v:"CLT",l:"CLT"},{v:"Servidor",l:"Servidor Público"},{v:"Aposentado",l:"Aposentado"},{v:"Pensionista",l:"Pensionista"},{v:"Autonomo",l:"Autônomo"},{v:"Informal",l:"Informal"}]}/>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Renda Comprovada" field="RENDA_COMPROVADA" opts={[{v:"",l:"—"},{v:"Sim",l:"Sim"},{v:"Parcial",l:"Parcial"},{v:"Nao",l:"Não"}]}/>
-                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Qualidade da Comunicação" field="QUALIDADE_COMUNICACAO" opts={[{v:"",l:"—"},{v:"Boa",l:"Boa"},{v:"Regular",l:"Regular"},{v:"Ruim",l:"Ruim"}]}/>
+                <div style={{gridColumn:"1/-1"}}><CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Qualidade da Comunicação" field="QUALIDADE_COMUNICACAO" opts={[{v:"",l:"—"},{v:"Boa",l:"Boa"},{v:"Regular",l:"Regular"},{v:"Ruim",l:"Ruim"}]}/></div>
               </div>
               <div style={{borderTop:`1px solid ${BD}`,paddingTop:16}}>
                 <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:12}}>Contatos de Confiança</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Contato confiança 1" field="CONTATO_CONFIANCA_1"/>
-                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Telefone confiança 1" field="TEL_CONFIANCA_1"/>
-                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Contato confiança 2" field="CONTATO_CONFIANCA_2"/>
-                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Telefone confiança 2" field="TEL_CONFIANCA_2"/>
-                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Padrinho" field="PADRINHO"/>
-                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Tel. Padrinho" field="TEL_PADRINHO"/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Contato confiança 1" field="CONTATO_CONFIANCA_1" fixup={titleCasePT}/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Telefone confiança 1" field="TEL_CONFIANCA_1" fixup={normTel}/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Contato confiança 2" field="CONTATO_CONFIANCA_2" fixup={titleCasePT}/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Telefone confiança 2" field="TEL_CONFIANCA_2" fixup={normTel}/>
+                  <div style={{position:"relative"}} ref={padRef}>
+                    <span style={LS()}>Padrinho</span>
+                    <div style={{position:"relative"}}>
+                      <input value={padSearch} onChange={e=>{setPadSearch(e.target.value);setEdit(p=>({...p,PADRINHO:e.target.value}));setPadDrop(true);}} onFocus={()=>setPadDrop(true)} placeholder="Buscar cliente..." style={{...IS(),border:`1px solid ${erros.PADRINHO?RED:BD}`,background:erros.PADRINHO?RED+"06":CARD}}/>
+                      {padSearch&&<button onClick={()=>{setPadSearch("");setEdit(p=>({...p,PADRINHO:"",TEL_PADRINHO:""}));}} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:MUTED,fontSize:16}}>×</button>}
+                    </div>
+                    {erros.PADRINHO&&<div style={{fontSize:10,color:RED,fontWeight:600,marginTop:3}}>⚠ {erros.PADRINHO}</div>}
+                    {padDrop&&padSugestoes.length>0&&<div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BD}`,borderRadius:8,marginTop:4,zIndex:400,boxShadow:"0 10px 30px rgba(0,0,0,0.15)",maxHeight:220,overflowY:"auto"}}>
+                      {padSugestoes.map(c=><div key={c.ID_CLIENTE} onClick={()=>selecionarPadrinho(c)} style={{padding:"10px 14px",cursor:"pointer",fontSize:13,borderBottom:`1px solid ${BG}`}} onMouseEnter={e=>e.currentTarget.style.background=BG} onMouseLeave={e=>e.currentTarget.style.background=CARD}>
+                        <div style={{fontWeight:700}}>{c.NOME||c.NOME_CLIENTE}</div>
+                        <div style={{fontSize:11,color:MUTED}}>{c.TELEFONE_WPP||c.TELEFONE||"Sem telefone"}</div>
+                      </div>)}
+                    </div>}
+                  </div>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Tel. Padrinho" field="TEL_PADRINHO" fixup={normTel}/>
+                </div>
+              </div>
+              <div style={{borderTop:`1px solid ${BD}`,paddingTop:16}}>
+                <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:12}}>Endereço</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="CEP" field="CEP"/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Cidade / Estado" field="CIDADE_ESTADO"/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Rua / Avenida" field="RUA"/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Número" field="NUMERO"/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Quadra" field="QUADRA"/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Lote" field="LOTE"/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Setor / Bairro" field="SETOR"/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Complemento" field="COMPLEMENTO"/>
                 </div>
               </div>
               <div>
-                <span style={LS}>Observações</span>
-                <textarea value={edit.OBSERVACOES} onChange={e=>setEdit(p=>({...p,OBSERVACOES:e.target.value}))} style={{...IS,height:80,resize:"none"}}/>
+                <span style={LS()}>Observações</span>
+                <textarea value={edit.OBSERVACOES} onChange={e=>setEdit(p=>({...p,OBSERVACOES:e.target.value}))} style={{...IS(),height:80,resize:"none"}}/>
               </div>
               {saveMsg&&(
                 <div style={{padding:"10px 14px",borderRadius:8,background:saveMsg.ok?GRN+"10":RED+"10",color:saveMsg.ok?GRN:RED,fontSize:13,fontWeight:700,border:`1px solid ${saveMsg.ok?GRN:RED}25`}}>
-                  {saveMsg.ok?"✓ ":"⚠ "}{saveMsg.t}
+                  {""}{saveMsg.t}
                 </div>
               )}
-              <button onClick={salvar} disabled={saving} style={{padding:"13px",borderRadius:9,border:"none",background:BLU,color:"#FFF",fontWeight:800,cursor:"pointer",fontSize:14,opacity:saving?0.6:1}}>
-                {saving?"Salvando...":"💾 Salvar Alterações"}
+              {temErros&&<div style={{padding:"10px 14px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:700,border:`1px solid ${RED}25`}}>
+                {nErros} campo{nErros>1?"s":""} com erro ou não preenchido{nErros>1?"s":""} — corrija antes de salvar.
+              </div>}
+              <button onClick={salvar} disabled={saving||temErros} style={{padding:"13px",borderRadius:9,border:"none",background:temErros?MUTED:ORG,color:"#FFF",fontWeight:800,cursor:temErros?"not-allowed":"pointer",fontSize:14,opacity:saving?0.6:1,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
+                {saving?<><IcoSpinner color="#fff"/> Salvando...</>:<>{IcoCheck} Salvar e Ativar Cliente</>}
               </button>
             </div>
           )}
           {t==="todos os dados"&&(
-            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>{campos.map(([k,v])=><div key={k} style={{background:CARD,padding:13,borderRadius:10,border:`1px solid ${BD}`}}><span style={LS}>{label(k)}</span><div style={{fontSize:13,fontWeight:600,wordBreak:"break-word"}}>{String(v)}</div></div>)}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>{campos.map(([k,v])=><div key={k} style={{background:CARD,padding:13,borderRadius:10,border:`1px solid ${BD}`}}><span style={LS()}>{label(k)}</span><div style={{fontSize:13,fontWeight:600,wordBreak:"break-word"}}>{String(v)}</div></div>)}</div>
+          )}
+          {t.startsWith("contratos")&&(
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {contratosDoCliente.map(c=>{
+                const st=String(c.STATUS_CONTRATO||"").toLowerCase();
+                const _stCor={quitado:GRN,recuperado_integralmente:GRN,recuperado_parcialmente:YEL,ativo:BLU,ativo_em_dia:GRN,ativo_em_atraso:RED,em_cobranca:RED,pre_prejuizo:RED,renegociado:YEL,em_recuperacao:YEL,baixado_como_prejuizo:MUTED,cancelado:MUTED,encerrado_sem_recuperacao:MUTED};
+                const _stLbl={quitado:"Quitado",recuperado_integralmente:"Recuperado Total",recuperado_parcialmente:"Recuperado Parcial",ativo:"Ativo",ativo_em_dia:"Em Dia",ativo_em_atraso:"Em Atraso",em_cobranca:"Em Cobrança",pre_prejuizo:"Pré-Prejuízo",renegociado:"Renegociado",em_recuperacao:"Em Recuperação",baixado_como_prejuizo:"Baixado",cancelado:"Cancelado",encerrado_sem_recuperacao:"Encerrado"};
+                const cor=_stCor[st]||MUTED;
+                const ps=(parcelas||[]).filter(p=>String(p.ID_CONTRATO)===String(c.ID_CONTRATO));
+                const pagas=ps.filter(p=>["pago","quitacao_antecipada"].includes(statusEfetivo(p))).length;
+                return(
+                  <div key={c.ID_CONTRATO} style={{background:CARD,padding:16,borderRadius:12,border:`1px solid ${BD}`,display:"flex",gap:12,alignItems:"center"}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+                        <span style={{fontSize:12,fontWeight:800,color:TEXT}}>{c.ID_CONTRATO}</span>
+                        <span style={{fontSize:10,fontWeight:700,color:cor,background:cor+"18",padding:"2px 8px",borderRadius:20,border:`1px solid ${cor}30`}}>{_stLbl[st]||st}</span>
+                      </div>
+                      <div style={{fontSize:16,fontWeight:800,color:ORG,marginBottom:3}}>{fmtR(parseFloat(c.VALOR_PRINCIPAL||0))}</div>
+                      <div style={{fontSize:11,color:MUTED}}>{c.TOTAL_PARCELAS}x · {pagas}/{ps.length} pagas · desde {fmtDt(c.DATA_EMPRESTIMO)}</div>
+                    </div>
+                    {onVerContrato&&<button onClick={()=>onVerContrato(c)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${BD}`,background:BG,color:TEXT,fontWeight:700,fontSize:12,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>Abrir →</button>}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
@@ -1157,7 +1464,8 @@ function ClienteModal({cliente,contratos,parcelas,onFechar,onAtualizar,abaInicia
 function PagamentoDrop({contratos,parcelas,clientes,onSucesso,onSelecionarParcela}){
   const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);const [cliente,setCliente]=useState(null);const [parcela,setParcela]=useState(null);const [tipo,setTipo]=useState(null);const [data,setData]=useState(hojeStr());const [valor,setValor]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const ref=useRef();
   useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
-  const clis=useMemo(()=>{if(busca.length<2)return[];const ids=new Set();return (contratos||[]).filter(c=>{const m=(c.NOME_CLIENTE||"").toLowerCase().includes(busca.toLowerCase())||String(c.ID_CLIENTE||"").toLowerCase().includes(busca.toLowerCase());if(m&&!ids.has(c.ID_CLIENTE)){ids.add(c.ID_CLIENTE);return true;}return false;}).slice(0,6);},[busca,contratos]);
+  const ST_ATIVOS_PAG=new Set(["ativo","ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente"]);
+  const clis=useMemo(()=>{if(busca.length<2)return[];const ids=new Set();return (contratos||[]).filter(c=>{if(!ST_ATIVOS_PAG.has(String(c.STATUS_CONTRATO||"").toLowerCase()))return false;const m=(c.NOME_CLIENTE||"").toLowerCase().includes(busca.toLowerCase())||String(c.ID_CLIENTE||"").toLowerCase().includes(busca.toLowerCase());if(m&&!ids.has(c.ID_CLIENTE)){ids.add(c.ID_CLIENTE);return true;}return false;}).slice(0,6);},[busca,contratos]);
   const pars=useMemo(()=>cliente?(parcelas||[]).filter(p=>String(p.ID_CLIENTE)===String(cliente.ID_CLIENTE)&&["pendente","atrasado","vence_hoje"].includes(p.STATUS)).sort((a,b)=>toNum(a.DATA_VENCIMENTO)-toNum(b.DATA_VENCIMENTO)):[],[cliente,parcelas]);
   const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||(res.contratoQuitado?"✓ Contrato QUITADO!":"Sucesso!")});gerarEEnviarComprovante(parcela,parseFloat(valor),data,tipo==="parcial"?"Somente Juros":"Pagamento Total",parcelas,contratos,clientes);setTimeout(()=>onSucesso(res,parcela),1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
   const [showParsDrop,setShowParsDrop]=useState(false);
@@ -1170,13 +1478,13 @@ function PagamentoDrop({contratos,parcelas,clientes,onSucesso,onSelecionarParcel
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}><div style={{background:GRN+"15",color:GRN,padding:8,borderRadius:8}}>{IcoPag}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Registrar Pagamento</h3></div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div style={{position:"relative"}} ref={ref}>
-          <span style={LS}>Buscar Cliente</span>
-          <div style={{position:"relative"}}><div style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)"}}>{IcoSrch}</div><input value={cliente?cliente.NOME_CLIENTE:busca} onChange={e=>{setBusca(e.target.value);setCliente(null);setParcela(null);setShowDrop(true);}} onFocus={()=>setShowDrop(true)} placeholder="Nome ou ID..." style={{...IS,paddingLeft:32}}/>{cliente&&<button onClick={()=>{setCliente(null);setBusca("");}} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:MUTED,fontSize:16}}>×</button>}</div>
+          <span style={LS()}>Buscar Cliente</span>
+          <div style={{position:"relative"}}><div style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)"}}>{IcoSrch}</div><input value={cliente?cliente.NOME_CLIENTE:busca} onChange={e=>{setBusca(e.target.value);setCliente(null);setParcela(null);setShowDrop(true);}} onFocus={()=>setShowDrop(true)} placeholder="Nome ou ID..." style={{...IS(),paddingLeft:32}}/>{cliente&&<button onClick={()=>{setCliente(null);setBusca("");}} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:MUTED,fontSize:16}}>×</button>}</div>
           {showDrop&&clis.length>0&&<div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BD}`,borderRadius:8,marginTop:4,zIndex:100,boxShadow:"0 10px 30px rgba(0,0,0,0.1)"}}>{clis.map(c=><div key={c.ID_CLIENTE} onClick={()=>{setCliente(c);setShowDrop(false);}} style={{padding:"10px 14px",cursor:"pointer",fontSize:13,borderBottom:`1px solid ${BG}`}} onMouseEnter={e=>e.currentTarget.style.background=BG} onMouseLeave={e=>e.currentTarget.style.background=CARD}><strong>{c.ID_CLIENTE}</strong> - {c.NOME_CLIENTE}</div>)}</div>}
         </div>
-        {cliente&&<div><span style={LS}>Parcela</span>{pars.length>0?(
+        {cliente&&<div><span style={LS()}>Parcela</span>{pars.length>0?(
           <div style={{position:"relative"}}>
-            <div onClick={()=>setShowParsDrop(v=>!v)} style={{...IS,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",userSelect:"none"}}>
+            <div onClick={()=>setShowParsDrop(v=>!v)} style={{...IS(),cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",userSelect:"none"}}>
               {parcela
                 ?<span style={{color:isAtrasada(parcela)?RED:TEXT,fontWeight:isAtrasada(parcela)?700:400,display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
                     {isAtrasada(parcela)&&"⚠ "}Parc {parcela.NUM_PARCELA} ({fmtDt(parcela.DATA_VENCIMENTO)}) — {fmtR(parcela.VALOR_PARCELA)}
@@ -1209,9 +1517,9 @@ function PagamentoDrop({contratos,parcelas,clientes,onSucesso,onSelecionarParcel
           </div>
         ):<div style={{padding:8,background:RED+"08",color:RED,fontSize:12,borderRadius:6}}>Nenhuma parcela pendente.</div>}</div>}
         {parcela&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <div><span style={LS}>Tipo</span><select value={tipo||""} onChange={e=>{const t=e.target.value;setTipo(t);if(t==="total")setValor(parseFloat(parcela?.VALOR_PARCELA||0).toFixed(2));else if(t==="parcial")setValor(parseFloat(parcela?.VALOR_JUROS||0).toFixed(2));}} style={IS}><option value="">Selecione...</option><option value="total">Total</option><option value="parcial">Somente Juros</option></select></div>
-          <div><span style={LS}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} style={IS}/></div>
-          <div style={{gridColumn:"1/-1"}}><span style={LS}>Data</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS}/></div>
+          <div><span style={LS()}>Tipo</span><select value={tipo||""} onChange={e=>{const t=e.target.value;setTipo(t);if(t==="total")setValor(parseFloat(parcela?.VALOR_PARCELA||0).toFixed(2));else if(t==="parcial")setValor(parseFloat(parcela?.VALOR_JUROS||0).toFixed(2));}} style={IS()}><option value="">Selecione...</option><option value="total">Total</option><option value="parcial">Somente Juros</option></select></div>
+          <div><span style={LS()}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} style={IS()}/></div>
+          <div style={{gridColumn:"1/-1"}}><span style={LS()}>Data</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS()}/></div>
           <button onClick={registrar} disabled={loading||!tipo} style={{gridColumn:"1/-1",padding:"11px",borderRadius:8,border:"none",background:GRN,color:"#FFF",fontWeight:700,cursor:"pointer",opacity:loading||!tipo?0.6:1}}>{loading?"Processando...":"Confirmar"}</button>
         </div>}
         {msg&&<div style={{padding:10,borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:12,textAlign:"center",fontWeight:600}}>{msg.t}</div>}
@@ -1220,13 +1528,13 @@ function PagamentoDrop({contratos,parcelas,clientes,onSucesso,onSelecionarParcel
   );
 }
 
-function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,onFechar}){
+function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,onFechar,initialModo="pagamento"}){
   const [tipo,setTipo]=useState("total");
   const [data,setData]=useState(hojeStr());
   const [valor,setValor]=useState(parseFloat(parcela?.VALOR_PARCELA||0).toFixed(2));
   const [loading,setLoading]=useState(false);
   const [msg,setMsg]=useState(null);
-  const [modo,setModo]=useState("pagamento"); // "pagamento" | "reagendar"
+  const [modo,setModo]=useState(initialModo); // "pagamento" | "reagendar"
   const [promData,setPromData]=useState("");
   const [promObs,setPromObs]=useState("");
   const [comprovanteData,setComprovanteData]=useState(null);
@@ -1240,6 +1548,7 @@ function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,
     const res=await postAction({action:"registrarPromessa",dados:{
       idContrato:parcela.ID_CONTRATO,
       idCliente:parcela.ID_CLIENTE,
+      idParcela:parcela.ID_PARCELA,
       nomeCliente:parcela.NOME_CLIENTE||"",
       dataPrevista:promData,
       valorPrometido:parseFloat(parcela.VALOR_PARCELA||0),
@@ -1254,7 +1563,7 @@ function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,
 
   return(
     <div style={{position:"fixed",inset:0,zIndex:300,background:"rgba(15,23,42,0.35)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onFechar}>
-      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:CARD,borderRadius:14,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.22)",overflow:"hidden"}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:CARD,borderRadius:14,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.22)",overflow:"hidden",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}>
         <div style={{padding:"18px 20px",borderBottom:`1px solid ${BD}`}}>
           <h2 style={{margin:0,fontSize:17,fontWeight:800}}>{modo==="reagendar"?"Reagendar Parcela":"Registrar pagamento"}</h2>
           <p style={{margin:"5px 0 0",fontSize:12,color:MUTED}}>{parcela?.NOME_CLIENTE||"Cliente"} · Parcela {parcela?.NUM_PARCELA||parcela?.NUMERO_PARCELA||parcela?.ID_PARCELA||"—"}</p>
@@ -1262,12 +1571,12 @@ function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,
         <div style={{padding:20,display:"flex",flexDirection:"column",gap:12}}>
         {modo==="pagamento"?(
           <>
-          <div><span style={LS}>Tipo</span><select value={tipo} onChange={e=>{const t=e.target.value;setTipo(t);if(t==="total")setValor(parseFloat(parcela?.VALOR_PARCELA||0).toFixed(2));else setValor(parseFloat(parcela?.VALOR_JUROS||0).toFixed(2));}} style={IS}><option value="total">Pagamento total</option><option value="parcial">Somente juros</option></select></div>
-          <div><span style={LS}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} style={IS}/></div>
-          <div><span style={LS}>Data</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS}/></div>
+          <div><span style={LS()}>Tipo</span><select value={tipo} onChange={e=>{const t=e.target.value;setTipo(t);if(t==="total")setValor(parseFloat(parcela?.VALOR_PARCELA||0).toFixed(2));else setValor(parseFloat(parcela?.VALOR_JUROS||0).toFixed(2));}} style={IS()}><option value="total">Pagamento total</option><option value="parcial">Somente juros</option></select></div>
+          <div><span style={LS()}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} style={IS()}/></div>
+          <div><span style={LS()}>Data</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS()}/></div>
           {msg&&<div style={{padding:10,borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:12,fontWeight:700}}>{msg.t}</div>}
           <div style={{display:"flex",gap:8,marginTop:4}}>
-            <button onClick={()=>setModo("reagendar")} style={{padding:"10px 14px",borderRadius:8,border:`1px solid ${ORG}30`,background:ORG+"08",color:ORG,cursor:"pointer",fontWeight:700,fontSize:13}}>📅 Reagendar</button>
+            <button onClick={()=>setModo("reagendar")} style={{padding:"10px 14px",borderRadius:8,border:`1px solid ${ORG}30`,background:ORG+"08",color:ORG,cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",gap:6}}>{IcoCal} Reagendar</button>
             <div style={{flex:1}}/>
             <button onClick={onFechar} style={{padding:"10px 14px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:700}}>Cancelar</button>
             <button onClick={registrar} disabled={loading||!valor||!data} style={{padding:"10px 14px",borderRadius:8,border:"none",background:GRN,color:"#FFF",cursor:"pointer",fontWeight:800,opacity:loading||!valor||!data?0.6:1}}>{loading?"Registrando...":"Confirmar"}</button>
@@ -1276,13 +1585,13 @@ function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,
         ):(
           <>
           <div style={{background:ORG+"08",border:`1px solid ${ORG}30`,borderRadius:8,padding:"10px 14px",fontSize:12,color:ORG,fontWeight:600}}>
-            📌 A data de vencimento original da parcela não será alterada. Apenas um lembrete de promessa será registrado.
+            A data de vencimento original da parcela não será alterada. Apenas um lembrete de promessa será registrado.
           </div>
-          <div><span style={LS}>Data que o cliente prometeu pagar</span><input type="date" value={promData} onChange={e=>setPromData(e.target.value)} style={IS}/></div>
-          <div><span style={LS}>Observação (opcional)</span><input value={promObs} onChange={e=>setPromObs(e.target.value)} placeholder="Ex: Cliente disse que paga na sexta" style={IS}/></div>
+          <div><span style={LS()}>Data que o cliente prometeu pagar</span><input type="date" value={promData} onChange={e=>setPromData(e.target.value)} style={IS()}/></div>
+          <div><span style={LS()}>Observação (opcional)</span><input value={promObs} onChange={e=>setPromObs(e.target.value)} placeholder="Ex: Cliente disse que paga na sexta" style={IS()}/></div>
           {msg&&<div style={{padding:10,borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:12,fontWeight:700}}>{msg.t}</div>}
           <div style={{display:"flex",gap:8,marginTop:4}}>
-            <button onClick={()=>{setModo("pagamento");setMsg(null);}} style={{padding:"10px 14px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:700}}>← Voltar</button>
+            <button onClick={()=>{setModo("pagamento");setMsg(null);}} style={{padding:"10px 14px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:700,display:"flex",alignItems:"center",gap:5}}>{IcoArrL} Voltar</button>
             <div style={{flex:1}}/>
             <button onClick={reagendar} disabled={loading||!promData} style={{padding:"10px 14px",borderRadius:8,border:"none",background:ORG,color:"#FFF",cursor:"pointer",fontWeight:800,opacity:loading||!promData?0.6:1}}>{loading?"Salvando...":"Registrar Promessa"}</button>
           </div>
@@ -1294,8 +1603,11 @@ function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,
   );
 }
 
-function NovoContrato({contratos,clientes,onSucesso}){
-  const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);const [cliente,setCliente]=useState(null);const [principal,setPrincipal]=useState("");const [nParcelas,setNParcelas]=useState("");const [taxa,setTaxa]=useState("");const [dtEmp,setDtEmp]=useState(hojeStr());const [dtVenc,setDtVenc]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const [contratoOk,setContratoOk]=useState(null);const [zapLoading,setZapLoading]=useState(false);const [zapUrl,setZapUrl]=useState("");const [zapErro,setZapErro]=useState("");const ref=useRef();
+function NovoContrato({contratos,clientes,onSucesso,clienteInicial}){
+  const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);
+  const [cliente,setCliente]=useState(()=>clienteInicial?{ID_CLIENTE:clienteInicial.ID_CLIENTE,NOME_CLIENTE:clienteInicial.NOME||clienteInicial.NOME_CLIENTE||""}:null);
+  const [principal,setPrincipal]=useState("");const [nParcelas,setNParcelas]=useState("");const [taxa,setTaxa]=useState("");const [dtEmp,setDtEmp]=useState(hojeStr());
+  const [dtVenc,setDtVenc]=useState(()=>clienteInicial?.DIA_VENCIMENTO_PREFERIDO?calcProxVenc(clienteInicial.DIA_VENCIMENTO_PREFERIDO):"");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const [contratoOk,setContratoOk]=useState(null);const [zapLoading,setZapLoading]=useState(false);const [zapUrl,setZapUrl]=useState("");const [zapErro,setZapErro]=useState("");const [zapWppUrl,setZapWppUrl]=useState("");const [carneLoading,setCarneLoading]=useState(false);const [carneOk,setCarneOk]=useState(false);const [carneErro,setCarneErro]=useState("");const ref=useRef();
   useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
 
   const ST_BLOQ=["ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente"];
@@ -1318,43 +1630,56 @@ function NovoContrato({contratos,clientes,onSucesso}){
     return res.slice(0,8);
   },[busca,clientes,contratos]);
 
-  const criar=async()=>{if(!cliente||!principal||!nParcelas||!taxa||!dtEmp||!dtVenc)return;setLoading(true);setMsg(null);const res=await postAction({action:"novoContrato",dados:{idCliente:cliente.ID_CLIENTE,nomeCliente:cliente.NOME_CLIENTE,principal,parcelas:nParcelas,taxa,dataEmprestimo:apiDateStr(dtEmp),dataVencimento:apiDateStr(dtVenc)}});if(res.ok){setZapUrl("");setZapErro("");setContratoOk({idContrato:res.idContrato||"",clienteId:cliente.ID_CLIENTE,nomeCliente:cliente.NOME_CLIENTE,principal,nParcelas,taxa,dtVenc,docUrl:res.docUrl||"",docId:res.docId||"",docErro:res.docErro||""});if(res.parcelas?.length&&res.cliente){fetch("/api/efi-charges",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idContrato:res.idContrato,parcelas:res.parcelas,cliente:res.cliente})}).then(r=>r.json()).then(d=>console.log("Boletos Efi Bank:",d)).catch(e=>console.error("Efi charges err:",e));}}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
+  const criar=async()=>{if(!cliente||!principal||!nParcelas||!taxa||!dtEmp||!dtVenc)return;setLoading(true);setMsg(null);const res=await postAction({action:"novoContrato",dados:{idCliente:cliente.ID_CLIENTE,nomeCliente:cliente.NOME_CLIENTE,principal,parcelas:nParcelas,taxa,dataEmprestimo:apiDateStr(dtEmp),dataVencimento:apiDateStr(dtVenc)}});if(res.ok){setZapUrl("");setZapErro("");setZapWppUrl("");setCarneOk(false);setCarneErro("");setContratoOk({idContrato:res.idContrato||"",clienteId:cliente.ID_CLIENTE,nomeCliente:cliente.NOME_CLIENTE,principal,nParcelas,taxa,dtVenc,docUrl:res.docUrl||"",docId:res.docId||"",docErro:res.docErro||"",parcelas:res.parcelas||[],clienteEfi:res.cliente||null});}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
   const _fRc=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   const _fDvc=d=>{const dt=parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):d||'—';};
   const _cliOk=contratoOk?(clientes||[]).find(c=>String(c.ID_CLIENTE||"").trim()===String(contratoOk.clienteId||"").trim()):null;
   const _telOk=contratoOk?String(_cliOk?.TELEFONE_WPP||_cliOk?.TELEFONE||"").replace(/\D/g,""):"";
-  const _pmtOk=contratoOk?(()=>{const i=parseFloat(contratoOk.taxa)/100;const n=parseInt(contratoOk.nParcelas);const pv=parseFloat(contratoOk.principal);return i>0?pv*i/(1-Math.pow(1+i,-n)):pv/n;})():0;
+  const _pmtOk=contratoOk?parseFloat(contratoOk.parcelas?.[0]?.valorParcela||0):0;
   const _abrirWppNovo=()=>{if(!contratoOk)return;const tel=_telOk?`55${_telOk}`:'';const txt=`💸 PIX ENVIADO! O valor já deve estar na sua conta. Confere lá!\n\nSegue abaixo o seu Carnê Digital com todas as parcelas e datas:\n\nLembretes Importantes:\n• Nosso sistema envia um lembrete automático 2 dias antes do vencimento para te ajudar a não esquecer.\n• Pagamentos em dia aumentam seu Score Interno, garantindo taxas menores e limites maiores nas próximas renovações.\n\nObrigado pela confiança! Conte com a gente.`;const url=tel?`https://wa.me/${tel}?text=${encodeURIComponent(txt)}`:'https://web.whatsapp.com';window.open(url,'_blank');setContratoOk(null);onSucesso();};
-  const _enviarZapSign=async()=>{if(!contratoOk||zapLoading)return;setZapLoading(true);setZapErro("");const res=await postAction({action:"enviarZapSign",docId:contratoOk.docId,idContrato:contratoOk.idContrato,idCliente:contratoOk.clienteId});if(res.ok&&res.zapUrl){setZapUrl(res.zapUrl);}else{setZapErro(res.erro||"Erro ao enviar para ZapSign");}setZapLoading(false);};
+  const _enviarZapSign=async()=>{
+    if(!contratoOk||zapLoading)return;
+    setZapLoading(true);setZapErro("");
+    const res=await postAction({action:"enviarZapSign",docId:contratoOk.docId,idContrato:contratoOk.idContrato,idCliente:contratoOk.clienteId});
+    if(res.ok&&res.zapUrl){
+      setZapUrl(res.zapUrl);
+      const tel=_telOk?`55${_telOk}`:"";
+      const msg=`*Contrato Gerado!*\n\nAcabei de enviar o link para seu e-mail.\n\n*Importante:*\n1. Leia os termos com atenção.\n2. Assine eletronicamente (tem validade jurídica).\n3. Assim que assinar, o sistema me notifica para liberar o Pix.\n4. Após realizar a assinatura, envie, por favor, os dados do Pix para a transferência. (Banco, Nome da conta e Chave Pix)\n\nFico no aguardo!`;
+      setZapWppUrl(tel?`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`:`https://web.whatsapp.com?text=${encodeURIComponent(msg)}`);
+    }else{setZapErro(res.erro||"Erro ao enviar para ZapSign");}
+    setZapLoading(false);
+  };
+  const _gerarCarne=async()=>{if(!contratoOk||carneLoading)return;setCarneLoading(true);setCarneErro("");try{const r=await fetch("/api/efi-charges",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idContrato:contratoOk.idContrato,parcelas:contratoOk.parcelas,cliente:contratoOk.clienteEfi})});const d=await r.json();if(d.ok&&d.boletos?.every(b=>b.ok)){setCarneOk(true);}else{const errs=(d.boletos||[]).filter(b=>!b.ok).map(b=>`Parcela ${b.numParcela}: ${b.erro}`).join("; ");setCarneErro(errs||d.erro||"Erro ao gerar carnê");}}catch(e){setCarneErro(e.message);}setCarneLoading(false);};
   return(<>
-    {contratoOk&&<div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}><div style={{width:"100%",maxWidth:400,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.25)",overflow:"hidden"}}><div style={{background:GRN,padding:"22px 24px",textAlign:"center"}}><div style={{fontSize:38,marginBottom:6}}>✓</div><div style={{color:"#FFF",fontWeight:800,fontSize:17}}>Contrato criado!</div><div style={{color:"rgba(255,255,255,0.8)",fontSize:12,marginTop:4}}>{contratoOk.nomeCliente} · {contratoOk.idContrato}</div></div><div style={{padding:"18px 20px"}}><div style={{background:BG,borderRadius:10,padding:"12px 16px",marginBottom:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Valor</div><div style={{fontWeight:800,fontSize:15,color:BLU}}>{_fRc(parseFloat(contratoOk.principal))}</div></div><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Parcelas</div><div style={{fontWeight:700,fontSize:13}}>{contratoOk.nParcelas}x de {_fRc(_pmtOk)}</div></div><div style={{gridColumn:"1/-1"}}><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>1º Vencimento</div><div style={{fontWeight:700,fontSize:13}}>{_fDvc(contratoOk.dtVenc)}</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{contratoOk.docUrl&&<button onClick={()=>window.open(contratoOk.docUrl,"_blank")} style={{padding:"12px",borderRadius:9,border:"none",background:BLU,color:"#FFF",cursor:"pointer",fontWeight:800,fontSize:13}}>📄 Abrir contrato no Google Docs</button>}{contratoOk.docId&&!zapUrl&&<button onClick={_enviarZapSign} disabled={zapLoading} style={{padding:"12px",borderRadius:9,border:"none",background:zapLoading?"#9B7FD4":"#6C3FC5",color:"#FFF",cursor:zapLoading?"default":"pointer",fontWeight:800,fontSize:13}}>{zapLoading?"⏳ Enviando para ZapSign...":"✍️ Enviar para assinatura (ZapSign)"}</button>}{zapUrl&&<button onClick={()=>window.open(zapUrl,"_blank")} style={{padding:"12px",borderRadius:9,border:"none",background:"#6C3FC5",color:"#FFF",cursor:"pointer",fontWeight:800,fontSize:13}}>✍️ Assinar como credor (ZapSign)</button>}<button onClick={_abrirWppNovo} style={{padding:"12px",borderRadius:9,border:"none",background:"#25D366",color:"#FFF",cursor:"pointer",fontWeight:800,fontSize:13}}>📲 Enviar boas-vindas pelo WhatsApp</button><button onClick={()=>{setContratoOk(null);onSucesso();}} style={{padding:"10px",borderRadius:9,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:600,fontSize:13}}>Fechar</button>{contratoOk.docErro&&<div style={{marginTop:6,padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:11,fontWeight:600}}>Erro ao gerar doc: {contratoOk.docErro}</div>}{zapErro&&<div style={{marginTop:4,padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:11,fontWeight:600}}>Erro ZapSign: {zapErro}</div>}</div></div></div></div>}
+    {contratoOk&&<div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}><div style={{width:"100%",maxWidth:400,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.25)",overflow:"hidden",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}><div style={{background:GRN,padding:"22px 24px",textAlign:"center"}}><div style={{width:44,height:44,borderRadius:"50%",background:"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 8px"}}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><polyline points="20,6 9,17 4,12"/></svg></div><div style={{color:"#FFF",fontWeight:800,fontSize:17}}>Contrato criado</div><div style={{color:"rgba(255,255,255,0.8)",fontSize:12,marginTop:4}}>{contratoOk.nomeCliente} · {contratoOk.idContrato}</div></div><div style={{padding:"18px 20px"}}><div style={{background:BG,borderRadius:10,padding:"12px 16px",marginBottom:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Valor</div><div style={{fontWeight:800,fontSize:15,color:ORG}}>{_fRc(parseFloat(contratoOk.principal))}</div></div><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Parcelas</div><div style={{fontWeight:700,fontSize:13}}>{contratoOk.nParcelas}x de {_fRc(_pmtOk)}</div></div><div style={{gridColumn:"1/-1"}}><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>1º Vencimento</div><div style={{fontWeight:700,fontSize:13}}>{_fDvc(contratoOk.dtVenc)}</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{contratoOk.docUrl&&<button onClick={()=>window.open(contratoOk.docUrl,"_blank")} style={{padding:"12px",borderRadius:9,border:"none",background:TEXT,color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoDoc} Abrir no Google Docs</button>}{contratoOk.docId&&!zapUrl&&<button onClick={_enviarZapSign} disabled={zapLoading} style={{padding:"12px",borderRadius:9,border:"none",background:zapLoading?"#9B7FD4":"#6C3FC5",color:"#FFF",cursor:zapLoading?"default":"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{zapLoading?<><IcoSpinner color="#fff"/> Enviando...</>:<>{IcoSign} Enviar para ZapSign</>}</button>}{zapUrl&&<button onClick={()=>window.open(zapUrl,"_blank")} style={{padding:"12px",borderRadius:9,border:"none",background:"#6C3FC5",color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoSign} Assinar como credor</button>}
+{zapWppUrl&&<button onClick={()=>window.open(zapWppUrl,"_blank")} style={{padding:"12px",borderRadius:9,border:"none",background:"#25D366",color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoPhone} Enviar mensagem de assinatura (WhatsApp)</button>}{!carneOk?<button onClick={_gerarCarne} disabled={carneLoading} style={{padding:"12px",borderRadius:9,border:"none",background:carneLoading?"#7a6a2a":"#B8860B",color:"#FFF",cursor:carneLoading?"default":"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{carneLoading?<><IcoSpinner color="#fff"/> Gerando...</>:<>{IcoPag} Gerar Carnê PIX</>}</button>:<div style={{padding:"10px 12px",borderRadius:9,background:GRN+"20",color:GRN,fontWeight:700,fontSize:13,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{IcoCheck} Carnê PIX gerado</div>}{carneErro&&<div style={{padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:11,fontWeight:600}}>Erro carnê: {carneErro}</div>}<button onClick={_abrirWppNovo} style={{padding:"12px",borderRadius:9,border:"none",background:"#25D366",color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoPhone} Enviar boas-vindas pelo WhatsApp</button><button onClick={()=>{setContratoOk(null);onSucesso();}} style={{padding:"10px",borderRadius:9,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:600,fontSize:13}}>Fechar</button>{contratoOk.docErro&&<div style={{marginTop:6,padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:11,fontWeight:600}}>Erro ao gerar doc: {contratoOk.docErro}</div>}{zapErro&&<div style={{marginTop:4,padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:11,fontWeight:600}}>Erro ZapSign: {zapErro}</div>}</div></div></div></div>}
     <div style={{background:CARD,borderRadius:12,padding:20,border:`1px solid ${BD}`}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}><div style={{background:BLU+"15",color:BLU,padding:8,borderRadius:8}}>{IcoCtr}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Novo Contrato</h3></div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}><div style={{background:ORG+"15",color:ORG,padding:8,borderRadius:8}}>{IcoCtr}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Novo Contrato</h3></div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div style={{position:"relative"}} ref={ref}>
-          <span style={LS}>Buscar Cliente</span>
-          <div style={{position:"relative"}}><div style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)"}}>{IcoSrch}</div><input value={cliente?cliente.NOME_CLIENTE:busca} onChange={e=>{setBusca(e.target.value);setCliente(null);setShowDrop(true);}} onFocus={()=>setShowDrop(true)} placeholder="Nome ou ID..." style={{...IS,paddingLeft:32}}/>{cliente&&<button onClick={()=>{setCliente(null);setBusca("");}} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:MUTED,fontSize:16}}>×</button>}</div>
+          <span style={LS()}>Buscar Cliente</span>
+          <div style={{position:"relative"}}><div style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)"}}>{IcoSrch}</div><input value={cliente?cliente.NOME_CLIENTE:busca} onChange={e=>{setBusca(e.target.value);setCliente(null);setShowDrop(true);}} onFocus={()=>setShowDrop(true)} placeholder="Nome ou ID..." style={{...IS(),paddingLeft:32}}/>{cliente&&<button onClick={()=>{setCliente(null);setBusca("");}} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:MUTED,fontSize:16}}>×</button>}</div>
           {showDrop&&clis.length>0&&<div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BD}`,borderRadius:8,marginTop:4,zIndex:100,boxShadow:"0 10px 30px rgba(0,0,0,0.1)"}}>
             {clis.map(c=>{
               const bloq=idsComAtivo.has(String(c.ID_CLIENTE));
               return<div key={c.ID_CLIENTE}
-                onClick={()=>{if(!bloq){setCliente(c);setShowDrop(false);}}}
+                onClick={()=>{if(!bloq){setCliente(c);setShowDrop(false);const cliF=(clientes||[]).find(cl=>String(cl.ID_CLIENTE)===String(c.ID_CLIENTE));if(cliF?.DIA_VENCIMENTO_PREFERIDO){const dv=calcProxVenc(cliF.DIA_VENCIMENTO_PREFERIDO);if(dv)setDtVenc(dv);}}}}
                 style={{padding:"10px 14px",cursor:bloq?"not-allowed":"pointer",fontSize:13,borderBottom:`1px solid ${BG}`,background:bloq?RED+"05":CARD,display:"flex",justifyContent:"space-between",alignItems:"center",opacity:bloq?0.7:1}}
                 onMouseEnter={e=>!bloq&&(e.currentTarget.style.background=BG)}
                 onMouseLeave={e=>e.currentTarget.style.background=bloq?RED+"05":CARD}>
                 <span style={{color:bloq?MUTED:TEXT}}><strong style={{color:bloq?MUTED:TEXT}}>{c.ID_CLIENTE}</strong> — {c.NOME_CLIENTE}</span>
-                {bloq&&<span style={{fontSize:11,fontWeight:700,color:RED,background:RED+"12",padding:"2px 8px",borderRadius:99,whiteSpace:"nowrap",marginLeft:8}}>🔒 contrato ativo</span>}
+                {bloq&&<span style={{fontSize:11,fontWeight:700,color:RED,background:RED+"12",padding:"2px 8px",borderRadius:99,whiteSpace:"nowrap",marginLeft:8,display:"inline-flex",alignItems:"center",gap:4}}>{IcoLock} contrato ativo</span>}
               </div>;
             })}
           </div>}
         </div>
         {cliente&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <div><span style={LS}>Principal</span><input type="number" value={principal} onChange={e=>setPrincipal(e.target.value)} placeholder="0.00" style={IS}/></div>
-          <div><span style={LS}>Parcelas</span><input type="number" value={nParcelas} onChange={e=>setNParcelas(e.target.value)} placeholder="1" style={IS}/></div>
-          <div><span style={LS}>Taxa Mensal (%)</span><input type="number" value={taxa} onChange={e=>setTaxa(e.target.value)} placeholder="0.00" style={IS}/></div>
-          <div><span style={LS}>1º Vencimento</span><input type="date" value={dtVenc} onChange={e=>setDtVenc(e.target.value)} style={IS}/></div>
-          <div style={{gridColumn:"1/-1"}}><span style={LS}>Data Empréstimo</span><input type="date" value={dtEmp} onChange={e=>setDtEmp(e.target.value)} style={IS}/></div>
-          <button onClick={criar} disabled={loading} style={{gridColumn:"1/-1",padding:"11px",borderRadius:8,border:"none",background:BLU,color:"#FFF",fontWeight:700,cursor:"pointer",opacity:loading?0.6:1}}>{loading?"Criando...":"Gerar Contrato"}</button>
+          <div><span style={LS()}>Principal</span><input type="number" value={principal} onChange={e=>setPrincipal(e.target.value)} placeholder="0.00" style={IS()}/></div>
+          <div><span style={LS()}>Parcelas</span><input type="number" value={nParcelas} onChange={e=>setNParcelas(e.target.value)} placeholder="1" style={IS()}/></div>
+          <div><span style={LS()}>Taxa Mensal (%)</span><input type="number" value={taxa} onChange={e=>setTaxa(e.target.value)} placeholder="0.00" style={IS()}/></div>
+          <div><span style={LS()}>1º Vencimento</span><input type="date" value={dtVenc} onChange={e=>setDtVenc(e.target.value)} style={IS()}/></div>
+          <div style={{gridColumn:"1/-1"}}><span style={LS()}>Data Empréstimo</span><input type="date" value={dtEmp} onChange={e=>setDtEmp(e.target.value)} style={IS()}/></div>
+          <button onClick={criar} disabled={loading} style={{gridColumn:"1/-1",padding:"11px",borderRadius:8,border:"none",background:ORG,color:"#FFF",fontWeight:700,cursor:"pointer",opacity:loading?0.6:1,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{loading?<><IcoSpinner color="#fff"/> Criando...</>:<>{IcoCtr} Gerar Contrato</>}</button>
         </div>}
         {msg&&<div style={{padding:10,borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:12,textAlign:"center",fontWeight:600}}>{msg.t}</div>}
       </div>
@@ -1363,8 +1688,12 @@ function NovoContrato({contratos,clientes,onSucesso}){
 }
 
 // ─── MODAL CONTRATO ──────────────────────────────────────────────
-function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPagamento, onBaixar, onQuitacaoAntecipada, onComprovante, onFechar }) {
+function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPagamento, onReagendar, onBaixar, onQuitacaoAntecipada, onComprovante, onAlterarVencimento, onFechar }) {
   const [abaM, setAbaM] = useState("parcelas");
+  const [altVencOpen,setAltVencOpen]=useState(false);
+  const [altVencDia,setAltVencDia]=useState("");
+  const [altVencLoad,setAltVencLoad]=useState(false);
+  const [altVencErr,setAltVencErr]=useState("");
 
   const ps = (parcelas||[])
     .filter(p => String(p.ID_CONTRATO) === String(contrato.ID_CONTRATO))
@@ -1381,16 +1710,16 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
   const pct          = parseFloat(contrato.VALOR_PRINCIPAL||0) > 0
     ? (totalPago / parseFloat(contrato.VALOR_TOTAL||contrato.VALOR_PRINCIPAL||1)) * 100 : 0;
 
-  const stCor = { pago:GRN, pendente:BLU, atrasado:YEL, vence_hoje:ORG, baixado_como_prejuizo:RED, cancelado:MUTED };
-  const stLabel = { pago:"Pago", pendente:"Pendente", atrasado:"Atrasado", vence_hoje:"Vence Hoje", baixado_como_prejuizo:"Baixado", cancelado:"Cancelado" };
+  const stCor = { pago:GRN, pendente:BLU, atrasado:RED, vence_hoje:ORG, baixado_como_prejuizo:RED, cancelado:MUTED, quitacao_antecipada:GRN, reagendado:BLU };
+  const stLabel = { pago:"Pago", pendente:"Pendente", atrasado:"Atrasado", vence_hoje:"Vence Hoje", baixado_como_prejuizo:"Baixado", cancelado:"Cancelado", reagendado:"Reagendado" };
   const podeRegistrar = !["baixado_como_prejuizo","quitado","cancelado","recuperado_integralmente"].includes(contrato.STATUS_CONTRATO);
   const podeBaixar    = !["baixado_como_prejuizo","quitado","cancelado","recuperado_integralmente","recuperado_parcialmente"].includes(contrato.STATUS_CONTRATO);
-  const tipoPagLabel  = { pagamento_normal:"Normal", pagamento_com_atraso:"Com Atraso", somente_juros:"Só Juros", recuperacao_apos_baixa:"Recuperação", pagamento_antecipado:"Antecipado" };
-  const tipoPagCor    = { pagamento_normal:GRN, pagamento_com_atraso:YEL, somente_juros:RED, recuperacao_apos_baixa:PUR, pagamento_antecipado:BLU };
+  const tipoPagLabel  = { pagamento_normal:"Normal", normal:"Normal", pagamento_com_atraso:"Com Atraso", com_atraso:"Com Atraso", somente_juros:"Só Juros", recuperacao_apos_baixa:"Recuperação", pagamento_antecipado:"Antecipado", antecipado:"Antecipado" };
+  const tipoPagCor    = { pagamento_normal:GRN, normal:GRN, pagamento_com_atraso:YEL, com_atraso:YEL, somente_juros:RED, recuperacao_apos_baixa:PUR, pagamento_antecipado:BLU, antecipado:BLU };
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onFechar}>
-      <div onClick={e=>e.stopPropagation()} style={{background:BG,borderRadius:16,width:"100%",maxWidth:900,maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 30px 90px rgba(0,0,0,0.3)",overflow:"hidden"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:BG,borderRadius:16,width:"100%",maxWidth:900,maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 30px 90px rgba(0,0,0,0.3)",overflow:"hidden",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}>
 
         {/* HEADER */}
         <div style={{background:CARD,padding:"18px 22px",borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
@@ -1405,7 +1734,7 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
         </div>
 
         {/* KPIs */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",borderBottom:`1px solid ${BD}`,background:CARD}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(80px,1fr))",borderBottom:`1px solid ${BD}`,background:CARD}}>
           {[
             {l:"Principal",      v:fmtR(contrato.VALOR_PRINCIPAL),  c:TEXT},
             {l:"Total c/ Juros", v:fmtR(contrato.VALOR_TOTAL||contrato.VALOR_TOTAL_FINAL),      c:TEXT},
@@ -1423,33 +1752,55 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
         {/* TABS */}
         <div style={{display:"flex",background:CARD,padding:"0 20px",borderBottom:`1px solid ${BD}`,gap:20}}>
           {[["parcelas",`Parcelas (${ps.length})`],["pagamentos",`Pagamentos (${pags.length})`]].map(([id,lbl])=>(
-            <button key={id} onClick={()=>setAbaM(id)} style={{padding:"13px 4px",background:"none",border:"none",borderBottom:abaM===id?`2px solid ${BLU}`:"2px solid transparent",color:abaM===id?BLU:MUTED,fontWeight:600,cursor:"pointer",fontSize:13}}>{lbl}</button>
+            <button key={id} onClick={()=>setAbaM(id)} style={{padding:"13px 4px",background:"none",border:"none",borderBottom:abaM===id?`2px solid ${ORG}`:"2px solid transparent",color:abaM===id?ORG:MUTED,fontWeight:600,cursor:"pointer",fontSize:13}}>{lbl}</button>
           ))}
         </div>
 
         {/* CONTENT */}
-        <div style={{flex:1,overflowY:"auto"}}>
+        <div style={{flex:1,overflowY:"auto",overflowX:"auto"}}>
           {abaM==="parcelas"&&(
-            <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left",minWidth:480}}>
               <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase",position:"sticky",top:0}}>
                 <th style={{padding:"10px 18px"}}>#</th>
                 <th>Vencimento</th>
                 <th>Valor</th>
-                <th>Status</th>
+                <th>Situação</th>
                 <th>Pagamento</th>
-                <th style={{textAlign:"right",padding:"10px 18px"}}>Valor Pago</th>
+                <th style={{textAlign:"right"}}>Valor Pago</th>
+                <th style={{textAlign:"right",padding:"10px 18px"}}>Extra</th>
+                <th style={{padding:"10px 12px"}}/>
               </tr></thead>
               <tbody>{ps.map((p,i)=>{
                 const st=statusEfetivo(p);
-                const cor=stCor[st]||MUTED;
+                const foiPago=parseFloat(p.VALOR_PAGO||0)>0;
+                const tpLbl=tipoPagLabel[p.TIPO_PAGAMENTO]||null;
+                const tpCor=tipoPagCor[p.TIPO_PAGAMENTO]||null;
+                const sitLbl=stLabel[st]||_ST_LABEL[st]||st;
+                const sitCor=stCor[st]||MUTED;
+                const extra=foiPago?Math.round((parseFloat(p.VALOR_PAGO||0)-parseFloat(p.VALOR_PARCELA||0))*100)/100:0;
+                const ativa=!_ST_TERMINAL.has(st);
                 return(
-                  <tr key={p.ID_PARCELA||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:"#FAFAFA"}}>
+                  <tr key={p.ID_PARCELA||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:BG}}>
                     <td style={{padding:"11px 18px",color:MUTED,fontWeight:600}}>{p.NUM_PARCELA}/{p.TOTAL_PARCELAS}{isUltima(p,ps)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 5px",borderRadius:99,marginLeft:5}}>última</span>}</td>
-                    <td style={{fontWeight:600}}>{fmtDt(p.DATA_VENCIMENTO)}</td>
+                    <td style={{fontWeight:600}}>
+                      {p.DATA_ACORDO
+                        ? <span style={{display:"flex",alignItems:"center",gap:5}}>
+                            <span style={{color:ORG}}>{fmtDt(p.DATA_ACORDO)}</span>
+                            <span style={{fontSize:9,fontWeight:800,color:ORG,background:ORG+"18",padding:"1px 5px",borderRadius:99,whiteSpace:"nowrap"}}>acordo</span>
+                          </span>
+                        : fmtDt(p.DATA_VENCIMENTO)}
+                    </td>
                     <td>{fmtR(p.VALOR_PARCELA)}</td>
-                    <td><Badge c={cor}>{stLabel[st]||_ST_LABEL[st]||st}</Badge></td>
+                    <td><div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}><Badge c={sitCor}>{sitLbl}</Badge>{foiPago&&tpLbl&&<span style={{fontSize:10,color:tpCor,fontWeight:700,background:tpCor+"15",padding:"2px 7px",borderRadius:99}}>{tpLbl}</span>}</div></td>
                     <td style={{color:MUTED}}>{fmtDt(p.DATA_PAGAMENTO)||"—"}</td>
-                    <td style={{textAlign:"right",padding:"11px 18px",fontWeight:700,color:parseFloat(p.VALOR_PAGO||0)>0?GRN:MUTED}}>{parseFloat(p.VALOR_PAGO||0)>0?fmtR(p.VALOR_PAGO):"—"}</td>
+                    <td style={{textAlign:"right",fontWeight:700,color:foiPago?GRN:MUTED}}>{foiPago?fmtR(p.VALOR_PAGO):"—"}</td>
+                    <td style={{textAlign:"right",padding:"11px 18px",fontWeight:700,color:extra>0?ORG:extra<0?BLU:MUTED}}>{extra>0?"+"+fmtR(extra):extra<0?fmtR(extra):"—"}</td>
+                    <td style={{padding:"8px 12px"}}>
+                      {ativa&&<div style={{display:"flex",gap:4}}>
+                        <button onClick={e=>{e.stopPropagation();onRegistrarPagamento(p);}} style={{padding:"4px 8px",borderRadius:6,border:"none",background:GRN+"18",color:GRN,cursor:"pointer",fontWeight:700,fontSize:11,whiteSpace:"nowrap"}}>Pagar</button>
+                        <button onClick={e=>{e.stopPropagation();onReagendar(p);}} style={{padding:"4px 8px",borderRadius:6,border:"none",background:ORG+"18",color:ORG,cursor:"pointer",fontWeight:700,fontSize:11,whiteSpace:"nowrap"}}>Reagendar</button>
+                      </div>}
+                    </td>
                   </tr>
                 );
               })}</tbody>
@@ -1470,7 +1821,7 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
                     const cor=tipoPagCor[p.TIPO_PAGAMENTO]||MUTED;
                     const extra=parseFloat(p.RECEITA_EXTRA_ATRASO||p.DIFERENCA_RECEBIDA||0);
                     return(
-                      <tr key={p.ID_PAGAMENTO||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:"#FAFAFA"}}>
+                      <tr key={p.ID_PAGAMENTO||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:BG}}>
                         <td style={{padding:"11px 18px",color:MUTED}}>{fmtDt(parseDate(p.DATA_PAGAMENTO))}</td>
                         <td><Badge c={cor}>{tipoPagLabel[p.TIPO_PAGAMENTO]||p.TIPO_PAGAMENTO||"—"}</Badge></td>
                         <td style={{color:MUTED}}>{fmtR(p.VALOR_ORIGINAL_PARCELA||p.VALOR_PARCELA)}</td>
@@ -1484,12 +1835,38 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
         </div>
 
         {/* FOOTER */}
-        <div style={{padding:"14px 20px",borderTop:`1px solid ${BD}`,background:CARD,display:"flex",gap:10,justifyContent:"space-between",alignItems:"center"}}>
-          <button onClick={()=>{const cli=(clientes||[]).find(c=>String(c.ID_CLIENTE)===String(contrato.ID_CLIENTE));onComprovante&&onComprovante(contrato,ps,cli);}} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${BLU}30`,background:BLU+"08",color:BLU,cursor:"pointer",fontSize:13,fontWeight:700}}>📄 Comprovante</button>
-          <div style={{display:"flex",gap:10}}>
-            {podeBaixar&&<button onClick={()=>onBaixar(contrato)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontSize:13,fontWeight:700}}>⚠️ Baixar Prejuízo</button>}
-            {podeRegistrar&&pendentes.length>0&&<button onClick={()=>onQuitacaoAntecipada&&onQuitacaoAntecipada(contrato)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${BLU}30`,background:BLU+"08",color:BLU,cursor:"pointer",fontSize:13,fontWeight:700}}>⚡ Quitar Antecipado</button>}
-            {podeRegistrar&&pendentes.length>0&&<button onClick={()=>onRegistrarPagamento(pendentes[0])} style={{padding:"9px 16px",borderRadius:8,border:"none",background:GRN,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:700}}>💳 Registrar Pagamento</button>}
+        <div style={{padding:"14px 20px",borderTop:`1px solid ${BD}`,background:CARD,display:"flex",flexDirection:"column",gap:10}}>
+          {altVencOpen&&(
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",padding:"10px 14px",borderRadius:10,background:BLU+"08",border:`1px solid ${BLU}30`}}>
+              <span style={{fontSize:12,color:MUTED,fontWeight:600,whiteSpace:"nowrap"}}>Novo dia de vencimento (1–28):</span>
+              <input type="number" min="1" max="28" value={altVencDia} onChange={e=>setAltVencDia(e.target.value)}
+                style={{width:64,padding:"6px 8px",borderRadius:7,border:`1px solid ${BD}`,background:BG,color:TEXT,fontSize:14,fontWeight:700,textAlign:"center",outline:"none"}}
+                placeholder="dia" autoFocus/>
+              <button onClick={async()=>{
+                const d=parseInt(altVencDia);
+                if(!d||d<1||d>28){setAltVencErr("Dia inválido (1–28)");return;}
+                setAltVencLoad(true);setAltVencErr("");
+                const r=await postAction({action:"alterarDiaVencimento",idContrato:contrato.ID_CONTRATO,novoDia:d});
+                setAltVencLoad(false);
+                if(r?.ok){setAltVencOpen(false);setAltVencDia("");onAlterarVencimento&&onAlterarVencimento();}
+                else setAltVencErr(r?.erro||"Erro ao salvar");
+              }} disabled={altVencLoad} style={{padding:"7px 14px",borderRadius:7,border:"none",background:BLU,color:"#FFF",fontWeight:700,fontSize:12,cursor:"pointer",opacity:altVencLoad?0.6:1,whiteSpace:"nowrap"}}>
+                {altVencLoad?<><IcoSpinner color="#fff"/> Salvando...</>:"Confirmar"}
+              </button>
+              <button onClick={()=>{setAltVencOpen(false);setAltVencDia("");setAltVencErr("");}} style={{padding:"7px 12px",borderRadius:7,border:`1px solid ${BD}`,background:"transparent",color:MUTED,fontWeight:600,fontSize:12,cursor:"pointer"}}>Cancelar</button>
+              {altVencErr&&<span style={{color:RED,fontSize:11,fontWeight:700}}>{altVencErr}</span>}
+            </div>
+          )}
+          <div style={{display:"flex",gap:10,justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button onClick={()=>{const cli=(clientes||[]).find(c=>String(c.ID_CLIENTE)===String(contrato.ID_CLIENTE));onComprovante&&onComprovante(contrato,ps,cli);}} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${ORG}40`,background:ORG+"08",color:ORG,cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>{IcoReceipt} Comprovante</button>
+              {pendentes.length>0&&!altVencOpen&&<button onClick={()=>{setAltVencOpen(true);setAltVencErr("");}} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${BLU}40`,background:BLU+"08",color:BLU,cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>{IcoCal} Alterar Dia Vcto</button>}
+            </div>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"flex-end"}}>
+              {podeBaixar&&<button onClick={()=>onBaixar(contrato)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>{IcoAlert} Baixar Prejuízo</button>}
+              {podeRegistrar&&pendentes.length>0&&<button onClick={()=>onQuitacaoAntecipada&&onQuitacaoAntecipada(contrato)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${ORG}40`,background:ORG+"08",color:ORG,cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>{IcoZap} Quitar Antecipado</button>}
+              {podeRegistrar&&pendentes.length>0&&<button onClick={()=>onRegistrarPagamento(pendentes[0])} style={{padding:"9px 16px",borderRadius:8,border:"none",background:GRN,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>{IcoPag} Registrar Pagamento</button>}
+            </div>
           </div>
         </div>
       </div>
@@ -1547,17 +1924,17 @@ function NovaPromessaModal({contratos,clientes,onConfirmar,onFechar}){
 
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onFechar}>
-      <div onClick={e=>e.stopPropagation()} style={{background:BG,borderRadius:16,width:"100%",maxWidth:500,boxShadow:"0 30px 80px rgba(0,0,0,0.3)",overflow:"hidden"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:BG,borderRadius:16,width:"100%",maxWidth:500,boxShadow:"0 30px 80px rgba(0,0,0,0.3)",overflow:"hidden",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}>
         <div style={{background:CARD,padding:"18px 22px",borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{fontSize:16,fontWeight:800}}>📋 Nova Promessa de Pagamento</div>
+          <div style={{fontSize:16,fontWeight:800,display:"flex",alignItems:"center",gap:7}}>{IcoPromise} Nova Promessa de Pagamento</div>
           <button onClick={onFechar} style={{background:BG,border:`1px solid ${BD}`,width:32,height:32,borderRadius:8,cursor:"pointer",fontSize:18,color:MUTED}}>×</button>
         </div>
         <div style={{padding:22,display:"flex",flexDirection:"column",gap:14}}>
           <div style={{position:"relative"}} ref={ref}>
-            <span style={LS}>Buscar Cliente</span>
+            <span style={LS()}>Buscar Cliente</span>
             <div style={{position:"relative"}}>
               <div style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)"}}>{IcoSrch}</div>
-              <input value={cliente?`${cliente.ID_CLIENTE} - ${cliente.NOME||cliente.NOME_CLIENTE}`:busca} onChange={e=>{setBusca(e.target.value);setCliente(null);setContratoId("");setShowDrop(true);}} onFocus={()=>setShowDrop(true)} placeholder="Nome ou ID..." style={{...IS,paddingLeft:32}}/>
+              <input value={cliente?`${cliente.ID_CLIENTE} - ${cliente.NOME||cliente.NOME_CLIENTE}`:busca} onChange={e=>{setBusca(e.target.value);setCliente(null);setContratoId("");setShowDrop(true);}} onFocus={()=>setShowDrop(true)} placeholder="Nome ou ID..." style={{...IS(),paddingLeft:32}}/>
               {cliente&&<button onClick={()=>{setCliente(null);setBusca("");setContratoId("");}} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:MUTED,fontSize:16}}>×</button>}
             </div>
             {showDrop&&clis.length>0&&<div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BD}`,borderRadius:8,marginTop:4,zIndex:100,boxShadow:"0 10px 30px rgba(0,0,0,0.1)"}}>
@@ -1566,23 +1943,23 @@ function NovaPromessaModal({contratos,clientes,onConfirmar,onFechar}){
           </div>
           {cliente&&(
             <div>
-              <span style={LS}>Contrato</span>
-              <select value={contratoId} onChange={e=>setContratoId(e.target.value)} style={IS}>
+              <span style={LS()}>Contrato</span>
+              <select value={contratoId} onChange={e=>setContratoId(e.target.value)} style={IS()}>
                 <option value="">Selecione...</option>
                 {contratosCliente.map(c=><option key={c.ID_CONTRATO} value={c.ID_CONTRATO}>{c.ID_CONTRATO} — {fmtR(c.VALOR_PRINCIPAL)} — {c.NUM_PARCELAS}x — {c.STATUS_CONTRATO}</option>)}
               </select>
             </div>
           )}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            <div><span style={LS}>Data Prevista</span><input type="date" value={dataPrevista} onChange={e=>setDataPrevista(e.target.value)} style={IS}/></div>
-            <div><span style={LS}>Valor Prometido (R$)</span><input type="number" value={valorPrometido} onChange={e=>setValorPrometido(e.target.value)} placeholder="0.00" style={IS}/></div>
+            <div><span style={LS()}>Data Prevista</span><input type="date" value={dataPrevista} onChange={e=>setDataPrevista(e.target.value)} style={IS()}/></div>
+            <div><span style={LS()}>Valor Prometido (R$)</span><input type="number" value={valorPrometido} onChange={e=>setValorPrometido(e.target.value)} placeholder="0.00" style={IS()}/></div>
           </div>
-          <div><span style={LS}>Observação</span><input value={observacao} onChange={e=>setObservacao(e.target.value)} placeholder="Opcional" style={IS}/></div>
-          {msg&&<div style={{padding:"10px 14px",borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:13,fontWeight:700,border:`1px solid ${msg.ok?GRN:RED}25`}}>{msg.ok?"✓ ":"⚠ "}{msg.t}</div>}
+          <div><span style={LS()}>Observação</span><input value={observacao} onChange={e=>setObservacao(e.target.value)} placeholder="Opcional" style={IS()}/></div>
+          {msg&&<div style={{padding:"10px 14px",borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:13,fontWeight:700,border:`1px solid ${msg.ok?GRN:RED}25`}}>{""}{msg.t}</div>}
           <div style={{display:"flex",gap:10}}>
             <button onClick={onFechar} style={{flex:1,padding:12,borderRadius:8,border:`1px solid ${BD}`,background:CARD,cursor:"pointer",fontWeight:600,color:MUTED}}>Cancelar</button>
-            <button onClick={confirmar} disabled={loading||!cliente||!contratoId||!dataPrevista||!valorPrometido} style={{flex:2,padding:12,borderRadius:8,border:"none",background:BLU,color:"#FFF",fontWeight:800,cursor:"pointer",fontSize:13,opacity:loading||!cliente||!contratoId||!dataPrevista||!valorPrometido?0.6:1}}>
-              {loading?"Registrando...":"✓ Registrar Promessa"}
+            <button onClick={confirmar} disabled={loading||!cliente||!contratoId||!dataPrevista||!valorPrometido} style={{flex:2,padding:12,borderRadius:8,border:"none",background:ORG,color:"#FFF",fontWeight:800,cursor:"pointer",fontSize:13,opacity:loading||!cliente||!contratoId||!dataPrevista||!valorPrometido?0.6:1,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
+              {loading?<><IcoSpinner color="#fff"/> Registrando...</>:<>{IcoCheck} Registrar Promessa</>}
             </button>
           </div>
         </div>
@@ -1603,7 +1980,7 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
   const telefone = String(cliente?.TELEFONE_WPP||cliente?.TELEFONE||"").replace(/\D/g,"");
   const hist = (parcelas||[]).filter(p=>String(p.ID_CONTRATO||"").trim()===String(pag.ID_CONTRATO||"").trim()).sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
   const tCor={pagamento_normal:GRN,pagamento_com_atraso:YEL,somente_juros:RED,recuperacao_apos_baixa:PUR}[pag.TIPO_PAGAMENTO]||MUTED;
-  const tLbl={pagamento_normal:"Normal",pagamento_com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação"}[pag.TIPO_PAGAMENTO]||pag.TIPO_PAGAMENTO||"—";
+  const tLbl={pagamento_normal:"Normal",normal:"Normal",pagamento_com_atraso:"Com Atraso",com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação",pagamento_antecipado:"Antecipado",antecipado:"Antecipado"}[pag.TIPO_PAGAMENTO]||pag.TIPO_PAGAMENTO||"—";
   const Info=({l,v,c})=><div style={{background:BG,borderRadius:8,padding:"10px 14px"}}><div style={{fontSize:10,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:3}}>{l}</div><div style={{fontWeight:700,fontSize:13,color:c||TEXT}}>{v||"—"}</div></div>;
 
   const gerarPdfBlob=()=>{
@@ -1694,7 +2071,7 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
 
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:CARD,borderRadius:16,width:"100%",maxWidth:560,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",maxHeight:"88vh",overflowY:"auto"}}>
+      <div style={{background:CARD,borderRadius:16,width:"100%",maxWidth:560,boxShadow:"0 20px 60px rgba(0,0,0,0.15)",maxHeight:"88vh",overflowY:"auto",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}>
         <div style={{padding:"18px 24px",borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:CARD,zIndex:1}}>
           <div>
             <div style={{fontWeight:800,fontSize:15}}>Detalhe do Pagamento</div>
@@ -1734,8 +2111,8 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
                     const isPago=["pago","quitacao_antecipada"].includes(_stH);
                     const _corH={pago:GRN,quitacao_antecipada:GRN,atrasado:RED,vence_hoje:ORG,pendente:BLU}[_stH]||YEL;
                     const isAtual=String(p.NUM_PARCELA||"")===String(numParc||"");
-                    return<tr key={i} style={{borderTop:`1px solid ${BD}`,background:isAtual?BLU+"08":"transparent"}}>
-                      <td style={{padding:"7px 12px",fontWeight:isAtual?800:400,color:isAtual?BLU:TEXT}}>{p.NUM_PARCELA}</td>
+                    return<tr key={i} style={{borderTop:`1px solid ${BD}`,background:isAtual?ORG+"08":"transparent"}}>
+                      <td style={{padding:"7px 12px",fontWeight:isAtual?800:400,color:isAtual?ORG:TEXT}}>{p.NUM_PARCELA}</td>
                       <td style={{padding:"7px 12px",color:MUTED}}>{fmtDt(parseDate(p.DATA_VENCIMENTO))}</td>
                       <td style={{padding:"7px 12px",textAlign:"right"}}>{fmtR(p.VALOR_PARCELA)}</td>
                       <td style={{padding:"7px 12px"}}><Badge c={_corH}>{_ST_LABEL[_stH]||_stH}</Badge></td>
@@ -1748,10 +2125,10 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
           )}
         </div>
         <div style={{padding:"16px 24px",borderTop:`1px solid ${BD}`,display:"flex",gap:10,position:"sticky",bottom:0,background:CARD}}>
-          <button onClick={enviarWpp} disabled={sharing} style={{flex:2,padding:11,borderRadius:8,border:"none",background:"#25D366",color:"#fff",cursor:"pointer",fontWeight:800,fontSize:13,opacity:sharing?0.7:1}}>
-            {sharing?"Gerando...":"📲 Enviar pelo WhatsApp"}
+          <button onClick={enviarWpp} disabled={sharing} style={{flex:2,padding:11,borderRadius:8,border:"none",background:"#25D366",color:"#fff",cursor:"pointer",fontWeight:800,fontSize:13,opacity:sharing?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
+            {sharing?<><IcoSpinner color="#fff"/> Gerando...</>:<>{IcoPhone} Enviar pelo WhatsApp</>}
           </button>
-          <button onClick={reabrir} disabled={loading} style={{flex:1,padding:11,borderRadius:8,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontWeight:700,fontSize:13,opacity:loading?0.7:1}}>{loading?"Processando...":"↩ Reabrir"}</button>
+          <button onClick={reabrir} disabled={loading} style={{flex:1,padding:11,borderRadius:8,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontWeight:700,fontSize:13,opacity:loading?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{loading?<><IcoSpinner color={RED}/> Processando...</>:<>{IcoArrL} Reabrir</>}</button>
         </div>
       </div>
     </div>
@@ -1809,6 +2186,7 @@ function gerarComprovante(contrato, parcelasContrato, cliente) {
       {ll:'VALOR ORIGINAL DO CONTRATO',lv:fR(valorOriginal),rl:'PARCELAS PAGAS',rv:String(ps.length)+' de '+String(contrato.NUM_PARCELAS||ps.length)},
       {ll:'VALOR TOTAL PAGO',lv:fR(totalPago),rl:'SALDO REMANESCENTE',rv:'R$ 0,00'},
     ]);
+    y=_renderHistParcelas(doc,ps,W,pd,y,GL,DK,BDC,fD,fR);
     y+=2;
     const qt='"Declaramos, para os devidos fins, que todos os pagamentos referentes ao contrato acima identificado foram recebidos e registrados, confirmando a quitação integral da dívida."';
     doc.setFont('helvetica','italic');doc.setFontSize(8.5);doc.setTextColor(...MT);
@@ -1855,10 +2233,10 @@ function BottomNav({tab,setTab}){
   return(
     <nav style={{position:"fixed",bottom:0,left:0,right:0,background:CARD,borderTop:`1px solid ${BD}`,display:"flex",zIndex:120,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
       {items.map(i=>(
-        <button key={i.id} onClick={()=>setTab(i.id)} style={{flex:1,padding:"8px 4px 6px",border:"none",background:"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,color:tab===i.id?BLU:MUTED,transition:"color 0.15s"}}>
+        <button key={i.id} onClick={()=>setTab(i.id)} style={{flex:1,padding:"8px 4px 6px",border:"none",background:"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,color:tab===i.id?ORG:MUTED,transition:"color 0.15s"}}>
           <div style={{opacity:tab===i.id?1:0.6}}>{i.ico}</div>
           <span style={{fontSize:10,fontWeight:tab===i.id?800:500,letterSpacing:"0.01em"}}>{i.label}</span>
-          {tab===i.id&&<div style={{width:4,height:4,borderRadius:"50%",background:BLU}}/>}
+          {tab===i.id&&<div style={{width:4,height:4,borderRadius:"50%",background:ORG}}/>}
         </button>
       ))}
     </nav>
@@ -1877,6 +2255,7 @@ function App() {
   const [acordoModal, setAcordoModal] = useState(null);
   const [quitacaoModal, setQuitacaoModal] = useState(null);
   const [recuperacaoModal, setRecuperacaoModal] = useState(null);
+  const [perdaAcoesModal, setPerdaAcoesModal] = useState(null);
   const [cobModal, setCobModal] = useState(null);
   const [contratoSel, setContratoSel] = useState(null);
   const [filtroCtr, setFiltroCtr] = useState("");
@@ -1892,11 +2271,32 @@ function App() {
   const [finCalOpen, setFinCalOpen] = useState(false);
   const [dashCalOpen, setDashCalOpen] = useState(false);
   const [pagamentoHoje, setPagamentoHoje] = useState(null);
+  const [pagModo, setPagModo] = useState("pagamento");
   const [dashPeriodo, setDashPeriodo] = useState(()=>mesAtualRange());
+  const [dashDe, setDashDe] = useState(()=>parseDate(mesAtualRange().ini));
+  const [dashAte, setDashAte] = useState(()=>parseDate(mesAtualRange().fim));
+  const [dashRegModal, setDashRegModal] = useState(false);
+  const [dashNovoModal, setDashNovoModal] = useState(false);
+  const [novoContratoIni, setNovoContratoIni] = useState(null);
   const [novaPromessa, setNovaPromessa] = useState(false);
   const [filtroPromessa, setFiltroPromessa] = useState("todos");
   const [selCliAba, setSelCliAba] = useState("perfil");
   const [privacy, setPrivacy] = useState(false);
+  const [darkMode, setDarkMode] = useState(()=>{const d=isDarkHour();applyTheme(d);return d;});
+  const toggleDark=()=>{const next=!darkMode;applyTheme(next);setDarkMode(next);};
+  useEffect(()=>{
+    const ref={tid:null};
+    function schedule(){
+      const now=new Date();const h=now.getHours();
+      const next=new Date(now);
+      if(h<6)next.setHours(6,0,0,0);
+      else if(h<18)next.setHours(18,0,0,0);
+      else{next.setDate(next.getDate()+1);next.setHours(6,0,0,0);}
+      ref.tid=setTimeout(()=>{const dark=isDarkHour();applyTheme(dark);setDarkMode(dark);schedule();},next-now);
+    }
+    schedule();
+    return()=>clearTimeout(ref.tid);
+  },[]);
   const priv = v => privacy ? <span style={{filter:"blur(8px)",userSelect:"none",pointerEvents:"none"}}>{v}</span> : v;
   const [selPagDetalhe, setSelPagDetalhe] = useState(null);
 
@@ -1939,6 +2339,24 @@ function App() {
 
   const pFiltradas=useMemo(()=>(contratos||[]).filter(c=>STATUS_PERDA.includes(c.STATUS_CONTRATO)&&(filtroPerdas==="todos"||c.STATUS_CONTRATO===filtroPerdas)),[contratos,filtroPerdas]);
 
+  const perdaInfoMap=useMemo(()=>{
+    const hoje=new Date();hoje.setHours(0,0,0,0);
+    const m={};
+    (parcelas||[]).forEach(p=>{
+      const id=String(p.ID_CONTRATO||"").trim();
+      if(!id)return;
+      if(!m[id])m[id]={diasAtraso:0,qtdAtrasadas:0,saldoAberto:0};
+      const st=String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase();
+      const terminal=["pago","cancelado","baixado_como_prejuizo","quitacao_antecipada","renegociado"];
+      if(!terminal.includes(st)){
+        m[id].saldoAberto+=parseFloat(p.VALOR_PARCELA||0);
+        const dv=parseDate(p.DATA_VENCIMENTO);
+        if(dv){dv.setHours(0,0,0,0);const d=Math.round((hoje-dv)/86400000);if(d>0){m[id].qtdAtrasadas++;m[id].diasAtraso=Math.max(m[id].diasAtraso,d);}}
+      }
+    });
+    return m;
+  },[parcelas]);
+
   const contratosFiltrados=useMemo(()=>{
     const b=filtroCtr.toLowerCase();
     return (contratos||[]).filter(c=>{
@@ -1970,7 +2388,7 @@ function App() {
     return `${fmtDt(ini)} até ${fmtDt(fim)}`;
   },[dashPeriodo]);
 
-  const resetPeriodoMesAtual=()=>setDashPeriodo(mesAtualRange());
+  const resetPeriodoMesAtual=()=>{const r=mesAtualRange();setDashPeriodo(r);setDashDe(parseDate(r.ini));setDashAte(parseDate(r.fim));};
 
   const M=useMemo(()=>{
     const ST_ATIVOS=["ativo","ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente"];
@@ -2006,22 +2424,34 @@ function App() {
     return (parcelas||[]).filter(p=>{
       const status=String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase();
       if(["pago","paga","quitado","quitada","baixado","baixada"].includes(status))return false;
+      if(p.DATA_ACORDO){const da=parseDate(p.DATA_ACORDO);if(da){da.setHours(0,0,0,0);if(da.getTime()===base.getTime())return true;}}
       const d=parseDate(p.DATA_VENCIMENTO);if(!d)return false;d.setHours(0,0,0,0);
       return d.getTime()===base.getTime();
-    }).map(p=>{const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(p.ID_CLIENTE));return{...p,NOME_CLIENTE:p.NOME_CLIENTE||nomeCliente(c)};}).sort((a,b)=>String(a.NOME_CLIENTE||"").localeCompare(String(b.NOME_CLIENTE||""),"pt-BR"));
+    }).map(p=>{
+      const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(p.ID_CLIENTE));
+      const da=p.DATA_ACORDO?parseDate(p.DATA_ACORDO):null;
+      const _reagendadaHoje=da?(()=>{const d2=new Date(da);d2.setHours(0,0,0,0);return d2.getTime()===base.getTime();})():false;
+      return{...p,NOME_CLIENTE:p.NOME_CLIENTE||nomeCliente(c),_reagendadaHoje};
+    }).sort((a,b)=>String(a.NOME_CLIENTE||"").localeCompare(String(b.NOME_CLIENTE||""),"pt-BR"));
   },[parcelas,clientes]);
   const totalParcelasHoje=useMemo(()=>parcelasHoje.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0),[parcelasHoje]);
 
   const parcelasAtrasadas=useMemo(()=>{
     const base=new Date();base.setHours(0,0,0,0);
+    const _ST_CONTRATO_EXCLUIDO=new Set(["baixado_como_prejuizo","cancelado","renegociado","recuperado_integralmente","recuperado_parcialmente"]);
+    const _contratos_excluidos=new Set((contratos||[]).filter(c=>_ST_CONTRATO_EXCLUIDO.has(String(c.STATUS_CONTRATO||"").toLowerCase())).map(c=>String(c.ID_CONTRATO)));
     return (parcelas||[]).filter(p=>{
       const status=String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase();
-      if(["pago","paga","quitado","quitada","baixado","baixada"].includes(status))return false;
+      if(["pago","paga","quitado","quitada","baixado","baixada","baixado_como_prejuizo","cancelado","renegociado"].includes(status))return false;
+      // Excluir parcelas de contratos baixados/cancelados
+      if(_contratos_excluidos.has(String(p.ID_CONTRATO)))return false;
+      // Excluir parcelas com acordo futuro (reagendadas)
+      if(p.DATA_ACORDO){const da=parseDate(p.DATA_ACORDO);if(da){da.setHours(0,0,0,0);if(da.getTime()>=base.getTime())return false;}}
       const d=parseDate(p.DATA_VENCIMENTO);if(!d)return false;d.setHours(0,0,0,0);
       if(periodoDash.ini&&periodoDash.fim&&(d<periodoDash.ini||d>periodoDash.fim))return false;
       return status==="atrasado" || d.getTime()<base.getTime();
     }).map(p=>{const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(p.ID_CLIENTE));const d=parseDate(p.DATA_VENCIMENTO);const dias=d?Math.max(1,Math.round((new Date()-d)/86400000)):0;return{...p,NOME_CLIENTE:p.NOME_CLIENTE||nomeCliente(c),DIAS_ATRASO:dias};}).sort((a,b)=>(b.DIAS_ATRASO||0)-(a.DIAS_ATRASO||0));
-  },[parcelas,clientes,periodoDash]);
+  },[parcelas,contratos,clientes,periodoDash]);
   const totalParcelasAtrasadas=useMemo(()=>parcelasAtrasadas.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0),[parcelasAtrasadas]);
 
   const mensal=useMemo(()=>["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map((mes,i)=>{
@@ -2059,14 +2489,21 @@ function App() {
   },[clientes,parcelas]);
 
   const perdas=useMemo(()=>{
-    const baixados=(contratos||[]).filter(c=>c.STATUS_CONTRATO==="baixado_como_prejuizo");
+    const todos=contratos||[];
+    const baixados=todos.filter(c=>c.STATUS_CONTRATO==="baixado_como_prejuizo");
+    const emRisco=todos.filter(c=>["em_cobranca","pre_prejuizo"].includes(c.STATUS_CONTRATO));
+    const emRec=todos.filter(c=>["em_recuperacao","recuperado_parcialmente"].includes(c.STATUS_CONTRATO));
+    const capitalEmRisco=emRisco.reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
+    const qtdEmRisco=emRisco.length;
     const capitalBaixado=baixados.reduce((s,c)=>s+parseFloat(c.PREJUIZO_CAPITAL||0),0);
-    const recuperadoAposBaixa=baixados.reduce((s,c)=>s+parseFloat(c.VALOR_RECUPERADO_APOS_BAIXA||0),0);
-    return{capitalBaixado,recuperadoAposBaixa,prejuizoTotal:capitalBaixado-recuperadoAposBaixa,txRecuperacao:capitalBaixado>0?(recuperadoAposBaixa/capitalBaixado*100):0};
+    const recuperadoAposBaixa=[...baixados,...emRec].reduce((s,c)=>s+parseFloat(c.VALOR_RECUPERADO_APOS_BAIXA||0),0);
+    const prejuizoReal=capitalBaixado-recuperadoAposBaixa;
+    const txRecuperacao=capitalBaixado>0?(recuperadoAposBaixa/capitalBaixado*100):0;
+    return{capitalEmRisco,qtdEmRisco,capitalBaixado,recuperadoAposBaixa,prejuizoReal,txRecuperacao};
   },[contratos]);
 
   const pagsFiltrados=useMemo(()=>{
-    const sorted=[...(pagamentos||[])].sort((a,b)=>toNum(b.DATA_PAGAMENTO)-toNum(a.DATA_PAGAMENTO));
+    const sorted=[...(pagamentos||[])].sort((a,b)=>{const d=toNum(b.DATA_PAGAMENTO)-toNum(a.DATA_PAGAMENTO);if(d!==0)return d;return String(b.ID_PAGAMENTO||"").localeCompare(String(a.ID_PAGAMENTO||""),"pt-BR",{numeric:true});});
     if(!finDe) return sorted;
     return sorted.filter(p=>{
       const d=parseDate(p.DATA_PAGAMENTO);
@@ -2111,6 +2548,153 @@ function App() {
   function dStrFin(d){return d?d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}):""}
   const labelPeriodo=finDe&&finAte?`${dStrFin(finDe)} → ${dStrFin(finAte)}`:finDe?`A partir de ${dStrFin(finDe)}`:"Selecionar período";
 
+  function exportarPDFFinanceiro(){
+    try{
+      const doc=new jsPDF({unit:'mm',format:'a4'});
+      const W=210,pd=16,CW=W-2*pd;
+      const NAV=[28,37,58],G=[46,160,90],B=[59,130,246],O=[245,158,11],R=[220,38,38],P=[139,92,246];
+      const DK=[30,30,30],MUT=[100,116,139],BDC=[209,213,219],LGR=[248,250,252],WH=[255,255,255];
+      const tLBL={pagamento_normal:"Normal",normal:"Normal",pagamento_com_atraso:"Com Atraso",com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação",pagamento_antecipado:"Antecipado",antecipado:"Antecipado",quitacao_antecipada:"Quitação Antecip."};
+      const tCOR={pagamento_normal:G,normal:G,pagamento_com_atraso:O,com_atraso:O,somente_juros:R,recuperacao_apos_baixa:P,pagamento_antecipado:B,antecipado:B,quitacao_antecipada:G};
+      const fR=v=>parseFloat(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+      const periodo=finDe?labelPeriodo:"Todos os pagamentos";
+      const now=new Date();
+      const geradoEm=now.toLocaleDateString('pt-BR')+' às '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      const total=pagsFiltrados.length;
+      const grupos=[
+        {label:'Normal',tipos:['pagamento_normal','normal'],c:G},
+        {label:'Com Atraso',tipos:['pagamento_com_atraso','com_atraso'],c:O},
+        {label:'Somente Juros',tipos:['somente_juros'],c:R},
+        {label:'Antecipado',tipos:['pagamento_antecipado','antecipado','quitacao_antecipada'],c:B},
+        {label:'Recuperação',tipos:['recuperacao_apos_baixa'],c:P},
+      ].map(g=>({...g,count:pagsFiltrados.filter(p=>g.tipos.includes(p.TIPO_PAGAMENTO)).length})).filter(g=>g.count>0);
+
+      // ─── CABEÇALHO ───
+      doc.setFillColor(...NAV);doc.rect(0,0,W,42,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(...WH);doc.text('BORGES ASSESSORIA',pd,18);
+      doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(180,190,210);doc.text('RELATÓRIO FINANCEIRO',pd,27);
+      ['borgesassessoriafinanceira@gmail.com','(62) 98487-7843'].forEach((l,i)=>{
+        doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(160,170,195);doc.text(l,W-pd,14+i*5,{align:'right'});
+      });
+      doc.setFillColor(45,58,85);doc.roundedRect(W-pd-70,29,70,10,2,2,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...WH);
+      doc.text(doc.splitTextToSize(periodo,66)[0],W-pd-35,35,{align:'center'});
+      doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(140,155,185);doc.text(`Gerado em: ${geradoEm}`,pd,36);
+
+      let y=52;
+
+      // ─── KPI CARDS ───
+      const cardW=(CW-8)/3;
+      [{label:'RECEITA TOTAL',val:fR(finKpis.receitaTotal),sub:`${total} pagamentos`,c:B},
+       {label:'LUCRO DO PERÍODO',val:fR(finKpis.lucro),sub:'Juros + receita extra',c:G},
+       {label:'RECEITA EXTRA ATRASO',val:fR(finKpis.receitaExtra),sub:'Multas e juros por atraso',c:O},
+      ].forEach((card,i)=>{
+        const cx=pd+i*(cardW+4);
+        doc.setFillColor(...LGR);doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.roundedRect(cx,y,cardW,30,3,3,'FD');
+        doc.setFillColor(...card.c);doc.roundedRect(cx,y,3,30,1.5,1.5,'F');
+        doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(...MUT);doc.text(card.label,cx+7,y+9);
+        doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(...card.c);doc.text(card.val,cx+7,y+20);
+        doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(...MUT);doc.text(card.sub,cx+7,y+26);
+      });
+      y+=40;
+
+      // ─── DISTRIBUIÇÃO ───
+      doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...DK);doc.text('DISTRIBUIÇÃO DE PAGAMENTOS',pd,y);
+      doc.setDrawColor(...BDC);doc.setLineWidth(0.4);doc.line(pd,y+2,W-pd,y+2);
+      y+=10;
+      const barX=pd+44,barW=CW-44-26;
+      grupos.forEach(g=>{
+        const pct=total>0?g.count/total:0;
+        doc.setFillColor(...g.c);doc.rect(pd+2,y+1.5,4,4,'F');
+        doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...DK);doc.text(g.label,pd+9,y+5.5);
+        doc.setFillColor(...BDC);doc.roundedRect(barX,y,barW,7,1.5,1.5,'F');
+        if(pct>0){doc.setFillColor(...g.c);doc.roundedRect(barX,y,Math.max(2,barW*pct),7,1.5,1.5,'F');}
+        doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...DK);doc.text(String(g.count),barX+barW+3,y+5.5);
+        doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MUT);doc.text((pct*100).toFixed(1)+'%',barX+barW+14,y+5.5);
+        y+=12;
+      });
+      y+=6;
+
+      // ─── TOTAIS ───
+      doc.setFillColor(...LGR);doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.roundedRect(pd,y,CW,26,3,3,'FD');
+      [{label:'RECEITA TOTAL',val:fR(finKpis.receitaTotal),c:B},
+       {label:'RECEITA EXTRA',val:fR(finKpis.receitaExtra),c:O},
+       {label:'LUCRO',val:fR(finKpis.lucro),c:G},
+       {label:'Nº PAGAMENTOS',val:String(total),c:DK},
+      ].forEach((sc,i)=>{
+        const cx=pd+i*(CW/4)+CW/8;
+        if(i>0){doc.setDrawColor(...BDC);doc.setLineWidth(0.2);doc.line(pd+i*(CW/4),y+5,pd+i*(CW/4),y+21);}
+        doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...MUT);doc.text(sc.label,cx,y+10,{align:'center'});
+        doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...sc.c);doc.text(sc.val,cx,y+20,{align:'center'});
+      });
+      y+=36;
+
+      // ─── TABELA DE PAGAMENTOS ───
+      doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...DK);doc.text('DETALHAMENTO DOS PAGAMENTOS',pd,y);
+      doc.setDrawColor(...BDC);doc.setLineWidth(0.4);doc.line(pd,y+2,W-pd,y+2);
+      y+=10;
+      const tcols=[
+        {h:'DATA',w:22,x:pd,r:false},
+        {h:'CLIENTE',w:62,x:pd+22,r:false},
+        {h:'TIPO',w:28,x:pd+84,r:false},
+        {h:'VLR ORIGINAL',w:27,x:pd+112,r:true},
+        {h:'VLR PAGO',w:27,x:pd+139,r:true},
+        {h:'EXTRA',w:12,x:pd+166,r:true},
+      ];
+      const drawTH=()=>{
+        doc.setFillColor(...NAV);doc.rect(pd,y,CW,8,'F');
+        tcols.forEach(c=>{
+          doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...WH);
+          doc.text(c.h,c.r?c.x+c.w-2:c.x+2,y+5.5,{align:c.r?'right':'left'});
+        });
+        y+=8;
+      };
+      drawTH();
+      if(total===0){
+        doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(...MUT);
+        doc.text('Nenhum pagamento encontrado no período selecionado.',W/2,y+20,{align:'center'});
+      }
+      let ri=0;
+      pagsFiltrados.forEach(p=>{
+        if(y+7.5>282){doc.addPage();y=16;drawTH();}
+        doc.setFillColor(...(ri%2===0?WH:LGR));doc.rect(pd,y,CW,7.5,'F');
+        const tc=tCOR[p.TIPO_PAGAMENTO]||MUT;
+        doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MUT);
+        doc.text(p.DATA_PAGAMENTO?fmtDt(parseDate(p.DATA_PAGAMENTO)):'—',tcols[0].x+2,y+5);
+        doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...DK);
+        doc.text(doc.splitTextToSize(p.NOME_CLIENTE||'—',60)[0],tcols[1].x+2,y+5);
+        doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...tc);
+        doc.text(tLBL[p.TIPO_PAGAMENTO]||p.TIPO_PAGAMENTO||'—',tcols[2].x+2,y+5);
+        doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MUT);
+        doc.text(fR(p.VALOR_ORIGINAL_PARCELA||p.VALOR_PARCELA),tcols[3].x+tcols[3].w-2,y+5,{align:'right'});
+        doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...B);
+        doc.text(fR(p.VALOR_PAGO),tcols[4].x+tcols[4].w-2,y+5,{align:'right'});
+        const ex=parseFloat(p.RECEITA_EXTRA_ATRASO||0);
+        doc.setFont('helvetica',ex>0?'bold':'normal');doc.setFontSize(7.5);doc.setTextColor(...(ex>0?O:MUT));
+        doc.text(ex>0?'+'+fR(ex):'—',tcols[5].x+tcols[5].w-2,y+5,{align:'right'});
+        doc.setDrawColor(...BDC);doc.setLineWidth(0.1);doc.line(pd,y+7.5,pd+CW,y+7.5);
+        y+=7.5;ri++;
+      });
+
+      // ─── RODAPÉ EM TODAS AS PÁGINAS ───
+      const nPg=doc.internal.getNumberOfPages();
+      for(let pg=1;pg<=nPg;pg++){
+        doc.setPage(pg);
+        doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.line(pd,287,W-pd,287);
+        doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MUT);
+        doc.text('Borges Assessoria | Gestão de Crédito Pessoal',pd,291);
+        doc.text(`Página ${pg} de ${nPg}`,W-pd,291,{align:'right'});
+      }
+
+      const blob=doc.output('blob');const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      const suf=finDe?dStrFin(finDe).replace(/\//g,'-'):'completo';
+      a.href=url;a.download=`relatorio_financeiro_${suf}.pdf`;
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),3000);
+    }catch(e){console.error('PDF error:',e);alert('Erro ao gerar PDF: '+e.message);}
+  }
+
   const aguardando=useMemo(()=>(clientes||[]).filter(c=>c.STATUS_CLIENTE==="aguardando_conferencia"),[clientes]);
 
   const abrirConferencia=(c)=>{
@@ -2120,20 +2704,36 @@ function App() {
   };
 
   const Nav=({id,label,ico})=>(
-    <div onClick={()=>setTab(id)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderRadius:10,cursor:"pointer",background:tab===id?BLU:"transparent",color:tab===id?"#FFF":MUTED,marginBottom:4}} onMouseEnter={e=>tab!==id&&(e.currentTarget.style.background=BG)} onMouseLeave={e=>tab!==id&&(e.currentTarget.style.background="transparent")}>
-      {ico}<span style={{fontSize:14,fontWeight:600}}>{label}</span>
+    <div onClick={()=>setTab(id)} title={!sidebarOpen?label:undefined} style={{display:"flex",alignItems:"center",justifyContent:sidebarOpen?"flex-start":"center",gap:10,padding:sidebarOpen?"10px 12px":"10px 0",borderRadius:8,cursor:"pointer",background:tab===id?ORG:"transparent",color:tab===id?"#FFF":MUTED,marginBottom:2,transition:"background 0.15s,color 0.15s"}} onMouseEnter={e=>tab!==id&&(e.currentTarget.style.background=BG)} onMouseLeave={e=>tab!==id&&(e.currentTarget.style.background="transparent")}>
+      <span style={{display:"flex",flexShrink:0}}>{ico}</span>{sidebarOpen&&<span style={{fontSize:13,fontWeight:600,whiteSpace:"nowrap"}}>{label}</span>}
     </div>
   );
 
   if(loading&&!raw)return(
     <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:BG}}>
-      <div style={{textAlign:"center"}}><div style={{width:40,height:40,border:`4px solid ${BD}`,borderTopColor:BLU,borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto 15px"}}/><div style={{fontSize:14,color:MUTED,fontWeight:600}}>Carregando FinanceiroOp...</div></div>
+      <div style={{textAlign:"center"}}><div style={{width:40,height:40,border:`4px solid ${BD}`,borderTopColor:ORG,borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto 15px"}}/><div style={{fontSize:14,color:MUTED,fontWeight:600}}>Carregando FinanceiroOp...</div></div>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 
+  const _globalStyles=`
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(4px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+    button{transition:opacity 0.12s,transform 0.1s,background 0.15s,color 0.15s,border-color 0.15s;outline:none;font-family:inherit}
+    button:active:not(:disabled){transform:scale(0.97)}
+    select,input{transition:border-color 0.15s,box-shadow 0.15s;outline:none;font-family:inherit}
+    select:focus,input:focus{border-color:${ORG}!important;box-shadow:0 0 0 3px ${ORG}18}
+    tr{transition:background 0.1s}
+    body,html{background:${BG};color-scheme:${darkMode?"dark":"light"}}
+    select option{background:${CARD};color:${TEXT}}
+    ::-webkit-scrollbar{width:6px;height:6px}
+    ::-webkit-scrollbar-track{background:${BG}}
+    ::-webkit-scrollbar-thumb{background:${BD};border-radius:3px}
+  `;
+
   return(
     <div style={{display:"flex",height:"100vh",background:BG,color:TEXT,fontFamily:"'Inter', sans-serif",position:"relative"}}>
+      <style>{_globalStyles}</style>
 
       {finCalOpen&&<div onClick={()=>setFinCalOpen(false)} style={{position:"fixed",inset:0,zIndex:199,background:"transparent"}}/>}
       {dashCalOpen&&<div onClick={()=>setDashCalOpen(false)} style={{position:"fixed",inset:0,zIndex:199,background:"transparent"}}/>}
@@ -2141,29 +2741,43 @@ function App() {
       {/* SIDEBAR — overlay escuro em mobile */}
       {mob&&sidebarOpen&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",zIndex:148}}/>}
       <div style={{
-        width:sidebarOpen?SW:0,
+        width:mob?(sidebarOpen?SW:0):(sidebarOpen?SW:56),
         ...(mob?{position:"fixed",top:0,bottom:0,left:0,zIndex:149,boxShadow:sidebarOpen?"0 0 40px rgba(0,0,0,0.18)":"none"}:{}),
-        background:CARD,borderRight:`1px solid ${BD}`,display:"flex",flexDirection:"column",overflow:"hidden",transition:"width 0.25s",flexShrink:0
+        background:CARD,borderRight:`1px solid ${BD}`,display:"flex",flexDirection:"column",overflow:"hidden",transition:"width 0.22s cubic-bezier(0.4,0,0.2,1)",flexShrink:0
       }}>
-        <div style={{padding:24,display:"flex",alignItems:"center",gap:12,borderBottom:`1px solid ${BD}`}}>
-          <div style={{width:32,height:32,background:BLU,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",color:"#FFF"}}>{IcoFin}</div>
-          <span style={{fontWeight:800,fontSize:18,letterSpacing:"-0.5px"}}>Financeiro<span style={{color:BLU}}>Op</span></span>
+        <div style={{padding:sidebarOpen?"20px 20px":"16px 0",display:"flex",alignItems:"center",justifyContent:sidebarOpen?"flex-start":"center",gap:10,borderBottom:`1px solid ${BD}`,minHeight:64}}>
+          <div style={{width:32,height:32,background:ORG,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",color:"#FFF",flexShrink:0}}>{IcoFin}</div>
+          {sidebarOpen&&<span style={{fontWeight:800,fontSize:18,letterSpacing:"-0.5px",whiteSpace:"nowrap"}}>Financeiro<span style={{color:ORG}}>Op</span></span>}
         </div>
-        <div style={{padding:16,flex:1,overflowY:"auto"}}>
+        <div style={{padding:sidebarOpen?"12px 10px":"12px 6px",flex:1,overflowY:"auto"}}>
           <Nav id="dashboard"  label="Dashboard"        ico={IcoDash}/>
           <Nav id="clientes"   label="Clientes"         ico={IcoCli}/>
           <Nav id="contratos"  label="Contratos"        ico={IcoCtr}/>
           <Nav id="cobranca"   label="Cobrança"         ico={IcoCob}/>
           <Nav id="financeiro" label="Financeiro"       ico={IcoFin}/>
-          <Nav id="perdas"     label="Perdas & Recup."  ico={IcoLoss}/>
+          <Nav id="perdas"     label="Perdas & Rec."    ico={IcoLoss}/>
           <Nav id="promessas"  label="Promessas"        ico={IcoProm}/>
           <Nav id="simulador"  label="Simulador"        ico={IcoSim}/>
         </div>
-        <div style={{padding:16,borderTop:`1px solid ${BD}`}}>
-          <div style={{padding:12,background:BG,borderRadius:10,display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:32,height:32,background:BD,borderRadius:"50%"}}/>
-            <div><div style={{fontSize:12,fontWeight:700}}>Administrador</div><div style={{fontSize:10,color:MUTED}}>Painel Gestão</div></div>
-          </div>
+        <div style={{padding:sidebarOpen?"12px":"8px 4px",borderTop:`1px solid ${BD}`}}>
+          {sidebarOpen
+            ? <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                <div style={{padding:"10px 12px",background:BG,borderRadius:10,display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:30,height:30,background:ORG+"20",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={ORG} strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+                  <div><div style={{fontSize:12,fontWeight:700,color:TEXT}}>Administrador</div><div style={{fontSize:10,color:MUTED}}>Painel Gestão</div></div>
+                </div>
+                <button onClick={async()=>{await fetch("/api/logout",{method:"POST"});window.location.reload();}} style={{width:"100%",padding:"8px 12px",borderRadius:8,border:`1px solid ${BD}`,background:"transparent",color:MUTED,cursor:"pointer",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  Sair
+                </button>
+              </div>
+            : <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,padding:"6px 0"}}>
+                <div style={{width:30,height:30,background:ORG+"20",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={ORG} strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+                <button onClick={async()=>{await fetch("/api/logout",{method:"POST"});window.location.reload();}} title="Sair" style={{background:"transparent",border:"none",color:MUTED,cursor:"pointer",padding:4,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:6}}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                </button>
+              </div>
+          }
         </div>
       </div>
 
@@ -2173,16 +2787,22 @@ function App() {
           <div style={{display:"flex",alignItems:"center",gap:mob?10:15}}>
             <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{background:BG,border:"none",padding:8,borderRadius:8,cursor:"pointer",color:MUTED,display:"flex",alignItems:"center"}}>{IcoArr}</button>
             {mob
-              ? <span style={{fontWeight:800,fontSize:15,letterSpacing:"-0.4px"}}>Financeiro<span style={{color:BLU}}>Op</span></span>
+              ? <span style={{fontWeight:800,fontSize:15,letterSpacing:"-0.4px"}}>Financeiro<span style={{color:ORG}}>Op</span></span>
               : <h2 style={{fontSize:18,fontWeight:700,margin:0,textTransform:"capitalize"}}>{tab}</h2>
             }
           </div>
           <div style={{display:"flex",alignItems:"center",gap:mob?8:12}}>
-            {!mob&&ultimaAt&&<span style={{fontSize:11,color:MUTED,display:"flex",alignItems:"center",gap:5}}>{loading?<><span style={{width:8,height:8,borderRadius:"50%",border:`2px solid ${BLU}`,borderTopColor:"transparent",display:"inline-block",animation:"spin 0.8s linear infinite"}}/>Atualizando...</>:<><span style={{width:7,height:7,borderRadius:"50%",background:GRN,display:"inline-block"}}/>Atualizado às {ultimaAt.toLocaleTimeString('pt-BR')}</>}</span>}
-            {mob&&loading&&<span style={{width:8,height:8,borderRadius:"50%",border:`2px solid ${BLU}`,borderTopColor:"transparent",display:"inline-block",animation:"spin 0.8s linear infinite"}}/>}
+            {!mob&&ultimaAt&&<span style={{fontSize:11,color:MUTED,display:"flex",alignItems:"center",gap:5}}>{loading?<><span style={{width:8,height:8,borderRadius:"50%",border:`2px solid ${ORG}`,borderTopColor:"transparent",display:"inline-block",animation:"spin 0.8s linear infinite"}}/>Atualizando...</>:<><span style={{width:7,height:7,borderRadius:"50%",background:GRN,display:"inline-block"}}/>Atualizado às {ultimaAt.toLocaleTimeString('pt-BR')}</>}</span>}
+            {mob&&loading&&<span style={{width:8,height:8,borderRadius:"50%",border:`2px solid ${ORG}`,borderTopColor:"transparent",display:"inline-block",animation:"spin 0.8s linear infinite"}}/>}
             {mob&&!loading&&ultimaAt&&<span style={{width:7,height:7,borderRadius:"50%",background:GRN,display:"inline-block"}}/>}
             <button onClick={carregar} disabled={loading} title="Atualizar dados" style={{background:BG,border:`1px solid ${BD}`,padding:"6px 8px",borderRadius:8,cursor:loading?"not-allowed":"pointer",color:MUTED,display:"flex",alignItems:"center",opacity:loading?0.5:1}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
             <button onClick={()=>setPrivacy(p=>!p)} title={privacy?"Mostrar números":"Ocultar números"} style={{background:privacy?RED+"12":BG,border:`1px solid ${privacy?RED+"40":BD}`,padding:"6px 8px",borderRadius:8,cursor:"pointer",color:privacy?RED:MUTED,display:"flex",alignItems:"center"}}>{privacy?IcoEyeOff:IcoEye}</button>
+            <button onClick={toggleDark} title={darkMode?"Modo claro":"Modo noturno"} style={{background:BG,border:`1px solid ${BD}`,padding:"6px 8px",borderRadius:8,cursor:"pointer",color:MUTED,display:"flex",alignItems:"center"}}>
+              {darkMode
+                ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+              }
+            </button>
             {!mob&&<div style={{color:MUTED,cursor:"pointer"}}>{IcoBell}</div>}
           </div>
         </header>
@@ -2197,7 +2817,7 @@ function App() {
               {aguardando.length>0&&(
                 <div style={{background:YEL+"0E",border:`1.5px solid ${YEL}50`,borderRadius:12,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
                   <div style={{display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{background:YEL+"20",color:YEL,padding:8,borderRadius:8,fontSize:18}}>⏳</div>
+                    <div style={{background:YEL+"20",color:YEL,padding:8,borderRadius:8,display:"flex"}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg></div>
                     <div>
                       <div style={{fontWeight:800,fontSize:14,color:TEXT}}>
                         {aguardando.length} cliente{aguardando.length>1?"s":""} aguardando conferência
@@ -2227,28 +2847,34 @@ function App() {
                 </div>
               )}
 
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:mob?"center":"flex-end",gap:12,flexWrap:"wrap"}}>
-                {!mob&&<div>
-                  <div style={{fontSize:12,color:MUTED,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em"}}>Período do Dashboard</div>
-                  <div style={{fontSize:14,fontWeight:800,color:TEXT,marginTop:4}}>{labelPeriodoDash}</div>
-                </div>}
-                <div style={{display:"flex",alignItems:"center",gap:8,flex:mob?1:undefined}}>
-                  <button onClick={resetPeriodoMesAtual} style={{padding:"8px 11px",borderRadius:8,border:`1px solid ${BLU}30`,background:BLU+"10",color:BLU,cursor:"pointer",fontSize:12,fontWeight:800,flex:mob?1:undefined}}>Mês atual</button>
-                  <div style={{position:"relative",flex:mob?1:undefined}}>
-                    <button onClick={()=>setDashCalOpen(o=>!o)} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${BLU}`,background:"#EFF6FF",color:BLU,fontSize:12,fontWeight:700,cursor:"pointer",width:mob?"100%":undefined}}>
+              <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:TEXT}}>Período do Dashboard</div>
+                  <div style={{fontSize:11,color:MUTED,marginTop:2}}>{labelPeriodoDash}</div>
+                </div>
+                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                  <div style={{position:"relative"}}>
+                    <button onClick={()=>setDashCalOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${ORG}`,background:ORG+"12",color:ORG,fontSize:12,fontWeight:700,cursor:"pointer"}}>
                       {IcoCal} {mob?"Período":labelPeriodoDash}
                     </button>
                     {dashCalOpen&&(
                       <div style={{position:"absolute",top:"calc(100% + 8px)",right:mob?undefined:0,left:mob?0:undefined,zIndex:200}} onClick={e=>e.stopPropagation()}>
                         <CalendarioRange
-                          de={parseDate(dashPeriodo.ini)}
-                          ate={parseDate(dashPeriodo.fim)}
-                          onSelecionar={(d,a)=>{setDashPeriodo({ini:dateInputStr(d),fim:a?dateInputStr(a):dateInputStr(d)});setDashCalOpen(false);}}
+                          de={dashDe}
+                          ate={dashAte}
+                          onSelecionar={(d,a)=>{setDashDe(d);setDashAte(a);setDashPeriodo({ini:dateInputStr(d),fim:a?dateInputStr(a):dateInputStr(d)});if(a)setDashCalOpen(false);}}
                           onLimpar={()=>{resetPeriodoMesAtual();setDashCalOpen(false);}}
                         />
                       </div>
                     )}
                   </div>
+                  <div style={{width:1,height:24,background:BD,margin:"0 2px"}}/>
+                  <button onClick={()=>setDashRegModal(true)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 13px",borderRadius:8,border:`1.5px solid ${GRN}`,background:GRN+"10",color:GRN,fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                    {IcoPag} {mob?"":"Registrar Pagamento"}
+                  </button>
+                  <button onClick={()=>setDashNovoModal(true)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 13px",borderRadius:8,border:`1.5px solid ${ORG}`,background:ORG,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                    {IcoCtr} {mob?"":"Novo Contrato"}
+                  </button>
                 </div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(auto-fit,minmax(210px,1fr))",gap:mob?10:14}}>
@@ -2276,7 +2902,7 @@ function App() {
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><span style={{fontSize:12,color:MUTED,fontWeight:700}}>Total previsto</span><strong style={{fontSize:20,color:parcelasHoje.length?YEL:GRN}}>{fmtR(totalParcelasHoje)}</strong></div>
                   {parcelasHoje.length===0?<div style={{padding:12,borderRadius:8,background:GRN+"08",color:GRN,fontSize:12,fontWeight:700}}>Nenhuma parcela vencendo hoje.</div>:<div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:220,overflowY:"auto"}}>{parcelasHoje.map(p=>(
                     <div key={p.ID_PARCELA||`${p.ID_CLIENTE}-${p.NUM_PARCELA}`} style={{padding:10,borderRadius:9,background:BG,border:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
-                      <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2,display:"flex",alignItems:"center",gap:4}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)}{isUltima(p,parcelas)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 5px",borderRadius:99}}>última</span>}</div></div>
+                      <div style={{minWidth:0}}><div onClick={()=>{const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(p.ID_CLIENTE));if(c){setSelCliAba("perfil");setSelCli(c);}}} onMouseEnter={e=>e.currentTarget.style.color=ORG} onMouseLeave={e=>e.currentTarget.style.color=""} style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>{p.NOME_CLIENTE}{p._reagendadaHoje&&<span style={{fontSize:9,fontWeight:800,color:ORG,background:ORG+"20",padding:"1px 5px",borderRadius:99,whiteSpace:"nowrap",pointerEvents:"none"}}>Reagendada</span>}</div><div style={{fontSize:11,color:MUTED,marginTop:2,display:"flex",alignItems:"center",gap:4}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)}{isUltima(p,parcelas)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 5px",borderRadius:99}}>última</span>}</div></div>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}><div style={{fontSize:13,fontWeight:800,color:BLU}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</div><button onClick={()=>setPagamentoHoje(p)} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${GRN}35`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>Registrar pagamento</button></div>
                     </div>
                   ))}</div>}
@@ -2289,13 +2915,11 @@ function App() {
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><span style={{fontSize:12,color:MUTED,fontWeight:700}}>Total atrasado</span><strong style={{fontSize:20,color:parcelasAtrasadas.length?RED:GRN}}>{fmtR(totalParcelasAtrasadas)}</strong></div>
                   {parcelasAtrasadas.length===0?<div style={{padding:12,borderRadius:8,background:GRN+"08",color:GRN,fontSize:12,fontWeight:700}}>Nenhuma parcela em atraso.</div>:<div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:260,overflowY:"auto"}}>{parcelasAtrasadas.map(p=>(
                     <div key={p.ID_PARCELA||`${p.ID_CLIENTE}-${p.NUM_PARCELA}-atraso`} style={{padding:10,borderRadius:9,background:BG,border:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
-                      <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2,display:"flex",alignItems:"center",gap:4}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)} · {p.DIAS_ATRASO} dia{p.DIAS_ATRASO===1?"":"s"}{isUltima(p,parcelas)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 5px",borderRadius:99}}>última</span>}</div></div>
+                      <div style={{minWidth:0}}><div onClick={()=>{const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(p.ID_CLIENTE));if(c){setSelCliAba("perfil");setSelCli(c);}}} onMouseEnter={e=>e.currentTarget.style.color=ORG} onMouseLeave={e=>e.currentTarget.style.color=""} style={{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",cursor:"pointer"}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED,marginTop:2,display:"flex",alignItems:"center",gap:4}}>Parcela {p.NUM_PARCELA||p.NUMERO_PARCELA||"—"} · {fmtDt(p.DATA_VENCIMENTO)} · {p.DIAS_ATRASO} dia{p.DIAS_ATRASO===1?"":"s"}{isUltima(p,parcelas)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 5px",borderRadius:99}}>última</span>}</div></div>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}><div style={{fontSize:13,fontWeight:800,color:RED}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</div><button onClick={()=>setPagamentoHoje(p)} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${GRN}35`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>Registrar pagamento</button></div>
                     </div>
                   ))}</div>}
                 </div>
-                <PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} clientes={clientes||[]} onSucesso={async()=>{await carregar();}} onSelecionarParcela={setPagamentoHoje}/>
-                <NovoContrato contratos={contratos||[]} clientes={clientes||[]} onSucesso={()=>carregar(true)}/>
               </div>
             </div>
           )}
@@ -2305,8 +2929,8 @@ function App() {
             <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
               <div style={{padding:mob?12:16,borderBottom:`1px solid ${BD}`,display:"flex",flexDirection:mob?"column":"row",justifyContent:"space-between",alignItems:mob?"stretch":"center",background:BG+"50",gap:10}}>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  <input placeholder="Buscar..." value={filtroBusca} onChange={e=>setFiltroBusca(e.target.value)} style={{...IS,flex:1,minWidth:140}}/>
-                  <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{...IS,flex:1,minWidth:120}}><option value="todos">Todos</option><option value="ativo">Ativos</option><option value="aguardando_conferencia">Aguardando</option></select>
+                  <input placeholder="Buscar..." value={filtroBusca} onChange={e=>setFiltroBusca(e.target.value)} style={{...IS(),flex:1,minWidth:140}}/>
+                  <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{...IS(),flex:1,minWidth:120}}><option value="todos">Todos</option><option value="ativo">Ativos</option><option value="aguardando_conferencia">Aguardando</option></select>
                 </div>
                 <div style={{fontSize:13,color:MUTED,textAlign:mob?"right":"inherit"}}><strong>{filtrados.length}</strong> clientes</div>
               </div>
@@ -2331,8 +2955,8 @@ function App() {
             <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
               <div style={{padding:mob?12:16,borderBottom:`1px solid ${BD}`,display:"flex",flexDirection:mob?"column":"row",justifyContent:"space-between",alignItems:mob?"stretch":"center",background:BG+"50",gap:10}}>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  <input placeholder="Buscar..." value={filtroCtr} onChange={e=>setFiltroCtr(e.target.value)} style={{...IS,flex:1,minWidth:140}}/>
-                  <select value={filtroStatusCtr} onChange={e=>setFiltroStatusCtr(e.target.value)} style={{...IS,flex:1,minWidth:140}}>
+                  <input placeholder="Buscar..." value={filtroCtr} onChange={e=>setFiltroCtr(e.target.value)} style={{...IS(),flex:1,minWidth:140}}/>
+                  <select value={filtroStatusCtr} onChange={e=>setFiltroStatusCtr(e.target.value)} style={{...IS(),flex:1,minWidth:140}}>
                     <option value="todos">Todos os status</option>
                     <option value="ativo_em_dia">Em Dia</option>
                     <option value="ativo_em_atraso">Em Atraso</option>
@@ -2370,7 +2994,7 @@ function App() {
                         onClick={()=>setContratoSel(c)}
                         style={{borderBottom:`1px solid ${BD}`,fontSize:13,cursor:"pointer"}}
                         onMouseEnter={e=>e.currentTarget.style.background=BG}
-                        onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"transparent":"#FAFAFA"}
+                        onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"transparent":BG}
                       >
                         <td style={{padding:"13px 18px"}}>
                           <div style={{fontWeight:700}}>{c.ID_CONTRATO}</div>
@@ -2419,7 +3043,7 @@ function App() {
                         </div>
                         <div style={{textAlign:"right",flexShrink:0}}>
                           <div style={{fontSize:15,fontWeight:800,color:RED}}>{fmtR(c.vAtraso)}</div>
-                          <div style={{fontSize:11,color:GRN,fontWeight:700,marginTop:3}}>Cobrar →</div>
+                          <div style={{fontSize:11,color:GRN,fontWeight:700,marginTop:3,display:"flex",alignItems:"center",gap:3}}>Cobrar {IcoArr}</div>
                         </div>
                       </div>
                     ))}
@@ -2450,8 +3074,8 @@ function App() {
                             <td style={{fontWeight:700,color:RED}}>{fmtR(c.vAtraso)}</td>
                             <td style={{padding:"13px 18px",textAlign:"right"}}>
                               <button onClick={e=>{e.stopPropagation();setCobModal(c);}}
-                                style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${GRN}40`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:12,fontWeight:700}}>
-                                💳 Registrar
+                                style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${GRN}40`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:5}}>
+                                {IcoPag} Registrar
                               </button>
                             </td>
                           </tr>
@@ -2474,10 +3098,13 @@ function App() {
                   <div style={{fontSize:11,color:MUTED,marginTop:2}}>{finDe?labelPeriodo:"Todos os pagamentos"}</div>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                  {finDe&&<button onClick={()=>{setFinDe(null);setFinAte(null);}} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,fontSize:12,cursor:"pointer",fontWeight:600}}>✕ Limpar</button>}
-                  <button onClick={()=>{const n=new Date();setFinDe(new Date(n.getFullYear(),n.getMonth(),1));setFinAte(new Date(n.getFullYear(),n.getMonth()+1,0));}} style={{padding:"7px 11px",borderRadius:8,border:`1px solid ${BLU}30`,background:BLU+"10",color:BLU,cursor:"pointer",fontSize:12,fontWeight:800}}>Mês atual</button>
+                  {finDe&&<button onClick={()=>{setFinDe(null);setFinAte(null);}} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,fontSize:12,cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:5}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Limpar</button>}
+                  <button onClick={exportarPDFFinanceiro} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${GRN}`,background:GRN+"18",color:GRN,fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg>
+                    PDF
+                  </button>
                   <div style={{position:"relative"}}>
-                    <button onClick={()=>setFinCalOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${finDe?BLU:BD}`,background:finDe?"#EFF6FF":CARD,color:finDe?BLU:MUTED,fontSize:12,fontWeight:finDe?700:400,cursor:"pointer"}}>
+                    <button onClick={()=>setFinCalOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${finDe?ORG:BD}`,background:finDe?ORG+"12":CARD,color:finDe?ORG:MUTED,fontSize:12,fontWeight:finDe?700:400,cursor:"pointer"}}>
                       {IcoCal} {finDe?labelPeriodo:"Filtrar por período"}
                     </button>
                     {finCalOpen&&(
@@ -2489,26 +3116,29 @@ function App() {
                 </div>
               </div>
 
-              <div style={{background:"linear-gradient(135deg,#16a34a 0%,#15803d 100%)",borderRadius:14,padding:"20px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
+              <div style={{background:CARD,borderRadius:14,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,border:`1px solid ${BD}`,borderLeft:`3px solid ${GRN}`}}>
                 <div>
-                  <p style={{color:"rgba(255,255,255,0.75)",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.6px",margin:"0 0 6px"}}>Lucro do Período</p>
-                  <p style={{color:"#fff",fontSize:28,fontWeight:800,margin:0,letterSpacing:"-0.5px"}}>{priv(fmtR(finKpis.lucro))}</p>
-                  <p style={{color:"rgba(255,255,255,0.65)",fontSize:11,margin:"5px 0 0"}}>Juros recebidos + receita extra por atraso</p>
+                  <p style={{color:MUTED,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.7px",margin:"0 0 6px"}}>Lucro do Período</p>
+                  <p style={{color:GRN,fontSize:28,fontWeight:800,margin:"0 0 4px",letterSpacing:"-0.5px"}}>{priv(fmtR(finKpis.lucro))}</p>
+                  <p style={{color:MUTED,fontSize:11,margin:0}}>Juros recebidos + receita extra por atraso</p>
                 </div>
-                <div style={{fontSize:40,opacity:0.5}}>📈</div>
+                <div style={{fontSize:11,color:MUTED,textAlign:"right"}}>
+                  <div>de {priv(fmtR(finKpis.receitaTotal))}</div>
+                  <div style={{fontSize:10,marginTop:2}}>receita total</div>
+                </div>
               </div>
 
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
                 {[
-                  {icon:"💵",label:"Receita Total",      val:fmtR(finKpis.receitaTotal),  c:BLU},
-                  {icon:"⏰",label:"Receita Extra Atraso",val:fmtR(finKpis.receitaExtra), c:ORG},
-                  {icon:"🔄",label:"Parcelas Prorrogadas",val:finKpis.qtyProrrogadas,     c:PUR},
-                  {icon:"✅",label:"Pagamentos Normais",  val:finKpis.pagNormais,          c:GRN},
-                  {icon:"⚠️",label:"Com Atraso",          val:finKpis.pagAtraso,           c:YEL},
-                  {icon:"💸",label:"Somente Juros",       val:finKpis.pagJuros,            c:RED},
+                  {icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,label:"Receita Total",      val:fmtR(finKpis.receitaTotal),  c:BLU},
+                  {icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>,label:"Receita Extra Atraso",val:fmtR(finKpis.receitaExtra), c:ORG},
+                  {icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>,label:"Parcelas Prorrogadas",val:finKpis.qtyProrrogadas,     c:PUR},
+                  {icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20,6 9,17 4,12"/></svg>,label:"Pagamentos Normais",  val:finKpis.pagNormais,          c:GRN},
+                  {icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,label:"Com Atraso",          val:finKpis.pagAtraso,           c:YEL},
+                  {icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22,7 13.5,15.5 8.5,10.5 2,17"/><polyline points="16,7 22,7 22,13"/></svg>,label:"Somente Juros",       val:finKpis.pagJuros,            c:RED},
                 ].map(k=>(
                   <div key={k.label} style={{background:CARD,borderRadius:12,padding:18,border:`1px solid ${BD}`}}>
-                    <p style={{color:MUTED,fontSize:11,margin:"0 0 6px"}}>{k.icon} {k.label}</p>
+                    <p style={{color:MUTED,fontSize:11,margin:"0 0 6px",display:"flex",alignItems:"center",gap:5}}>{k.icon} {k.label}</p>
                     <p style={{fontSize:20,fontWeight:700,color:k.c,margin:0}}>{priv(k.val)}</p>
                   </div>
                 ))}
@@ -2534,7 +3164,7 @@ function App() {
                 {finDe&&(
                   <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:0,borderBottom:`1px solid ${BD}`}}>
                     {[{l:"Total Recebido",v:fmtR(totaisFin.total),c:BLU},{l:"Receita Extra",v:fmtR(totaisFin.extra),c:ORG},{l:"Nº Pagamentos",v:totaisFin.count,c:GRN}].map((k,i)=>(
-                      <div key={k.l} style={{padding:"10px 18px",background:"#F8FAFC",borderRight:i<2?`1px solid ${BD}`:"none"}}>
+                      <div key={k.l} style={{padding:"10px 18px",background:BG,borderRight:i<2?`1px solid ${BD}`:"none"}}>
                         <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:2}}>{k.l}</div>
                         <div style={{fontSize:16,fontWeight:800,color:k.c}}>{priv(k.v)}</div>
                       </div>
@@ -2547,11 +3177,11 @@ function App() {
                     {pagsFiltrados.length===0
                       ?<tr><td colSpan={6} style={{padding:"28px 18px",textAlign:"center",color:MUTED,fontSize:13}}>Nenhum pagamento encontrado neste período.</td></tr>
                       :pagsFiltrados.map((p,i)=>{
-                        const tCor={pagamento_normal:GRN,pagamento_com_atraso:YEL,somente_juros:RED,recuperacao_apos_baixa:PUR}[p.TIPO_PAGAMENTO]||MUTED;
-                        const tLabel={pagamento_normal:"Normal",pagamento_com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação"}[p.TIPO_PAGAMENTO]||p.TIPO_PAGAMENTO||"—";
+                        const tCor={pagamento_normal:GRN,normal:GRN,pagamento_com_atraso:YEL,com_atraso:YEL,somente_juros:RED,recuperacao_apos_baixa:PUR}[p.TIPO_PAGAMENTO]||MUTED;
+                        const tLabel={pagamento_normal:"Normal",normal:"Normal",pagamento_com_atraso:"Com Atraso",com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação",pagamento_antecipado:"Antecipado",antecipado:"Antecipado"}[p.TIPO_PAGAMENTO]||p.TIPO_PAGAMENTO||"—";
                         const extra=parseFloat(p.RECEITA_EXTRA_ATRASO||0);
                         return(
-                          <tr key={i} onClick={()=>setSelPagDetalhe(p)} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:"#FAFAFA",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=BG+"80"} onMouseLeave={e=>e.currentTarget.style.background=i%2===0?CARD:"#FAFAFA"}>
+                          <tr key={i} onClick={()=>setSelPagDetalhe(p)} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:BG,cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=BG+"80"} onMouseLeave={e=>e.currentTarget.style.background=i%2===0?CARD:BG}>
                             <td style={{padding:"11px 18px",color:MUTED,whiteSpace:"nowrap"}}>{fmtDt(parseDate(p.DATA_PAGAMENTO))}</td>
                             <td style={{fontWeight:600}}>{p.NOME_CLIENTE}</td>
                             <td><Badge c={tCor}>{tLabel}</Badge></td>
@@ -2570,40 +3200,59 @@ function App() {
           {/* PERDAS */}
           {tab==="perdas"&&(
             <div style={{display:"flex",flexDirection:"column",gap:20}}>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16}}>
-                {[{l:"Capital em Prejuízo",v:fmtR(perdas.capitalBaixado),c:RED},{l:"Recuperado",v:fmtR(perdas.recuperadoAposBaixa),c:PUR},{l:"Prejuízo Real",v:fmtR(perdas.prejuizoTotal),c:RED},{l:"Taxa Recuperação",v:fmtP(perdas.txRecuperacao),c:GRN}].map(k=>(
-                  <div key={k.l} style={{background:CARD,padding:18,borderRadius:12,border:`1px solid ${BD}`}}><div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:4}}>{k.l}</div><div style={{fontSize:20,fontWeight:800,color:k.c}}>{k.v}</div></div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:14}}>
+                {[
+                  {l:"Capital em Risco",v:fmtR(perdas.capitalEmRisco),c:ORG,sub:`${perdas.qtdEmRisco} contrato${perdas.qtdEmRisco!==1?"s":""} (cobrança + pré-prejuízo)`},
+                  {l:"Capital Baixado",v:fmtR(perdas.capitalBaixado),c:RED,sub:"prejuízo declarado"},
+                  {l:"Recuperado",v:fmtR(perdas.recuperadoAposBaixa),c:PUR,sub:"pós-baixa"},
+                  {l:"Prejuízo Real",v:fmtR(perdas.prejuizoReal),c:RED,sub:"baixado − recuperado"},
+                  {l:"Taxa Recuperação",v:fmtP(perdas.txRecuperacao),c:perdas.txRecuperacao>0?GRN:MUTED,sub:"sobre capital baixado"},
+                ].map(k=>(
+                  <div key={k.l} style={{background:CARD,padding:16,borderRadius:12,border:`1px solid ${BD}`}}>
+                    <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:4}}>{k.l}</div>
+                    <div style={{fontSize:18,fontWeight:800,color:k.c}}>{k.v}</div>
+                    {k.sub&&<div style={{fontSize:10,color:MUTED,marginTop:3}}>{k.sub}</div>}
+                  </div>
                 ))}
               </div>
               <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
                 <div style={{padding:16,borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:BG+"50"}}>
                   <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Contratos com Perda</h3>
-                  <select value={filtroPerdas} onChange={e=>setFiltroPerdas(e.target.value)} style={{...IS,width:200}}><option value="todos">Todos</option><option value="em_cobranca">Em Cobrança</option><option value="pre_prejuizo">Pré-Prejuízo</option><option value="baixado_como_prejuizo">Baixado</option><option value="em_recuperacao">Em Recuperação</option></select>
+                  <select value={filtroPerdas} onChange={e=>setFiltroPerdas(e.target.value)} style={{...IS(),width:220}}><option value="todos">Todos</option><option value="em_cobranca">Em Cobrança</option><option value="pre_prejuizo">Pré-Prejuízo</option><option value="baixado_como_prejuizo">Baixado (Prejuízo)</option><option value="em_recuperacao">Em Recuperação</option><option value="recuperado_parcialmente">Recuperado Parcialmente</option><option value="encerrado_sem_recuperacao">Encerrado s/ Recuperação</option></select>
                 </div>
                 <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-                  <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}><th style={{padding:"10px 18px"}}>Contrato</th><th>Status</th><th>Capital</th><th>Prejuízo</th><th>Recuperado</th><th style={{padding:"10px 18px",textAlign:"right"}}>Ações</th></tr></thead>
-                  <tbody>{pFiltradas.map(c=>(
-                    <tr key={c.ID_CONTRATO} style={{borderBottom:`1px solid ${BD}`,fontSize:13}}>
+                  <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}>
+                    <th style={{padding:"10px 18px"}}>Contrato</th>
+                    <th>Status</th>
+                    <th>Capital</th>
+                    <th>Atraso</th>
+                    <th>Saldo em Aberto</th>
+                    <th>Prejuízo</th>
+                    <th style={{padding:"10px 18px"}}>Recuperado</th>
+                  </tr></thead>
+                  <tbody>{pFiltradas.map(c=>{
+                    const info=perdaInfoMap[String(c.ID_CONTRATO)]||{};
+                    const dias=info.diasAtraso||0;
+                    const qtd=info.qtdAtrasadas||0;
+                    const saldo=info.saldoAberto||0;
+                    return(
+                    <tr key={c.ID_CONTRATO} onClick={()=>setPerdaAcoesModal(c)} style={{borderBottom:`1px solid ${BD}`,fontSize:13,cursor:"pointer",transition:"background 0.1s"}} onMouseEnter={e=>e.currentTarget.style.background=BG} onMouseLeave={e=>e.currentTarget.style.background=""}>
                       <td style={{padding:"13px 18px"}}><div style={{fontWeight:700}}>{c.ID_CONTRATO}</div><div style={{fontSize:11,color:MUTED}}>{c.NOME_CLIENTE}</div></td>
                       <td><Badge c={STATUS_COR[c.STATUS_CONTRATO]||MUTED}>{STATUS_LABEL[c.STATUS_CONTRATO]||c.STATUS_CONTRATO}</Badge></td>
                       <td>{fmtR(c.VALOR_PRINCIPAL)}</td>
-                      <td style={{color:RED,fontWeight:600}}>{fmtR(c.PREJUIZO_CAPITAL)}</td>
-                      <td style={{color:PUR,fontWeight:600}}>{fmtR(c.VALOR_RECUPERADO_APOS_BAIXA)}</td>
-                      <td style={{padding:"13px 18px",textAlign:"right"}}>
-                        <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
-                          {c.STATUS_CONTRATO!=="baixado_como_prejuizo"&&<button onClick={()=>setBaixaModal(c)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${RED}30`,background:RED+"08",color:RED,cursor:"pointer",fontSize:11,fontWeight:700}}>Baixar</button>}
-                          <button onClick={()=>setAcordoModal(c)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${ORG}30`,background:ORG+"08",color:ORG,cursor:"pointer",fontSize:11,fontWeight:700}}>🤝 Acordo</button>
-                          <button onClick={()=>setRecuperacaoModal(c)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${PUR}30`,background:PUR+"08",color:PUR,cursor:"pointer",fontSize:11,fontWeight:700}}>Recuperar</button>
-                        </div>
-                      </td>
+                      <td>{dias>0?<span style={{color:RED,fontWeight:700}}>{dias}d{qtd>1?<span style={{fontSize:10,color:MUTED,fontWeight:400,marginLeft:4}}>({qtd} parc.)</span>:null}</span>:<span style={{color:MUTED}}>—</span>}</td>
+                      <td style={{color:saldo>0?ORG:MUTED,fontWeight:saldo>0?600:400}}>{saldo>0?fmtR(saldo):"—"}</td>
+                      <td style={{color:parseFloat(c.PREJUIZO_CAPITAL||0)>0?RED:MUTED,fontWeight:600}}>{parseFloat(c.PREJUIZO_CAPITAL||0)>0?fmtR(c.PREJUIZO_CAPITAL):"—"}</td>
+                      <td style={{padding:"13px 18px",color:parseFloat(c.VALOR_RECUPERADO_APOS_BAIXA||0)>0?PUR:MUTED,fontWeight:600}}>{parseFloat(c.VALOR_RECUPERADO_APOS_BAIXA||0)>0?fmtR(c.VALOR_RECUPERADO_APOS_BAIXA):"—"}</td>
                     </tr>
-                  ))}</tbody>
+                    );
+                  })}</tbody>
                 </table>
               </div>
               {acordos.length>0&&(
                 <div style={{background:CARD,borderRadius:12,border:`1px solid ${BD}`,overflow:"hidden"}}>
-                  <div style={{padding:"14px 18px",borderBottom:`1px solid ${BD}`,background:"#F0FDFA"}}>
-                    <h3 style={{margin:0,fontSize:15,fontWeight:700,color:"#0891B2"}}>🤝 Acordos Registrados ({acordos.length})</h3>
+                  <div style={{padding:"14px 18px",borderBottom:`1px solid ${BD}`,background:ORG+"08"}}>
+                    <h3 style={{margin:0,fontSize:15,fontWeight:700,color:TEXT,display:"flex",alignItems:"center",gap:7}}>{IcoHandshake} Acordos Registrados ({acordos.length})</h3>
                   </div>
                   <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
                     <thead><tr style={{background:BG,fontSize:11,color:MUTED,textTransform:"uppercase"}}>
@@ -2616,12 +3265,12 @@ function App() {
                       <th style={{padding:"10px 18px"}}>Juros Cancelados</th>
                     </tr></thead>
                     <tbody>{[...acordos].sort((a,b)=>toNum(b.DATA)-toNum(a.DATA)).map((a,i)=>(
-                      <tr key={a.ID_ACORDO||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:"#FAFAFA"}}>
+                      <tr key={a.ID_ACORDO||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:BG}}>
                         <td style={{padding:"12px 18px"}}><div style={{fontWeight:700}}>{a.ID_ACORDO}</div><div style={{fontSize:11,color:MUTED}}>{a.ID_CONTRATO}</div></td>
                         <td style={{fontWeight:600}}>{a.NOME_CLIENTE}</td>
                         <td style={{color:MUTED}}>{fmtDt(parseDate(a.DATA))}</td>
                         <td style={{color:MUTED}}>{fmtR(parseFloat(a.VALOR_DIVIDA_ORIGINAL||0))}</td>
-                        <td style={{fontWeight:700,color:"#0891B2"}}>{fmtR(parseFloat(a.VALOR_ACORDADO||0))}</td>
+                        <td style={{fontWeight:700,color:ORG}}>{fmtR(parseFloat(a.VALOR_ACORDADO||0))}</td>
                         <td style={{color:RED,fontWeight:600}}>{fmtR(parseFloat(a.DESCONTO_PRINCIPAL||0))}</td>
                         <td style={{padding:"12px 18px",color:ORG,fontWeight:600}}>{fmtR(parseFloat(a.DESCONTO_JUROS||0))}</td>
                       </tr>
@@ -2651,12 +3300,12 @@ function App() {
                 <div style={{padding:16,borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
                   <div style={{display:"flex",gap:8}}>
                     {["todos","PENDENTE","CUMPRIDA","QUEBRADA"].map(f=>(
-                      <button key={f} onClick={()=>setFiltroPromessa(f)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${filtroPromessa===f?BLU:BD}`,background:filtroPromessa===f?BLU+"10":CARD,color:filtroPromessa===f?BLU:MUTED,cursor:"pointer",fontSize:12,fontWeight:600}}>
+                      <button key={f} onClick={()=>setFiltroPromessa(f)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${filtroPromessa===f?ORG:BD}`,background:filtroPromessa===f?ORG+"15":CARD,color:filtroPromessa===f?ORG:MUTED,cursor:"pointer",fontSize:12,fontWeight:600}}>
                         {f==="todos"?"Todos":f==="PENDENTE"?"Pendentes":f==="CUMPRIDA"?"Cumpridas":"Quebradas"}
                       </button>
                     ))}
                   </div>
-                  <button onClick={()=>setNovaPromessa(true)} style={{padding:"8px 16px",borderRadius:8,border:"none",background:BLU,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Nova Promessa</button>
+                  <button onClick={()=>setNovaPromessa(true)} style={{padding:"8px 16px",borderRadius:8,border:"none",background:ORG,color:"#FFF",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Nova Promessa</button>
                 </div>
                 {promessasFiltradas.length===0
                   ?<div style={{padding:"32px 18px",textAlign:"center",color:MUTED,fontSize:13}}>Nenhuma promessa encontrada.</div>
@@ -2679,7 +3328,7 @@ function App() {
                       const vencida=st==="PENDENTE"&&dtPrev&&dtPrev<hoje;
                       const pendente=st==="PENDENTE";
                       return(
-                        <tr key={p.ID_PROMESSA||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:vencida?RED+"05":i%2===0?CARD:"#FAFAFA"}}>
+                        <tr key={p.ID_PROMESSA||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:vencida?RED+"05":i%2===0?CARD:BG}}>
                           <td style={{padding:"12px 18px"}}><div style={{fontWeight:700}}>{p.NOME_CLIENTE}</div><div style={{fontSize:11,color:MUTED}}>ID {p.ID_CLIENTE}</div></td>
                           <td style={{color:MUTED,fontWeight:600}}>{p.ID_CONTRATO}</td>
                           <td style={{fontWeight:600,color:vencida?RED:TEXT}}>{fmtDt(dtPrev)}{vencida&&<span style={{fontSize:10,color:RED,marginLeft:6,fontWeight:700}}>VENCIDA</span>}</td>
@@ -2696,14 +3345,14 @@ function App() {
                                     if(res.ok)carregar();else alert(res.erro||"Erro");
                                   }}
                                   style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${GRN}40`,background:GRN+"10",color:GRN,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}
-                                >✓ Cumprida</button>
+                                >Cumprida</button>
                                 <button
                                   onClick={async()=>{
                                     const res=await postAction({action:"atualizarPromessa",idPromessa:p.ID_PROMESSA,status:"QUEBRADA",dataCumprimento:hojeStr()});
                                     if(res.ok)carregar();else alert(res.erro||"Erro");
                                   }}
                                   style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${RED}40`,background:RED+"10",color:RED,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}
-                                >✗ Quebrada</button>
+                                >Quebrada</button>
                               </div>
                             )}
                           </td>
@@ -2740,8 +3389,11 @@ function App() {
       {/* ── MODAIS ── */}
       {novaPromessa&&<NovaPromessaModal contratos={contratos||[]} clientes={clientes||[]} onConfirmar={()=>{setNovaPromessa(false);carregar();}} onFechar={()=>setNovaPromessa(false)}/>}
       {selPagDetalhe&&<PagamentoDetalheModal pag={selPagDetalhe} parcelas={parcelas||[]} contratos={contratos||[]} clientes={clientes||[]} onFechar={()=>setSelPagDetalhe(null)} onReabrir={()=>{setSelPagDetalhe(null);carregar();}}/>}
-      {selCli&&<ClienteModal cliente={selCli} contratos={contratos||[]} parcelas={parcelas||[]} abaInicial={selCliAba} onFechar={()=>{setSelCli(null);setSelCliAba("perfil");}} onAtualizar={()=>{setSelCli(null);setSelCliAba("perfil");carregar();}}/>}
-      {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} parcelas={parcelas||[]} contratos={contratos||[]} clientes={clientes||[]} onConfirmar={async()=>{setPagamentoHoje(null);await carregar();}} onFechar={()=>setPagamentoHoje(null)}/>}
+      {selCli&&<ClienteModal cliente={selCli} contratos={contratos||[]} parcelas={parcelas||[]} clientes={clientes||[]} abaInicial={selCliAba} onFechar={()=>{setSelCli(null);setSelCliAba("perfil");}} onAtualizar={()=>{setSelCli(null);setSelCliAba("perfil");carregar();}} onNovoContrato={(c)=>{setSelCli(null);setSelCliAba("perfil");setNovoContratoIni(c);setDashNovoModal(true);}} onVerContrato={(c)=>{setSelCli(null);setSelCliAba("perfil");setContratoSel(c);}}/>}
+      {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} parcelas={parcelas||[]} contratos={contratos||[]} clientes={clientes||[]} initialModo={pagModo} onConfirmar={async()=>{setPagamentoHoje(null);setPagModo("pagamento");await carregar();}} onFechar={()=>{setPagamentoHoje(null);setPagModo("pagamento");}}/>}
+      {dashRegModal&&<div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setDashRegModal(false)}><div style={{width:"100%",maxWidth:420,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.25)",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}} onClick={e=>e.stopPropagation()}><div style={{background:GRN,padding:"16px 20px",borderRadius:"16px 16px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10,color:"#fff"}}><div style={{background:"rgba(255,255,255,0.2)",padding:8,borderRadius:8,display:"flex"}}>{IcoPag}</div><span style={{fontWeight:800,fontSize:15}}>Registrar Pagamento</span></div><button onClick={()=>setDashRegModal(false)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div><div style={{padding:20}}><PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} clientes={clientes||[]} onSucesso={async()=>{setDashRegModal(false);await carregar();}} onSelecionarParcela={p=>{setDashRegModal(false);setPagamentoHoje(p);}}/></div></div></div>}
+      {dashNovoModal&&<div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>{setDashNovoModal(false);setNovoContratoIni(null);}}><div style={{width:"100%",maxWidth:420,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.25)",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}} onClick={e=>e.stopPropagation()}><div style={{background:ORG,padding:"16px 20px",borderRadius:"16px 16px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10,color:"#fff"}}><div style={{background:"rgba(255,255,255,0.2)",padding:8,borderRadius:8,display:"flex"}}>{IcoCtr}</div><span style={{fontWeight:800,fontSize:15}}>Novo Contrato</span></div><button onClick={()=>{setDashNovoModal(false);setNovoContratoIni(null);}} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div><div style={{padding:20}}><NovoContrato contratos={contratos||[]} clientes={clientes||[]} clienteInicial={novoContratoIni} onSucesso={()=>{setDashNovoModal(false);setNovoContratoIni(null);carregar(true);}}/></div></div></div>}
+      {perdaAcoesModal&&<PerdaAcoesModal contrato={perdaAcoesModal} parcelas={parcelas||[]} onBaixar={()=>{setBaixaModal(perdaAcoesModal);setPerdaAcoesModal(null);}} onAcordo={()=>{setAcordoModal(perdaAcoesModal);setPerdaAcoesModal(null);}} onRecuperar={()=>{setRecuperacaoModal(perdaAcoesModal);setPerdaAcoesModal(null);}} onFechar={()=>setPerdaAcoesModal(null)}/>}
       {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
       {acordoModal&&<ModalAcordoPerda contrato={acordoModal} parcelas={parcelas||[]} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
       {quitacaoModal&&<QuitacaoAntecipadaModal contrato={quitacaoModal} parcelas={parcelas||[]} onConfirmar={()=>{setQuitacaoModal(null);carregar();}} onFechar={()=>setQuitacaoModal(null)}/>}
@@ -2754,14 +3406,16 @@ function App() {
           parcelas={parcelas||[]}
           pagamentos={pagamentos||[]}
           clientes={clientes||[]}
-          onRegistrarPagamento={p=>{setContratoSel(null);setPagamentoHoje(p);}}
+          onRegistrarPagamento={p=>{setContratoSel(null);setPagamentoHoje(p);setPagModo("pagamento");}}
+          onReagendar={p=>{setContratoSel(null);setPagamentoHoje(p);setPagModo("reagendar");}}
           onBaixar={c=>{setContratoSel(null);setBaixaModal(c);}}
           onQuitacaoAntecipada={c=>{setContratoSel(null);setQuitacaoModal(c);}}
+          onAlterarVencimento={()=>carregar(true)}
           onComprovante={(c,ps,cli)=>{
             const _pagas=[...ps].filter(p=>["pago","quitacao_antecipada"].includes(statusEfetivo(p))).sort((a,b)=>parseInt(b.NUM_PARCELA||0)-parseInt(a.NUM_PARCELA||0));
             const _ult=_pagas[0];
             if(_ult){
-              const _tLbl={pagamento_normal:"Normal",pagamento_com_atraso:"Com Atraso",somente_juros:"Somente Juros",quitacao_antecipada:"Quitação Antecipada"}[_ult.TIPO_PAGAMENTO]||"Pagamento";
+              const _tLbl={pagamento_normal:"Normal",normal:"Normal",pagamento_com_atraso:"Com Atraso",com_atraso:"Com Atraso",somente_juros:"Somente Juros",quitacao_antecipada:"Quitação Antecipada",pagamento_antecipado:"Antecipado",antecipado:"Antecipado"}[_ult.TIPO_PAGAMENTO]||"Pagamento";
               gerarEEnviarComprovante(_ult,parseFloat(_ult.VALOR_PAGO||0),_ult.DATA_PAGAMENTO,_tLbl,parcelas,contratos,clientes,{wpp:false});
             }else{
               gerarComprovante(c,ps,cli);
