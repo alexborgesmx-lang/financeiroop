@@ -30,11 +30,11 @@ export default async function handler(req, res) {
 
       const payload = {
         calendario: { dataDeVencimento: dataVenc, validadeAposVencimento: 30 },
-        devedor: { cpf, nome: String(cliente.nome || "") },
+        ...(cpf.length === 11 ? { devedor: { cpf, nome: String(cliente.nome || "") } } : {}),
         valor: {
           original: parseFloat(p.valorParcela).toFixed(2),
           multa: { modalidade: 2, valorPerc: "10.00" },
-          juros: { modalidade: 3, valorPerc: "0.033" },
+          juros: { modalidade: 2, valorPerc: "0.03" },
         },
         chave: process.env.EFI_PIX_KEY,
         solicitacaoPagador: `Parcela ${p.numParcela} de ${p.totalParcelas} - ${idContrato}`,
