@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+
+# Vercel
+.vercel
+
+# Env
+.env*.local
+.env
+
+# Sensitive files
+*.p12
+*recovery_code*
+*2FA*
+
+# OS
+.DS_Store
+
+# Media / docs locais
+*.pdf
+14.png
