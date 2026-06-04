@@ -1937,6 +1937,8 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
   const [pixLoad,setPixLoad]=useState(false);
   const [pixOk,setPixOk]=useState(false);
   const [pixErr,setPixErr]=useState("");
+  const [pixCopied,setPixCopied]=useState(false);
+  const [pixCodeNew,setPixCodeNew]=useState("");
 
   const ps = (parcelas||[])
     .filter(p => String(p.ID_CONTRATO) === String(contrato.ID_CONTRATO))
@@ -1953,6 +1955,8 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
   const totalPago = totalPagoParcelas > totalPagoPagamentos ? totalPagoParcelas : totalPagoPagamentos;
   const pendentes = ps.filter(p => !["pago","baixado_como_prejuizo","cancelado","quitacao_antecipada","renegociado"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase()));
   const proxParcela = pendentes[0] || null;
+  const pixCodeSaved = proxParcela?.EFI_PIX_CODE || "";
+  const pixCodeToShow = pixCodeNew || pixCodeSaved;
   const saldoDevedor = pendentes.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
   const pct = parseFloat(contrato.VALOR_PRINCIPAL||0) > 0
     ? (totalPago / parseFloat(contrato.VALOR_TOTAL||contrato.VALOR_PRINCIPAL||1)) * 100 : 0;
@@ -1994,10 +1998,15 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
         cliente:{nome:contrato.NOME_CLIENTE||cli?.NOME_CLIENTE||"",cpf}
       })});
       const d=await r.json();
-      if(d.ok&&d.boletos?.[0]?.ok){setPixOk(true);postAction({action:"salvarCobrancasEfi",cobracas:d.boletos});}
+      if(d.ok&&d.boletos?.[0]?.ok){setPixOk(true);const code=d.boletos[0].pixCopiaECola||"";if(code)setPixCodeNew(code);postAction({action:"salvarCobrancasEfi",cobracas:d.boletos});}
       else{setPixErr((d.boletos?.[0]?.erro)||d.erro||"Erro ao gerar PIX");}
     }catch(e){setPixErr(e.message);}
     setPixLoad(false);
+  };
+
+  const _copiarPix=()=>{
+    if(!pixCodeToShow)return;
+    navigator.clipboard.writeText(pixCodeToShow).then(()=>{setPixCopied(true);setTimeout(()=>setPixCopied(false),2500);}).catch(()=>{});
   };
 
   const _abrirWpp = () => {
@@ -2153,9 +2162,14 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
                 <button onClick={()=>onRegistrarPagamento(pendentes[0])} style={{...BTN1(false),flex:1}}>
                   {IcoCheck} Registrar Pagamento
                 </button>
-                <button onClick={_gerarPix} disabled={pixLoad||pixOk} style={{padding:"14px 16px",borderRadius:12,border:`1.5px solid ${BD}`,background:CARD,color:pixOk?GRN:TEXT,cursor:pixLoad||pixOk?"default":"pointer",fontSize:14,fontWeight:600,display:"flex",alignItems:"center",gap:5,opacity:pixLoad?0.7:1,whiteSpace:"nowrap"}}>
-                  {pixLoad?<IcoSpinner size={12}/>:pixOk?IcoCheck:null}{pixLoad?"...":pixOk?"PIX ✓":"PIX"}
-                </button>
+                {pixCodeToShow
+                  ?<button onClick={_copiarPix} title={pixCodeToShow} style={{padding:"14px 16px",borderRadius:12,border:`1.5px solid ${pixCopied?GRN:BD}`,background:pixCopied?GRN+"18":CARD,color:pixCopied?GRN:TEXT,cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap",transition:"all 0.2s"}}>
+                    {pixCopied?IcoCheck:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>}{pixCopied?"OK!":"Copiar PIX"}
+                  </button>
+                  :<button onClick={_gerarPix} disabled={pixLoad} style={{padding:"14px 16px",borderRadius:12,border:`1.5px solid ${BD}`,background:CARD,color:TEXT,cursor:pixLoad?"default":"pointer",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:5,opacity:pixLoad?0.7:1,whiteSpace:"nowrap"}}>
+                    {pixLoad?<IcoSpinner size={12}/>:null}{pixLoad?"...":"Gerar PIX"}
+                  </button>
+                }
                 <button onClick={()=>onComprovante&&onComprovante(contrato,ps,cli)} style={{...BTN3(),whiteSpace:"nowrap",padding:"14px 14px"}}>
                   {IcoPhone}
                 </button>

@@ -1,3 +1,5 @@
+
+
 var ABAS = {
   CLIENTES:   "CLIENTES",
   CONTRATOS:  "CONTRATOS",
@@ -6,7 +8,8 @@ var ABAS = {
   EVENTOS:    "EVENTOS",
   PROMESSAS:  "PROMESSAS",
   CONFIG:     "CONFIGURACOES",
-  ACORDOS:    "ACORDOS"
+  ACORDOS:    "ACORDOS",
+  LEADS:      "LEADS"
 };
 
 var EMAIL_ADMIN = "alexborges.mx@gmail.com";
@@ -19,6 +22,10 @@ var STATUS_BLOQUEIO = [
   "em_cobranca","pre_prejuizo","baixado_como_prejuizo",
   "em_recuperacao","recuperado_parcialmente","encerrado_sem_recuperacao"
 ];
+
+var STATUS_TERMINAL = {
+  pago: 1, quitacao_antecipada: 1, baixado_como_prejuizo: 1, cancelado: 1, renegociado: 1
+};
 
 function onOpen() {
   SpreadsheetApp.getUi()
@@ -37,12 +44,15 @@ function onOpen() {
     .addItem("Migrar Fase 1 (rodar 1x)", "migrarFase1")
     .addItem("Corrigir Status Baixados (rodar 1x)", "corrigirStatusBaixados")
     .addItem("Corrigir Contratos Quitados Errado (rodar 1x)", "corrigirContratosQuitados")
-    .addItem("Migrar Score (rodar 1x)", "migrarScore")
-    .addItem("Migrar Histórico Pagamentos (rodar 1x)", "migrarHistoricoPagamentos")
+    .addItem("Criar Colunas Renovação (rodar 1x)", "_garantirColunasRenovacao")
     .addItem("Recalcular Todos os Scores", "recalcularTodosScores")
+    .addItem("Recalcular Metricas Clientes (rodar 1x)", "recalcularTodasMetricas")
+    .addItem("Migrar Empregador de Leads (rodar 1x)", "migrarEmpregadorDeLeads")
+    .addItem("Atualizar Tabela Empregadores", "atualizarTabelaEmpregadores")
+    .addItem("Atualizar Tabela Padrinhos", "atualizarTabelaPadrinhos")
+    .addItem("Auditar Dados (FASE 1 e 2)", "auditarDados")
     .addItem("Diagnosticar ID Clientes (ver antes)", "corrigirIdClienteContratos")
     .addItem("EXECUTAR Corrigir ID Clientes", "corrigirIdClienteContratosEXECUTAR")
-    .addItem("Depurar Score Cliente 113", "depurarScore113")
     .addItem("Diagnosticar Colunas", "diagnosticarColunas")
     .addItem("Resetar Sistema", "resetarSistema")
     .addToUi();
@@ -156,14 +166,18 @@ function doGet(e) {
   var abaEv  = ss.getSheetByName(ABAS.EVENTOS);
   var abaPr  = ss.getSheetByName(ABAS.PROMESSAS);
   var abaAc  = ss.getSheetByName(ABAS.ACORDOS);
+  var abaPad = ss.getSheetByName("PADRINHOS");
+  var abaEmp = ss.getSheetByName("EMPREGADORES");
   var data = {
-    CLIENTES:   toObj(ss.getSheetByName(ABAS.CLIENTES).getDataRange().getValues()),
-    CONTRATOS:  toObj(ss.getSheetByName(ABAS.CONTRATOS).getDataRange().getValues()),
-    PARCELAS:   toObj(ss.getSheetByName(ABAS.PARCELAS).getDataRange().getValues()),
-    PAGAMENTOS: toObj(ss.getSheetByName(ABAS.PAGAMENTOS).getDataRange().getValues()),
-    EVENTOS:    abaEv ? toObj(abaEv.getDataRange().getValues()) : [],
-    PROMESSAS:  abaPr ? toObj(abaPr.getDataRange().getValues()) : [],
-    ACORDOS:    abaAc ? toObj(abaAc.getDataRange().getValues()) : []
+    CLIENTES:     toObj(ss.getSheetByName(ABAS.CLIENTES).getDataRange().getValues()),
+    CONTRATOS:    toObj(ss.getSheetByName(ABAS.CONTRATOS).getDataRange().getValues()),
+    PARCELAS:     toObj(ss.getSheetByName(ABAS.PARCELAS).getDataRange().getValues()),
+    PAGAMENTOS:   toObj(ss.getSheetByName(ABAS.PAGAMENTOS).getDataRange().getValues()),
+    EVENTOS:      abaEv  ? toObj(abaEv.getDataRange().getValues())  : [],
+    PROMESSAS:    abaPr  ? toObj(abaPr.getDataRange().getValues())  : [],
+    ACORDOS:      abaAc  ? toObj(abaAc.getDataRange().getValues())  : [],
+    PADRINHOS:    abaPad ? toObj(abaPad.getDataRange().getValues()) : [],
+    EMPREGADORES: abaEmp ? toObj(abaEmp.getDataRange().getValues()): []
   };
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -187,6 +201,21 @@ function doPost(e) {
     else if (body.action === "acordoComPerda")         { var r=registrarAcordoComPerda(body.dados); res={ok:true,resultado:r}; }
     else if (body.action === "quitacaoAntecipada")     { var r=registrarQuitacaoAntecipada(body.dados); res={ok:true,resultado:r}; }
     else if (body.action === "calcularScore")           { var rSc=calcularScore(body.idCliente); res={ok:true,score:rSc}; }
+    else if (body.action === "recalcularScore")         {
+      calcularScore(body.idCliente);
+      var aR=SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ABAS.CLIENTES);
+      var cmR=buildColMap(aR); var dR=aR.getDataRange().getValues();
+      var SF=["SCORE","SCORE_FAIXA","SCORE_DECISAO","SCORE_LIMITE_SUGERIDO","SCORE_PARCELA_MAX","SCORE_TAXA_LABEL","SCORE_TAXA_PCT","SCORE_PRAZO_MAX","SCORE_BLOQUEADO","SCORE_MOTIVOS","SCORE_DATA","RENOVACAO_STATUS","RENOVACAO_MOTIVO","RENOVACAO_CONDICOES"];
+      var scoreRet=null;
+      for(var iR=1;iR<dR.length;iR++){
+        if(String(dR[iR][0]).trim()===String(body.idCliente).trim()){
+          scoreRet={};
+          SF.forEach(function(f){if(cmR[f])scoreRet[f]=dR[iR][cmR[f]-1];});
+          break;
+        }
+      }
+      res={ok:true,score:scoreRet};
+    }
     else if (body.action === "reabrirParcela")          { var rRe=reabrirParcelaAPI(body); res={ok:true,msg:rRe}; }
     else if (body.action === "alterarDiaVencimento")    { var rAdv=alterarDiaVencimentoContrato(body.idContrato,parseInt(body.novoDia)||1); res={ok:true,parcelas_alteradas:rAdv}; }
     else if (body.action === "migrarDataAcordo")        { adicionarColunaDataAcordoParcelas(); res={ok:true}; }
@@ -194,6 +223,8 @@ function doPost(e) {
     else if (body.action === "criarLead")               { var rIdL=criarLead(body.dados); res={ok:true,idLead:rIdL}; }
     else if (body.action === "atualizarLead")           { atualizarLead(body.idLead,body.dados); res={ok:true}; }
     else if (body.action === "verificarPadrinho")       { var rVp=verificarPadrinho(body.nome); res={ok:true,existe:rVp.existe,qualifica:rVp.qualifica,motivo:rVp.motivo}; }
+    else if (body.action === "salvarCobrancasEfi")      { var rEfi=salvarCobrancasEfi(body); res={ok:rEfi.ok,salvos:rEfi.salvos||0}; }
+    else if (body.action === "buscarClientePorTel")     { res=buscarClientePorTel(body.tel); }
     else { res={erro:"Acao nao reconhecida: "+body.action}; }
   } catch(err) { res={erro:err.message}; }
   return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
@@ -300,102 +331,6 @@ function corrigirStatusBaixados() {
   }
 
   SpreadsheetApp.getUi().alert("Corrigidos: " + count + " registro(s) de 'baixado_prejuizo' para 'baixado_como_prejuizo'.");
-}
-
-function diagnosticarNomes() {
-  var ss     = SpreadsheetApp.getActiveSpreadsheet();
-  var abaCli = ss.getSheetByName(ABAS.CLIENTES);
-  var abaC   = ss.getSheetByName(ABAS.CONTRATOS);
-  var abaP   = ss.getSheetByName(ABAS.PARCELAS);
-  var cmCli  = buildColMap(abaCli);
-  var cmC    = buildColMap(abaC);
-  var cmP    = buildColMap(abaP);
-
-  var cNomeCli = cmCli["NOME_CLIENTE"] || cmCli["NOME"] || 2;
-  var cIdCli   = cmCli["ID_CLIENTE"] || 1;
-  var cNomeC   = cmC["NOME_CLIENTE"]  || cmC["NOME"]  || 3;
-  var cNomeP   = cmP["NOME_CLIENTE"]  || cmP["NOME"]  || 4;
-
-  var dadosCli = abaCli.getDataRange().getValues();
-  var dadosC   = abaC.getDataRange().getValues();
-  var dadosP   = abaP.getDataRange().getValues();
-
-  var msg = "=== DIAGNÓSTICO DE NOMES ===\n\n";
-
-  msg += "CLIENTES (primeiros 5):\n";
-  for (var i = 1; i <= Math.min(5, dadosCli.length-1); i++) {
-    msg += "  ID='" + dadosCli[i][cIdCli-1] + "' NOME='" + dadosCli[i][cNomeCli-1] + "'\n";
-  }
-
-  msg += "\nCONTRATOS (primeiros 5):\n";
-  for (var j = 1; j <= Math.min(5, dadosC.length-1); j++) {
-    msg += "  ID_CLI='" + (cmC["ID_CLIENTE"]?dadosC[j][cmC["ID_CLIENTE"]-1]:"?") + "' NOME='" + dadosC[j][cNomeC-1] + "'\n";
-  }
-
-  msg += "\nPARCELAS (primeiros 3):\n";
-  for (var k = 1; k <= Math.min(3, dadosP.length-1); k++) {
-    msg += "  ID_CLI='" + (cmP["ID_CLIENTE"]?dadosP[k][cmP["ID_CLIENTE"]-1]:"?") + "' NOME='" + dadosP[k][cNomeP-1] + "'\n";
-  }
-
-  msg += "\nColuna nome CLIENTES: " + cNomeCli;
-  msg += "\nColuna nome CONTRATOS: " + cNomeC;
-  msg += "\nColuna nome PARCELAS: " + cNomeP;
-
-  SpreadsheetApp.getUi().alert(msg);
-}
-
-function depurarScore113() {
-  var ss   = SpreadsheetApp.getActiveSpreadsheet();
-  var abaC = ss.getSheetByName(ABAS.CONTRATOS);
-  var abaP = ss.getSheetByName(ABAS.PARCELAS);
-  var abaCli = ss.getSheetByName(ABAS.CLIENTES);
-  var cmC  = buildColMap(abaC);
-  var cmP  = buildColMap(abaP);
-  var cmCli = buildColMap(abaCli);
-  var idCliente = "113";
-  var msg = "=== DEPURAÇÃO CLIENTE 113 ===\n\n";
-
-  msg += "COLUNAS CONTRATOS: " + JSON.stringify(cmC) + "\n\n";
-  msg += "COLUNAS PARCELAS: " + JSON.stringify(cmP) + "\n\n";
-  msg += "COLUNAS CLIENTES (score): SCORE=" + cmCli["SCORE"] + " SCORE_MOTIVOS=" + cmCli["SCORE_MOTIVOS"] + "\n\n";
-
-  // Parcelas do cliente
-  var dadosP = abaP.getDataRange().getValues();
-  var stColP = cmP["STATUS"] || cmP["STATUS_PAGAMENTO"];
-  var parcelasCliente = [];
-  for (var pi = 1; pi < dadosP.length; pi++) {
-    var idCli = String(dadosP[pi][(cmP["ID_CLIENTE"]||3)-1]).trim();
-    if (idCli !== idCliente) continue;
-    parcelasCliente.push({
-      idContrato: String(dadosP[pi][(cmP["ID_CONTRATO"]||2)-1]).trim(),
-      status: stColP ? String(dadosP[pi][stColP-1]||"").trim() : "?"
-    });
-  }
-  msg += "PARCELAS DO CLIENTE (" + parcelasCliente.length + "):\n";
-  parcelasCliente.forEach(function(p){ msg += "  idContrato='" + p.idContrato + "' status='" + p.status + "'\n"; });
-
-  // IDs únicos de contratos
-  var ids = {};
-  parcelasCliente.forEach(function(p){ if(p.idContrato) ids[p.idContrato]=true; });
-  msg += "\nIDs CONTRATOS VIA PARCELAS: " + JSON.stringify(Object.keys(ids)) + "\n\n";
-
-  // Contratos encontrados
-  var dadosC = abaC.getDataRange().getValues();
-  msg += "CONTRATOS ENCONTRADOS:\n";
-  for (var ci = 1; ci < dadosC.length; ci++) {
-    var idCtrC = String(dadosC[ci][(cmC["ID_CONTRATO"]||1)-1]).trim();
-    var stC = cmC["STATUS_CONTRATO"] ? String(dadosC[ci][cmC["STATUS_CONTRATO"]-1]||"").trim() : "SEM_COLUNA";
-    var valP = cmC["VALOR_PRINCIPAL"] ? dadosC[ci][cmC["VALOR_PRINCIPAL"]-1] : "SEM_COLUNA";
-    if (ids[idCtrC]) {
-      msg += "  [VIA PARCELA] id='" + idCtrC + "' status='" + stC + "' principal=" + valP + "\n";
-    }
-    // fallback
-    if (cmC["ID_CLIENTE"] && String(dadosC[ci][cmC["ID_CLIENTE"]-1]).trim() === idCliente) {
-      msg += "  [VIA ID_CLI] id='" + idCtrC + "' status='" + stC + "' principal=" + valP + "\n";
-    }
-  }
-
-  SpreadsheetApp.getUi().alert(msg);
 }
 
 function corrigirIdClienteContratos() {
@@ -522,25 +457,6 @@ function corrigirContratosQuitados() {
     }
   }
   SpreadsheetApp.getUi().alert("Corrigidos: " + count + " contrato(s) incorretamente marcado(s) como quitado.");
-}
-
-function migrarScore() {
-  var ss  = SpreadsheetApp.getActiveSpreadsheet();
-  var aba = ss.getSheetByName(ABAS.CLIENTES);
-  if (!aba) { SpreadsheetApp.getUi().alert("Aba CLIENTES nao encontrada."); return; }
-  var cm  = buildColMap(aba);
-  var novas = [
-    "RENDA_MENSAL","TIPO_RENDA","RENDA_COMPROVADA","QUALIDADE_COMUNICACAO",
-    "SCORE_FAIXA","SCORE_DECISAO","SCORE_LIMITE_SUGERIDO","SCORE_PARCELA_MAX",
-    "SCORE_TAXA_LABEL","SCORE_PRAZO_MAX","SCORE_DATA","SCORE_BLOQUEADO","SCORE_MOTIVOS"
-  ];
-  novas.forEach(function(h) {
-    if (!cm[h]) {
-      var nc = aba.getLastColumn() + 1;
-      aba.getRange(1, nc).setValue(h).setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
-    }
-  });
-  SpreadsheetApp.getUi().alert("Colunas de score adicionadas! Execute 'Recalcular Todos os Scores' para calcular.");
 }
 
 function recalcularTodosScores() {
@@ -782,6 +698,24 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
   if (bloqueado&&motivoBloq) decisao="Bloqueado: "+motivoBloq;
 
   // ── LIMITE / PRAZO / TAXA / PARCELA ──
+  var cfg     = lerConfiguracoes();
+  var cfgN    = function(k,d){ return parseFloat(cfg[k])||d; };
+  var txMin   = cfgN("TAXA_MINIMA_MENSAL",        0.14);
+  var txBaixa = cfgN("TAXA_PADRAO_BAIXA_MENSAL",  0.16);
+  var txPad   = cfgN("TAXA_PADRAO_MENSAL",         0.18);
+  var txAlta  = cfgN("TAXA_ALTA_MENSAL",           0.22);
+  var txMax   = cfgN("TAXA_MAXIMA_MENSAL",         0.25);
+  var cmpMax  = cfgN("COMPROMETIMENTO_MAX_PCT",    0.35);
+  var limPrim    = cfgN("LIMITE_PRIMEIRO_EMPRESTIMO", 1500);
+  var limExcel   = cfgN("LIMITE_SCORE_EXCELENTE",     4000);
+  var limBom     = cfgN("LIMITE_SCORE_BOM",           3000);
+  var limMedio   = cfgN("LIMITE_SCORE_MEDIO",         1500);
+  var limAtencao = cfgN("LIMITE_SCORE_ATENCAO",       1000);
+  var pzExcel    = cfgN("PRAZO_MAX_EXCELENTE",        12);
+  var pzBom      = cfgN("PRAZO_MAX_BOM",              10);
+  var pzMedio    = cfgN("PRAZO_MAX_MEDIO",            6);
+  var pzAtencao  = cfgN("PRAZO_MAX_ATENCAO",          3);
+
   var multRenda  = scoreFinal>=90?1.5:scoreFinal>=75?1.2:scoreFinal>=60?0.8:scoreFinal>=45?0.5:scoreFinal>=30?0.3:0;
   var limPorRenda= rendaMensal>0?rendaMensal*multRenda:0;
   var fatHist    = qtdQuit>=4?1.5:qtdQuit>=2?1.25:qtdQuit===1?1.0:0.4;
@@ -789,9 +723,19 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
   var limiteSug  = bloqueado?0:(limPorRenda>0&&limPorHist>0?Math.min(limPorRenda,limPorHist):(limPorRenda||limPorHist||0));
   limiteSug = Math.max(0, limiteSug - principalAtivo);
 
-  var prazoMax   = scoreFinal>=90?12:scoreFinal>=75?10:scoreFinal>=60?6:scoreFinal>=45?3:scoreFinal>=30?2:0;
-  var taxaLabel  = scoreFinal>=90?"Minima":scoreFinal>=75?"Padrao baixa":scoreFinal>=60?"Padrao":scoreFinal>=45?"Alta":"Maxima";
-  var pctCMax    = scoreFinal>=90?0.30:scoreFinal>=75?0.25:scoreFinal>=60?0.20:scoreFinal>=45?0.15:0;
+  // Teto absoluto por faixa — 1º contrato usa limPrim; 2º+ usa teto da faixa
+  var ehPrimeiroContrato = (qtdQuit === 0);
+  var tetoFaixa = bloqueado ? 0
+    : ehPrimeiroContrato
+      ? (scoreFinal >= 60 ? limPrim : 0)
+      : (scoreFinal>=90?limExcel:scoreFinal>=75?limBom:scoreFinal>=60?limMedio:scoreFinal>=45?limAtencao:0);
+  limiteSug = Math.min(limiteSug, tetoFaixa);
+
+  var prazoMax   = scoreFinal>=90?pzExcel:scoreFinal>=75?pzBom:scoreFinal>=60?pzMedio:scoreFinal>=45?pzAtencao:scoreFinal>=30?2:0;
+  var taxaPct    = scoreFinal>=90?txMin:scoreFinal>=75?txBaixa:scoreFinal>=60?txPad:scoreFinal>=45?txAlta:txMax;
+  var taxaLabel  = scoreFinal>=90?"Mínima":scoreFinal>=75?"Padrão baixa":scoreFinal>=60?"Padrão":scoreFinal>=45?"Alta":"Máxima";
+  var pctCFator  = scoreFinal>=90?1.0:scoreFinal>=75?0.80:scoreFinal>=60?0.65:scoreFinal>=45?0.50:0;
+  var pctCMax    = cmpMax * pctCFator;
   var parcelaMax = rendaMensal>0?Math.max(0,rendaMensal*pctCMax-(principalAtivo/Math.max(1,prazoMax))):0;
 
   // ── MOTIVOS ──
@@ -806,6 +750,49 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
   if (indicouBons)        motivos.push("+Indicou bons clientes");
   if (bloqueado)          motivos.push("BLOQUEADO: "+(motivoBloq||"Score < 30"));
 
+  // ── RECOMENDAÇÃO DE RENOVAÇÃO ──
+  var renovStatus, renovMotivo;
+  if (bloqueado || scoreFinal < 30) {
+    renovStatus = "vermelho";
+    renovMotivo = motivoBloq || "Score insuficiente";
+  } else if (qtdQuit === 0) {
+    renovStatus = "vermelho";
+    renovMotivo = "Nenhum contrato quitado ainda";
+  } else if (temPreju && !temRecup) {
+    renovStatus = "vermelho";
+    renovMotivo = "Prejuízo não recuperado";
+  } else if (temRenegAt) {
+    renovStatus = "vermelho";
+    renovMotivo = "Renegociação ativa";
+  } else if (maxAtrasoDias > 30) {
+    renovStatus = "vermelho";
+    renovMotivo = "Atraso atual: " + maxAtrasoDias + " dias";
+  } else if (scoreFinal >= 75 && atrGraveH === 0 && qtdReneg === 0) {
+    renovStatus = "verde";
+    renovMotivo = qtdQuit >= 2
+      ? qtdQuit + " contratos quitados — bônus fidelidade aplicado"
+      : "1 contrato quitado — início promissor";
+  } else if (scoreFinal >= 60) {
+    renovStatus = "amarelo";
+    var partsRen = [];
+    if (atrGraveH > 0) partsRen.push(atrGraveH + " atraso(s) grave(s) no histórico");
+    if (qtdReneg > 0)  partsRen.push(qtdReneg + " renegociação(ões)");
+    if (maxAtrasoDias > 0 && maxAtrasoDias <= 30) partsRen.push("atraso atual: " + maxAtrasoDias + "d");
+    renovMotivo = (partsRen.length > 0 ? partsRen.join(", ") + ". " : "") + "Analisar antes de aprovar.";
+  } else if (scoreFinal >= 45) {
+    renovStatus = "amarelo";
+    renovMotivo = "Score " + scoreFinal + " (Atenção) — análise obrigatória";
+  } else {
+    renovStatus = "vermelho";
+    renovMotivo = "Score " + scoreFinal + " — não renovar agora";
+  }
+  var isLeal = (renovStatus === "verde" && qtdQuit >= 2);
+  var limRenov       = isLeal ? Math.round(limiteSug * 1.10) : limiteSug;
+  var prazoRenov     = isLeal ? Math.min(12, prazoMax + 2)   : prazoMax;
+  var taxaRenov      = isLeal ? 9.0 : parseFloat((taxaPct * 100).toFixed(1));
+  var taxaLabelRenov = isLeal ? "Fidelidade" : taxaLabel;
+  var renovCondicoes = "limite:" + limRenov.toFixed(2) + "|prazo:" + prazoRenov + "|taxa:" + taxaRenov.toFixed(1) + "|taxa_label:" + taxaLabelRenov;
+
   // ── SALVAR ──
   var sc_set = function(h, val) { if (cmCli[h]) { try { abaCli.getRange(linCli, cmCli[h]).setValue(val); } catch(e){} } };
   sc_set("SCORE",                 scoreFinal);
@@ -814,9 +801,13 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
   sc_set("SCORE_LIMITE_SUGERIDO", parseFloat(limiteSug.toFixed(2)));
   sc_set("SCORE_PARCELA_MAX",     parseFloat(parcelaMax.toFixed(2)));
   sc_set("SCORE_TAXA_LABEL",      taxaLabel);
+  sc_set("SCORE_TAXA_PCT",        parseFloat((taxaPct*100).toFixed(1)));
   sc_set("SCORE_PRAZO_MAX",       prazoMax);
   sc_set("SCORE_BLOQUEADO",       bloqueado?"SIM":"NAO");
   sc_set("SCORE_MOTIVOS",         motivos.join(" | "));
+  sc_set("RENOVACAO_STATUS",    renovStatus);
+  sc_set("RENOVACAO_MOTIVO",    renovMotivo);
+  sc_set("RENOVACAO_CONDICOES", renovCondicoes);
   if (cmCli["SCORE_DATA"]) {
     try { var rSd=abaCli.getRange(linCli,cmCli["SCORE_DATA"]); rSd.setValue(new Date()); rSd.setNumberFormat("dd/mm/yyyy"); } catch(e){}
   }
@@ -825,7 +816,8 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
 
   return { score:scoreFinal, faixa:faixa, decisao:decisao, bloqueado:bloqueado,
     limiteSugerido:limiteSug, prazoMax:prazoMax, parcelaMax:parcelaMax,
-    taxaLabel:taxaLabel, motivos:motivos };
+    taxaLabel:taxaLabel, motivos:motivos,
+    renovacao:{ status:renovStatus, motivo:renovMotivo, condicoes:renovCondicoes } };
 }
 
 function atualizarTotaisContrato(idContrato, ss) {
@@ -982,8 +974,6 @@ function reabrirParcelaAPI(v) {
 
   // ── 3. Recalcular totais e status do contrato ──
   try { atualizarTotaisContrato(idContrato, ss); } catch(eTC) { Logger.log("TotaisContrato err: "+eTC.message); }
-  try { atualizarStatusParcelas(); } catch(eSP) { Logger.log("Status parcelas err: "+eSP.message); }
-  try { atualizarStatusContratos(); } catch(eSC) { Logger.log("Status contrato err: "+eSC.message); }
 
   // ── 4. Log de evento ──
   try {
@@ -994,8 +984,9 @@ function reabrirParcelaAPI(v) {
     }
   } catch(e) {}
 
-  // ── 5. Recalcular score ──
+  // ── 5. Recalcular score e métricas ──
   if (idCliente) try { calcularScore(idCliente); } catch(e) {}
+  if (idCliente) try { calcularMetricasCliente(idCliente); } catch(e) { Logger.log("Metricas err: "+e.message); }
 
   return "Parcela " + numParcela + " do contrato " + idContrato + " reaberta com sucesso";
 }
@@ -1118,6 +1109,7 @@ function registrarAcordoComPerda(v) {
   });
 
   try { calcularScore(idCliente); } catch(eScore) { Logger.log("Score err: "+eScore.message); }
+  try { calcularMetricasCliente(idCliente); } catch(eMet) { Logger.log("Metricas err: "+eMet.message); }
   return { idAcordo: idAcordo, totalDivida: totalDivida, valorAcordado: valorAcordado, descontoPrincipal: descontoPrincipal, descontoJuros: descontoJuros };
 }
 
@@ -1255,6 +1247,7 @@ function registrarQuitacaoAntecipada(v) {
   });
 
   try { calcularScore(idCliente); } catch(eScore) { Logger.log("Score err: "+eScore.message); }
+  try { calcularMetricasCliente(idCliente); } catch(eMet) { Logger.log("Metricas err: "+eMet.message); }
   return { parcelasQuitadas: selecionadas.length, totalRecebido: totalRecebido, descontoJuros: descontoTotal, contratoQuitado: todasPagas };
 }
 
@@ -1326,6 +1319,7 @@ function baixarContratoPrejuizo(idContrato, dados) {
   var idCli = String(row[(cm["ID_CLIENTE"]||2)-1]);
   atualizarCampoCliente(idCli, "STATUS_CLIENTE", "bloqueado");
   try { calcularScore(idCli); } catch(eScore) { Logger.log("Score err: "+eScore.message); }
+  try { calcularMetricasCliente(idCli); } catch(eMet) { Logger.log("Metricas err: "+eMet.message); }
 }
 
 function registrarRecuperacaoAposBaixa(idContrato, dados) {
@@ -1376,6 +1370,7 @@ function registrarRecuperacaoAposBaixa(idContrato, dados) {
     observacoes: "Recuperacao de R$ " + valorPago.toFixed(2) + " apos baixa. Prejuizo restante: R$ " + novoPrejuizo.toFixed(2)
   });
   try { calcularScore(idCliRecup); } catch(eScore) { Logger.log("Score err: "+eScore.message); }
+  try { calcularMetricasCliente(idCliRecup); } catch(eMet) { Logger.log("Metricas err: "+eMet.message); }
 }
 
 function registrarPromessa(dados) {
@@ -1432,7 +1427,7 @@ function atualizarPromessa(body) {
   for (var i = 1; i < dados.length; i++) {
     if (String(dados[i][cId-1]).trim() === String(body.idPromessa).trim()) {
       if (cSt) abaProm.getRange(i+1, cSt).setValue(body.status);
-      if (cDC && body.dataCumprimento) abaProm.getRange(i+1, cDC).setNumberFormat("dd/mm/yyyy").setValue(new Date(body.dataCumprimento));
+      if (cDC && body.dataCumprimento) abaProm.getRange(i+1, cDC).setNumberFormat("dd/mm/yyyy").setValue(parseDateLocal(body.dataCumprimento));
       registrarEvento({
         tipoEvento:  "ATUALIZACAO_PROMESSA",
         observacoes: "Promessa " + body.idPromessa + " marcada como " + body.status
@@ -1522,6 +1517,20 @@ function atualizarDadosCliente(idCliente, campos) {
     if (String(dados[i][0]).trim()===String(idCliente).trim()) { linha=i+1; break; }
   }
   if (linha===-1) throw new Error("Cliente nao encontrado: "+idCliente);
+
+  // Auto-sync Opção A: ao ativar cliente, se RENDA_MENSAL vazia e RENDA_LIQUIDA preenchida → copiar
+  if (String(campos["STATUS_CLIENTE"]||"").toLowerCase() === "ativo") {
+    var cRM = cm["RENDA_MENSAL"];
+    var cRL = cm["RENDA_LIQUIDA"];
+    if (cRM && cRL) {
+      var rmAtual = parseFloat(dados[linha-1][cRM-1]||0)||0;
+      var rlAtual = parseFloat(dados[linha-1][cRL-1]||0)||0;
+      if (rmAtual === 0 && rlAtual > 0 && !campos["RENDA_MENSAL"]) {
+        campos["RENDA_MENSAL"] = rlAtual;
+      }
+    }
+  }
+
   Object.keys(campos).forEach(function(h) {
     var c = cm[h];
     if (c) { try { aba.getRange(linha,c).clearDataValidations(); aba.getRange(linha,c).setValue(campos[h]); } catch(e){} }
@@ -1548,9 +1557,9 @@ function registrarPagamentoAPI(idParcela, data, valor, forma) {
   }
   if (linha===-1) throw new Error("Parcela nao encontrada: "+idParcela);
   var valorOriginal = parseFloat(parRow[(cm["VALOR_PARCELA"]||8)-1]) || 0;
-  var dtPag  = new Date(data);
+  var dtPag  = parseDateLocal(data);
   var dtVenc = parRow[(cm["DATA_VENCIMENTO"]||7)-1];
-  if (!(dtVenc instanceof Date)) dtVenc = new Date(dtVenc);
+  if (!(dtVenc instanceof Date)) dtVenc = parseDateLocal(dtVenc);
   var vlPago = valor ? parseFloat(valor) : valorOriginal;
   var dif    = Math.max(0, vlPago - valorOriginal);
   var ehAtraso = false; var diasAtraso = 0; var diasAntecipacao = 0;
@@ -1625,9 +1634,24 @@ function registrarPagamentoAPI(idParcela, data, valor, forma) {
         break;
       }
     }
+  } else {
+    var abaC = ss.getSheetByName(ABAS.CONTRATOS);
+    var cmC  = buildColMap(abaC);
+    var dadosC = abaC.getDataRange().getValues();
+    var stFinaisC = ["baixado_como_prejuizo","em_recuperacao","recuperado_parcialmente",
+      "recuperado_integralmente","encerrado_sem_recuperacao","cancelado","renegociado","quitado"];
+    for (var mc = 1; mc < dadosC.length; mc++) {
+      if (String(dadosC[mc][(cmC["ID_CONTRATO"]||1)-1]).trim() !== idContrato.trim()) continue;
+      var stC = String(dadosC[mc][(cmC["STATUS_CONTRATO"]||16)-1]||"").toLowerCase().trim();
+      if (stFinaisC.indexOf(stC) >= 0) break;
+      var diasC = maxDiasAtraso(idContrato, dados, cm);
+      var stNovoC = statusPorDias(diasC);
+      if (stNovoC !== stC) abaC.getRange(mc+1, cmC["STATUS_CONTRATO"]||16).setValue(stNovoC);
+      break;
+    }
   }
   try { calcularScore(idCliente); } catch(eScore) { Logger.log("Score err: "+eScore.message); }
-  try { atualizarStatusContratos(); } catch(eSt) { Logger.log("Status err: "+eSt.message); }
+  try { calcularMetricasCliente(idCliente); } catch(eMet) { Logger.log("Metricas err: "+eMet.message); }
   return { contratoQuitado: todasPagas, idContrato: idContrato };
 }
 
@@ -1661,7 +1685,7 @@ function registrarPagamentoParcial(idParcela, data, valorRecebido) {
       }
     }
   }
-  var dtPag = new Date(data);
+  var dtPag = parseDateLocal(data);
   var idPag = proximoIdSeq(abaPag,"PAG");
   var nc    = abaPag.getLastColumn();
   var rPag  = new Array(nc).fill("");
@@ -1721,6 +1745,7 @@ function registrarPagamentoParcial(idParcela, data, valorRecebido) {
     valorPrincipal:parcelPrinc,valorJuros:parcelJuros,valorTotal:vlPago,valorExtraAtraso:extraMulta,
     observacoes:"Juros pagos. Nova parcela: "+String(ultimaIdP).padStart(5,"0")});
   try { calcularScore(idCliente); } catch(eScore) { Logger.log("Score err: "+eScore.message); }
+  try { calcularMetricasCliente(idCliente); } catch(eMet) { Logger.log("Metricas err: "+eMet.message); }
   // Corrigir TOTAL_PARCELAS de todas as parcelas existentes deste contrato
   if (cm["TOTAL_PARCELAS"]) {
     var novoTotal = maxNP + 1;
@@ -1731,7 +1756,6 @@ function registrarPagamentoParcial(idParcela, data, valorRecebido) {
     }
   }
   try { atualizarTotaisContrato(idContrato, ss); } catch(eTC) { Logger.log("TotaisContrato err: "+eTC.message); }
-  try { atualizarStatusContratos(); } catch(eSt) { Logger.log("Status err: "+eSt.message); }
 }
 
 function criarContrato(v) {
@@ -1746,8 +1770,8 @@ function criarContrato(v) {
   var p  = parseFloat(v.principal  || v.vp  || 0);
   var n  = parseInt(  v.parcelas   || v.np  || 0);
   var t  = parseFloat(v.taxa       || v.tx  || 0)/100;
-  var dtEmp  = new Date(v.dataEmprestimo || v.dtEmp  || "");
-  var dtVenc = new Date(v.dataVencimento  || v.dtVenc || "");
+  var dtEmp  = parseDateLocal(v.dataEmprestimo || v.dtEmp  || "");
+  var dtVenc = parseDateLocal(v.dataVencimento  || v.dtVenc || "");
   if(!p||!n||!t) throw new Error("Valores invalidos");
   if(isNaN(dtEmp.getTime()))  throw new Error("Data do emprestimo invalida");
   if(isNaN(dtVenc.getTime())) throw new Error("Data do vencimento invalida");
@@ -2004,6 +2028,539 @@ function criarAbaConfiguracoes(ss) {
   aba.getRange(1,1,1,2).setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
 }
 
+function lerConfiguracoes() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var aba = ss.getSheetByName(ABAS.CONFIG);
+  if (!aba || aba.getLastRow() <= 1) return {};
+  var vals = aba.getDataRange().getValues();
+  var cfg = {};
+  for (var i = 1; i < vals.length; i++) {
+    var chave = String(vals[i][0] || "").trim();
+    if (chave) cfg[chave] = vals[i][1];
+  }
+  return cfg;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FASE 1 — MÉTRICAS ANALÍTICAS POR CLIENTE
+// Colunas novas em CLIENTES: LTV_CLIENTE, LUCRO_TOTAL, PREJUIZO_TOTAL,
+// ROI_CLIENTE, ATRASO_MEDIO, ATRASO_MAXIMO, PROMESSAS_QUEBRADAS, TAXA_ADIMPLENCIA
+// ═══════════════════════════════════════════════════════════════════════════
+
+function _garantirColunasMetricasCliente() {
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var aba = ss.getSheetByName(ABAS.CLIENTES);
+  if (!aba) return;
+  var cm  = buildColMap(aba);
+  ["LTV_CLIENTE","LUCRO_TOTAL","PREJUIZO_TOTAL","ROI_CLIENTE",
+   "ATRASO_MEDIO","ATRASO_MAXIMO","PROMESSAS_QUEBRADAS","TAXA_ADIMPLENCIA"].forEach(function(c) {
+    if (!cm[c]) {
+      var col = aba.getLastColumn() + 1;
+      aba.getRange(1, col).setValue(c).setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
+      Logger.log("Coluna adicionada em CLIENTES: " + c);
+    }
+  });
+}
+
+function calcularMetricasCliente(idCliente, _dadosCli, _dadosC, _dadosP, _dadosPag, _dadosProm) {
+  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var abaCli = ss.getSheetByName(ABAS.CLIENTES);
+  var abaC   = ss.getSheetByName(ABAS.CONTRATOS);
+  var abaP   = ss.getSheetByName(ABAS.PARCELAS);
+  var abaPag = ss.getSheetByName(ABAS.PAGAMENTOS);
+  var abaProm= ss.getSheetByName(ABAS.PROMESSAS);
+  if (!abaCli || !abaC || !abaP) return null;
+
+  var cmCli  = buildColMap(abaCli);
+  var cmC    = buildColMap(abaC);
+  var cmP    = buildColMap(abaP);
+  var cmProm = abaProm ? buildColMap(abaProm) : {};
+
+  var dadosCli  = _dadosCli  || abaCli.getDataRange().getValues();
+  var dadosC    = _dadosC    || abaC.getDataRange().getValues();
+  var dadosP    = _dadosP    || abaP.getDataRange().getValues();
+  var dadosPag  = _dadosPag  || (abaPag  ? abaPag.getDataRange().getValues()  : []);
+  var dadosProm = _dadosProm || (abaProm ? abaProm.getDataRange().getValues() : []);
+
+  // Localiza linha do cliente para escrita
+  var linCli = -1;
+  for (var i = 1; i < dadosCli.length; i++) {
+    if (String(dadosCli[i][0]).trim() === String(idCliente).trim()) { linCli = i + 1; break; }
+  }
+  if (linCli === -1) return null;
+
+  var ST_PAGO = ["pago", "quitacao_antecipada"];
+
+  // Índices PARCELAS
+  var iP_IC   = (cmP["ID_CLIENTE"]      || 3)  - 1;
+  var iP_IC2  = (cmP["ID_CONTRATO"]     || 2)  - 1;
+  var iP_St   = (cmP["STATUS"] || cmP["STATUS_PAGAMENTO"] || 11) - 1;
+  var iP_VJ   = (cmP["VALOR_JUROS"]     || 10) - 1;
+  var iP_DP   = (cmP["DIFERENCA_PAGA"]  || 14) - 1;
+  var iP_DA   = cmP["DIAS_ATRASO"]      ? cmP["DIAS_ATRASO"]      - 1 : -1;
+  var iP_Dsc  = cmP["DESCONTO_APLICADO"]? cmP["DESCONTO_APLICADO"]- 1 : -1;
+
+  // Índices CONTRATOS
+  var iC_ID   = (cmC["ID_CONTRATO"]     || 1)  - 1;
+  var iC_IC   = cmC["ID_CLIENTE"]       ? cmC["ID_CLIENTE"]       - 1 : -1;
+  var iC_VP   = (cmC["VALOR_PRINCIPAL"] || 6)  - 1;
+  var iC_Prej = cmC["PREJUIZO_CAPITAL"] ? cmC["PREJUIZO_CAPITAL"] - 1 : -1;
+
+  // Índices PROMESSAS
+  var iPr_IC  = cmProm["ID_CLIENTE"]      ? cmProm["ID_CLIENTE"]      - 1 : 2;
+  var iPr_St  = cmProm["STATUS_PROMESSA"] ? cmProm["STATUS_PROMESSA"] - 1 : 7;
+
+  // Mapa de contratos do cliente (via parcelas — igual ao calcularScore)
+  var idsContratos = {};
+  for (var pi = 1; pi < dadosP.length; pi++) {
+    if (String(dadosP[pi][iP_IC]).trim() !== String(idCliente).trim()) continue;
+    var idCtr = String(dadosP[pi][iP_IC2] || "").trim();
+    if (idCtr) idsContratos[idCtr] = true;
+  }
+
+  // Parcelas pagas: lucro, atraso
+  var lucroTotal        = 0;
+  var totalParcelasPagas= 0;
+  var totalEmDia        = 0;
+  var somaAtrasosDias   = 0;
+  var countAtraso       = 0;
+  var maxAtraso         = 0;
+
+  for (var pi2 = 1; pi2 < dadosP.length; pi2++) {
+    if (String(dadosP[pi2][iP_IC]).trim() !== String(idCliente).trim()) continue;
+    var st = String(dadosP[pi2][iP_St] || "").toLowerCase().trim();
+    if (ST_PAGO.indexOf(st) < 0) continue;
+
+    totalParcelasPagas++;
+    var juros = parseFloat(dadosP[pi2][iP_VJ]  || 0) || 0;
+    var dif   = parseFloat(dadosP[pi2][iP_DP]  || 0) || 0;
+    var desc  = iP_Dsc >= 0 ? (parseFloat(dadosP[pi2][iP_Dsc] || 0) || 0) : 0;
+    lucroTotal += juros - desc + dif;
+
+    var da = iP_DA >= 0 ? (parseInt(dadosP[pi2][iP_DA] || 0) || 0) : 0;
+    if (da > maxAtraso) maxAtraso = da;
+    if (da > 0) { somaAtrasosDias += da; countAtraso++; }
+    else        { totalEmDia++; }
+  }
+
+  // Contratos: capital total e prejuízo
+  var capitalTotal  = 0;
+  var prejuizoTotal = 0;
+  for (var ci = 1; ci < dadosC.length; ci++) {
+    var idCtrC = String(dadosC[ci][iC_ID] || "").trim();
+    var ehDoCliente = idsContratos[idCtrC];
+    if (!ehDoCliente && iC_IC >= 0) {
+      if (String(dadosC[ci][iC_IC]).trim() !== String(idCliente).trim()) continue;
+    } else if (!ehDoCliente) continue;
+    capitalTotal  += parseFloat(dadosC[ci][iC_VP]  || 0) || 0;
+    if (iC_Prej >= 0) prejuizoTotal += parseFloat(dadosC[ci][iC_Prej] || 0) || 0;
+  }
+
+  // Métricas derivadas
+  var ltvCliente      = lucroTotal - prejuizoTotal;
+  var roiCliente      = capitalTotal > 0 ? (ltvCliente / capitalTotal) * 100 : 0;
+  var atrasoMedio     = countAtraso  > 0 ? somaAtrasosDias / countAtraso     : 0;
+  var taxaAdimplencia = totalParcelasPagas > 0 ? (totalEmDia / totalParcelasPagas) * 100 : 0;
+
+  // Promessas quebradas
+  var promessasQuebradas = 0;
+  for (var pri = 1; pri < dadosProm.length; pri++) {
+    if (String(dadosProm[pri][iPr_IC] || "").trim() !== String(idCliente).trim()) continue;
+    if (String(dadosProm[pri][iPr_St] || "").trim() === "QUEBRADA") promessasQuebradas++;
+  }
+
+  // Salva em CLIENTES
+  function sc(h, val, fmt) {
+    if (!cmCli[h]) return;
+    try { var r = abaCli.getRange(linCli, cmCli[h]); r.setValue(val); if (fmt) r.setNumberFormat(fmt); } catch(e) {}
+  }
+  sc("LTV_CLIENTE",         parseFloat(ltvCliente.toFixed(2)),      "R$ #,##0.00");
+  sc("LUCRO_TOTAL",         parseFloat(lucroTotal.toFixed(2)),       "R$ #,##0.00");
+  sc("PREJUIZO_TOTAL",      parseFloat(prejuizoTotal.toFixed(2)),    "R$ #,##0.00");
+  sc("ROI_CLIENTE",         parseFloat(roiCliente.toFixed(2)));
+  sc("ATRASO_MEDIO",        parseFloat(atrasoMedio.toFixed(1)));
+  sc("ATRASO_MAXIMO",       maxAtraso);
+  sc("PROMESSAS_QUEBRADAS", promessasQuebradas);
+  sc("TAXA_ADIMPLENCIA",    parseFloat(taxaAdimplencia.toFixed(2)));
+
+  return { ltvCliente:ltvCliente, lucroTotal:lucroTotal, prejuizoTotal:prejuizoTotal,
+    roiCliente:roiCliente, atrasoMedio:atrasoMedio, maxAtraso:maxAtraso,
+    promessasQuebradas:promessasQuebradas, taxaAdimplencia:taxaAdimplencia };
+}
+
+function recalcularTodasMetricas() {
+  _garantirColunasMetricasCliente();
+  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var abaCli = ss.getSheetByName(ABAS.CLIENTES);
+  var abaC   = ss.getSheetByName(ABAS.CONTRATOS);
+  var abaP   = ss.getSheetByName(ABAS.PARCELAS);
+  var abaPag = ss.getSheetByName(ABAS.PAGAMENTOS);
+  var abaProm= ss.getSheetByName(ABAS.PROMESSAS);
+  if (!abaCli || !abaC || !abaP) return;
+  var dadosCli  = abaCli.getDataRange().getValues();
+  var dadosC    = abaC.getDataRange().getValues();
+  var dadosP    = abaP.getDataRange().getValues();
+  var dadosPag  = abaPag  ? abaPag.getDataRange().getValues()  : [];
+  var dadosProm = abaProm ? abaProm.getDataRange().getValues() : [];
+  var count = 0;
+  for (var i = 1; i < dadosCli.length; i++) {
+    var idCli = String(dadosCli[i][0]).trim();
+    if (!idCli) continue;
+    try { calcularMetricasCliente(idCli, dadosCli, dadosC, dadosP, dadosPag, dadosProm); count++; } catch(e) {
+      Logger.log("Metricas err " + idCli + ": " + e.message);
+    }
+  }
+  SpreadsheetApp.getUi().alert("Métricas recalculadas para " + count + " cliente(s).");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FASE 2 — EMPREGADOR + TABELA EMPREGADORES
+// ═══════════════════════════════════════════════════════════════════════════
+
+function _garantirColunasEmpregadorClientes() {
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var aba = ss.getSheetByName(ABAS.CLIENTES);
+  if (!aba) return;
+  var cm  = buildColMap(aba);
+  ["EMPREGADOR","RENDA_BRUTA","RENDA_LIQUIDA","DATA_ADMISSAO","RENDA_MENSAL"].forEach(function(c) {
+    if (!cm[c]) {
+      var col = aba.getLastColumn() + 1;
+      aba.getRange(1, col).setValue(c).setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
+      Logger.log("Coluna adicionada em CLIENTES: " + c);
+    }
+  });
+}
+
+// Copia EMPREGADOR, RENDA_BRUTA, RENDA_LIQUIDA, DATA_ADMISSAO de LEADS → CLIENTES
+// Faz match pelo telefone (TELEFONE_WPP ↔ TEL). Só preenche campos vazios.
+function migrarEmpregadorDeLeads() {
+  var ui   = SpreadsheetApp.getUi();
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var abaL = ss.getSheetByName(ABAS.LEADS);
+  var abaC = ss.getSheetByName(ABAS.CLIENTES);
+  if (!abaL || !abaC) { ui.alert("Aba LEADS ou CLIENTES não encontrada."); return; }
+
+  _garantirColunasEmpregadorClientes();
+
+  var cmL = buildColMap(abaL);
+  var cmC = buildColMap(abaC);
+  if (!cmL["TEL"] || !cmC["TELEFONE_WPP"]) { ui.alert("Colunas de telefone não encontradas."); return; }
+
+  var dadosL = abaL.getDataRange().getValues();
+  var dadosC = abaC.getDataRange().getValues();
+
+  var cLTel = cmL["TEL"]          - 1;
+  var cLEmp = cmL["EMPREGADOR"]   ? cmL["EMPREGADOR"]   - 1 : -1;
+  var cLRB  = cmL["RENDA_BRUTA"]  ? cmL["RENDA_BRUTA"]  - 1 : -1;
+  var cLRL  = cmL["RENDA_LIQUIDA"]? cmL["RENDA_LIQUIDA"]- 1 : -1;
+  var cLDA  = cmL["DATA_ADMISSAO"]? cmL["DATA_ADMISSAO"]- 1 : -1;
+
+  var cCTel = cmC["TELEFONE_WPP"] - 1;
+  var cCEmp = cmC["EMPREGADOR"]   ? cmC["EMPREGADOR"]   - 1 : -1;
+  var cCRB  = cmC["RENDA_BRUTA"]  ? cmC["RENDA_BRUTA"]  - 1 : -1;
+  var cCRL  = cmC["RENDA_LIQUIDA"]? cmC["RENDA_LIQUIDA"]- 1 : -1;
+  var cCDA  = cmC["DATA_ADMISSAO"]? cmC["DATA_ADMISSAO"]- 1 : -1;
+  var cCRM  = cmC["RENDA_MENSAL"] ? cmC["RENDA_MENSAL"] - 1 : -1;
+
+  // Mapa: tel normalizado → dados do lead (último lead válido por telefone)
+  var mapaLeads = {};
+  for (var li = 1; li < dadosL.length; li++) {
+    var tel = String(dadosL[li][cLTel] || "").replace(/\D/g, "");
+    if (!tel) continue;
+    var emp = cLEmp >= 0 ? String(dadosL[li][cLEmp] || "").trim() : "";
+    if (!emp) continue;
+    mapaLeads[tel] = {
+      empregador:   emp,
+      rendaBruta:   cLRB >= 0 ? parseFloat(dadosL[li][cLRB]  || 0) || 0 : 0,
+      rendaLiquida: cLRL >= 0 ? parseFloat(dadosL[li][cLRL]  || 0) || 0 : 0,
+      dataAdmissao: cLDA >= 0 ? dadosL[li][cLDA] : ""
+    };
+  }
+
+  if (Object.keys(mapaLeads).length === 0) { ui.alert("Nenhum lead com EMPREGADOR preenchido."); return; }
+
+  var atualizados = 0;
+  for (var ci = 1; ci < dadosC.length; ci++) {
+    var telCli = String(dadosC[ci][cCTel] || "").replace(/\D/g, "");
+    if (!telCli) continue;
+    // Tenta match com e sem o nono dígito
+    var ld = mapaLeads[telCli] || mapaLeads[telCli.replace(/^(\d{2})9(\d{8})$/, "$1$2")];
+    if (!ld) continue;
+    var empAtual = cCEmp >= 0 ? String(dadosC[ci][cCEmp] || "").trim() : "";
+    if (empAtual) continue; // não sobrescreve campos já preenchidos
+    if (cCEmp >= 0) abaC.getRange(ci+1, cCEmp+1).setValue(ld.empregador);
+    if (cCRB  >= 0 && ld.rendaBruta   > 0) abaC.getRange(ci+1, cCRB+1).setValue(ld.rendaBruta);
+    if (cCRL  >= 0 && ld.rendaLiquida > 0) abaC.getRange(ci+1, cCRL+1).setValue(ld.rendaLiquida);
+    if (cCRM  >= 0 && ld.rendaLiquida > 0) abaC.getRange(ci+1, cCRM+1).setValue(ld.rendaLiquida);
+    if (cCDA  >= 0 && ld.dataAdmissao)     abaC.getRange(ci+1, cCDA+1).setValue(ld.dataAdmissao);
+    atualizados++;
+  }
+
+  SpreadsheetApp.flush();
+  ui.alert("Migração concluída!\n" + atualizados + " cliente(s) atualizados com dados de empregador.\n\nRode 'Atualizar Tabela Empregadores' em seguida.");
+}
+
+// Reconstrói a aba EMPREGADORES agregando métricas de CLIENTES por empregador.
+// Chamada pela rotina diária às 7h e disponível no menu para execução manual.
+function atualizarTabelaEmpregadores() {
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var abaC = ss.getSheetByName(ABAS.CLIENTES);
+  if (!abaC || abaC.getLastRow() <= 1) return;
+
+  var cmC   = buildColMap(abaC);
+  var dados = abaC.getDataRange().getValues();
+
+  var cEmp   = cmC["EMPREGADOR"]       ? cmC["EMPREGADOR"]       - 1 : -1;
+  var cLucro = cmC["LUCRO_TOTAL"]      ? cmC["LUCRO_TOTAL"]      - 1 : -1;
+  var cPreju = cmC["PREJUIZO_TOTAL"]   ? cmC["PREJUIZO_TOTAL"]   - 1 : -1;
+  var cROI   = cmC["ROI_CLIENTE"]      ? cmC["ROI_CLIENTE"]      - 1 : -1;
+  var cAM    = cmC["ATRASO_MEDIO"]     ? cmC["ATRASO_MEDIO"]     - 1 : -1;
+  var cTA    = cmC["TAXA_ADIMPLENCIA"] ? cmC["TAXA_ADIMPLENCIA"] - 1 : -1;
+  var cCap   = cmC["TOTAL_EMPRESTADO"] ? cmC["TOTAL_EMPRESTADO"] - 1 : -1;
+
+  if (cEmp < 0) { Logger.log("EMPREGADOR não existe em CLIENTES — rode migrarEmpregadorDeLeads primeiro"); return; }
+
+  // Agrupa por empregador
+  var grupos = {};
+  for (var i = 1; i < dados.length; i++) {
+    var emp = String(dados[i][cEmp] || "").trim();
+    if (!emp) continue;
+    if (!grupos[emp]) grupos[emp] = { n:0, capital:0, lucro:0, prejuizo:0, somaROI:0, somaAM:0, somaTA:0, nROI:0, nAM:0, nTA:0 };
+    var g = grupos[emp];
+    g.n++;
+    if (cCap   >= 0) g.capital  += parseFloat(dados[i][cCap]   || 0) || 0;
+    if (cLucro >= 0) g.lucro    += parseFloat(dados[i][cLucro] || 0) || 0;
+    if (cPreju >= 0) g.prejuizo += parseFloat(dados[i][cPreju] || 0) || 0;
+    if (cROI   >= 0) { var roi = parseFloat(dados[i][cROI] || 0) || 0; g.somaROI += roi; g.nROI++; }
+    if (cAM    >= 0) { var am  = parseFloat(dados[i][cAM]  || 0) || 0; g.somaAM  += am;  g.nAM++;  }
+    if (cTA    >= 0) { var ta  = parseFloat(dados[i][cTA]  || 0) || 0; if (ta > 0) { g.somaTA += ta; g.nTA++; } }
+  }
+
+  var linhas = [];
+  Object.keys(grupos).sort(function(a,b){
+    return (grupos[b].lucro - grupos[b].prejuizo) - (grupos[a].lucro - grupos[a].prejuizo);
+  }).forEach(function(emp) {
+    var g        = grupos[emp];
+    var ltv      = g.lucro - g.prejuizo;
+    var roiMedio = g.nROI > 0 ? g.somaROI / g.nROI : 0;
+    var amMedio  = g.nAM  > 0 ? g.somaAM  / g.nAM  : 0;
+    var taMedio  = g.nTA  > 0 ? g.somaTA  / g.nTA  : 0;
+
+    // SCORE_EMPREGADOR (0–100)
+    var ptROI = roiMedio > 30 ? 40 : roiMedio > 20 ? 30 : roiMedio > 10 ? 20 : roiMedio > 0 ? 10 : 0;
+    var ptTA  = taMedio  > 90 ? 30 : taMedio  > 80 ? 20 : taMedio  > 70 ? 10 : 0;
+    var ptAM  = amMedio === 0 ? 20 : amMedio <= 5 ? 15 : amMedio <= 15 ? 10 : amMedio <= 30 ? 5 : 0;
+    var ptVol = g.n >= 5 ? 10 : g.n >= 3 ? 6 : g.n >= 2 ? 3 : 1;
+    var score = Math.min(100, ptROI + ptTA + ptAM + ptVol);
+
+    linhas.push([emp, g.n, g.capital, g.lucro, g.prejuizo, ltv,
+      parseFloat(roiMedio.toFixed(2)), parseFloat(amMedio.toFixed(1)),
+      parseFloat(taMedio.toFixed(2)), score, new Date()]);
+  });
+
+  if (linhas.length === 0) { Logger.log("atualizarTabelaEmpregadores: sem dados"); return; }
+
+  var abaE = ss.getSheetByName("EMPREGADORES") || ss.insertSheet("EMPREGADORES");
+  abaE.clearContents();
+
+  var HDR = [["EMPREGADOR","QTD_CLIENTES","CAPITAL_EMPRESTADO","LUCRO_TOTAL","PREJUIZO_TOTAL",
+              "LTV_LIQUIDO","ROI_MEDIO","ATRASO_MEDIO","TAXA_ADIMPLENCIA","SCORE_EMPREGADOR","ATUALIZADO_EM"]];
+  abaE.getRange(1,1,1,HDR[0].length).setValues(HDR).setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
+  abaE.getRange(2,1,linhas.length,HDR[0].length).setValues(linhas);
+  abaE.getRange(2,3,linhas.length,4).setNumberFormat("R$ #,##0.00");
+  abaE.getRange(2,7,linhas.length,1).setNumberFormat("0.00");
+  abaE.getRange(2,8,linhas.length,1).setNumberFormat("0.0");
+  abaE.getRange(2,9,linhas.length,1).setNumberFormat("0.00");
+  abaE.getRange(2,11,linhas.length,1).setNumberFormat("dd/mm/yyyy hh:mm");
+  abaE.setFrozenRows(1);
+  abaE.setColumnWidth(1, 220);
+  abaE.setColumnWidth(10, 80);
+
+  Logger.log("atualizarTabelaEmpregadores: " + linhas.length + " empregadores, ordenados por LTV");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FASE 3 — TABELA PADRINHOS
+// Agrega métricas de CLIENTES agrupando pelo campo PADRINHO.
+// Dados já disponíveis via Fase 1 (LTV, LUCRO, PREJUIZO, ROI, TAXA_ADIMPLENCIA).
+// ═══════════════════════════════════════════════════════════════════════════
+
+function atualizarTabelaPadrinhos() {
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var abaC = ss.getSheetByName(ABAS.CLIENTES);
+  if (!abaC || abaC.getLastRow() <= 1) return;
+
+  var cmC   = buildColMap(abaC);
+  var dados = abaC.getDataRange().getValues();
+
+  var cPad   = cmC["PADRINHO"]         ? cmC["PADRINHO"]         - 1 : -1;
+  var cSt    = cmC["STATUS_CLIENTE"]   ? cmC["STATUS_CLIENTE"]   - 1 : -1;
+  var cCap   = cmC["TOTAL_EMPRESTADO"] ? cmC["TOTAL_EMPRESTADO"] - 1 : -1;
+  var cLucro = cmC["LUCRO_TOTAL"]      ? cmC["LUCRO_TOTAL"]      - 1 : -1;
+  var cPreju = cmC["PREJUIZO_TOTAL"]   ? cmC["PREJUIZO_TOTAL"]   - 1 : -1;
+  var cROI   = cmC["ROI_CLIENTE"]      ? cmC["ROI_CLIENTE"]      - 1 : -1;
+  var cTA    = cmC["TAXA_ADIMPLENCIA"] ? cmC["TAXA_ADIMPLENCIA"] - 1 : -1;
+  var cAM    = cmC["ATRASO_MAXIMO"]    ? cmC["ATRASO_MAXIMO"]    - 1 : -1;
+
+  if (cPad < 0) { Logger.log("atualizarTabelaPadrinhos: coluna PADRINHO nao encontrada"); return; }
+
+  // Normaliza nome para agrupamento mas preserva o original para exibição
+  var norm = function(s) {
+    return String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").trim();
+  };
+
+  var grupos   = {}; // chave: nome normalizado
+  var nomeReal = {}; // chave: nome normalizado → nome original mais frequente
+
+  for (var i = 1; i < dados.length; i++) {
+    var pad = String(dados[i][cPad] || "").trim();
+    if (!pad) continue;
+
+    var padNorm = norm(pad);
+    if (!padNorm) continue;
+
+    if (!grupos[padNorm]) {
+      grupos[padNorm]   = { n:0, ativos:0, inadim:0, comPreju:0, capital:0, lucro:0, prejuizo:0, somaROI:0, somaTA:0, nROI:0, nTA:0 };
+      nomeReal[padNorm] = pad;
+    }
+    var g = grupos[padNorm];
+    g.n++;
+
+    var st = cSt >= 0 ? String(dados[i][cSt]||"").toLowerCase().trim() : "";
+    if (st === "ativo") g.ativos++;
+
+    var am  = cAM >= 0 ? parseFloat(dados[i][cAM]  || 0) || 0 : 0;
+    if (am > 0) g.inadim++;
+
+    var prj = cPreju >= 0 ? parseFloat(dados[i][cPreju] || 0) || 0 : 0;
+    if (prj > 0) g.comPreju++;
+
+    if (cCap   >= 0) g.capital  += parseFloat(dados[i][cCap]   || 0) || 0;
+    if (cLucro >= 0) g.lucro    += parseFloat(dados[i][cLucro] || 0) || 0;
+    if (cPreju >= 0) g.prejuizo += prj;
+    if (cROI   >= 0) { var roi = parseFloat(dados[i][cROI] || 0) || 0; g.somaROI += roi; g.nROI++; }
+    if (cTA    >= 0) { var ta  = parseFloat(dados[i][cTA]  || 0) || 0; if (ta > 0) { g.somaTA += ta; g.nTA++; } }
+  }
+
+  var linhas = [];
+  Object.keys(grupos).sort(function(a,b) {
+    var la = grupos[a].lucro - grupos[a].prejuizo;
+    var lb = grupos[b].lucro - grupos[b].prejuizo;
+    return lb - la;
+  }).forEach(function(padNorm) {
+    var g        = grupos[padNorm];
+    var ltv      = g.lucro - g.prejuizo;
+    var roiMedio = g.nROI > 0 ? g.somaROI / g.nROI : 0;
+    var taMedio  = g.nTA  > 0 ? g.somaTA  / g.nTA  : 0;
+    var pctPreju = g.n > 0 ? g.comPreju / g.n : 0;
+
+    // SCORE_PADRINHO (0–100)
+    var ptROI = roiMedio > 30 ? 40 : roiMedio > 20 ? 30 : roiMedio > 10 ? 20 : roiMedio > 0 ? 10 : 0;
+    var ptTA  = taMedio  > 90 ? 30 : taMedio  > 80 ? 20 : taMedio  > 70 ? 10 : 0;
+    var ptPreju = pctPreju === 0 ? 20 : pctPreju < 0.10 ? 15 : pctPreju < 0.25 ? 10 : pctPreju < 0.50 ? 5 : 0;
+    var ptVol   = g.n >= 5 ? 10 : g.n >= 3 ? 6 : g.n >= 2 ? 3 : 1;
+    var score   = Math.min(100, ptROI + ptTA + ptPreju + ptVol);
+
+    linhas.push([
+      nomeReal[padNorm], g.n, g.ativos, g.inadim, g.comPreju,
+      g.capital, g.lucro, g.prejuizo, ltv,
+      parseFloat(roiMedio.toFixed(2)),
+      parseFloat(taMedio.toFixed(2)),
+      score, new Date()
+    ]);
+  });
+
+  if (linhas.length === 0) { Logger.log("atualizarTabelaPadrinhos: sem dados"); return; }
+
+  var abaP = ss.getSheetByName("PADRINHOS") || ss.insertSheet("PADRINHOS");
+  abaP.clearContents();
+
+  var HDR = [["NOME_PADRINHO","QTD_INDICADOS","QTD_ATIVOS","QTD_INADIMPLENTES","QTD_COM_PREJUIZO",
+              "CAPITAL_GERADO","LUCRO_GERADO","PREJUIZO_GERADO","LTV_LIQUIDO",
+              "ROI_MEDIO","TAXA_ADIMPLENCIA","SCORE_PADRINHO","ATUALIZADO_EM"]];
+  abaP.getRange(1,1,1,HDR[0].length).setValues(HDR).setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
+  abaP.getRange(2,1,linhas.length,HDR[0].length).setValues(linhas);
+
+  // Formatação
+  abaP.getRange(2,6,linhas.length,4).setNumberFormat("R$ #,##0.00");
+  abaP.getRange(2,10,linhas.length,1).setNumberFormat("0.00");
+  abaP.getRange(2,11,linhas.length,1).setNumberFormat("0.00");
+  abaP.getRange(2,13,linhas.length,1).setNumberFormat("dd/mm/yyyy hh:mm");
+  abaP.setFrozenRows(1);
+  abaP.setColumnWidth(1, 200);
+  abaP.setColumnWidth(12, 80);
+
+  Logger.log("atualizarTabelaPadrinhos: " + linhas.length + " padrinhos, ordenados por LTV");
+}
+
+function _garantirColunasRenovacao() {
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var aba = ss.getSheetByName(ABAS.CLIENTES);
+  if (!aba) return;
+  var cm  = buildColMap(aba);
+  ["RENOVACAO_STATUS","RENOVACAO_MOTIVO","RENOVACAO_CONDICOES"].forEach(function(c) {
+    if (!cm[c]) {
+      var col = aba.getLastColumn() + 1;
+      aba.getRange(1, col).setValue(c).setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
+      Logger.log("Coluna adicionada em CLIENTES: " + c);
+    }
+  });
+}
+
+function _garantirColunaScoreTaxaPct() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var aba = ss.getSheetByName(ABAS.CLIENTES);
+  if (!aba) return;
+  var cm = buildColMap(aba);
+  if (!cm["SCORE_TAXA_PCT"]) {
+    var col = aba.getLastColumn() + 1;
+    aba.getRange(1, col).setValue("SCORE_TAXA_PCT");
+    Logger.log("Coluna SCORE_TAXA_PCT adicionada na posicao " + col);
+  } else {
+    Logger.log("Coluna SCORE_TAXA_PCT ja existe");
+  }
+}
+
+function _garantirConfigsMotoCredito() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var aba = ss.getSheetByName(ABAS.CONFIG) || ss.insertSheet(ABAS.CONFIG);
+  if (aba.getLastRow() === 0) aba.getRange(1,1,1,2).setValues([["CHAVE","VALOR"]]);
+  var vals = aba.getDataRange().getValues();
+  var existentes = {};
+  for (var i = 1; i < vals.length; i++) {
+    var k = String(vals[i][0] || "").trim();
+    if (k) existentes[k] = true;
+  }
+  var novas = [
+    ["TAXA_MINIMA_MENSAL",         0.14],
+    ["TAXA_PADRAO_BAIXA_MENSAL",   0.16],
+    ["TAXA_PADRAO_MENSAL",         0.18],
+    ["TAXA_ALTA_MENSAL",           0.22],
+    ["TAXA_MAXIMA_MENSAL",         0.25],
+    ["COMPROMETIMENTO_MAX_PCT",    0.35],
+    ["LIMITE_PRIMEIRO_EMPRESTIMO", 1500],
+    ["SCORE_MIN_APROVACAO",        60],
+    ["LIMITE_SCORE_EXCELENTE",     4000],
+    ["LIMITE_SCORE_BOM",           3000],
+    ["LIMITE_SCORE_MEDIO",         1500],
+    ["LIMITE_SCORE_ATENCAO",       1000],
+    ["PRAZO_MAX_EXCELENTE",        12],
+    ["PRAZO_MAX_BOM",              10],
+    ["PRAZO_MAX_MEDIO",            6],
+    ["PRAZO_MAX_ATENCAO",          3],
+  ];
+  var adicionados = 0;
+  novas.forEach(function(row) {
+    if (!existentes[row[0]]) {
+      var r = aba.getLastRow() + 1;
+      aba.getRange(r, 1).setValue(row[0]);
+      aba.getRange(r, 2).setValue(row[1]);
+      adicionados++;
+    }
+  });
+  Logger.log("_garantirConfigsMotoCredito: " + adicionados + " configuracoes adicionadas");
+}
+
 function configurarTriggerDiario() {
   ScriptApp.getProjectTriggers().filter(function(t){return t.getHandlerFunction()==="rotinaDiaria";}).forEach(function(t){ScriptApp.deleteTrigger(t);});
   ScriptApp.newTrigger("rotinaDiaria").timeBased().everyDays(1).atHour(7).create();
@@ -2011,9 +2568,44 @@ function configurarTriggerDiario() {
 
 function rotinaDiaria() {
   Logger.log("ROTINA DIARIA - "+new Date().toLocaleString("pt-BR"));
+  try { verificarPagamentosEfi(); } catch(eEfi) { Logger.log("Efi check err: "+eEfi.message); }
   atualizarStatusParcelas();
   atualizarStatusContratos();
   verificarPromessasVencidas();
+  try { _atualizarScoresDiario(); } catch(eScore) { Logger.log("Score diario err: "+eScore.message); }
+  try { atualizarTabelaEmpregadores(); } catch(eEmp) { Logger.log("Empregadores err: "+eEmp.message); }
+  try { atualizarTabelaPadrinhos(); } catch(ePad) { Logger.log("Padrinhos err: "+ePad.message); }
+}
+
+function _atualizarScoresDiario() {
+  _garantirColunasRenovacao();
+  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var abaCli = ss.getSheetByName(ABAS.CLIENTES);
+  var abaC   = ss.getSheetByName(ABAS.CONTRATOS);
+  var abaP   = ss.getSheetByName(ABAS.PARCELAS);
+  var abaPag = ss.getSheetByName(ABAS.PAGAMENTOS);
+  var abaProm= ss.getSheetByName(ABAS.PROMESSAS);
+  if (!abaCli || !abaC || !abaP) return;
+  var dadosCli  = abaCli.getDataRange().getValues();
+  var dadosC    = abaC.getDataRange().getValues();
+  var dadosP    = abaP.getDataRange().getValues();
+  var dadosPag  = abaPag  ? abaPag.getDataRange().getValues()  : [];
+  var dadosProm = abaProm ? abaProm.getDataRange().getValues() : [];
+  var cmCli    = buildColMap(abaCli);
+  var stCol    = cmCli["STATUS_CLIENTE"] ? cmCli["STATUS_CLIENTE"] - 1 : -1;
+  var count = 0;
+  for (var i = 1; i < dadosCli.length; i++) {
+    var idCli = String(dadosCli[i][0]).trim();
+    if (!idCli) continue;
+    if (stCol >= 0 && String(dadosCli[i][stCol]) !== "ativo") continue;
+    try { calcularScore(idCli, dadosCli, dadosC, dadosP); count++; } catch(e) {
+      Logger.log("Score err " + idCli + ": " + e.message);
+    }
+    try { calcularMetricasCliente(idCli, dadosCli, dadosC, dadosP, dadosPag, dadosProm); } catch(e) {
+      Logger.log("Metricas err " + idCli + ": " + e.message);
+    }
+  }
+  Logger.log("_atualizarScoresDiario: " + count + " clientes atualizados");
 }
 
 function verificarPromessasVencidas() {
@@ -2032,6 +2624,9 @@ function verificarPromessasVencidas() {
     if(dtP<hoje){aba.getRange(i+1,cSt).setValue("QUEBRADA");Logger.log("Promessa vencida: linha "+(i+1));}
   }
 }
+
+// dialogNovoContrato, salvarNovoContrato, dialogRegistrarPagamento, salvarPagamentoDialog
+// removidos — substituídos pelo frontend React. Mantido apenas dialogResumoDia.
 
 function dialogNovoContrato() {
   var ss=SpreadsheetApp.getActiveSpreadsheet();
@@ -2092,29 +2687,6 @@ function diagnosticarColunas() {
   SpreadsheetApp.getUi().alert(msg.substring(0,1500));
 }
 
-// ─── TESTE DE GERAÇÃO DE DOCUMENTO (rodar 1x pelo editor GAS) ───
-function testarGerarDoc() {
-  try {
-    var template = DriveApp.getFileById(TEMPLATE_CONTRATO_ID);
-    Logger.log("Template OK: " + template.getName());
-    var folder   = DriveApp.getFolderById(PASTA_CONTRATOS_ID);
-    Logger.log("Pasta OK: " + folder.getName());
-    Logger.log("SUCESSO - acesso ao Drive funcionando");
-  } catch(e) {
-    Logger.log("ERRO: " + e.message);
-  }
-}
-
-// ─── TESTE ZAPSIGN (rodar 1x pelo editor GAS) ───────────────────
-function testarZapSign() {
-  try {
-    var zapUrl = enviarParaZapSign(TEMPLATE_CONTRATO_ID, "TESTE-001", "CLIENTE TESTE", "alexborges.mx@gmail.com");
-    Logger.log("SUCESSO - Link credor: " + zapUrl);
-  } catch(e) {
-    Logger.log("ERRO: " + e.message);
-  }
-}
-
 // ─── GERAÇÃO DE DOCUMENTO DE CONTRATO ───────────────────────────
 function _extInt(n) {
   n = Math.floor(n);
@@ -2160,8 +2732,8 @@ function gerarDocContrato(idContrato, idCliente, dados) {
   var n=parseInt(dados.parcelas||dados.np||0);
   var t=parseFloat(dados.taxa||dados.tx||0)/100;
   var parc=(p+p*t*n)/n;
-  var dtVenc=new Date(dados.dataVencimento||dados.dtVenc||"");
-  var dtEmp=new Date(dados.dataEmprestimo||dados.dtEmp||new Date());
+  var dtVenc=parseDateLocal(dados.dataVencimento||dados.dtVenc||"");
+  var dtEmp=parseDateLocal(dados.dataEmprestimo||dados.dtEmp||"") || new Date();
   var nome=(gv("NOME_CLIENTE")||gv("NOME")).toUpperCase();
 
   var subs={
@@ -2313,7 +2885,8 @@ function pagamentoAutomatico(contractNum, numParcela, valor, data) {
   var abaP = ss.getSheetByName(ABAS.PARCELAS);
   var cm   = buildColMap(abaP);
   var dados = abaP.getDataRange().getValues();
-  var stKey = cm["STATUS"] || cm["STATUS_PAGAMENTO"] || 11;
+  var stKey = cm["STATUS"] || cm["STATUS_PAGAMENTO"];
+  if (!stKey) throw new Error("Coluna STATUS nao encontrada em PARCELAS");
   var idParcelaEncontrada = null;
 
   for (var i = 1; i < dados.length; i++) {
@@ -2334,148 +2907,6 @@ function pagamentoAutomatico(contractNum, numParcela, valor, data) {
   return registrarPagamentoAPI(idParcelaEncontrada, data || new Date().toISOString(), valor, "pix_efi");
 }
 
-// ─── MIGRAÇÃO: padronizar valores antigos de TIPO_PAGAMENTO ──────
-// Execute UMA VEZ pelo editor do Apps Script para corrigir registros antigos.
-// Substitui: com_atraso→pagamento_com_atraso, normal→pagamento_normal, antecipado→pagamento_antecipado
-function migrarTipoPagamento() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var aliases = {
-    "com_atraso":  "pagamento_com_atraso",
-    "normal":      "pagamento_normal",
-    "antecipado":  "pagamento_antecipado"
-  };
-  var abas = ["PARCELAS", "PAGAMENTOS"];
-  var total = 0;
-  abas.forEach(function(nomeAba) {
-    var aba = ss.getSheetByName(nomeAba);
-    if (!aba) return;
-    var cm = buildColMap(aba);
-    var col = cm["TIPO_PAGAMENTO"];
-    if (!col) return;
-    var dados = aba.getDataRange().getValues();
-    for (var i = 1; i < dados.length; i++) {
-      var val = String(dados[i][col-1]||"").trim().toLowerCase();
-      if (aliases[val]) {
-        aba.getRange(i+1, col).setValue(aliases[val]);
-        total++;
-      }
-    }
-  });
-  SpreadsheetApp.getUi().alert("Migração concluída. " + total + " registro(s) atualizado(s).");
-}
-
-// ─── MIGRAÇÃO: histórico de pagamentos de PARCELAS → PAGAMENTOS ──────────────
-// Executa UMA VEZ. Lê todas as parcelas com STATUS pago/quitado que tenham
-// DATA_PAGAMENTO preenchida e cria o registro correspondente na aba PAGAMENTOS,
-// ignorando parcelas que já possuem entrada lá (sem duplicar).
-function migrarHistoricoPagamentos() {
-  var ss     = SpreadsheetApp.getActiveSpreadsheet();
-  var abaP   = ss.getSheetByName(ABAS.PARCELAS);
-  var abaPag = ss.getSheetByName(ABAS.PAGAMENTOS);
-  if (!abaP || !abaPag) {
-    SpreadsheetApp.getUi().alert("Aba PARCELAS ou PAGAMENTOS não encontrada.");
-    return;
-  }
-
-  var cmP   = buildColMap(abaP);
-  var cmPag = buildColMap(abaPag);
-  var dadosP = abaP.getDataRange().getValues();
-
-  // Status que representam pagamento efetivo
-  var STATUS_PAGOS = new Set([
-    "pago","paga","quitado","quitada",
-    "quitacao_antecipada","pagamento_normal","pagamento_com_atraso","somente_juros",
-    "com_atraso","antecipado","pagamento_antecipado","recuperacao_apos_baixa","acordo_com_perda"
-  ]);
-
-  // Construir set de ID_PARCELA já existentes em PAGAMENTOS (para não duplicar)
-  var dadosPag = abaPag.getDataRange().getValues();
-  var jaExiste = new Set();
-  var cIdParc  = cmPag["ID_PARCELA"];
-  if (cIdParc) {
-    for (var k = 1; k < dadosPag.length; k++) {
-      var idParc = String(dadosPag[k][cIdParc - 1] || "").trim();
-      if (idParc) jaExiste.add(idParc);
-    }
-  }
-
-  var ncPag    = abaPag.getLastColumn();
-  var inseridos = 0;
-  var ignorados = 0;
-  var rows      = [];
-
-  for (var i = 1; i < dadosP.length; i++) {
-    var row = dadosP[i];
-
-    var idParcela  = String(row[(cmP["ID_PARCELA"]  || 1) - 1] || "").trim();
-    var idContrato = String(row[(cmP["ID_CONTRATO"] || 2) - 1] || "").trim();
-    var idCliente  = String(row[(cmP["ID_CLIENTE"]  || 3) - 1] || "").trim();
-    var nomeCli    = String(row[(cmP["NOME_CLIENTE"]|| 4) - 1] || "").trim();
-    var status     = String(row[(cmP["STATUS"]      || 11)- 1] || "").trim().toLowerCase();
-    var tipoPag    = String(row[(cmP["TIPO_PAGAMENTO"]||15)-1] || "").trim().toLowerCase();
-    var dtPagRaw   = cmP["DATA_PAGAMENTO"] ? row[cmP["DATA_PAGAMENTO"] - 1] : "";
-    var valorPago  = cmP["VALOR_PAGO"]     ? parseFloat(row[cmP["VALOR_PAGO"]     - 1]) || 0 : 0;
-    var valorParc  = cmP["VALOR_PARCELA"]  ? parseFloat(row[cmP["VALOR_PARCELA"]  - 1]) || 0 : 0;
-    var recExtra   = cmP["RECEITA_EXTRA_ATRASO"] ? parseFloat(row[cmP["RECEITA_EXTRA_ATRASO"] - 1]) || 0 : 0;
-
-    // Precisa ter status de pago E data de pagamento
-    var statusValido = STATUS_PAGOS.has(status) || STATUS_PAGOS.has(tipoPag);
-    if (!statusValido || !dtPagRaw) { ignorados++; continue; }
-    if (!idParcela) { ignorados++; continue; }
-
-    // Pular se já existe em PAGAMENTOS
-    if (jaExiste.has(idParcela)) { ignorados++; continue; }
-
-    // Resolver data
-    var dtPag = dtPagRaw instanceof Date ? dtPagRaw : new Date(dtPagRaw);
-    if (isNaN(dtPag.getTime())) { ignorados++; continue; }
-
-    // Tipo de pagamento: inferir se não estiver preenchido
-    var tipo = tipoPag || (status === "quitacao_antecipada" ? "quitacao_antecipada" : "pagamento_normal");
-    var vlPago = valorPago > 0 ? valorPago : valorParc;
-
-    var idPag = proximoIdSeq(abaPag, "PAG");
-    var rPag  = new Array(ncPag).fill("");
-    function sp(h, val) { if (cmPag[h] && cmPag[h] <= ncPag) rPag[cmPag[h] - 1] = val; }
-    sp("ID_PAGAMENTO",          idPag);
-    sp("ID_PARCELA",            idParcela);
-    sp("ID_CONTRATO",           idContrato);
-    sp("ID_CLIENTE",            idCliente);
-    sp("NOME_CLIENTE",          nomeCli);
-    sp("DATA_PAGAMENTO",        dtPag);
-    sp("VALOR_PAGO",            vlPago);
-    sp("VALOR_ORIGINAL_PARCELA",valorParc);
-    sp("DIFERENCA_RECEBIDA",    Math.max(0, vlPago - valorParc));
-    sp("RECEITA_EXTRA_ATRASO",  recExtra);
-    sp("TIPO_PAGAMENTO",        tipo);
-    sp("FORMA_PAGAMENTO",       "dinheiro");
-    sp("OBSERVACOES",           "Migrado do histórico PARCELAS");
-
-    rows.push(rPag);
-    jaExiste.add(idParcela); // evita duplicar se ID_PARCELA aparecer mais de uma vez
-    inseridos++;
-  }
-
-  // Gravar em lote
-  if (rows.length > 0) {
-    var ulPag = abaPag.getLastRow() + 1;
-    abaPag.getRange(ulPag, 1, rows.length, ncPag).setValues(rows);
-    // Formatar colunas de data e valor
-    if (cmPag["DATA_PAGAMENTO"])
-      abaPag.getRange(ulPag, cmPag["DATA_PAGAMENTO"], rows.length, 1).setNumberFormat("dd/mm/yyyy");
-    if (cmPag["VALOR_PAGO"])
-      abaPag.getRange(ulPag, cmPag["VALOR_PAGO"], rows.length, 1).setNumberFormat("R$ #,##0.00");
-    if (cmPag["RECEITA_EXTRA_ATRASO"])
-      abaPag.getRange(ulPag, cmPag["RECEITA_EXTRA_ATRASO"], rows.length, 1).setNumberFormat("R$ #,##0.00");
-  }
-
-  SpreadsheetApp.getUi().alert(
-    "Migração concluída!\n" +
-    "✓ Registros inseridos em PAGAMENTOS: " + inseridos + "\n" +
-    "— Ignorados (já existiam ou sem data): " + ignorados
-  );
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // LEADS — triagem automática via bot WhatsApp
 // Aba LEADS — colunas necessárias:
@@ -2487,9 +2918,9 @@ function migrarHistoricoPagamentos() {
 
 function _abaLeads() {
   var ss  = SpreadsheetApp.getActiveSpreadsheet();
-  var aba = ss.getSheetByName("LEADS");
+  var aba = ss.getSheetByName(ABAS.LEADS);
   if (!aba) {
-    aba = ss.insertSheet("LEADS");
+    aba = ss.insertSheet(ABAS.LEADS);
     var cols = ["ID_LEAD","TEL","NOME","STATUS","PADRINHO","PADRINHO_QUALIFICA",
                 "CLT","VALOR_SOLICITADO","PRAZO_SOLICITADO","TEMPO_EMPRESA","RENDA_BRUTA",
                 "RENDA_LIQUIDA","EMPREGADOR","DATA_ADMISSAO","HISTORICO_JSON",
@@ -2561,24 +2992,44 @@ function verificarPadrinho(nome) {
 
   var cmCli  = buildColMap(abaCli);
   var dadCli = abaCli.getDataRange().getValues();
-  var idCliente = null;
+  var matches = [];
 
   for (var i = 1; i < dadCli.length; i++) {
-    var nomeCell = _normLeadStr(String(dadCli[i][(cmCli["NOME"]||1)-1]||""));
-    if (nomeCell && nomeCell.indexOf(nomNorm) !== -1) {
-      idCliente = String(dadCli[i][(cmCli["ID_CLIENTE"]||1)-1]||"");
-      break;
+    var nomeRaw  = String(dadCli[i][(cmCli["NOME"]||1)-1]||"");
+    var nomeCell = _normLeadStr(nomeRaw);
+    if (!nomeCell) continue;
+    if (nomeCell.indexOf(nomNorm) !== -1 || nomNorm.indexOf(nomeCell.split(" ")[0]) !== -1 || _fuzzyMatch(nomNorm, nomeCell)) {
+      matches.push({
+        id:   String(dadCli[i][(cmCli["ID_CLIENTE"]||1)-1]||""),
+        nome: nomeRaw
+      });
     }
   }
 
-  if (!idCliente) return {existe:false,qualifica:false,motivo:"cliente nao encontrado"};
+  if (matches.length === 0) return {existe:false,qualifica:false,nomeEncontrado:null,motivo:"cliente nao encontrado"};
+
+  // Nome ambíguo — múltiplos clientes encontrados
+  if (matches.length > 1) {
+    return {
+      existe:    true,
+      multiplos: true,
+      opcoes:    matches.slice(0,4).map(function(m){ return m.nome; }),
+      qualifica: false,
+      nomeEncontrado: null
+    };
+  }
+
+  var idCliente      = matches[0].id;
+  var nomeEncontrado = matches[0].nome;
+
+  if (!idCliente) return {existe:false,qualifica:false,nomeEncontrado:null,motivo:"cliente nao encontrado"};
 
   var abaContr = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("CONTRATOS");
   if (!abaContr) return {existe:true,qualifica:false,motivo:"sem contratos"};
 
   var cmContr  = buildColMap(abaContr);
   var dadContr = abaContr.getDataRange().getValues();
-  var terminais = ["quitado","quitacao_antecipada","concluido"];
+  var terminais = ["quitado","quitacao_antecipada"];
   var qualifica = false;
 
   for (var j = 1; j < dadContr.length; j++) {
@@ -2590,10 +3041,30 @@ function verificarPadrinho(nome) {
     }
   }
 
+  // Busca score do padrinho na aba PADRINHOS (se existir)
+  var scorePadrinho = null;
+  var abaPad = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("PADRINHOS");
+  if (abaPad && abaPad.getLastRow() > 1) {
+    var cmPad  = buildColMap(abaPad);
+    var dadPad = abaPad.getDataRange().getValues();
+    var cPN    = cmPad["NOME_PADRINHO"]  ? cmPad["NOME_PADRINHO"]  - 1 : 0;
+    var cSC    = cmPad["SCORE_PADRINHO"] ? cmPad["SCORE_PADRINHO"] - 1 : -1;
+    var normFn = function(s){ return String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").trim(); };
+    var nomNorm = normFn(nomeEncontrado);
+    for (var pi = 1; pi < dadPad.length; pi++) {
+      if (normFn(String(dadPad[pi][cPN]||"")) === nomNorm) {
+        if (cSC >= 0) scorePadrinho = parseFloat(dadPad[pi][cSC]||0)||null;
+        break;
+      }
+    }
+  }
+
   return {
-    existe:    true,
-    qualifica: qualifica,
-    motivo:    qualifica ? "padrinho com contrato quitado" : "sem contratos concluidos"
+    existe:         true,
+    qualifica:      qualifica,
+    nomeEncontrado: nomeEncontrado,
+    scorePadrinho:  scorePadrinho,
+    motivo:         qualifica ? "padrinho com contrato quitado" : "sem contratos concluidos"
   };
 }
 
@@ -2603,4 +3074,1109 @@ function _normLeadStr(s) {
     .normalize("NFD")
     .replace(/[̀-ͯ]/g,"")
     .trim();
+}
+
+function _levenshtein(a, b) {
+  var m = a.length, n = b.length;
+  var dp = [];
+  for (var i = 0; i <= m; i++) {
+    dp[i] = [i];
+    for (var j = 1; j <= n; j++) {
+      if (i === 0) { dp[i][j] = j; continue; }
+      dp[i][j] = a[i-1] === b[j-1]
+        ? dp[i-1][j-1]
+        : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+    }
+  }
+  return dp[m][n];
+}
+
+// Retorna true se alguma palavra do search bate fuzzy com alguma palavra do target
+// Threshold: até 20% de diferença relativa ao nome mais longo (ex: "gleiciane" ≈ "gleiciana")
+function _fuzzyMatch(search, target) {
+  var sw = search.split(/\s+/).filter(function(w){ return w.length >= 4; });
+  var tw = target.split(/\s+/).filter(function(w){ return w.length >= 4; });
+  for (var i = 0; i < sw.length; i++) {
+    for (var j = 0; j < tw.length; j++) {
+      var dist = _levenshtein(sw[i], tw[j]);
+      if (dist / Math.max(sw[i].length, tw[j].length) <= 0.25) return true;
+    }
+  }
+  return false;
+}
+
+// ─── EFI Bank: garante colunas e salva dados de cobrança por parcela ───────
+
+function _garantirColunasEfiParcelas() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("PARCELAS");
+  if (!sh) return;
+  var lastCol = sh.getLastColumn();
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function(v){ return String(v||"").trim(); });
+  var colunas = ["EFI_TXID", "EFI_PIX_CODE", "EFI_LINK", "EFI_STATUS"];
+  colunas.forEach(function(col) {
+    if (headers.indexOf(col) === -1) {
+      sh.getRange(1, sh.getLastColumn() + 1).setValue(col);
+    }
+  });
+}
+
+function salvarCobrancasEfi(dados) {
+  var cobracas = dados.cobracas || [];
+  if (!cobracas.length) return { ok: false, erro: "Nenhuma cobranca" };
+
+  _garantirColunasEfiParcelas();
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("PARCELAS");
+  var cm = buildColMap(sh);
+  var rows = sh.getDataRange().getValues();
+
+  var salvos = 0;
+  for (var i = 1; i < rows.length; i++) {
+    var idParcela = String(rows[i][(cm["ID_PARCELA"] || 1) - 1] || "");
+    for (var j = 0; j < cobracas.length; j++) {
+      var c = cobracas[j];
+      if (String(c.idParcela) === idParcela && c.ok) {
+        setCel(sh, i + 1, cm, "EFI_TXID",     c.txid            || "");
+        setCel(sh, i + 1, cm, "EFI_PIX_CODE", c.pixCopiaECola   || "");
+        setCel(sh, i + 1, cm, "EFI_LINK",     c.location         || "");
+        setCel(sh, i + 1, cm, "EFI_STATUS",   "ativo");
+        salvos++;
+        break;
+      }
+    }
+  }
+
+  return { ok: true, salvos: salvos };
+}
+
+// ─── Polling de pagamentos Efí Bank (roda na rotina diária) ──────────────────
+
+function verificarPagamentosEfi() {
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var sh  = ss.getSheetByName("PARCELAS");
+  if (!sh || sh.getLastRow() <= 1) return;
+
+  var cm   = buildColMap(sh);
+  var stCol = cm["STATUS"] || cm["STATUS_PAGAMENTO"];
+  var txCol = cm["EFI_TXID"];
+  var esCol = cm["EFI_STATUS"];
+
+  if (!txCol) { Logger.log("verificarPagamentosEfi: EFI_TXID nao encontrada"); return; }
+
+  var terminais = ["pago","quitacao_antecipada","baixado_como_prejuizo","cancelado","renegociado"];
+  var rows = sh.getDataRange().getValues();
+  var pendentes = [];
+
+  for (var i = 1; i < rows.length; i++) {
+    var txid    = String(rows[i][txCol - 1] || "").trim();
+    var stPar   = stCol ? String(rows[i][stCol - 1] || "").toLowerCase().trim() : "";
+    var efiSt   = esCol ? String(rows[i][esCol - 1] || "").toLowerCase().trim() : "";
+
+    if (!txid) continue;
+    if (terminais.indexOf(stPar) >= 0) continue;
+    if (efiSt === "pago") continue;
+    if (!txid.startsWith("FOP") || txid.length < 26) continue;
+
+    var contractNum = parseInt(txid.slice(3, 19));
+    var parcelaNum  = parseInt(txid.slice(20, 26));
+    if (isNaN(contractNum) || isNaN(parcelaNum)) continue;
+
+    pendentes.push({ txid: txid, idParcela: String(rows[i][(cm["ID_PARCELA"] || 1) - 1] || ""), contractNum: contractNum, parcelaNum: parcelaNum, row: i + 1 });
+  }
+
+  if (!pendentes.length) { Logger.log("verificarPagamentosEfi: nenhuma parcela pendente"); return; }
+  Logger.log("verificarPagamentosEfi: consultando " + pendentes.length + " parcelas no Efi");
+
+  var resp = UrlFetchApp.fetch("https://financeiroop.vercel.app/api/efi-check-payments", {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify({ txids: pendentes.map(function(p){ return { txid: p.txid, idParcela: p.idParcela }; }) }),
+    muteHttpExceptions: true
+  });
+
+  var data = JSON.parse(resp.getContentText());
+  if (!data.ok) { Logger.log("verificarPagamentosEfi: erro API - " + resp.getContentText()); return; }
+
+  var pagos = 0;
+  (data.cobv || []).forEach(function(cobv) {
+    if (!cobv.concluida) return;
+    var p = pendentes.filter(function(x){ return x.txid === cobv.txid; })[0];
+    if (!p) return;
+    try {
+      pagamentoAutomatico(p.contractNum, p.parcelaNum, cobv.valor, cobv.horario);
+      if (esCol) sh.getRange(p.row, esCol).setValue("pago");
+      pagos++;
+      Logger.log("verificarPagamentosEfi: registrado - " + cobv.txid + " R$" + cobv.valor);
+    } catch(e) {
+      Logger.log("verificarPagamentosEfi: erro ao registrar " + cobv.txid + ": " + e.message);
+    }
+  });
+
+  Logger.log("verificarPagamentosEfi: " + pagos + "/" + pendentes.length + " pagamentos registrados");
+}
+
+function buscarClientePorTel(tel) {
+  if (!tel) return { encontrado: false };
+  var telNorm = String(tel).replace(/\D/g, "");
+
+  // Gera candidatos: com/sem prefixo 55, com/sem 9º dígito
+  var t = telNorm;
+  if ((t.length === 13 || t.length === 12) && t.slice(0,2) === "55") t = t.slice(2);
+  var candidatos = [t];
+  if (t.length === 11) candidatos.push(t.slice(0,2) + t.slice(3));
+  if (t.length === 10) candidatos.push(t.slice(0,2) + "9" + t.slice(2));
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var shCli = ss.getSheetByName("CLIENTES");
+  if (!shCli) return { encontrado: false };
+  var cmCli = buildColMap(shCli);
+  if (!cmCli["TEL_CELULAR"]) return { encontrado: false };
+
+  var dataCli = shCli.getDataRange().getValues();
+  var cliente = null;
+  for (var i = 1; i < dataCli.length; i++) {
+    var rowTel = String(dataCli[i][cmCli["TEL_CELULAR"]-1] || "").replace(/\D/g,"");
+    if (candidatos.indexOf(rowTel) !== -1) {
+      cliente = {};
+      for (var col in cmCli) cliente[col] = dataCli[i][cmCli[col]-1];
+      break;
+    }
+  }
+
+  if (!cliente || String(cliente.STATUS_CLIENTE || "") !== "ativo") return { encontrado: false };
+
+  // Busca contrato ativo mais recente
+  var shContr = ss.getSheetByName("CONTRATOS");
+  var cmContr = buildColMap(shContr);
+  var dataContr = shContr.getDataRange().getValues();
+  var idContrato = null;
+  for (var i = 1; i < dataContr.length; i++) {
+    if (String(dataContr[i][cmContr["ID_CLIENTE"]-1]) === String(cliente.ID_CLIENTE) &&
+        String(dataContr[i][cmContr["STATUS_CONTRATO"]-1]) === "ativo") {
+      idContrato = String(dataContr[i][cmContr["ID_CONTRATO"]-1]);
+    }
+  }
+
+  if (!idContrato) return { encontrado: true, cliente: { NOME: cliente.NOME }, contrato: null };
+
+  // Busca parcelas do contrato
+  var shParc = ss.getSheetByName("PARCELAS");
+  var cmParc = buildColMap(shParc);
+  var dataParc = shParc.getDataRange().getValues();
+  var TERMINAIS = ["pago","quitacao_antecipada","baixado_como_prejuizo","cancelado","renegociado"];
+
+  var parcelas = [];
+  for (var i = 1; i < dataParc.length; i++) {
+    if (String(dataParc[i][cmParc["ID_CONTRATO"]-1]) !== idContrato) continue;
+    var st = String(dataParc[i][cmParc["STATUS"]-1] || "");
+    var dtRaw = dataParc[i][cmParc["DATA_VENCIMENTO"]-1];
+    var dtStr = "";
+    try {
+      var d = (dtRaw instanceof Date) ? dtRaw : parseDateLocal(String(dtRaw));
+      dtStr = Utilities.formatDate(d, "America/Sao_Paulo", "dd/MM/yyyy");
+    } catch(e) { dtStr = String(dtRaw); }
+    parcelas.push({
+      NUM_PARCELA:     dataParc[i][cmParc["NUM_PARCELA"]-1],
+      DATA_VENCIMENTO: dtStr,
+      VALOR:           dataParc[i][cmParc["VALOR"]-1],
+      STATUS:          st,
+      EFI_STATUS:      cmParc["EFI_STATUS"]   ? String(dataParc[i][cmParc["EFI_STATUS"]-1]   || "") : "",
+      EFI_PIX_CODE:    cmParc["EFI_PIX_CODE"] ? String(dataParc[i][cmParc["EFI_PIX_CODE"]-1] || "") : "",
+      terminal:        TERMINAIS.indexOf(st) !== -1,
+    });
+  }
+
+  var pagas    = parcelas.filter(function(p){ return p.STATUS === "pago" || p.STATUS === "quitacao_antecipada"; });
+  var pendentes = parcelas.filter(function(p){ return !p.terminal; });
+  pendentes.sort(function(a,b){ return parseInt(a.NUM_PARCELA) - parseInt(b.NUM_PARCELA); });
+  pagas.sort(function(a,b){ return parseInt(b.NUM_PARCELA) - parseInt(a.NUM_PARCELA); });
+
+  return {
+    encontrado:     true,
+    cliente:        { NOME: cliente.NOME, ID_CLIENTE: cliente.ID_CLIENTE },
+    contrato:       { ID_CONTRATO: idContrato },
+    proximaParcela: pendentes.length ? pendentes[0] : null,
+    ultimaPaga:     pagas.length ? pagas[0] : null,
+    totalParcelas:  parcelas.length,
+    pagas:          pagas.length,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUDITORIA DE DADOS — FASE 1 (inventário) + FASE 2 (anomalias)
+// Produz a aba AUDITORIA com relatório completo. Não altera nenhum dado.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function auditarDados() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // ── Setup da aba de saída ──────────────────────────────────────────────
+  var abaAud = ss.getSheetByName("AUDITORIA");
+  if (abaAud) { ss.deleteSheet(abaAud); Utilities.sleep(300); }
+  abaAud = ss.insertSheet("AUDITORIA");
+
+  var LINHAS   = [];
+  var RESUMO   = [];
+  var ALERTAS  = 0;
+  var AVISOS   = 0;
+
+  function titulo(t) {
+    LINHAS.push(["", "", "", "", ""]);
+    LINHAS.push(["▶ " + t, "", "", "", ""]);
+    LINHAS.push(["ABA", "COLUNA", "VALOR_ENCONTRADO", "QTDE", "OBSERVAÇÃO"]);
+  }
+  function lin(aba, col, val, qtde, obs) { LINHAS.push([aba||"", col||"", String(val||""), String(qtde||""), obs||""]); }
+  function alerta(msg) { ALERTAS++; RESUMO.push("⛔ " + msg); }
+  function aviso(msg)  { AVISOS++;  RESUMO.push("⚠️ " + msg); }
+
+  // ── Colunas-chave a inventariar em detalhe ─────────────────────────────
+  var COLS_CHAVE = {
+    CONTRATOS:  ["STATUS_CONTRATO", "STATUS_CARTEIRA"],
+    PARCELAS:   ["STATUS", "STATUS_PAGAMENTO", "TIPO_PAGAMENTO", "ORIGEM_PARCELA"],
+    PAGAMENTOS: ["TIPO_PAGAMENTO", "FORMA_PAGAMENTO"]
+  };
+
+  // ── Leitura das abas ───────────────────────────────────────────────────
+  var dadosC = null, dadosP = null, dadosPag = null;
+  var cmC = {}, cmP = {}, cmPag = {};
+  var setContratos = {}, setParcelas = {};
+
+  var ABAS_ALVO = ["CONTRATOS", "PARCELAS", "PAGAMENTOS"];
+  ABAS_ALVO.forEach(function(nomeAba) {
+    var aba = ss.getSheetByName(nomeAba);
+    if (!aba || aba.getLastRow() <= 1) {
+      alerta(nomeAba + ": aba não encontrada ou vazia");
+      return;
+    }
+    var dados   = aba.getDataRange().getValues();
+    var headers = dados[0].map(function(h) { return String(h || "").trim(); });
+    var nReg    = dados.length - 1;
+
+    if (nomeAba === "CONTRATOS")  { dadosC   = dados; cmC   = buildColMap(aba); }
+    if (nomeAba === "PARCELAS")   { dadosP   = dados; cmP   = buildColMap(aba); }
+    if (nomeAba === "PAGAMENTOS") { dadosPag = dados; cmPag = buildColMap(aba); }
+
+    // ── FASE 1: INVENTÁRIO ──────────────────────────────────────────────
+    titulo("FASE 1 — INVENTÁRIO: " + nomeAba + " (" + nReg + " registros, " + headers.length + " colunas)");
+
+    // Verificar dual STATUS/STATUS_PAGAMENTO em PARCELAS
+    if (nomeAba === "PARCELAS" && cmP["STATUS"] && cmP["STATUS_PAGAMENTO"]) {
+      aviso("PARCELAS: colunas STATUS e STATUS_PAGAMENTO coexistem — verificar qual está sendo usada");
+      lin("PARCELAS", "STATUS+STATUS_PAGAMENTO", "ambas existem", "", "⚠️ Coluna duplicada — risco de leitura errada");
+    }
+
+    headers.forEach(function(col, ci) {
+      if (!col) return;
+      var isChave = (COLS_CHAVE[nomeAba] || []).indexOf(col) >= 0;
+      var counts  = {};
+      var vazio   = 0;
+
+      for (var i = 1; i < dados.length; i++) {
+        var raw = dados[i][ci];
+        var v   = (raw === null || raw === undefined || raw === "")
+                  ? "" : (raw instanceof Date ? "DATA" : String(raw).trim());
+        if (v === "") vazio++;
+        else counts[v] = (counts[v] || 0) + 1;
+      }
+
+      var preenchidos = nReg - vazio;
+      var pctVazio    = nReg > 0 ? Math.round(vazio / nReg * 100) : 0;
+
+      // Indexar IDs para cross-reference
+      if (col === "ID_CONTRATO" && nomeAba === "CONTRATOS") {
+        for (var ix = 1; ix < dados.length; ix++) {
+          var id = String(dados[ix][ci] || "").trim();
+          if (id) setContratos[id] = true;
+        }
+      }
+      if (col === "ID_PARCELA" && nomeAba === "PARCELAS") {
+        for (var iy = 1; iy < dados.length; iy++) {
+          var idP = String(dados[iy][ci] || "").trim();
+          if (idP) setParcelas[idP] = true;
+        }
+      }
+
+      if (!isChave) {
+        // Não-chave: só resumo
+        var obsR = vazio > 0
+          ? (pctVazio >= 50 ? "⛔ " : "⚠️ ") + pctVazio + "% vazio (" + vazio + "/" + nReg + ")"
+          : "✅ completo";
+        if (pctVazio >= 50) alerta(nomeAba + " / " + col + ": " + pctVazio + "% dos registros está vazio");
+        lin(nomeAba, col, preenchidos + " preenchidos", nReg, obsR);
+        return;
+      }
+
+      // Colunas-chave: listar todos os valores distintos
+      var sorted = Object.keys(counts).sort(function(a, b) { return counts[b] - counts[a]; });
+      sorted.forEach(function(v) {
+        var obs = [];
+        if (v !== v.toLowerCase().trim()) obs.push("⚠️ não é lowercase_snake_case");
+        if (v !== v.trim())               obs.push("⚠️ espaço extra no início/fim");
+        if (/\s/.test(v) && v.indexOf("_") < 0) obs.push("⚠️ espaço ao invés de underscore?");
+        lin(nomeAba, col, v, counts[v], obs.join(" | "));
+      });
+      if (vazio > 0) {
+        var obsV = "⚠️ " + vazio + " vazio(s) — campo obrigatório";
+        if (vazio > nReg * 0.1) { obsV = "⛔ " + vazio + " vazio(s) (" + pctVazio + "%)"; alerta(nomeAba + " / " + col + ": " + vazio + " registros sem valor"); }
+        lin(nomeAba, col, "(vazio)", vazio, obsV);
+      }
+    });
+  });
+
+  // ── FASE 2A: IDs ÓRFÃOS ───────────────────────────────────────────────
+  titulo("FASE 2A — IDs ÓRFÃOS");
+
+  if (dadosPag && dadosC && dadosP) {
+    var cPagIC = cmPag["ID_CONTRATO"] ? cmPag["ID_CONTRATO"] - 1 : -1;
+    var cPagIP = cmPag["ID_PARCELA"]  ? cmPag["ID_PARCELA"]  - 1 : -1;
+    var cPagID = cmPag["ID_PAGAMENTO"]? cmPag["ID_PAGAMENTO"]- 1 : 0;
+    var orfC = 0, orfP = 0;
+
+    for (var i = 1; i < dadosPag.length; i++) {
+      if (cPagIC >= 0) {
+        var idC = String(dadosPag[i][cPagIC] || "").trim();
+        if (idC && !setContratos[idC]) {
+          orfC++;
+          if (orfC <= 10) lin("PAGAMENTOS", "ID_CONTRATO", idC, String(dadosPag[i][cPagID] || i), "⛔ ID_CONTRATO não existe em CONTRATOS");
+        }
+      }
+      if (cPagIP >= 0) {
+        var idP2 = String(dadosPag[i][cPagIP] || "").trim();
+        if (idP2 && !setParcelas[idP2]) {
+          orfP++;
+          if (orfP <= 10) lin("PAGAMENTOS", "ID_PARCELA", idP2, String(dadosPag[i][cPagID] || i), "⛔ ID_PARCELA não existe em PARCELAS");
+        }
+      }
+    }
+    if (orfC > 10) lin("PAGAMENTOS", "ID_CONTRATO", "..." + (orfC - 10) + " omitidos", "", "⛔");
+    if (orfP > 10) lin("PAGAMENTOS", "ID_PARCELA",  "..." + (orfP - 10) + " omitidos", "", "⛔");
+    if (orfC > 0) alerta("PAGAMENTOS: " + orfC + " registros com ID_CONTRATO inexistente em CONTRATOS");
+    if (orfP > 0) alerta("PAGAMENTOS: " + orfP + " registros com ID_PARCELA inexistente em PARCELAS");
+    if (orfC === 0 && orfP === 0) lin("PAGAMENTOS", "IDs cruzados", "OK — sem órfãos", "", "✅");
+
+    // Parcelas com ID_CONTRATO inexistente
+    var cPIC = (cmP["ID_CONTRATO"] || 2) - 1;
+    var cPId = (cmP["ID_PARCELA"]  || 1) - 1;
+    var orfPC = 0;
+    for (var pi = 1; pi < dadosP.length; pi++) {
+      var idCt = String(dadosP[pi][cPIC] || "").trim();
+      if (idCt && !setContratos[idCt]) {
+        orfPC++;
+        if (orfPC <= 10) lin("PARCELAS", "ID_CONTRATO", idCt, String(dadosP[pi][cPId] || pi), "⛔ contrato inexistente em CONTRATOS");
+      }
+    }
+    if (orfPC > 10) lin("PARCELAS", "ID_CONTRATO", "..." + (orfPC - 10) + " omitidos", "", "⛔");
+    if (orfPC > 0) alerta("PARCELAS: " + orfPC + " parcelas com ID_CONTRATO inexistente");
+    if (orfPC === 0) lin("PARCELAS", "ID_CONTRATO cruzado", "OK — sem órfãos", "", "✅");
+  }
+
+  // ── FASE 2B: STATUS × PAGAMENTO ──────────────────────────────────────
+  titulo("FASE 2B — INCONSISTÊNCIA STATUS × PAGAMENTO");
+
+  if (dadosP && dadosPag) {
+    var cPSt   = (cmP["STATUS"] || cmP["STATUS_PAGAMENTO"] || 11) - 1;
+    var cPDPag = cmP["DATA_PAGAMENTO"] ? cmP["DATA_PAGAMENTO"] - 1 : -1;
+    var cPVPag = cmP["VALOR_PAGO"]     ? cmP["VALOR_PAGO"]     - 1 : -1;
+    var cPId2  = (cmP["ID_PARCELA"]    || 1) - 1;
+
+    // Mapa: quais parcelas têm registro em PAGAMENTOS
+    var pagPorParcela = {};
+    if (cmPag["ID_PARCELA"]) {
+      var cPagIPb = cmPag["ID_PARCELA"] - 1;
+      for (var jp = 1; jp < dadosPag.length; jp++) {
+        var idPb = String(dadosPag[jp][cPagIPb] || "").trim();
+        if (idPb) pagPorParcela[idPb] = (pagPorParcela[idPb] || 0) + 1;
+      }
+    }
+
+    var pagoSemReg = 0, abertoComData = 0, pagoValorZero = 0, dupPag = 0;
+
+    for (var pi2 = 1; pi2 < dadosP.length; pi2++) {
+      var st    = String(dadosP[pi2][cPSt] || "").toLowerCase().trim();
+      var idPa  = String(dadosP[pi2][cPId2] || "").trim();
+      var dtPag = cPDPag >= 0 ? dadosP[pi2][cPDPag] : null;
+      var vlPag = cPVPag >= 0 ? parseFloat(dadosP[pi2][cPVPag] || 0) || 0 : 0;
+      var nPag  = pagPorParcela[idPa] || 0;
+
+      if ((st === "pago" || st === "quitacao_antecipada") && nPag === 0) {
+        pagoSemReg++;
+        if (pagoSemReg <= 10) lin("PARCELAS", "STATUS", st, idPa, "⛔ paga mas sem registro em PAGAMENTOS");
+      }
+      if ((st === "pendente" || st === "atrasado") && dtPag && dtPag instanceof Date && !isNaN(dtPag.getTime())) {
+        abertoComData++;
+        if (abertoComData <= 10) lin("PARCELAS", "STATUS", st, idPa, "⚠️ status aberto mas DATA_PAGAMENTO preenchida");
+      }
+      if ((st === "pago" || st === "quitacao_antecipada") && vlPag === 0) {
+        pagoValorZero++;
+        if (pagoValorZero <= 10) lin("PARCELAS", "VALOR_PAGO", "0", idPa, "⚠️ parcela paga com VALOR_PAGO = 0");
+      }
+      if (nPag > 1) {
+        dupPag++;
+        if (dupPag <= 10) lin("PAGAMENTOS", "ID_PARCELA", idPa, nPag, "⚠️ " + nPag + " registros de pagamento para mesma parcela");
+      }
+    }
+
+    if (pagoSemReg   > 10) lin("PARCELAS","STATUS","..." + (pagoSemReg-10)+" omitidos","","⛔");
+    if (abertoComData> 10) lin("PARCELAS","STATUS","..." + (abertoComData-10)+" omitidos","","⚠️");
+    if (pagoValorZero> 10) lin("PARCELAS","VALOR_PAGO","..." + (pagoValorZero-10)+" omitidos","","⚠️");
+    if (dupPag       > 10) lin("PAGAMENTOS","ID_PARCELA","..." + (dupPag-10)+" omitidos","","⚠️");
+
+    if (pagoSemReg    > 0) alerta("PARCELAS: " + pagoSemReg + " parcelas 'pago' sem registro em PAGAMENTOS");
+    if (abertoComData > 0) aviso("PARCELAS: " + abertoComData + " parcelas abertas com DATA_PAGAMENTO preenchida");
+    if (pagoValorZero > 0) aviso("PARCELAS: " + pagoValorZero + " parcelas pagas com VALOR_PAGO = 0");
+    if (dupPag        > 0) aviso("PAGAMENTOS: " + dupPag + " parcelas com múltiplos registros de pagamento");
+
+    if (pagoSemReg + abertoComData + pagoValorZero + dupPag === 0)
+      lin("PARCELAS/PAGAMENTOS", "Cruzamento status×pagamento", "OK", "", "✅");
+  }
+
+  // ── FASE 2C: INCONSISTÊNCIAS DE DATAS ─────────────────────────────────
+  titulo("FASE 2C — INCONSISTÊNCIAS DE DATAS");
+
+  if (dadosP && dadosC) {
+    var cCDEmp = cmC["DATA_EMPRESTIMO"]     ? cmC["DATA_EMPRESTIMO"]     - 1 : 3;
+    var cCID2  = (cmC["ID_CONTRATO"]        || 1) - 1;
+    var cPDV   = (cmP["DATA_VENCIMENTO"]    || 7) - 1;
+    var cPDPg  = cmP["DATA_PAGAMENTO"]      ? cmP["DATA_PAGAMENTO"]      - 1 : -1;
+    var cPIC4  = (cmP["ID_CONTRATO"]        || 2) - 1;
+    var cPId3  = (cmP["ID_PARCELA"]         || 1) - 1;
+
+    var dtConts = {};
+    for (var ci2 = 1; ci2 < dadosC.length; ci2++) {
+      var idC2 = String(dadosC[ci2][cCID2] || "").trim();
+      var dtE  = dadosC[ci2][cCDEmp];
+      if (idC2 && dtE instanceof Date && !isNaN(dtE.getTime())) dtConts[idC2] = dtE;
+    }
+
+    var vencAntes = 0, pagAntes = 0;
+    for (var pi3 = 1; pi3 < dadosP.length; pi3++) {
+      var idCt2  = String(dadosP[pi3][cPIC4] || "").trim();
+      var dtVenc = dadosP[pi3][cPDV];
+      var dtPg2  = cPDPg >= 0 ? dadosP[pi3][cPDPg] : null;
+      var idPa3  = String(dadosP[pi3][cPId3] || "").trim();
+      var dtBase = dtConts[idCt2];
+      if (!dtBase) continue;
+      dtBase = new Date(dtBase.getFullYear(), dtBase.getMonth(), dtBase.getDate());
+
+      if (dtVenc instanceof Date && !isNaN(dtVenc.getTime())) {
+        var dv = new Date(dtVenc.getFullYear(), dtVenc.getMonth(), dtVenc.getDate());
+        if (dv < dtBase) {
+          vencAntes++;
+          if (vencAntes <= 10) lin("PARCELAS", "DATA_VENCIMENTO", dtVenc.toLocaleDateString("pt-BR"), idPa3, "⚠️ vencimento anterior à data do contrato");
+        }
+      }
+      if (dtPg2 instanceof Date && !isNaN(dtPg2.getTime())) {
+        var dp = new Date(dtPg2.getFullYear(), dtPg2.getMonth(), dtPg2.getDate());
+        if (dp < dtBase) {
+          pagAntes++;
+          if (pagAntes <= 10) lin("PARCELAS", "DATA_PAGAMENTO", dtPg2.toLocaleDateString("pt-BR"), idPa3, "⛔ pagamento anterior à data do contrato");
+        }
+      }
+    }
+
+    if (vencAntes > 10) lin("PARCELAS","DATA_VENCIMENTO","..."+(vencAntes-10)+" omitidos","","⚠️");
+    if (pagAntes  > 10) lin("PARCELAS","DATA_PAGAMENTO", "..."+(pagAntes-10)+" omitidos", "","⛔");
+    if (vencAntes  > 0) aviso("PARCELAS: " + vencAntes + " com vencimento anterior ao contrato");
+    if (pagAntes   > 0) alerta("PARCELAS: " + pagAntes + " com pagamento anterior à data do contrato");
+    if (vencAntes + pagAntes === 0) lin("PARCELAS", "Datas", "OK — sem inconsistências", "", "✅");
+  }
+
+  // ── FASE 2D: TOTAL_PARCELAS vs CONTAGEM REAL ──────────────────────────
+  titulo("FASE 2D — TOTAL_PARCELAS vs CONTAGEM REAL");
+
+  if (dadosP) {
+    var cPNP   = cmP["NUM_PARCELA"]    ? cmP["NUM_PARCELA"]    - 1 : 4;
+    var cPTP   = cmP["TOTAL_PARCELAS"] ? cmP["TOTAL_PARCELAS"] - 1 : 5;
+    var cPIC5  = (cmP["ID_CONTRATO"]   || 2) - 1;
+    var cPId4  = (cmP["ID_PARCELA"]    || 1) - 1;
+
+    var realCount = {}, tpPorContrato = {};
+    for (var pi4 = 1; pi4 < dadosP.length; pi4++) {
+      var idCt3 = String(dadosP[pi4][cPIC5] || "").trim();
+      var tp    = parseInt(dadosP[pi4][cPTP] || 0) || 0;
+      if (!idCt3) continue;
+      realCount[idCt3]     = (realCount[idCt3] || 0) + 1;
+      tpPorContrato[idCt3] = tp;
+    }
+
+    var tpErro = 0;
+    Object.keys(realCount).forEach(function(idCt3) {
+      var tp   = tpPorContrato[idCt3] || 0;
+      var real = realCount[idCt3]     || 0;
+      if (tp > 0 && tp !== real) {
+        tpErro++;
+        if (tpErro <= 10) lin("PARCELAS", "TOTAL_PARCELAS", "declarado: " + tp + "  real: " + real, idCt3, "⚠️ divergência");
+      }
+    });
+
+    if (tpErro > 10) lin("PARCELAS","TOTAL_PARCELAS","..."+(tpErro-10)+" omitidos","","⚠️");
+    if (tpErro  > 0) aviso("PARCELAS: " + tpErro + " contratos com TOTAL_PARCELAS incorreto");
+    if (tpErro === 0) lin("PARCELAS", "TOTAL_PARCELAS", "OK", "", "✅");
+  }
+
+  // ── FASE 2E: VALORES NUMÉRICOS SUSPEITOS ─────────────────────────────
+  titulo("FASE 2E — VALORES NUMÉRICOS SUSPEITOS");
+
+  if (dadosC) {
+    var cCVP2 = cmC["VALOR_PRINCIPAL"] ? cmC["VALOR_PRINCIPAL"] - 1 : 5;
+    var cCID3 = (cmC["ID_CONTRATO"]    || 1) - 1;
+    var cCTX  = cmC["TAXA_JUROS_MENSAL"] ? cmC["TAXA_JUROS_MENSAL"] - 1 : 7;
+    var cCNP  = cmC["NUM_PARCELAS"]      ? cmC["NUM_PARCELAS"]      - 1 : 6;
+    var vpZero = 0, txZero = 0, npZero = 0;
+
+    for (var ci3 = 1; ci3 < dadosC.length; ci3++) {
+      var vp  = parseFloat(dadosC[ci3][cCVP2] || 0) || 0;
+      var tx  = parseFloat(dadosC[ci3][cCTX]  || 0) || 0;
+      var np  = parseInt(dadosC[ci3][cCNP]    || 0) || 0;
+      var idC3 = String(dadosC[ci3][cCID3] || ci3).trim();
+      if (vp <= 0) { vpZero++; if (vpZero <= 5) lin("CONTRATOS", "VALOR_PRINCIPAL", "0 ou vazio", idC3, "⛔ contrato sem valor principal"); }
+      if (tx <= 0) { txZero++; if (txZero <= 5) lin("CONTRATOS", "TAXA_JUROS_MENSAL", "0 ou vazio", idC3, "⚠️ taxa zerada"); }
+      if (np <= 0) { npZero++; if (npZero <= 5) lin("CONTRATOS", "NUM_PARCELAS", "0 ou vazio", idC3, "⛔ sem número de parcelas"); }
+    }
+    if (vpZero > 5) lin("CONTRATOS","VALOR_PRINCIPAL","..."+(vpZero-5)+" omitidos","","⛔");
+    if (txZero > 5) lin("CONTRATOS","TAXA_JUROS_MENSAL","..."+(txZero-5)+" omitidos","","⚠️");
+    if (npZero > 5) lin("CONTRATOS","NUM_PARCELAS","..."+(npZero-5)+" omitidos","","⛔");
+    if (vpZero > 0) alerta("CONTRATOS: " + vpZero + " contratos sem VALOR_PRINCIPAL");
+    if (txZero > 0) aviso("CONTRATOS: "  + txZero + " contratos com taxa zerada");
+    if (npZero > 0) alerta("CONTRATOS: " + npZero + " contratos sem NUM_PARCELAS");
+    if (vpZero + txZero + npZero === 0) lin("CONTRATOS", "Valores numéricos", "OK", "", "✅");
+  }
+
+  // ── FASE 2F: COLUNAS ADICIONADAS DEPOIS (nulos históricos) ───────────
+  titulo("FASE 2F — COLUNAS ADICIONADAS DEPOIS (% de nulos em campos críticos)");
+
+  var CAMPOS_CRITICOS = {
+    PARCELAS:   ["DIAS_ATRASO","DIAS_ANTECIPACAO","VALOR_RECEBIDO","DESCONTO_APLICADO","TIPO_PAGAMENTO","ORIGEM_PARCELA"],
+    PAGAMENTOS: ["VALOR_ORIGINAL_PARCELA","DIFERENCA_RECEBIDA","RECEITA_EXTRA_ATRASO"],
+    CONTRATOS:  ["STATUS_CARTEIRA","PARCELA_PRINCIPAL","PARCELA_JUROS","JUROS_TOTAL","VALOR_TOTAL","LTV_CLIENTE","LUCRO_TOTAL","ROI_CLIENTE"]
+  };
+
+  Object.keys(CAMPOS_CRITICOS).forEach(function(nomeAba) {
+    var dadosAba = nomeAba === "CONTRATOS" ? dadosC : (nomeAba === "PARCELAS" ? dadosP : dadosPag);
+    var cmAba    = nomeAba === "CONTRATOS" ? cmC    : (nomeAba === "PARCELAS" ? cmP    : cmPag);
+    if (!dadosAba) return;
+    var nReg = dadosAba.length - 1;
+
+    CAMPOS_CRITICOS[nomeAba].forEach(function(col) {
+      if (!cmAba[col]) {
+        lin(nomeAba, col, "COLUNA NÃO EXISTE", "", "⛔ coluna ausente no sheet");
+        alerta(nomeAba + " / " + col + ": coluna não existe no Sheets");
+        return;
+      }
+      var ci4  = cmAba[col] - 1;
+      var vazio = 0;
+      for (var i = 1; i < dadosAba.length; i++) {
+        var v = dadosAba[i][ci4];
+        if (v === null || v === undefined || v === "" || v === 0) vazio++;
+      }
+      var pct = nReg > 0 ? Math.round(vazio / nReg * 100) : 0;
+      var obs = pct >= 80 ? "⛔ " + pct + "% vazio — coluna adicionada depois?" :
+                pct >= 30 ? "⚠️ " + pct + "% vazio — verificar histórico" :
+                "✅ " + pct + "% vazio";
+      lin(nomeAba, col, vazio + " vazios de " + nReg, pct + "%", obs);
+      if (pct >= 80) aviso(nomeAba + " / " + col + ": " + pct + "% dos registros sem valor");
+    });
+  });
+
+  // ── RESUMO EXECUTIVO ──────────────────────────────────────────────────
+  var cabecalho = [
+    ["AUDITORIA DE DADOS — FinanceiroOp", "", "", "", new Date().toLocaleString("pt-BR")],
+    ["", "", "", "", ""],
+    ["▶ RESUMO EXECUTIVO", "", "", "", ""],
+    ["Alertas críticos (⛔): " + ALERTAS + " | Avisos (⚠️): " + AVISOS, "", "", "", ""],
+    ["", "", "", "", ""]
+  ];
+  RESUMO.forEach(function(msg, idx) {
+    cabecalho.push(["  " + (idx + 1) + ". " + msg, "", "", "", ""]);
+  });
+  cabecalho.push(["", "", "", "", ""]);
+  cabecalho.push(["─── DETALHES ABAIXO ───", "", "", "", ""]);
+
+  var TODAS = cabecalho.concat(LINHAS);
+
+  // ── Escreve no sheet ──────────────────────────────────────────────────
+  if (TODAS.length > 0) {
+    abaAud.getRange(1, 1, TODAS.length, 5).setValues(TODAS);
+  }
+
+  // Formatação
+  abaAud.setColumnWidth(1, 110);
+  abaAud.setColumnWidth(2, 230);
+  abaAud.setColumnWidth(3, 280);
+  abaAud.setColumnWidth(4, 70);
+  abaAud.setColumnWidth(5, 400);
+  abaAud.getRange(1, 1, 1, 5).setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff").setFontSize(12);
+  abaAud.getRange(3, 1, 1, 5).setFontWeight("bold").setBackground("#2d3a2d").setFontColor("#9fe870").setFontSize(11);
+  abaAud.setFrozenRows(1);
+
+  // Destacar linhas com ⛔ e ⚠️
+  var allVals = TODAS;
+  for (var ri = 1; ri <= allVals.length; ri++) {
+    var obs5 = allVals[ri - 1][4] ? String(allVals[ri - 1][4]) : "";
+    if (obs5.indexOf("⛔") >= 0)      abaAud.getRange(ri, 1, 1, 5).setBackground("#3a1a1a").setFontColor("#ef6060");
+    else if (obs5.indexOf("⚠️") >= 0) abaAud.getRange(ri, 1, 1, 5).setBackground("#3a2e1a").setFontColor("#ffd080");
+    else if (obs5.indexOf("✅") >= 0) abaAud.getRange(ri, 1, 1, 5).setFontColor("#70c070");
+  }
+
+  ss.setActiveSheet(abaAud);
+  SpreadsheetApp.getUi().alert(
+    "Auditoria concluída!\n\n" +
+    "⛔ Alertas críticos: " + ALERTAS + "\n" +
+    "⚠️ Avisos: " + AVISOS + "\n\n" +
+    "Veja a aba AUDITORIA para o relatório completo.\n" +
+    "Nenhum dado foi alterado."
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CORREÇÕES DE DADOS — concluídas em 2026-06-01. Funções removidas após uso.
+// correcao1 (renomear colunas), correcao2 (parcial_juros), correcao3 (STATUS_CARTEIRA),
+// investigar5/6 (anomalias), correcao5 (pagamento duplicado).
+// ═══════════════════════════════════════════════════════════════════════════
+
+// CORREÇÃO 1 — Renomear 6 cabeçalhos em CONTRATOS para alinhar com o código
+// Apenas os textos dos cabeçalhos mudam. Nenhum dado é movido ou alterado.
+function correcao1_RenomearColunasContratos() {
+  var ui  = SpreadsheetApp.getUi();
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var aba = ss.getSheetByName(ABAS.CONTRATOS);
+  if (!aba) { ui.alert("Aba CONTRATOS não encontrada."); return; }
+
+  var RENAMES = [
+    { de: "DATA_1_VENCIMENTO",   para: "DATA_PRIMEIRA_PARCELA" },
+    { de: "JUROS_TOTAIS_%",      para: "TAXA_JUROS_TOTAL"       },
+    { de: "VALOR_JUROS",         para: "JUROS_TOTAL"            },
+    { de: "VALOR_TOTAL_FINAL",   para: "VALOR_TOTAL"            },
+    { de: "PRINCIPAL_P_PARCELA", para: "PARCELA_PRINCIPAL"      },
+    { de: "JUROS_P_PARCELA",     para: "PARCELA_JUROS"          }
+  ];
+
+  var nc      = aba.getLastColumn();
+  var headers = aba.getRange(1, 1, 1, nc).getValues()[0];
+  var preview = "";
+  var encontrados = [];
+
+  RENAMES.forEach(function(r) {
+    var idx = headers.indexOf(r.de);
+    if (idx >= 0) {
+      preview += "\n  col " + (idx + 1) + ": '" + r.de + "' → '" + r.para + "'";
+      encontrados.push({ col: idx + 1, para: r.para });
+    } else {
+      preview += "\n  '" + r.de + "' — NÃO ENCONTRADA (pode já ter sido renomeada)";
+    }
+  });
+
+  var resp = ui.alert(
+    "CORREÇÃO 1 — Renomear cabeçalhos CONTRATOS",
+    "As seguintes colunas serão renomeadas:" + preview +
+    "\n\nNenhum dado será movido. Apenas os títulos mudam.\nConfirma?",
+    ui.ButtonSet.YES_NO
+  );
+  if (resp !== ui.Button.YES) { ui.alert("Cancelado. Nenhuma alteração feita."); return; }
+
+  encontrados.forEach(function(item) {
+    aba.getRange(1, item.col)
+       .setValue(item.para)
+       .setFontWeight("bold")
+       .setBackground("#1a1a2e")
+       .setFontColor("#ffffff");
+  });
+
+  SpreadsheetApp.flush();
+  ui.alert("Correção 1 concluída!\n" + encontrados.length + " coluna(s) renomeada(s).\n\nRode a auditoria novamente para confirmar.");
+}
+
+// CORREÇÃO 2 — Converter "parcial_juros" → "somente_juros" em PARCELAS e PAGAMENTOS
+// 102 registros afetados. Abre log antes de alterar.
+function correcao2_ParcialJurosParaSomenteJuros() {
+  var ui  = SpreadsheetApp.getUi();
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var abaP   = ss.getSheetByName(ABAS.PARCELAS);
+  var abaPag = ss.getSheetByName(ABAS.PAGAMENTOS);
+  if (!abaP || !abaPag) { ui.alert("Aba não encontrada."); return; }
+
+  var cmP   = buildColMap(abaP);
+  var cmPag = buildColMap(abaPag);
+  var cTP   = cmP["TIPO_PAGAMENTO"]   ? cmP["TIPO_PAGAMENTO"]   - 1 : -1;
+  var cTPag = cmPag["TIPO_PAGAMENTO"] ? cmPag["TIPO_PAGAMENTO"] - 1 : -1;
+
+  if (cTP < 0 && cTPag < 0) { ui.alert("Coluna TIPO_PAGAMENTO não encontrada."); return; }
+
+  // Contar afetados
+  var dadosP   = abaP.getDataRange().getValues();
+  var dadosPag = abaPag.getDataRange().getValues();
+  var qtdP = 0, qtdPag = 0;
+
+  if (cTP >= 0) for (var i = 1; i < dadosP.length;   i++) { if (String(dadosP[i][cTP]   || "").trim() === "parcial_juros") qtdP++; }
+  if (cTPag >= 0) for (var j = 1; j < dadosPag.length; j++) { if (String(dadosPag[j][cTPag] || "").trim() === "parcial_juros") qtdPag++; }
+
+  if (qtdP + qtdPag === 0) { ui.alert("Nenhum registro com 'parcial_juros' encontrado. Já corrigido."); return; }
+
+  var resp = ui.alert(
+    "CORREÇÃO 2 — parcial_juros → somente_juros",
+    "Registros a alterar:\n" +
+    "  PARCELAS   / TIPO_PAGAMENTO: " + qtdP   + " registros\n" +
+    "  PAGAMENTOS / TIPO_PAGAMENTO: " + qtdPag + " registros\n\n" +
+    "Total: " + (qtdP + qtdPag) + " registros.\n\n" +
+    "Esta operação é registrada no log de eventos.\nConfirma?",
+    ui.ButtonSet.YES_NO
+  );
+  if (resp !== ui.Button.YES) { ui.alert("Cancelado."); return; }
+
+  // Criar aba de log antes de alterar
+  var abaLog = ss.getSheetByName("LOG_CORRECAO2");
+  if (abaLog) ss.deleteSheet(abaLog);
+  abaLog = ss.insertSheet("LOG_CORRECAO2");
+  abaLog.getRange(1,1,1,4).setValues([["ABA","LINHA","ID","VALOR_ANTERIOR"]]);
+  var logRows = [];
+
+  // Corrigir PARCELAS
+  if (cTP >= 0) {
+    var cPId = (cmP["ID_PARCELA"] || 1) - 1;
+    dadosP = abaP.getDataRange().getValues();
+    for (var i2 = 1; i2 < dadosP.length; i2++) {
+      if (String(dadosP[i2][cTP] || "").trim() !== "parcial_juros") continue;
+      logRows.push(["PARCELAS", i2 + 1, String(dadosP[i2][cPId] || ""), "parcial_juros"]);
+      abaP.getRange(i2 + 1, cTP + 1).setValue("somente_juros");
+    }
+  }
+
+  // Corrigir PAGAMENTOS
+  if (cTPag >= 0) {
+    var cPagId = (cmPag["ID_PAGAMENTO"] || 1) - 1;
+    dadosPag = abaPag.getDataRange().getValues();
+    for (var j2 = 1; j2 < dadosPag.length; j2++) {
+      if (String(dadosPag[j2][cTPag] || "").trim() !== "parcial_juros") continue;
+      logRows.push(["PAGAMENTOS", j2 + 1, String(dadosPag[j2][cPagId] || ""), "parcial_juros"]);
+      abaPag.getRange(j2 + 1, cTPag + 1).setValue("somente_juros");
+    }
+  }
+
+  if (logRows.length > 0) abaLog.getRange(2, 1, logRows.length, 4).setValues(logRows);
+  SpreadsheetApp.flush();
+
+  registrarEvento({ tipoEvento: "CORRECAO_DADOS", observacoes: "Correcao 2: " + logRows.length + " registros parcial_juros → somente_juros" });
+  ui.alert("Correção 2 concluída!\n" + logRows.length + " registros atualizados.\nLog salvo na aba LOG_CORRECAO2.");
+}
+
+// CORREÇÃO 3 — Backfill STATUS_CARTEIRA baseado no STATUS_CONTRATO atual
+// Contratos sem STATUS_CARTEIRA recebem o valor derivado do status atual.
+function correcao3_BackfillStatusCarteira() {
+  var ui  = SpreadsheetApp.getUi();
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var aba = ss.getSheetByName(ABAS.CONTRATOS);
+  if (!aba) { ui.alert("Aba CONTRATOS não encontrada."); return; }
+
+  var cm = buildColMap(aba);
+  var cSC = cm["STATUS_CONTRATO"] ? cm["STATUS_CONTRATO"] - 1 : -1;
+  var cCA = cm["STATUS_CARTEIRA"] ? cm["STATUS_CARTEIRA"] - 1 : -1;
+  if (cSC < 0) { ui.alert("Coluna STATUS_CONTRATO não encontrada."); return; }
+  if (cCA < 0) { ui.alert("Coluna STATUS_CARTEIRA não encontrada. Rode migrarFase1 primeiro."); return; }
+
+  // Mapa STATUS_CONTRATO → STATUS_CARTEIRA
+  var MAPA = {
+    "ativo_em_dia":              "ativa",
+    "ativo_em_atraso":           "ativa",
+    "em_cobranca":               "ativa",
+    "pre_prejuizo":              "ativa",
+    "quitado":                   "quitada",
+    "baixado_como_prejuizo":     "baixada",
+    "em_recuperacao":            "baixada",
+    "recuperado_parcialmente":   "baixada",
+    "recuperado_integralmente":  "baixada",
+    "encerrado_sem_recuperacao": "baixada",
+    "renegociado":               "renegociada",
+    "cancelado":                 "cancelada"
+  };
+
+  var dados = aba.getDataRange().getValues();
+  var cId   = (cm["ID_CONTRATO"] || 1) - 1;
+  var preview = 0;
+  var logRows = [];
+
+  for (var i = 1; i < dados.length; i++) {
+    var sc = String(dados[i][cSC] || "").trim();
+    var ca = String(dados[i][cCA] || "").trim();
+    if (ca !== "") continue; // já preenchido
+    var novoVal = MAPA[sc] || "";
+    if (!novoVal) continue;
+    preview++;
+    logRows.push([String(dados[i][cId] || ""), sc, novoVal]);
+  }
+
+  if (preview === 0) { ui.alert("Todos os contratos já têm STATUS_CARTEIRA preenchido."); return; }
+
+  var resp = ui.alert(
+    "CORREÇÃO 3 — Backfill STATUS_CARTEIRA",
+    preview + " contratos sem STATUS_CARTEIRA serão preenchidos:\n\n" +
+    "  ativo_em_dia / ativo_em_atraso / em_cobranca / pre_prejuizo → ativa\n" +
+    "  quitado → quitada\n" +
+    "  baixado_como_prejuizo / em_recuperacao → baixada\n" +
+    "  renegociado → renegociada\n\n" +
+    "Contratos que já têm STATUS_CARTEIRA não são alterados.\nConfirma?",
+    ui.ButtonSet.YES_NO
+  );
+  if (resp !== ui.Button.YES) { ui.alert("Cancelado."); return; }
+
+  // Criar log
+  var abaLog = ss.getSheetByName("LOG_CORRECAO3");
+  if (abaLog) ss.deleteSheet(abaLog);
+  abaLog = ss.insertSheet("LOG_CORRECAO3");
+  abaLog.getRange(1,1,1,3).setValues([["ID_CONTRATO","STATUS_CONTRATO","STATUS_CARTEIRA_NOVO"]]);
+
+  var alterados = 0;
+  dados = aba.getDataRange().getValues(); // reler
+  for (var i2 = 1; i2 < dados.length; i2++) {
+    var sc2  = String(dados[i2][cSC] || "").trim();
+    var ca2  = String(dados[i2][cCA] || "").trim();
+    if (ca2 !== "") continue;
+    var novo = MAPA[sc2] || "";
+    if (!novo) continue;
+    aba.getRange(i2 + 1, cCA + 1).setValue(novo);
+    alterados++;
+  }
+
+  if (logRows.length > 0) abaLog.getRange(2, 1, logRows.length, 3).setValues(logRows);
+  SpreadsheetApp.flush();
+
+  registrarEvento({ tipoEvento: "CORRECAO_DADOS", observacoes: "Correcao 3: backfill STATUS_CARTEIRA em " + alterados + " contratos" });
+  ui.alert("Correção 3 concluída!\n" + alterados + " contratos atualizados.\nLog salvo na aba LOG_CORRECAO3.");
+}
+
+// INVESTIGAÇÃO 5 — Listar todas as parcelas com múltiplos registros de pagamento
+// Não altera nada. Produz aba INVEST_5 com os casos encontrados.
+function investigar5_PagamentosDuplicados() {
+  var ui     = SpreadsheetApp.getUi();
+  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var abaPag = ss.getSheetByName(ABAS.PAGAMENTOS);
+  if (!abaPag || abaPag.getLastRow() <= 1) { ui.alert("Aba PAGAMENTOS vazia."); return; }
+
+  var cm     = buildColMap(abaPag);
+  var dados  = abaPag.getDataRange().getValues();
+  var cIP    = cm["ID_PARCELA"]    ? cm["ID_PARCELA"]    - 1 : -1;
+  var cID    = cm["ID_PAGAMENTO"]  ? cm["ID_PAGAMENTO"]  - 1 : 0;
+  var cIC    = cm["ID_CONTRATO"]   ? cm["ID_CONTRATO"]   - 1 : -1;
+  var cNC    = cm["NOME_CLIENTE"]  ? cm["NOME_CLIENTE"]  - 1 : -1;
+  var cDT    = cm["DATA_PAGAMENTO"]? cm["DATA_PAGAMENTO"]- 1 : -1;
+  var cVP    = cm["VALOR_PAGO"]    ? cm["VALOR_PAGO"]    - 1 : -1;
+  var cTP    = cm["TIPO_PAGAMENTO"]? cm["TIPO_PAGAMENTO"]- 1 : -1;
+
+  // Agrupar pagamentos por ID_PARCELA
+  var grupos = {};
+  for (var i = 1; i < dados.length; i++) {
+    var idP = cIP >= 0 ? String(dados[i][cIP] || "").trim() : "";
+    if (!idP) continue;
+    if (!grupos[idP]) grupos[idP] = [];
+    grupos[idP].push(i);
+  }
+
+  // Filtrar os que têm mais de 1
+  var duplicados = Object.keys(grupos).filter(function(k) { return grupos[k].length > 1; });
+
+  if (duplicados.length === 0) {
+    ui.alert("Nenhuma parcela com pagamento duplicado encontrada. ✅");
+    return;
+  }
+
+  // Produzir aba de resultado
+  var abaInv = ss.getSheetByName("INVEST_5");
+  if (abaInv) ss.deleteSheet(abaInv);
+  abaInv = ss.insertSheet("INVEST_5");
+
+  var rows = [["ID_PARCELA", "ID_PAGAMENTO", "ID_CONTRATO", "NOME_CLIENTE", "DATA_PAGAMENTO", "VALOR_PAGO", "TIPO_PAGAMENTO", "LINHA_PAGAMENTOS"]];
+
+  duplicados.forEach(function(idP) {
+    grupos[idP].forEach(function(linIdx) {
+      var r = dados[linIdx];
+      rows.push([
+        idP,
+        cID >= 0 ? String(r[cID] || "")  : "",
+        cIC >= 0 ? String(r[cIC] || "")  : "",
+        cNC >= 0 ? String(r[cNC] || "")  : "",
+        cDT >= 0 ? (r[cDT] instanceof Date ? r[cDT].toLocaleDateString("pt-BR") : String(r[cDT] || "")) : "",
+        cVP >= 0 ? parseFloat(r[cVP] || 0) : 0,
+        cTP >= 0 ? String(r[cTP] || "")  : "",
+        linIdx + 1
+      ]);
+    });
+    rows.push(["---", "", "", "", "", "", "", ""]);
+  });
+
+  abaInv.getRange(1, 1, rows.length, 8).setValues(rows);
+  abaInv.getRange(1, 1, 1, 8).setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
+  abaInv.setColumnWidths(1, 8, 140);
+  abaInv.setFrozenRows(1);
+  ss.setActiveSheet(abaInv);
+
+  ui.alert(
+    "Investigação 5 concluída.\n\n" +
+    duplicados.length + " parcela(s) com pagamento duplicado encontrada(s).\n\n" +
+    "Veja a aba INVEST_5.\n" +
+    "Anote o ID_PAGAMENTO do registro INCORRETO e use\n" +
+    "'Correcao 5 — Remover pagamento duplicado'."
+  );
+}
+
+// INVESTIGAÇÃO 6 — Listar parcelas com DATA_PAGAMENTO anterior à data do contrato
+// Não altera nada. Produz aba INVEST_6.
+function investigar6_DatasSuspeitas() {
+  var ui   = SpreadsheetApp.getUi();
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var abaP = ss.getSheetByName(ABAS.PARCELAS);
+  var abaC = ss.getSheetByName(ABAS.CONTRATOS);
+  if (!abaP || !abaC) { ui.alert("Abas não encontradas."); return; }
+
+  var cmP  = buildColMap(abaP);
+  var cmC  = buildColMap(abaC);
+  var dadosP = abaP.getDataRange().getValues();
+  var dadosC = abaC.getDataRange().getValues();
+
+  var cCID  = (cmC["ID_CONTRATO"]      || 1) - 1;
+  var cCDE  = cmC["DATA_EMPRESTIMO"]   ? cmC["DATA_EMPRESTIMO"]   - 1 : 3;
+  var cCNC  = cmC["NOME_CLIENTE"]      ? cmC["NOME_CLIENTE"]      - 1 : 2;
+  var cPIP  = (cmP["ID_PARCELA"]       || 1) - 1;
+  var cPIC  = (cmP["ID_CONTRATO"]      || 2) - 1;
+  var cPNC  = cmP["NOME_CLIENTE"]      ? cmP["NOME_CLIENTE"]      - 1 : 3;
+  var cPDP  = cmP["DATA_PAGAMENTO"]    ? cmP["DATA_PAGAMENTO"]    - 1 : -1;
+  var cPDV  = (cmP["DATA_VENCIMENTO"]  || 7) - 1;
+  var cPVP  = cmP["VALOR_PAGO"]        ? cmP["VALOR_PAGO"]        - 1 : -1;
+  var cPTP  = cmP["TIPO_PAGAMENTO"]    ? cmP["TIPO_PAGAMENTO"]    - 1 : -1;
+  var cPSt  = (cmP["STATUS"] || cmP["STATUS_PAGAMENTO"] || 11) - 1;
+
+  // Mapa data empréstimo por contrato
+  var dtConts = {}, nomeConts = {};
+  for (var ci = 1; ci < dadosC.length; ci++) {
+    var idC = String(dadosC[ci][cCID] || "").trim();
+    var dtE = dadosC[ci][cCDE];
+    if (idC && dtE instanceof Date && !isNaN(dtE.getTime())) {
+      dtConts[idC]  = new Date(dtE.getFullYear(), dtE.getMonth(), dtE.getDate());
+      nomeConts[idC] = cCNC >= 0 ? String(dadosC[ci][cCNC] || "") : "";
+    }
+  }
+
+  var rows = [["ID_PARCELA","ID_CONTRATO","NOME_CLIENTE","DATA_VENCIMENTO","DATA_PAGAMENTO","DATA_EMPRESTIMO_CONTRATO","DIFF_DIAS","VALOR_PAGO","TIPO_PAGAMENTO","STATUS","OBSERVAÇÃO"]];
+  var count = 0;
+
+  for (var pi = 1; pi < dadosP.length; pi++) {
+    var idCt  = String(dadosP[pi][cPIC] || "").trim();
+    var dtPag = cPDP >= 0 ? dadosP[pi][cPDP] : null;
+    if (!dtPag || !(dtPag instanceof Date) || isNaN(dtPag.getTime())) continue;
+
+    var dtBase = dtConts[idCt];
+    if (!dtBase) continue;
+
+    var dp = new Date(dtPag.getFullYear(), dtPag.getMonth(), dtPag.getDate());
+    var diffDias = Math.round((dp.getTime() - dtBase.getTime()) / 86400000);
+    if (diffDias >= 0) continue; // pagamento APÓS a data do contrato — ok
+
+    count++;
+    var dtV = dadosP[pi][cPDV];
+    rows.push([
+      String(dadosP[pi][cPIP] || ""),
+      idCt,
+      nomeConts[idCt] || (cPNC >= 0 ? String(dadosP[pi][cPNC] || "") : ""),
+      dtV instanceof Date ? dtV.toLocaleDateString("pt-BR") : String(dtV || ""),
+      dtPag.toLocaleDateString("pt-BR"),
+      dtBase.toLocaleDateString("pt-BR"),
+      diffDias,
+      cPVP >= 0 ? parseFloat(dadosP[pi][cPVP] || 0) : 0,
+      cPTP >= 0 ? String(dadosP[pi][cPTP] || "") : "",
+      String(dadosP[pi][cPSt] || ""),
+      diffDias >= -3 ? "⚠️ Diferença pequena (possível timezone)" : "⛔ Verificar"
+    ]);
+  }
+
+  if (count === 0) { ui.alert("Nenhuma data suspeita encontrada. ✅"); return; }
+
+  var abaInv = ss.getSheetByName("INVEST_6");
+  if (abaInv) ss.deleteSheet(abaInv);
+  abaInv = ss.insertSheet("INVEST_6");
+  abaInv.getRange(1, 1, rows.length, 11).setValues(rows);
+  abaInv.getRange(1, 1, 1, 11).setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
+  abaInv.setColumnWidth(3, 160);
+  abaInv.setColumnWidth(11, 280);
+  abaInv.setFrozenRows(1);
+  ss.setActiveSheet(abaInv);
+
+  ui.alert(
+    "Investigação 6 concluída.\n\n" +
+    count + " parcela(s) com data de pagamento anterior ao contrato.\n\n" +
+    "Veja a aba INVEST_6.\n" +
+    "Coluna DIFF_DIAS: negativo = pagamento antes do contrato.\n" +
+    "Diferença ≤ 3 dias pode ser fuso horário. > 3 dias = investigar."
+  );
+}
+
+// CORREÇÃO 5 — Remover um pagamento duplicado específico pelo ID_PAGAMENTO
+// Requer que o usuário informe o ID_PAGAMENTO incorreto após ver INVEST_5.
+function correcao5_RemoverPagamentoDuplicado() {
+  var ui  = SpreadsheetApp.getUi();
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+
+  var resp = ui.prompt(
+    "CORREÇÃO 5 — Remover pagamento duplicado",
+    "Informe o ID_PAGAMENTO do registro INCORRETO a remover\n(ex: PAG00042).\n\nConsulte a aba INVEST_5 para identificar qual é o duplicado:",
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (resp.getSelectedButton() !== ui.Button.OK) { ui.alert("Cancelado."); return; }
+
+  var idPag = String(resp.getResponseText() || "").trim();
+  if (!idPag) { ui.alert("ID não informado. Cancelado."); return; }
+
+  var abaPag = ss.getSheetByName(ABAS.PAGAMENTOS);
+  if (!abaPag) { ui.alert("Aba PAGAMENTOS não encontrada."); return; }
+
+  var cm    = buildColMap(abaPag);
+  var cID   = cm["ID_PAGAMENTO"] ? cm["ID_PAGAMENTO"] - 1 : 0;
+  var dados = abaPag.getDataRange().getValues();
+  var linhaEncontrada = -1;
+  var snapRow = null;
+
+  for (var i = 1; i < dados.length; i++) {
+    if (String(dados[i][cID] || "").trim() === idPag) {
+      linhaEncontrada = i + 1;
+      snapRow = dados[i];
+      break;
+    }
+  }
+
+  if (linhaEncontrada < 0) {
+    ui.alert("ID_PAGAMENTO '" + idPag + "' não encontrado em PAGAMENTOS.");
+    return;
+  }
+
+  // Mostrar o que será deletado e pedir confirmação final
+  var cNC = cm["NOME_CLIENTE"]   ? cm["NOME_CLIENTE"]   - 1 : -1;
+  var cDT = cm["DATA_PAGAMENTO"] ? cm["DATA_PAGAMENTO"] - 1 : -1;
+  var cVP = cm["VALOR_PAGO"]     ? cm["VALOR_PAGO"]     - 1 : -1;
+  var cIP = cm["ID_PARCELA"]     ? cm["ID_PARCELA"]     - 1 : -1;
+
+  var preview =
+    "\nID_PAGAMENTO: " + idPag +
+    "\nCliente:      " + (cNC >= 0 ? String(snapRow[cNC] || "") : "?") +
+    "\nParcela:      " + (cIP >= 0 ? String(snapRow[cIP] || "") : "?") +
+    "\nData:         " + (cDT >= 0 && snapRow[cDT] instanceof Date ? snapRow[cDT].toLocaleDateString("pt-BR") : "?") +
+    "\nValor:        " + (cVP >= 0 ? "R$ " + parseFloat(snapRow[cVP] || 0).toFixed(2) : "?");
+
+  var conf = ui.alert(
+    "Confirma DELEÇÃO do registro abaixo?" + preview + "\n\nEsta ação não pode ser desfeita.",
+    ui.ButtonSet.YES_NO
+  );
+  if (conf !== ui.Button.YES) { ui.alert("Cancelado."); return; }
+
+  // Salvar backup na aba de log
+  var abaLog = ss.getSheetByName("LOG_CORRECAO5");
+  if (!abaLog) abaLog = ss.insertSheet("LOG_CORRECAO5");
+  var nc = abaPag.getLastColumn();
+  var logHeader = abaPag.getRange(1, 1, 1, nc).getValues()[0];
+  if (abaLog.getLastRow() === 0) abaLog.getRange(1, 1, 1, nc).setValues([logHeader]);
+  abaLog.getRange(abaLog.getLastRow() + 1, 1, 1, nc).setValues([snapRow]);
+
+  abaPag.deleteRow(linhaEncontrada);
+  SpreadsheetApp.flush();
+
+  registrarEvento({ tipoEvento: "CORRECAO_DADOS", observacoes: "Correcao 5: pagamento duplicado removido: " + idPag });
+  ui.alert("Correção 5 concluída.\nRegistro " + idPag + " removido.\nBackup salvo em LOG_CORRECAO5.");
 }
