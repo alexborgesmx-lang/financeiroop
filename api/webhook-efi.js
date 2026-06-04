@@ -14,6 +14,15 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).end();
 
+  const secret = process.env.EFI_WEBHOOK_SECRET;
+  if (secret) {
+    const incoming = req.query?.sk;
+    if (!incoming || incoming !== secret) {
+      console.warn("webhook-efi: token invalido rejeitado");
+      return res.status(401).end();
+    }
+  }
+
   try {
     const pixList = req.body?.pix || [];
     const erros = [];

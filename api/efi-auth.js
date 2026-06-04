@@ -42,7 +42,7 @@ export async function getEfiToken() {
   });
 }
 
-export async function efiRequest(method, path, body, token) {
+export async function efiRequest(method, path, body, token, extraHeaders = {}) {
   const cert = Buffer.from(process.env.EFI_CERT_P12_BASE64, "base64");
   return new Promise((resolve, reject) => {
     const bodyStr = body ? JSON.stringify(body) : null;
@@ -56,6 +56,7 @@ export async function efiRequest(method, path, body, token) {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
         ...(bodyStr ? { "Content-Length": Buffer.byteLength(bodyStr) } : {}),
+        ...extraHeaders,
       },
     };
 
