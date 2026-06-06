@@ -1646,17 +1646,6 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
                 <span style={LS()}>Observações</span>
                 <textarea value={edit.OBSERVACOES} onChange={e=>setEdit(p=>({...p,OBSERVACOES:e.target.value}))} style={{...IS(),height:80,resize:"none"}}/>
               </div>
-              {saveMsg&&(
-                <div style={{padding:"10px 14px",borderRadius:8,background:saveMsg.ok?GRN+"10":RED+"10",color:saveMsg.ok?GRN:RED,fontSize:13,fontWeight:700,border:`1px solid ${saveMsg.ok?GRN:RED}25`}}>
-                  {""}{saveMsg.t}
-                </div>
-              )}
-              {temErros&&<div style={{padding:"10px 14px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:700,border:`1px solid ${RED}25`}}>
-                {nErros} campo{nErros>1?"s":""} com erro ou não preenchido{nErros>1?"s":""} — corrija antes de salvar.
-              </div>}
-              <button onClick={salvar} disabled={saving||temErros} style={BTN1(saving||temErros)}>
-                {saving?<><IcoSpinner color="#1B3305"/> Salvando...</>:<>{IcoCheck} Salvar e Ativar Cliente</>}
-              </button>
             </div>
           )}
           {t==="todos os dados"&&(
@@ -1679,7 +1668,7 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
                         <span style={{fontSize:10,fontWeight:700,color:cor,background:cor+"18",padding:"2px 8px",borderRadius:20,border:`1px solid ${cor}30`}}>{_stLbl[st]||st}</span>
                       </div>
                       <div style={{fontSize:16,fontWeight:800,color:ORG,marginBottom:3}}>{fmtR(parseFloat(c.VALOR_PRINCIPAL||0))}</div>
-                      <div style={{fontSize:11,color:MUTED}}>{c.TOTAL_PARCELAS}x · {pagas}/{ps.length} pagas · desde {fmtDt(c.DATA_EMPRESTIMO)}</div>
+                      <div style={{fontSize:11,color:MUTED}}>{c.TOTAL_PARCELAS||c.NUM_PARCELAS||ps.length}x · {pagas}/{ps.length} pagas · desde {fmtDt(c.DATA_EMPRESTIMO)}</div>
                     </div>
                     {onVerContrato&&<button onClick={()=>onVerContrato(c)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${BD}`,background:BG,color:TEXT,fontWeight:700,fontSize:12,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>Abrir →</button>}
                   </div>
@@ -1688,6 +1677,15 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
             </div>
           )}
         </div>
+        {t==="editar"&&(
+          <div style={{flexShrink:0,padding:"14px 20px",borderTop:`1px solid ${BD}`,background:CARD,display:"flex",flexDirection:"column",gap:10}}>
+            {saveMsg&&<div style={{padding:"10px 14px",borderRadius:8,background:saveMsg.ok?GRN+"10":RED+"10",color:saveMsg.ok?GRN:RED,fontSize:13,fontWeight:700,border:`1px solid ${saveMsg.ok?GRN:RED}25`}}>{saveMsg.t}</div>}
+            {temErros&&<div style={{padding:"10px 14px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:700,border:`1px solid ${RED}25`}}>{nErros} campo{nErros>1?"s":""} com erro ou não preenchido{nErros>1?"s":""} — corrija antes de salvar.</div>}
+            <button onClick={salvar} disabled={saving||temErros} style={BTN1(saving||temErros)}>
+              {saving?<><IcoSpinner color="#1B3305"/> Salvando...</>:<>{IcoCheck} Salvar e Ativar Cliente</>}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2085,7 +2083,7 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
             <div>
               {[
                 {l:"Próximo vencimento",v:proxParcela?(proxParcela.DATA_ACORDO?`${fmtDtLong(proxParcela.DATA_ACORDO)} (acordo)`:fmtDtLong(proxParcela.DATA_VENCIMENTO)):"—",c:diasAteVenc!==null&&diasAteVenc<0?RED:diasAteVenc===0?YEL:TEXT},
-                {l:"Valor da parcela",v:fmtR(contrato.VALOR_PARCELA),c:TEXT},
+                ...(!proxParcela?[{l:"Valor da parcela",v:fmtR(contrato.VALOR_PARCELA),c:TEXT}]:[]),
                 ...(taxa>0?[{l:`Juros do mês (${(taxa*100).toFixed(1)}% a.m.)`,v:fmtR(juros),c:TEXT}]:[]),
                 {l:"Saldo devedor",v:fmtR(saldoDevedor),c:saldoDevedor>0?RED:MUTED},
                 {l:"Total pago até hoje",v:fmtR(totalPago),c:totalPago>0?GRN:MUTED},
@@ -2673,10 +2671,11 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
     if(bloqueado)return"bloqueado";
     const s=parseFloat(score||0);
     if(!s)return"sem score — taxa padrão";
-    if(s>=75)return`score ${s} (excelente)`;
-    if(s>=60)return`score ${s} (bom)`;
-    if(s>=45)return`score ${s} (regular)`;
-    if(s>=25)return`score ${s} (baixo)`;
+    if(s>=90)return`score ${s} (excelente)`;
+    if(s>=75)return`score ${s} (bom)`;
+    if(s>=60)return`score ${s} (médio)`;
+    if(s>=45)return`score ${s} (atenção)`;
+    if(s>=30)return`score ${s} (risco)`;
     return`score ${s} (alto risco)`;
   };
 
@@ -3846,7 +3845,7 @@ function App() {
     setTab("clientes");
   };
 
-  const NavSection=({label})=>sidebarOpen?<div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.32)",textTransform:"uppercase",letterSpacing:"0.1em",padding:"18px 14px 6px"}}>{label}</div>:<div style={{height:16}}/>;
+  const NavSection=({label})=>sidebarOpen?<div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.32)",textTransform:"uppercase",letterSpacing:"0.1em",padding:"10px 14px 4px"}}>{label}</div>:<div style={{height:12}}/>;
   const Nav=({id,label,ico,badge,badgeRed})=>{
     const active=tab===id;
     return(
@@ -4031,7 +4030,7 @@ function App() {
                   </svg>
                   <span style={{fontWeight:700,fontSize:15,letterSpacing:"-0.02em",color:TEXT}}>Borges</span>
                 </div>
-              : <h2 style={{fontSize:18,fontWeight:700,margin:0,textTransform:"capitalize"}}>{tab}</h2>
+              : <h2 style={{fontSize:18,fontWeight:700,margin:0}}>{{dashboard:"Dashboard",clientes:"Clientes",contratos:"Contratos",cobranca:"Cobrança",financeiro:"Financeiro",perdas:"Perdas & Recuperação",promessas:"Promessas",simulador:"Simulador",inteligencia:"Inteligência"}[tab]||tab}</h2>
             }
           </div>
           <div style={{display:"flex",alignItems:"center",gap:mob?8:12}}>
@@ -4151,7 +4150,7 @@ function App() {
                   {[
                     {l:"Carteira Total (Capital Emprestado)",v:fmtR(M.vAtivos),sub:`${M.contratosAtivos} contratos ativos`},
                     {l:"Taxa Média de Retorno",v:`${taxaMedia.toFixed(1)}% a.m.`,sub:"Sobre contratos ativos"},
-                    {l:"Taxa de Adimplência",v:M.vAtivos>0?fmtP(100-M.taxaInad):"—",sub:`${parcelasAtrasadas.length} de ${M.totalCobrancas} contratos`},
+                    {l:"Taxa de Adimplência",v:M.vAtivos>0?(M.taxaInad===0&&parcelasAtrasadas.length>0?"100%*":fmtP(100-M.taxaInad)):"—",sub:M.taxaInad===0&&parcelasAtrasadas.length>0?`*sem venctos no período · ${parcelasAtrasadas.length} parc. em atraso global`:`${parcelasAtrasadas.length} parc. em atraso de ${M.totalCobrancas} no período`},
                   ].map((s,i)=>(
                     <div key={s.l} style={{flex:1,padding:mob?"0 0 16px 0":i===0?"0 32px 0 0":`0 32px`,borderBottom:mob&&i<2?"1px solid rgba(255,255,255,0.12)":"none",borderRight:!mob&&i<2?"1px solid rgba(255,255,255,0.12)":"none",marginBottom:mob&&i<2?16:0}}>
                       <div className="text-[10px] font-bold uppercase tracking-[0.1em] mb-2" style={{color:"rgba(255,255,255,0.5)"}}>{s.l}</div>
@@ -4314,7 +4313,7 @@ function App() {
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:16,flexWrap:"wrap"}}>
                 <div>
                   <div style={{fontSize:mob?18:22,fontWeight:800,color:TEXT,letterSpacing:"-0.3px"}}>Contratos</div>
-                  <div style={{fontSize:11,color:MUTED,marginTop:4}}>{contratosFiltrados.length} contrato{contratosFiltrados.length!==1?"s":""} · {(contratos||[]).filter(c=>["ativo","ativo_em_dia","ativo_em_atraso"].includes(c.STATUS_CONTRATO)).length} ativos</div>
+                  <div style={{fontSize:11,color:MUTED,marginTop:4}}>{contratosFiltrados.length} contrato{contratosFiltrados.length!==1?"s":""} · {(contratos||[]).filter(c=>["ativo","ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente"].includes(c.STATUS_CONTRATO)).length} ativos</div>
                 </div>
               </div>
               <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,overflow:"hidden",boxShadow:SHD}}>
@@ -4323,6 +4322,7 @@ function App() {
                   <input placeholder="Buscar..." value={filtroCtr} onChange={e=>setFiltroCtr(e.target.value)} style={{...IS(),flex:1,minWidth:140}}/>
                   <select value={filtroStatusCtr} onChange={e=>setFiltroStatusCtr(e.target.value)} style={{...IS(),flex:1,minWidth:140}}>
                     <option value="todos">Todos os status</option>
+                    <option value="ativo">Ativo</option>
                     <option value="ativo_em_dia">Em Dia</option>
                     <option value="ativo_em_atraso">Em Atraso</option>
                     <option value="em_cobranca">Em Cobrança</option>
