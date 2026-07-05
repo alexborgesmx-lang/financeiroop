@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comprovante de Pagamento — Borges Assessoria</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  body{background:var(--n-100); display:flex; flex-direction:column; align-items:center; padding:40px 16px; gap:18px; min-height:100vh;}
+  .doc{width:440px; max-width:100%; background:#fff; border-radius:20px; overflow:hidden; box-shadow:var(--sh-lg);}
+  .hdr{background:var(--green-900); color:#fff; padding:22px 26px; display:flex; align-items:center; justify-content:space-between;}
+  .hdr .brand{display:flex; align-items:center; gap:11px;}
+  .hdr b{font-size:15px; letter-spacing:-.01em;}
+  .hdr .sub{font-size:10px; color:var(--green-300); letter-spacing:.06em; text-transform:uppercase; margin-top:1px;}
+  .body{padding:30px 26px 26px;}
+  .check{width:62px; height:62px; border-radius:50%; background:var(--green-100); display:grid; place-items:center; margin:0 auto;}
+  .row{display:flex; justify-content:space-between; gap:14px; padding:11px 0; border-bottom:1px solid var(--line-soft); font-size:14px;}
+  .row:last-child{border-bottom:none;}
+  .row .k{color:var(--ink-faint);}
+  .row .v{font-weight:500; text-align:right;}
+  .foot{background:var(--n-50); padding:18px 26px; border-top:1px solid var(--line); font-size:11px; color:var(--ink-faint); line-height:1.6;}
+  .toolbar{display:flex; gap:10px;}
+  .btn{font-family:var(--sans); font-size:13px; font-weight:600; padding:9px 18px; border-radius:9px; border:none; cursor:pointer;}
+  .btn-p{background:var(--green-800); color:#fff;}
+  .btn-s{background:#fff; color:var(--ink); border:1px solid var(--line);}
+  @media print{
+    body{background:#fff; padding:0;} .toolbar{display:none;} .doc{box-shadow:none; border-radius:0; width:100%;}
+    @page{margin:14mm;}
+  }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn btn-p" onclick="window.print()">Salvar / imprimir PDF</button>
+    <span class="btn btn-s">Modelo · parcela paga</span>
+  </div>
+
+  <div class="doc">
+    <div class="hdr">
+      <div class="brand">
+        <svg width="30" height="30" viewBox="0 0 68 68"><rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#fff"/><path d="M25 25 H43 V43 H25 Z" fill="#0E5C44"/></svg>
+        <div><b>Borges Assessoria</b><div class="sub">Comprovante de pagamento</div></div>
+      </div>
+    </div>
+
+    <div class="body">
+      <div class="check">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M4 12.5 L9.5 18 L20 6.5" stroke="#15A06A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div style="text-align:center; margin-top:12px;">
+        <div style="font-size:14px; color:var(--ink-faint);">Pagamento confirmado</div>
+        <div class="num" style="font-size:40px; font-weight:700; letter-spacing:-.02em; margin-top:2px;">R$ 1.250,00</div>
+        <div class="num" style="font-size:13px; color:var(--green-700); font-weight:600; margin-top:2px;">Parcela 06 de 12</div>
+      </div>
+
+      <div style="margin-top:24px;">
+        <div class="row"><span class="k">Cliente</span><span class="v">Maria Andrade</span></div>
+        <div class="row"><span class="k">CPF</span><span class="v num">123.456.789-00</span></div>
+        <div class="row"><span class="k">Contrato</span><span class="v num">CON-2026-0481</span></div>
+        <div class="row"><span class="k">Forma de pagamento</span><span class="v">PIX</span></div>
+        <div class="row"><span class="k">Pago em</span><span class="v num">29/05/2026 · 14:32</span></div>
+        <div class="row"><span class="k">Vencimento original</span><span class="v num">06/06/2026</span></div>
+        <div class="row"><span class="k">Saldo devedor após</span><span class="v num">R$ 7.500,00</span></div>
+        <div class="row"><span class="k">ID da transação</span><span class="v num" style="font-size:12px;">E1842026052914BCB7Q9</span></div>
+      </div>
+    </div>
+
+    <div class="foot">
+      Borges Assessoria · CNPJ 00.000.000/0001-00 · borges.com.br<br>
+      Documento gerado eletronicamente. Autenticação <span class="num">9F2A·17C4·BORGES·6304</span>. Este comprovante atesta o recebimento do valor e não constitui documento fiscal.
+    </div>
+  </div>
+</body>
+</html>

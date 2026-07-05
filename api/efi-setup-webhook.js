@@ -1,9 +1,16 @@
 import { getEfiToken, efiRequest } from "./efi-auth.js";
 
-// Registra a URL do webhook de pagamento PIX no Efí Bank para a chave configurada.
-// Chamar uma única vez via: POST /api/efi-setup-webhook (requer sessão autenticada).
+// Registra/renova a URL do webhook PIX no Efí Bank para a chave configurada.
+// Rota excluída do middleware de sessão — autenticada via x-cobranca-secret.
+// Chamada automática: rotinaDiaria GAS toda segunda-feira.
+// Chamada manual: menu GAS → "PIX: Re-registrar Webhook Efí"
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ erro: "Use POST" });
+
+  const secret = process.env.COBRANCA_SECRET;
+  if (secret && req.headers["x-cobranca-secret"] !== secret) {
+    return res.status(401).json({ erro: "Unauthorized" });
+  }
 
   const sk = process.env.EFI_WEBHOOK_SECRET;
   const webhookUrl = `https://financeiroop.vercel.app/api/webhook-efi${sk ? `?sk=${encodeURIComponent(sk)}` : ""}`;

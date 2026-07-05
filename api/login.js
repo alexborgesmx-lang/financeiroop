@@ -1,5 +1,27 @@
+// Rate limiting: 5 tentativas por IP a cada 15 minutos
+const loginAttempts = new Map();
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return false;
+  entry.count++;
+  return true;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
+
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0].trim() || req.socket?.remoteAddress || "unknown";
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({ error: "Muitas tentativas. Tente novamente em 15 minutos." });
+  }
 
   const { password } = req.body || {};
   const correct = process.env.LOGIN_PASSWORD;

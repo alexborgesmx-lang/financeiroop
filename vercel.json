@@ -1,8 +1,20 @@
 {
   "rewrites": [
     {
+      "source": "/c/:code",
+      "destination": "/api/cert?c=:code"
+    },
+    {
       "source": "/api/sheets",
       "destination": "https://script.google.com/macros/s/AKfycbynQKpafDbaBTT-jqs4nCSzbbx8A72MAqDyGxwy86lIt0ykZxeFT8IdlO7zjj0rJEHy7Q/exec"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/sheets",
+      "headers": [
+        { "key": "Cache-Control", "value": "s-maxage=60, stale-while-revalidate=300" }
+      ]
     }
   ]
 }

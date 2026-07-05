@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timbre de Contrato — Borges Assessoria</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  body{background:var(--n-100); display:flex; flex-direction:column; align-items:center; padding:34px 16px; gap:16px;}
+  .sheet{width:794px; max-width:100%; min-height:1123px; background:#fff; box-shadow:var(--sh-lg); position:relative; display:flex; flex-direction:column; overflow:hidden;}
+  /* timbre */
+  .t-head{padding:40px 56px 18px; display:flex; justify-content:space-between; align-items:flex-start;}
+  .t-head::after{content:""; position:absolute; left:56px; right:56px; top:118px; height:2px; background:linear-gradient(90deg,var(--green-800) 0 64px,var(--line) 64px);}
+  .t-co{text-align:right; font-size:10.5px; color:var(--ink-faint); line-height:1.7;}
+  .watermark{position:absolute; inset:0; display:grid; place-items:center; pointer-events:none;}
+  .t-foot{margin-top:auto; padding:14px 56px 30px; position:relative;}
+  .t-foot::before{content:""; position:absolute; left:56px; right:56px; top:0; height:1px; background:var(--line);}
+  .t-foot .frow{display:flex; justify-content:space-between; font-size:10px; color:var(--ink-faint); padding-top:12px;}
+  /* sample body */
+  .doc-body{padding:30px 56px 8px; font-size:11.5px; line-height:1.85; color:var(--ink-soft); position:relative; z-index:1;}
+  .doc-body h2{font-size:16px; text-align:center; margin-bottom:6px;}
+  .doc-body .sub{text-align:center; font-size:10px; color:var(--ink-faint); margin-bottom:20px;}
+  .doc-body .cl{font-weight:700; color:var(--ink); display:block; margin:14px 0 2px;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:4px 24px; background:var(--green-100); border:1px solid var(--green-200); border-radius:10px; padding:12px 16px; margin:10px 0;}
+  .grid2 .lbl{font-size:8.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--green-700); font-family:var(--mono);}
+  .toolbar{display:flex; gap:10px;}
+  .btn{font-family:var(--sans); font-size:13px; font-weight:600; padding:9px 18px; border-radius:9px; border:none; cursor:pointer;}
+  .btn-p{background:var(--green-800); color:#fff;} .btn-s{background:#fff; color:var(--ink); border:1px solid var(--line);}
+  @media print{ body{background:#fff; padding:0;} .toolbar{display:none;} .sheet{box-shadow:none; width:100%; min-height:auto;} @page{size:A4; margin:0;} }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn btn-p" onclick="window.print()">Salvar / imprimir PDF</button>
+    <span class="btn btn-s">Timbre · página de contrato</span>
+  </div>
+
+  <div class="sheet">
+    <!-- TIMBRE: cabeçalho -->
+    <div class="t-head">
+      <div style="display:flex; align-items:center; gap:13px;">
+        <svg width="42" height="42" viewBox="0 0 68 68"><rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#0B3D2E"/><path d="M25 25 H43 V43 H25 Z" fill="#07241B"/></svg>
+        <div><div style="font-size:17px; font-weight:700; letter-spacing:-.02em;">Borges Assessoria</div><div class="mono" style="font-size:10px; color:var(--green-700);">Infraestrutura de crédito privado</div></div>
+      </div>
+      <div class="t-co">CNPJ 00.000.000/0001-00<br>Av. Exemplo, 1000 — Conj. 142<br>São Paulo/SP · CEP 00000-000<br>contato@borges.com.br</div>
+    </div>
+
+    <!-- marca d'água -->
+    <div class="watermark"><svg width="380" height="380" viewBox="0 0 68 68" style="opacity:.035;"><rect x="3" y="3" width="40" height="40" rx="9" fill="#0B3D2E"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#0B3D2E"/></svg></div>
+
+    <!-- corpo de exemplo -->
+    <div class="doc-body">
+      <h2>CÉDULA DE CRÉDITO BANCÁRIO</h2>
+      <div class="sub">Nº CON-2026-0481 · Emitida em São Paulo/SP</div>
+
+      <div class="grid2">
+        <div><div class="lbl">Credor</div>Borges Assessoria — CNPJ 00.000.000/0001-00</div>
+        <div><div class="lbl">Emissão</div>29 de maio de 2026</div>
+        <div><div class="lbl">Devedor</div>Maria Andrade — CPF 123.456.789-00</div>
+        <div><div class="lbl">Praça de pagamento</div>São Paulo/SP</div>
+      </div>
+
+      <span class="cl">Cláusula 1ª — Do valor e da finalidade</span>
+      Pelo presente instrumento, o(a) DEVEDOR(a) confessa dever ao CREDOR a quantia de R$ 12.500,00 (doze mil e quinhentos reais), recebida a título de empréstimo pessoal, comprometendo-se a restituí-la nos termos aqui pactuados.
+
+      <span class="cl">Cláusula 2ª — Da forma de pagamento</span>
+      O valor será restituído em 12 (doze) parcelas mensais e sucessivas de R$ 1.250,00 (mil duzentos e cinquenta reais), vencendo-se a primeira em 06/07/2025 e as demais no mesmo dia dos meses subsequentes, mediante PIX ou boleto emitido pelo CREDOR.
+
+      <span class="cl">Cláusula 3ª — Dos encargos</span>
+      Sobre o valor incidirão juros remuneratórios de 2,89% ao mês, resultando em Custo Efetivo Total (CET) informado ao DEVEDOR no ato da contratação. Em caso de atraso, incidirão multa de 2% e juros de mora de 1% ao mês sobre a parcela inadimplida.
+
+      <span class="cl">Cláusula 4ª — Do vencimento antecipado</span>
+      O não pagamento de qualquer parcela na data aprazada faculta ao CREDOR considerar antecipadamente vencida a totalidade da dívida, independentemente de aviso ou notificação judicial ou extrajudicial.
+
+      <span class="cl">Cláusula 5ª — Do foro</span>
+      Fica eleito o foro da comarca de São Paulo/SP para dirimir quaisquer questões oriundas deste instrumento, com renúncia a qualquer outro, por mais privilegiado que seja.
+    </div>
+
+    <!-- TIMBRE: rodapé -->
+    <div class="t-foot">
+      <div class="frow">
+        <span>Borges Assessoria · borges.com.br · contato@borges.com.br</span>
+        <span class="num">Página 1 de 3 · CON-2026-0481</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

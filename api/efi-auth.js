@@ -2,7 +2,12 @@ import https from "https";
 
 const EFI_HOST = "pix.api.efipay.com.br";
 
+let _efiToken = null;
+let _efiTokenExp = 0;
+
 export async function getEfiToken() {
+  if (_efiToken && Date.now() < _efiTokenExp - 30_000) return _efiToken;
+
   const cert = Buffer.from(process.env.EFI_CERT_P12_BASE64, "base64");
   const creds = Buffer.from(
     `${process.env.EFI_CLIENT_ID}:${process.env.EFI_CLIENT_SECRET}`
@@ -29,8 +34,11 @@ export async function getEfiToken() {
       res.on("end", () => {
         try {
           const parsed = JSON.parse(data);
-          if (parsed.access_token) resolve(parsed.access_token);
-          else reject(new Error("Efi auth error: " + data));
+          if (parsed.access_token) {
+            _efiToken = parsed.access_token;
+            _efiTokenExp = Date.now() + (parsed.expires_in || 3600) * 1000;
+            resolve(_efiToken);
+          } else reject(new Error("Efi auth error: " + data));
         } catch {
           reject(new Error("Efi auth parse error: " + data));
         }

@@ -10,19 +10,21 @@ const POST_URL = "/api/action";
 
 let BG   = "#F7F9F8", CARD = "#FFFFFF", BD = "#DDE3E0";
 let TEXT = "#121815", MUTED = "#6E7975";
-let GRN  = "#15A06A", RED = "#D64545", BLU = "#1B8A8F";
-let YEL  = "#E0A030", PUR = "#7C3AED", ORG = "#ff7700";
+let GRN  = "#0B3D2E", SIG = "#1FB877", OK = "#15A06A";
+let RED  = "#D64545", BLU = "#1B8A8F";
+let YEL  = "#E0A030", PUR = "#221d9a", ORG = "#ff7700";
 let ACC  = "#A8E03F";
-let SHD  = "rgba(10,15,13,0.06) 0px 2px 8px,rgba(10,15,13,0.04) 0px 1px 2px";
+let SHD  = "0 1px 2px rgba(10,15,13,.06),0 1px 3px rgba(10,15,13,.05)";
 const SW = 220;
-const LIGHT={BG:"#F7F9F8",CARD:"#FFFFFF",BD:"#DDE3E0",TEXT:"#121815",MUTED:"#6E7975",GRN:"#15A06A",RED:"#D64545",BLU:"#1B8A8F",YEL:"#E0A030",PUR:"#7C3AED",ORG:"#ff7700",ACC:"#A8E03F",SHD:"rgba(10,15,13,0.06) 0px 4px 16px,rgba(10,15,13,0.02) 0px 1px 4px"};
-const DARK ={BG:"#07241B",CARD:"#0B3D2E",BD:"#1F2624",TEXT:"#FFFFFF",MUTED:"#9AA5A0",GRN:"#46CB92",RED:"#ef253b",BLU:"#3EC9C4",YEL:"#FACC15",PUR:"#A78BFA",ORG:"#ff7700",ACC:"#A8E03F",SHD:"rgba(0,0,0,0.25) 0px 4px 20px,rgba(0,0,0,0.10) 0px 1px 4px"};
-function applyTheme(dark){const t=dark?DARK:LIGHT;BG=t.BG;CARD=t.CARD;BD=t.BD;TEXT=t.TEXT;MUTED=t.MUTED;GRN=t.GRN;RED=t.RED;BLU=t.BLU;YEL=t.YEL;PUR=t.PUR;ORG=t.ORG;ACC=t.ACC;SHD=t.SHD;document.documentElement.classList.toggle('dark',dark);document.body.classList.add('theme-transitioning');setTimeout(()=>document.body.classList.remove('theme-transitioning'),320);}
+const LIGHT={BG:"#F7F9F8",CARD:"#FFFFFF",BD:"#DDE3E0",TEXT:"#121815",MUTED:"#6E7975",GRN:"#0B3D2E",SIG:"#1FB877",OK:"#15A06A",RED:"#D64545",BLU:"#1B8A8F",YEL:"#E0A030",PUR:"#221d9a",ORG:"#ff7700",ACC:"#A8E03F",SHD:"0 1px 2px rgba(10,15,13,.06),0 1px 3px rgba(10,15,13,.05)"};
+const DARK ={BG:"#0A0F0D",CARD:"#121815",BD:"#1F2624",TEXT:"#ECEFEE",MUTED:"#6E7975",GRN:"#A8E03F",SIG:"#1FB877",OK:"#46CB92",RED:"#D64545",BLU:"#1B8A8F",YEL:"#E0A030",PUR:"#7b74e6",ORG:"#ff7700",ACC:"#A8E03F",SHD:"0 4px 12px rgba(0,0,0,0.20),0 2px 4px rgba(0,0,0,0.10)"};
+function applyTheme(dark){const t=dark?DARK:LIGHT;BG=t.BG;CARD=t.CARD;BD=t.BD;TEXT=t.TEXT;MUTED=t.MUTED;GRN=t.GRN;SIG=t.SIG;OK=t.OK;RED=t.RED;BLU=t.BLU;YEL=t.YEL;PUR=t.PUR;ORG=t.ORG;ACC=t.ACC;SHD=t.SHD;document.documentElement.classList.toggle('dark',dark);document.body.classList.add('theme-transitioning');setTimeout(()=>document.body.classList.remove('theme-transitioning'),320);}
 function isDarkHour(){const h=new Date().getHours();return h>=18||h<6;}
 
 const fmtR  = v => "R$ " + Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtP  = v => Number(v||0).toFixed(1) + "%";
 const fmtDt = v => { if(!v) return "—"; const d = v instanceof Date ? v : new Date(v); return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR"); };
+const fmtTel = v => { const s = String(v||'').replace(/\D/g,''); if(s.length===11) return `(${s.slice(0,2)}) ${s.slice(2,7)}-${s.slice(7)}`; if(s.length===10) return `(${s.slice(0,2)}) ${s.slice(2,6)}-${s.slice(6)}`; return v ? String(v) : '—'; };
 const hojeStr = () => dateInputStr(new Date());
 const dateInputStr = d => {
   const dt = d instanceof Date ? d : new Date(d);
@@ -64,8 +66,14 @@ function parseDate(v){
 }
 
 const _ST_TERMINAL = new Set(["pago","quitacao_antecipada","baixado_como_prejuizo","cancelado","renegociado"]);
-const _ST_CONTRATO_EXCLUIDO = new Set(["baixado_como_prejuizo","cancelado","renegociado","recuperado_integralmente","recuperado_parcialmente"]);
-const _PDF_CLR = {G:[11,61,46],GL:[110,121,117],DK:[18,24,21],MT:[134,134,133],BDC:[221,227,224]};
+const _ST_CONTRATO_EXCLUIDO = new Set(["baixado_como_prejuizo","cancelado","renegociado","recuperado_integralmente","recuperado_parcialmente","acordo_assistido","em_processo_judicial","encerrado_judicialmente"]);
+const _ST_ATIVOS = new Set(["ativo","ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente","acordo_assistido"]);
+const _ST_JUDICIAL = new Set(["em_processo_judicial"]);
+const _TIPOS_JURI_TIMELINE = ["AJUIZAMENTO","MOVIMENTACAO_JURIDICA","ACORDO_JUDICIAL_FIRMADO","QUITACAO_JUDICIAL","ARQUIVAMENTO_PROCESSO"];
+const _JURI_EVENTO_LABEL = {AJUIZAMENTO:"Ajuizamento",MOVIMENTACAO_JURIDICA:"Movimentação Judicial",ACORDO_JUDICIAL_FIRMADO:"Acordo Judicial Firmado",QUITACAO_JUDICIAL:"Quitação Judicial",ARQUIVAMENTO_PROCESSO:"Arquivamento do Processo"};
+const _PDF_CLR = {G:[11,61,46],SIG:[31,184,119],GL:[110,121,117],DK:[18,24,21],MT:[110,121,117],BDC:[221,227,224],LM:[168,224,63],LMK:[7,36,27]};
+let _registrarUndoAtivo = null;
+const _UNDO_TIPO_LABEL = {PAGAMENTO_NORMAL:"Pagamento",SOMENTE_JUROS:"Somente Juros",QUITACAO_ANTECIPADA:"Quitação Antecipada",ACORDO_COM_PERDA:"Acordo com Perda",RECUPERACAO_APOS_BAIXA:"Recuperação pós-baixa",ABATIMENTO_ASSISTIDO:"Abatimento Assistido",BAIXA_PREJUIZO:"Baixa como Prejuízo",RECUPERACAO_JUDICIAL:"Recuperação Judicial"};
 function statusEfetivo(p) {
   const st = String(p.STATUS || p.STATUS_PAGAMENTO || "pendente").toLowerCase();
   if (_ST_TERMINAL.has(st)) return st;
@@ -93,18 +101,21 @@ function apiDateStr(v){
   return `${y}-${m}-${day}T12:00:00`;
 }
 function toNum(d){ if(!d)return 0; const dt=d instanceof Date?d:parseDate(d); if(!dt)return 0; return dt.getFullYear()*10000+(dt.getMonth()+1)*100+dt.getDate(); }
-async function postAction(body){ const r=await fetch(POST_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); return r.json(); }
+let _progSetFn=null,_progTimer=null;
+function _startProg(){if(_progTimer)clearInterval(_progTimer);let p=5;if(_progSetFn)_progSetFn(p);_progTimer=setInterval(()=>{p=Math.min(88,p+(88-p)*0.045+0.4);if(_progSetFn)_progSetFn(p);},130);}
+function _doneProg(){if(_progTimer){clearInterval(_progTimer);_progTimer=null;}if(_progSetFn){_progSetFn(100);setTimeout(()=>{if(_progSetFn)_progSetFn(-1);},450);}}
+async function postAction(body){_startProg();try{const r=await fetch(POST_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const d=await r.json();_doneProg();return d;}catch(e){_doneProg();throw e;}}
 
 const IS = ()=>({width:"100%",padding:"10px 13px",background:CARD,border:`1px solid ${BD}`,borderRadius:10,color:TEXT,fontSize:14,boxSizing:"border-box",outline:"none",transition:"border-color 0.15s, box-shadow 0.15s"});
 const LS = ()=>({color:MUTED,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:5});
 
 // ── Botões padrão (Design System) ────────────────────────────────
-const BTN1 = (dis)=>({padding:"13px 18px",borderRadius:12,border:"none",background:dis?MUTED:ACC,color:"#1B3305",fontWeight:800,fontSize:14,cursor:dis?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7,opacity:dis?0.55:1,transition:"opacity 0.15s,transform 0.1s"});
-const BTN2 = (dis)=>({padding:"12px 18px",borderRadius:12,border:"none",background:"#25D366",color:"#FFF",fontWeight:700,fontSize:14,cursor:dis?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7,opacity:dis?0.5:1});
-const BTN3 = ()=>({padding:"12px 16px",borderRadius:12,border:`1.5px solid ${BD}`,background:CARD,color:TEXT,fontWeight:600,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7});
-const BTN4 = (dis)=>({padding:"12px 18px",borderRadius:10,border:"none",background:RED,color:"#FFF",fontWeight:700,fontSize:14,cursor:dis?"not-allowed":"pointer",opacity:dis?0.5:1,display:"flex",alignItems:"center",justifyContent:"center",gap:7});
-const BTN5 = (c)=>({padding:"12px 18px",borderRadius:10,border:`1px solid ${c}40`,background:`${c}08`,color:c,fontWeight:700,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8});
-const BTN6 = ()=>({padding:"10px 16px",borderRadius:10,border:`1px solid ${BD}`,background:CARD,color:MUTED,fontWeight:600,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6});
+const BTN1 = (dis)=>({padding:"13px 18px",borderRadius:9999,border:"none",background:dis?MUTED:ACC,color:"#07241B",fontWeight:800,fontSize:14,cursor:dis?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7,opacity:dis?0.55:1,transition:"opacity 0.15s,transform 0.1s"});
+const BTN2 = (dis)=>({padding:"12px 18px",borderRadius:9999,border:"none",background:"#25D366",color:"#FFF",fontWeight:700,fontSize:14,cursor:dis?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7,opacity:dis?0.5:1});
+const BTN3 = ()=>({padding:"12px 16px",borderRadius:9999,border:`1.5px solid ${BD}`,background:CARD,color:TEXT,fontWeight:600,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7});
+const BTN4 = (dis)=>({padding:"12px 18px",borderRadius:8,border:"none",background:RED,color:"#FFF",fontWeight:700,fontSize:14,cursor:dis?"not-allowed":"pointer",opacity:dis?0.5:1,display:"flex",alignItems:"center",justifyContent:"center",gap:7});
+const BTN5 = (c)=>({padding:"12px 18px",borderRadius:8,border:`1px solid ${c}40`,background:`${c}08`,color:c,fontWeight:700,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8});
+const BTN6 = ()=>({padding:"10px 16px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,fontWeight:600,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6});
 const BTN7 = (c)=>({padding:"3px 8px",borderRadius:6,border:"none",background:`${c}18`,color:c,fontWeight:700,fontSize:10,cursor:"pointer"});
 
 const STATUS_LABEL = {
@@ -112,15 +123,29 @@ const STATUS_LABEL = {
   pre_prejuizo:"Pré-Prejuízo", baixado_como_prejuizo:"Baixado (Prejuízo)",
   em_recuperacao:"Em Recuperação", recuperado_parcialmente:"Rec. Parcial",
   recuperado_integralmente:"Recuperado", encerrado_sem_recuperacao:"Encerrado s/ Rec.",
-  renegociado:"Renegociado", quitado:"Quitado", cancelado:"Cancelado", ativo:"Ativo"
+  renegociado:"Renegociado", quitado:"Quitado", cancelado:"Cancelado", ativo:"Ativo",
+  acordo_assistido:"Acordo Assistido", em_processo_judicial:"Em Processo Judicial",
+  encerrado_judicialmente:"Encerrado Judicialmente"
 };
 const STATUS_COR = {
   ativo_em_dia:GRN, ativo:GRN, ativo_em_atraso:YEL, em_cobranca:ORG,
   pre_prejuizo:RED, baixado_como_prejuizo:RED, em_recuperacao:PUR,
   recuperado_parcialmente:BLU, recuperado_integralmente:GRN,
-  encerrado_sem_recuperacao:MUTED, renegociado:BLU, quitado:GRN, cancelado:MUTED
+  encerrado_sem_recuperacao:MUTED, renegociado:BLU, quitado:GRN, cancelado:MUTED,
+  acordo_assistido:BLU, em_processo_judicial:RED, encerrado_judicialmente:MUTED
 };
-const STATUS_PERDA = ["em_cobranca","pre_prejuizo","baixado_como_prejuizo","em_recuperacao","recuperado_parcialmente","encerrado_sem_recuperacao"];
+const SITUACAO_FIN_JUDICIAL_LABEL = {
+  EM_ABERTO:"Em Aberto", ACORDO_PARCELADO_ATIVO:"Acordo Parcelado Ativo", ACORDO_QUEBRADO:"Acordo Quebrado",
+  QUITADO_JUDICIALMENTE:"Quitado Judicialmente", RECUPERADO_PARCIAL:"Recuperado Parcial",
+  PERDA_JUDICIAL_DEFINITIVA:"Perda Judicial Definitiva"
+};
+const SITUACAO_FIN_JUDICIAL_COR = {
+  EM_ABERTO:MUTED, ACORDO_PARCELADO_ATIVO:BLU, ACORDO_QUEBRADO:ORG,
+  QUITADO_JUDICIALMENTE:GRN, RECUPERADO_PARCIAL:BLU, PERDA_JUDICIAL_DEFINITIVA:RED
+};
+const STATUS_PERDA = ["em_cobranca","pre_prejuizo","baixado_como_prejuizo","em_recuperacao","recuperado_parcialmente","encerrado_sem_recuperacao","acordo_assistido","em_processo_judicial","encerrado_judicialmente"];
+const PERFIL_COR   = {COOPERATIVO:GRN, NEUTRO:MUTED, RESISTENTE:ORG, EVASIVO:RED};
+const PERFIL_LABEL = {COOPERATIVO:"Cooperativo", NEUTRO:"Neutro", RESISTENTE:"Resistente", EVASIVO:"Evasivo"};
 
 const IcoFin  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
 const IcoDash = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>;
@@ -134,6 +159,7 @@ const IcoSrch = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stro
 const IcoArr  = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9,18 15,12 9,6"/></svg>;
 const IcoArrL = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15,18 9,12 15,6"/></svg>;
 const IcoCtr  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>;
+const IcoJur  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22V12"/><path d="M2 12h20"/><path d="m7 12-3-6"/><path d="m17 12 3-6"/><path d="M5 12H2a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h3"/><path d="M19 12h3a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-3"/><line x1="12" y1="2" x2="12" y2="5"/><circle cx="12" cy="2" r="1.5" fill="currentColor" stroke="none"/></svg>;
 const IcoPag  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>;
 const IcoKpi  = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>;
 const IcoCal  = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
@@ -142,14 +168,18 @@ const IcoEyeOff = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" st
 const IcoReceipt = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>;
 const IcoZap     = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10 13,2"/></svg>;
 const IcoAlert   = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+const IcoCart    = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>;
+const IcoTrash   = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3,6 5,6 21,6"/><path d="M19,6l-1,14a2,2,0,0,1-2,2H8a2,2,0,0,1-2-2L5,6"/><path d="M10,11v6"/><path d="M14,11v6"/><path d="M9,6V4a1,1,0,0,1,1-1h4a1,1,0,0,1,1,1v2"/></svg>;
 const IcoPhone   = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.19 12 19.79 19.79 0 0 1 1.12 3.38 2 2 0 0 1 3.1 1.18h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.27a16 16 0 0 0 6.16 6.16l1.17-1.34a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 14.92z"/></svg>;
 const IcoSign    = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
 const IcoDoc     = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>;
 const IcoPromise = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9,16 11,18 15,14"/></svg>;
 const IcoSpinner = ({size=13,color="currentColor"})=><span style={{display:"inline-block",width:size,height:size,borderRadius:"50%",border:`2px solid ${color}40`,borderTopColor:color,animation:"spin 0.7s linear infinite",flexShrink:0}}/>;
+function ProgressBar({pct}){if(pct<0)return null;return<div style={{position:"fixed",top:0,left:0,right:0,zIndex:9999,height:3,pointerEvents:"none"}}><div style={{height:"100%",width:`${Math.min(pct,100)}%`,background:ACC,transition:"width 0.13s ease-out, opacity 0.35s ease",opacity:pct>=100?0:1,borderRadius:"0 2px 2px 0"}}/></div>;}
 const IcoTrendUp = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/></svg>;
 const IcoRepeat  = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>;
 const IcoWarnTri = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+const IcoWpp     = <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>;
 const IcoLock    = <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
 const IcoCheck   = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20,6 9,17 4,12"/></svg>;
 const IcoHandshake = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.42 4.58a5.4 5.4 0 0 0-7.65 0l-.77.78-.77-.78a5.4 5.4 0 0 0-7.65 0C1.46 6.7 1.33 10.28 4 13l8 8 8-8c2.67-2.72 2.54-6.3.42-8.42z"/></svg>;
@@ -302,26 +332,27 @@ function _pdfBrandHeader(doc,W,pd,titulo,G,DK,GL,MT,BDC){
     doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MT);
     doc.text(l,W-pd,y+i*3.8,{align:'right'});
   });
-  y+=17;
-  // Document type label
+  y+=20;
+  // Document type label — y+=20 keeps 2mm clear of logo bottom edge
   doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...GL);
   doc.text(titulo,pd,y);
   y+=4;
-  // Thin divider
-  doc.setDrawColor(...BDC);doc.setLineWidth(0.4);doc.line(pd,y,W-pd,y);
+  // Two-tone rule: GRN 17mm + BDC rest (DS §16)
+  doc.setDrawColor(...G);doc.setLineWidth(0.5);doc.line(pd,y,pd+17,y);
+  doc.setDrawColor(...BDC);doc.setLineWidth(0.5);doc.line(pd+17,y,W-pd,y);
   return y+7;
 }
 
 function _renderHistParcelas(doc,rows,W,pd,y,GL,DK,BDC,fD,fR,title='HISTÓRICO DE PARCELAS'){
   const G=[11,61,46],LGR=[247,249,248];
-  const tipoMap={pagamento_normal:'Normal',normal:'Normal',pagamento_com_atraso:'Com Atraso',com_atraso:'Com Atraso',somente_juros:'Só Juros',quitacao_antecipada:'Quitação Ant.',pagamento_antecipado:'Antecipado',antecipado:'Antecipado',recuperacao_apos_baixa:'Recuperação',acordo_com_perda:'Acordo'};
+  const tipoMap={pagamento_normal:'Normal',pagamento_com_atraso:'Com Atraso',somente_juros:'Só Juros',quitacao_antecipada:'Quitação Ant.',pagamento_antecipado:'Antecipado',recuperacao_apos_baixa:'Recuperação',acordo_com_perda:'Acordo',abatimento_acordo_assistido:'Abatimento',renegociado:'Renegociada',recuperacao_judicial:'Recuperação Judicial'};
   const cols=[
-    {label:'#',w:12,key:'NUM_PARCELA',fmt:v=>String(v||'—')},
-    {label:'Vencimento',w:28,key:'DATA_VENCIMENTO',fmt:fD},
-    {label:'Valor Parcela',w:30,key:'VALOR_PARCELA',fmt:fR},
-    {label:'Data Pagamento',w:30,key:'DATA_PAGAMENTO',fmt:fD},
-    {label:'Valor Pago',w:30,key:'VALOR_PAGO',fmt:fR},
-    {label:'Tipo',w:48,key:'TIPO_PAGAMENTO',fmt:v=>tipoMap[String(v||'').toLowerCase()]||String(v||'—')},
+    {label:'#',w:10,key:'NUM_PARCELA',fmt:v=>String(v||'—')},
+    {label:'Vencimento',w:26,key:'DATA_VENCIMENTO',fmt:fD},
+    {label:'Valor Parcela',w:28,key:'VALOR_PARCELA',fmt:fR},
+    {label:'Data Pagamento',w:28,key:'DATA_PAGAMENTO',fmt:fD},
+    {label:'Valor Pago',w:28,key:'VALOR_PAGO',fmt:v=>(v===null||v===undefined)?'—':fR(v)},
+    {label:'Tipo',w:40,key:'TIPO_PAGAMENTO',fmt:v=>tipoMap[String(v||'').toLowerCase()]||String(v||'—')},
   ];
   const tableW=W-2*pd;const rH=7;const hH=6;
   doc.setFillColor(221,227,224);doc.setDrawColor(...BDC);doc.setLineWidth(0.3);
@@ -379,90 +410,447 @@ function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,c
     const isQuitado=parcelasRestantes===0;
     const ts=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
     const nomeArq=isQuitado?`comprovante-quitacao-${parcela.ID_CONTRATO}-${ts}.pdf`:`comprovante-${parcela.ID_CONTRATO}-P${pNum}-${ts}.pdf`;
-    const doc=new jsPDF({unit:'mm',format:'a4'});
-    const W=210,pd=16;
-    const {G,GL,DK,MT,BDC}=_PDF_CLR;
-    let y=_pdfBrandHeader(doc,W,pd,isQuitado?'COMPROVANTE DE QUITAÇÃO DE CONTRATO':'COMPROVANTE DE PAGAMENTO DE PARCELA',G,DK,GL,MT,BDC);
-    doc.setFillColor(...G);doc.roundedRect(pd,y,W-2*pd,11,2,2,'F');
-    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);doc.text(isQuitado?'CONTRATO QUITADO':'PAGAMENTO CONFIRMADO',W/2,y+7.5,{align:'center'});
-    y+=19;
-    const sect=(title,rows)=>{
-      const rH=11,sH=9+rows.length*rH+2;
-      doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.roundedRect(pd,y,W-2*pd,sH,3,3,'D');
-      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...DK);doc.text(title,pd+4,y+5.5);
-      doc.setDrawColor(...BDC);doc.setLineWidth(0.2);doc.line(pd,y+8,W-pd,y+8);
-      let ry=y+12;const mx=pd+(W-2*pd)/2;
-      rows.forEach(r=>{
-        doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...GL);if(r.ll)doc.text(r.ll,pd+4,ry);
-        doc.setFont('helvetica',r.lvB?'bold':'normal');doc.setFontSize(8.5);doc.setTextColor(...DK);doc.text(r.lv||'—',pd+4,ry+4.5);
-        if(r.rl){doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...GL);doc.text(r.rl,mx+4,ry);
-          doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...DK);doc.text(r.rv||'—',mx+4,ry+4.5);}
-        ry+=rH;
-      });
-      y+=sH+5;
-    };
-    const nome=String(parcela.NOME_CLIENTE||cliente?.NOME_CLIENTE||cliente?.NOME||'—');
-    sect('DADOS DO CLIENTE E DO CONTRATO',[
-      {ll:'NOME DO CLIENTE',lv:nome,rl:'NÚMERO DO CONTRATO',rv:String(parcela.ID_CONTRATO)},
-      {ll:'CPF',lv:String(cliente?.CPF||'—'),rl:'DATA DO CONTRATO',rv:fD(contrato?.DATA_EMPRESTIMO||contrato?.DATA_CONTRATO)},
-    ]);
     const tipoLabelToKey={'Somente Juros':'somente_juros','Com Atraso':'pagamento_com_atraso','Quitação Antecipada':'quitacao_antecipada','Antecipado':'pagamento_antecipado'};
-    if(isQuitado){
-      const datas=hist.map(p=>parseDate(p.DATA_PAGAMENTO)).filter(Boolean);
-      const ultPag=datas.length?datas.reduce((a,b)=>a>b?a:b):null;
-      const parcPagas=pagas.length+(jaEstavaPaga?0:1);
-      sect('DETALHES DA QUITAÇÃO',[
-        {ll:'TOTAL DE PARCELAS',lv:String(totalParcEfetivo),rl:'DATA DA ÚLTIMA PARCELA',rv:fD(ultPag||dataPago)},
-        {ll:'VALOR TOTAL PAGO',lv:fR(totalJaPago),lvB:true,rl:'STATUS',rv:'QUITADO'},
-      ]);
-      sect('RESUMO FINANCEIRO',[
-        {ll:'VALOR ORIGINAL DO CONTRATO',lv:fR(valorOriginal),rl:'PARCELAS PAGAS',rv:String(parcPagas)+' de '+String(totalParcEfetivo)},
-        {ll:'VALOR TOTAL PAGO',lv:fR(totalJaPago),rl:'SALDO REMANESCENTE',rv:'R$ 0,00'},
-      ]);
-      const histRows=[...pagas];
-      if(!jaEstavaPaga)histRows.push({...parcela,VALOR_PAGO:valorPago,DATA_PAGAMENTO:dataPago,TIPO_PAGAMENTO:tipoLabelToKey[tipoLabel]||'pagamento_normal'});
-      histRows.sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
-      y=_renderHistParcelas(doc,histRows,W,pd,y,GL,DK,BDC,fD,fR);
-    }else{
-      sect('DETALHES DO PAGAMENTO',[
-        {ll:'PARCELA PAGA',lv:`${pNum} de ${totalParcEfetivo}`,rl:'DATA DE VENCIMENTO',rv:fD(parcela.DATA_VENCIMENTO)},
-        {ll:'VALOR DA PARCELA',lv:fR(valorPago),lvB:true,rl:'DATA DO PAGAMENTO',rv:fD(dataPago)},
-        {ll:'FORMA DE PAGAMENTO',lv:String(tipoLabel||'—'),rl:'CÓDIGO DE TRANSAÇÃO',rv:String(parcela.ID_PARCELA||'—')},
-      ]);
-      sect('RESUMO FINANCEIRO ATUALIZADO',[
-        {ll:'VALOR TOTAL DO EMPRÉSTIMO',lv:fR(valorOriginal),rl:'PARCELAS RESTANTES',rv:String(parcelasRestantes)},
-        {ll:'VALOR TOTAL JÁ PAGO',lv:fR(totalJaPago),rl:'SALDO DEVEDOR ESTIMADO',rv:fR(saldo)},
-        ...(isSomenteJuros?[{ll:'CONTRATO: ORIGINAL / ATUAL',lv:`${originalParc} / ${totalParcEfetivo} parcelas`,rl:'PARCELAS ADICIONADAS',rv:`${totalAdded} (somente juros)`}]:[]),
-      ]);
-      if(isSomenteJuros){
-        doc.setFillColor(254,243,199);doc.roundedRect(pd,y,W-2*pd,18,2,2,'F');
-        doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(146,64,14);
-        doc.text('CONTRATO ATUALIZADO',pd+4,y+6);
-        doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(120,53,15);
-        const aviso=`Contrato original: ${originalParc} parcelas. Foram adicionadas ${totalAdded} parcelas por pagamentos de somente juros (principal rolado). Total atual do contrato: ${totalParcEfetivo} parcelas.`;
-        const avisoL=doc.splitTextToSize(aviso,W-2*pd-8);doc.text(avisoL,pd+4,y+11);
-        y+=avisoL.length*4.5+14;
-      }
-      y=_renderHistParcelas(doc,[{NUM_PARCELA:parcela.NUM_PARCELA,DATA_VENCIMENTO:parcela.DATA_VENCIMENTO,VALOR_PARCELA:parcela.VALOR_PARCELA,DATA_PAGAMENTO:dataPago,VALOR_PAGO:valorPago,TIPO_PAGAMENTO:tipoLabelToKey[tipoLabel]||'pagamento_normal'}],W,pd,y,GL,DK,BDC,fD,fR,'DETALHE DA PARCELA PAGA');
+    const nome=String(parcela.NOME_CLIENTE||cliente?.NOME_CLIENTE||cliente?.NOME||'—');
+    const doc=new jsPDF({unit:'mm',format:'a4'});
+    const W=210,pd=20;
+    const {G,GL,DK,MT,BDC,LMK}=_PDF_CLR;
+    const G3=[135,223,182],G7=[14,92,68],GI=[230,248,239],SEP=[236,239,238],LGR=[247,249,248];
+
+    // ─── HEADER (dark verde-900) ────────────────────────────────────
+    doc.setFillColor(...LMK);doc.rect(0,0,W,26,'F');
+    doc.setFillColor(31,184,119);doc.roundedRect(pd,8,11,11,2.5,2.5,'F');
+    doc.setFillColor(255,255,255);doc.roundedRect(pd+7,12,11,11,2.5,2.5,'F');
+    doc.setFillColor(14,92,68);doc.roundedRect(pd+7,12,4,4,1,1,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(255,255,255);
+    doc.text('BORGES ASSESSORIA',pd+22,14);
+    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...G3);
+    doc.text(isQuitado?'Comprovante de Quitação':'Comprovante de Pagamento',pd+22,20);
+    ['CNPJ 63.124.205/0001-07','borgesassessoriafinanceira@gmail.com'].forEach((l,i)=>{
+      doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(...G3);
+      doc.text(l,W-pd,14+i*6,{align:'right'});
+    });
+
+    let y=42;
+
+    // ─── CHECK CIRCLE + VALOR ──────────────────────────────────────
+    doc.setFillColor(...GI);doc.circle(W/2,y,9,'F');
+    doc.setDrawColor(21,160,106);doc.setLineWidth(1.6);
+    doc.line(W/2-3.5,y,W/2-0.5,y+3.5);doc.line(W/2-0.5,y+3.5,W/2+5,y-3);
+    y+=15;
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...MT);
+    doc.text(isQuitado?'Contrato quitado integralmente':'Pagamento confirmado',W/2,y,{align:'center'});
+    y+=7;
+    doc.setFont('helvetica','bold');doc.setFontSize(22);doc.setTextColor(...DK);
+    doc.text(isQuitado?fR(totalJaPago):fR(parseFloat(valorPago||0)),W/2,y,{align:'center'});
+    y+=8;
+    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...G7);
+    doc.text(isQuitado?`${pagas.length+(jaEstavaPaga?0:1)} parcelas quitadas`:`Parcela ${pNum} de ${totalParcEfetivo}`,W/2,y,{align:'center'});
+    y+=14;
+
+    // ─── DATA ROWS ─────────────────────────────────────────────────
+    const dataRows=isQuitado?[
+      ['Cliente',nome],
+      ['CPF',String(cliente?.CPF||'—')],
+      ['Contrato',String(parcela.ID_CONTRATO)],
+      ['Parcelas pagas',`${pagas.length+(jaEstavaPaga?0:1)} de ${totalParcEfetivo}`],
+      ['Valor total pago',fR(totalJaPago)],
+      ['Última parcela',fD(dataPago)],
+      ['Saldo remanescente','R$ 0,00'],
+    ]:[
+      ['Cliente',nome],
+      ['CPF',String(cliente?.CPF||'—')],
+      ['Contrato',String(parcela.ID_CONTRATO)],
+      ['Forma de pagamento',String(tipoLabel||'—')],
+      ['Pago em',fD(dataPago)],
+      ['Vencimento original',fD(parcela.DATA_VENCIMENTO)],
+      ['Saldo devedor após',fR(saldo)],
+      ['ID da transação',String(parcela.ID_PARCELA||'—')],
+    ];
+    dataRows.forEach(([k,v],i)=>{
+      const ry=y+i*10;
+      doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...MT);doc.text(k,pd,ry);
+      doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...DK);doc.text(String(v),W-pd,ry,{align:'right'});
+      if(i<dataRows.length-1){doc.setDrawColor(...SEP);doc.setLineWidth(0.2);doc.line(pd,ry+3,W-pd,ry+3);}
+    });
+    y+=dataRows.length*10+8;
+
+    // ─── AVISO SOMENTE JUROS ───────────────────────────────────────
+    if(isSomenteJuros){
+      doc.setFillColor(254,243,199);doc.roundedRect(pd,y,W-2*pd,14,2,2,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(146,64,14);doc.text('CONTRATO ATUALIZADO',pd+4,y+5.5);
+      doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(120,53,15);
+      const aviso=`Original: ${originalParc} parcelas. Adicionadas ${totalAdded} por somente juros (principal rolado). Total atual: ${totalParcEfetivo} parcelas.`;
+      const avisoL=doc.splitTextToSize(aviso,W-2*pd-8);doc.text(avisoL,pd+4,y+10);
+      y+=avisoL.length*4+18;
     }
-    y+=2;
-    const qt=isQuitado
-      ?'"Declaramos, para os devidos fins, que todos os pagamentos referentes ao contrato acima identificado foram recebidos e registrados, confirmando a quitação integral da dívida."'
-      :'"Declaramos, para os devidos fins, que o pagamento acima identificado foi recebido e registrado em nosso controle interno, referente à parcela informada neste comprovante."';
-    doc.setFont('helvetica','italic');doc.setFontSize(8.5);doc.setTextColor(...MT);
-    const qtL=doc.splitTextToSize(qt,W-2*pd-8);doc.text(qtL,W/2,y,{align:'center'});y+=qtL.length*5+7;
-    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);
-    doc.text(`Documento emitido em: ${now.toLocaleDateString('pt-BR')}`,W/2,y,{align:'center'});y+=6;
-    const ds=isQuitado
-      ?'Este comprovante confirma a quitação integral do contrato identificado acima, sendo válido como prova de liquidação total da dívida contratada.'
-      :'Este comprovante confirma exclusivamente o recebimento da parcela indicada, não representando quitação total do contrato, salvo quando expressamente informado.';
-    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...DK);
-    const dsL=doc.splitTextToSize(ds,W-2*pd-8);doc.text(dsL,W/2,y,{align:'center'});y+=dsL.length*5+5;
-    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...GL);doc.text('Borges Assessoria · Crédito Privado',W/2,y,{align:'center'});
+
+    // ─── HISTÓRICO DE PARCELAS ─────────────────────────────────────
+    const histRows=isQuitado
+      ?(()=>{const h=[...pagas];if(!jaEstavaPaga)h.push({...parcela,VALOR_PAGO:valorPago,DATA_PAGAMENTO:dataPago,TIPO_PAGAMENTO:tipoLabelToKey[tipoLabel]||'pagamento_normal'});return h.sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));})()
+      :[{NUM_PARCELA:parcela.NUM_PARCELA,DATA_VENCIMENTO:parcela.DATA_VENCIMENTO,VALOR_PARCELA:parcela.VALOR_PARCELA,DATA_PAGAMENTO:dataPago,VALOR_PAGO:valorPago,TIPO_PAGAMENTO:tipoLabelToKey[tipoLabel]||'pagamento_normal'}];
+    y=_renderHistParcelas(doc,histRows,W,pd,y,GL,DK,BDC,fD,fR,isQuitado?'HISTÓRICO DE PARCELAS':'DETALHE DA PARCELA PAGA');
+
+    // ─── FOOTER ────────────────────────────────────────────────────
+    y+=6;
+    doc.setFillColor(...LGR);doc.rect(0,y,W,30,'F');
+    doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.line(pd,y,W-pd,y);
+    y+=7;
+    const qt=isQuitado?'"Declaramos que todos os pagamentos foram recebidos, confirmando a quitação integral da dívida."':'"Declaramos que o pagamento acima foi recebido e registrado em nosso controle interno."';
+    doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(...MT);
+    const qtL=doc.splitTextToSize(qt,W-2*pd);doc.text(qtL,W/2,y,{align:'center'});y+=qtL.length*5+3;
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MT);
+    doc.text('Borges Assessoria · CNPJ 63.124.205/0001-07 · borgesassessoriafinanceira@gmail.com',W/2,y,{align:'center'});y+=4;
+    const authTs=`${ts.slice(0,4)}·${ts.slice(4,8)}·BORGES·${String(parcela.ID_PARCELA||'').slice(-4).toUpperCase()||ts.slice(8,12)}`;
+    doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...DK);
+    doc.text(`Autenticação: ${authTs}`,W/2,y,{align:'center'});y+=4;
+    doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(...MT);
+    doc.text('Documento gerado eletronicamente. Não constitui documento fiscal.',W/2,y,{align:'center'});
     const blob=doc.output('blob');const url=URL.createObjectURL(blob);
     const a=document.createElement('a');a.href=url;a.download=nomeArq;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),3000);
     if(opts.wpp){const tel=telefone?`55${telefone}`:'';const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);const wppUrl=tel?`https://wa.me/${tel}`:(isMobile?'https://wa.me':'https://web.whatsapp.com');setTimeout(()=>window.open(wppUrl,'_blank'),700);}
   }catch(e){console.error('Comprovante error:',e);alert('Erro ao gerar comprovante: '+e.message);}
+}
+
+// ─── EXTRATO DO CONTRATO — PDF completo de posição da dívida ─────
+function gerarExtratoPDF(contrato, parcelasContrato, pagamentosContrato, cliente, eventosContrato=[], opts={}) {
+  try {
+    const {G,GL,DK,MT,BDC} = _PDF_CLR;
+    const SIG=[31,184,119],G7=[14,92,68],LGR=[247,249,248],SEP=[236,239,238];
+    const RC=[220,38,38],RL=[254,226,226],BLC=[27,138,143],BLL=[207,250,254];
+    const fD=d=>{if(!d)return'—';const dt=d instanceof Date?d:parseDate(d);return dt&&!isNaN(dt.getTime())?dt.toLocaleDateString('pt-BR'):'—';};
+    const fR=fmtR;
+    const now=new Date();
+    const fDT=d=>`${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`;
+    const hoje=new Date();hoje.setHours(0,0,0,0);
+    const ps=[...parcelasContrato].sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
+    const pags=[...pagamentosContrato].filter(p=>String(p.TIPO_PAGAMENTO||'')!=='abatimento_acordo_assistido');
+    const isPaga=p=>['pago','quitacao_antecipada'].includes(String(p.STATUS||p.STATUS_PAGAMENTO||'').toLowerCase());
+    const isTerm=p=>_ST_TERMINAL.has(String(p.STATUS||p.STATUS_PAGAMENTO||'').toLowerCase());
+    const isAtrasada=p=>{if(isTerm(p))return false;const dv=parseDate(p.DATA_VENCIMENTO);if(!dv)return false;dv.setHours(0,0,0,0);return dv<hoje;};
+    const parcelasPagas=ps.filter(isPaga);
+    const parcelasAbertas=ps.filter(p=>!isTerm(p));
+    const parcelasAtrasadas=parcelasAbertas.filter(isAtrasada);
+    const pctQuitado=ps.length>0?(parcelasPagas.length/ps.length*100):0;
+    const proxVencParcela=[...parcelasAbertas].sort((a,b)=>toNum(a.DATA_VENCIMENTO)-toNum(b.DATA_VENCIMENTO))[0]||null;
+    const maiorAtraso=parcelasAtrasadas.reduce((max,p)=>{const dv=parseDate(p.DATA_VENCIMENTO);if(!dv)return max;dv.setHours(0,0,0,0);return Math.max(max,Math.round((hoje.getTime()-dv.getTime())/86400000));},0);
+    const principalContratado=parseFloat(contrato.VALOR_PRINCIPAL||0);
+    const valorTotal=parseFloat(contrato.VALOR_TOTAL||contrato.VALOR_PRINCIPAL||0);
+    const jurosContratados=Math.max(0,valorTotal-principalContratado);
+    const nParc=ps.length||1;
+    const principalPorParc=p=>parseFloat(p.VALOR_PRINCIPAL||(principalContratado/nParc)||0);
+    const jurosPorParc=p=>Math.max(0,parseFloat(p.VALOR_JUROS||(parseFloat(p.VALOR_PARCELA||0)-principalPorParc(p))||0));
+    const principalRecuperado=parcelasPagas.reduce((s,p)=>s+principalPorParc(p),0);
+    const principalPendente=Math.max(0,principalContratado-principalRecuperado);
+    const jurosRecebidos=parcelasPagas.reduce((s,p)=>s+Math.max(0,parseFloat(p.VALOR_PAGO||0)-principalPorParc(p)),0);
+    const jurosPendentes=parcelasAbertas.reduce((s,p)=>s+jurosPorParc(p),0);
+    const totalRecebido=pags.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+    const saldoDevedor=parcelasAbertas.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
+    const isQuitado=['quitado','recuperado_integralmente'].includes(contrato.STATUS_CONTRATO);
+    const isAcordoAssistido=contrato.STATUS_CONTRATO==='acordo_assistido';
+    const isJudicial=contrato.STATUS_CONTRATO==='em_processo_judicial';
+    const isEncerradoJudicial=contrato.STATUS_CONTRATO==='encerrado_judicialmente';
+    const temDadosJudiciais=isJudicial||isEncerradoJudicial||!!contrato.NUMERO_PROCESSO;
+    const situacaoFinJudicial=String(contrato.SITUACAO_FINANCEIRA_JUDICIAL||'');
+    const ts=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+    const doc=new jsPDF({unit:'mm',format:'a4'});
+    const W=210,pd=18;
+
+    // HEADER
+    let y=_pdfBrandHeader(doc,W,pd,'EXTRATO DO CONTRATO — '+String(contrato.ID_CONTRATO||''),G,DK,GL,MT,BDC);
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MT);
+    doc.text('Emitido em '+fDT(now),W-pd,y-4,{align:'right'});
+
+    // STATUS BADGE
+    if(isQuitado){
+      doc.setFillColor(...SIG);doc.roundedRect(pd,y,W-2*pd,11,3,3,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(9.5);doc.setTextColor(255,255,255);
+      doc.text('CONTRATO QUITADO',W/2,y+7.5,{align:'center'});
+      y+=16;
+    }else if(parcelasAtrasadas.length>0){
+      doc.setFillColor(...RL);doc.roundedRect(pd,y,W-2*pd,11,3,3,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(...RC);
+      doc.text('PARCELAS EM ATRASO — '+parcelasAtrasadas.length+' parc. · Maior atraso: '+maiorAtraso+' dias',W/2,y+7.5,{align:'center'});
+      y+=16;
+    }else if(isAcordoAssistido){
+      doc.setFillColor(...BLL);doc.roundedRect(pd,y,W-2*pd,11,3,3,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...BLC);
+      doc.text('CONTRATO EM ACORDO ASSISTIDO',W/2,y+7.5,{align:'center'});
+      y+=16;
+    }else if(isJudicial){
+      doc.setFillColor(...RL);doc.roundedRect(pd,y,W-2*pd,11,3,3,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...RC);
+      doc.text('CONTRATO EM PROCESSO JUDICIAL',W/2,y+7.5,{align:'center'});
+      y+=16;
+    }else if(isEncerradoJudicial&&situacaoFinJudicial==='QUITADO_JUDICIALMENTE'){
+      doc.setFillColor(...SIG);doc.roundedRect(pd,y,W-2*pd,11,3,3,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255,255,255);
+      doc.text('ENCERRADO JUDICIALMENTE — QUITADO',W/2,y+7.5,{align:'center'});
+      y+=16;
+    }else if(isEncerradoJudicial&&situacaoFinJudicial==='RECUPERADO_PARCIAL'){
+      const AMB=[224,160,48],AML=[253,240,214];
+      doc.setFillColor(...AML);doc.roundedRect(pd,y,W-2*pd,11,3,3,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...AMB);
+      doc.text('ENCERRADO JUDICIALMENTE — RECUPERAÇÃO PARCIAL',W/2,y+7.5,{align:'center'});
+      y+=16;
+    }else if(isEncerradoJudicial){
+      doc.setFillColor(...RL);doc.roundedRect(pd,y,W-2*pd,11,3,3,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...RC);
+      doc.text('ENCERRADO JUDICIALMENTE — PERDA DEFINITIVA',W/2,y+7.5,{align:'center'});
+      y+=16;
+    }
+
+    // DADOS (2 colunas)
+    const colW=(W-2*pd-5)/2,c2x=pd+colW+5,boxH=40;
+    doc.setFillColor(...LGR);doc.setDrawColor(...BDC);doc.setLineWidth(0.3);
+    doc.roundedRect(pd,y,colW,boxH,2,2,'FD');
+    doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(...G7);
+    doc.text('DADOS DO CLIENTE',pd+4,y+5.5);
+    [['Nome',String(contrato.NOME_CLIENTE||cliente?.NOME||'—')],['CPF',String(contrato.CPF||cliente?.CPF||'—')],['Telefone',(cliente?.TELEFONE_WPP||cliente?.TELEFONE)?fmtTel(cliente.TELEFONE_WPP||cliente.TELEFONE):'—'],['ID Cliente',String(contrato.ID_CLIENTE||cliente?.ID_CLIENTE||'—')]].forEach(([k,v],i)=>{
+      const ry=y+11+i*6.5;
+      doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MT);doc.text(k,pd+4,ry);
+      doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...DK);
+      doc.text((doc.splitTextToSize(String(v),colW-12)[0]||'—'),pd+colW-4,ry,{align:'right'});
+    });
+    doc.setFillColor(...LGR);doc.roundedRect(c2x,y,colW,boxH,2,2,'FD');
+    doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(...G7);
+    doc.text('DADOS DO CONTRATO',c2x+4,y+5.5);
+    [['Contrato',String(contrato.ID_CONTRATO||'—')],['Contratação',fD(contrato.DATA_EMPRESTIMO)],['Principal',fR(principalContratado)],['Parcelas',nParc+'x de '+fR(parseFloat(ps[0]?.VALOR_PARCELA||0))],['Status',STATUS_LABEL[contrato.STATUS_CONTRATO]||String(contrato.STATUS_CONTRATO||'—')]].forEach(([k,v],i)=>{
+      const ry=y+11+i*5.5;
+      doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MT);doc.text(k,c2x+4,ry);
+      doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...DK);doc.text(String(v),c2x+colW-4,ry,{align:'right'});
+    });
+    y+=boxH+7;
+
+    // DADOS DO PROCESSO JUDICIAL (condicional)
+    if(temDadosJudiciais){
+      const STATUS_PROC_LABEL={EM_PREPARACAO:"Em Preparação",AJUIZADO:"Ajuizado",CITACAO_PENDENTE:"Citação Pendente",CITADO:"Citado",AUDIENCIA_DESIGNADA:"Audiência Designada",AGUARDANDO_AUDIENCIA:"Aguardando Audiência",EM_ACORDO:"Em Acordo",EM_EXECUCAO:"Em Execução",PAGO_PARCIALMENTE:"Pago Parcialmente",QUITADO_JUDICIALMENTE:"Quitado Judicialmente",ARQUIVADO:"Arquivado",EXTINTO:"Extinto"};
+      const juriFields=[
+        ['Nº Processo (CNJ)', contrato.NUMERO_PROCESSO||'—'],
+        ['Vara / Comarca', [contrato.VARA,contrato.COMARCA].filter(Boolean).join(' · ')||'—'],
+        ['Data Ajuizamento', fD(contrato.DATA_AJUIZAMENTO)],
+        ['Valor Executado', contrato.VALOR_EXECUTADO?fR(parseFloat(contrato.VALOR_EXECUTADO)):'—'],
+        ['Status Processual', STATUS_PROC_LABEL[contrato.STATUS_PROCESSO]||contrato.STATUS_PROCESSO||'—'],
+      ];
+      if(contrato.DATA_ARQUIVAMENTO_PROCESSO) juriFields.push(['Data Arquivamento', fD(contrato.DATA_ARQUIVAMENTO_PROCESSO)]);
+      const jBoxH=11+juriFields.length*5.5;
+      doc.setFillColor(...LGR);doc.setDrawColor(...RC);doc.setLineWidth(0.3);
+      doc.roundedRect(pd,y,W-2*pd,jBoxH,2,2,'FD');
+      doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(...RC);
+      doc.text('DADOS DO PROCESSO JUDICIAL',pd+4,y+5.5);
+      juriFields.forEach(([k,v],i)=>{
+        const ry=y+11+i*5.5;
+        doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MT);doc.text(k,pd+4,ry);
+        doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...DK);
+        doc.text((doc.splitTextToSize(String(v),W-2*pd-70)[0]||'—'),W-pd-4,ry,{align:'right'});
+      });
+      y+=jBoxH+7;
+    }
+
+    // RESUMO
+    doc.setFillColor(...BDC);doc.roundedRect(pd,y,W-2*pd,7,1,1,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...DK);
+    doc.text('RESUMO DO CONTRATO',pd+4,y+4.8);
+    y+=10;
+    const kpiCols=3,kpiW=(W-2*pd-(kpiCols-1)*4)/kpiCols;
+    const kpis=[['Parcelas Totais',String(ps.length),false],['Parcelas Pagas',parcelasPagas.length+' de '+ps.length+' ('+pctQuitado.toFixed(0)+'%)',false],['Em Aberto',String(parcelasAbertas.length),false],['Em Atraso',parcelasAtrasadas.length>0?String(parcelasAtrasadas.length)+' parcela'+(parcelasAtrasadas.length>1?'s':''):'—',parcelasAtrasadas.length>0],['Próx. Vencimento',proxVencParcela?fD(proxVencParcela.DATA_VENCIMENTO):'—',false],['Maior Atraso',maiorAtraso>0?maiorAtraso+' dias':'—',maiorAtraso>0]];
+    kpis.forEach(([lbl,val,alert],i)=>{
+      const col=i%kpiCols,row=Math.floor(i/kpiCols),rx=pd+col*(kpiW+4),ry=y+row*17;
+      const bg=alert?RL:LGR,fg=alert?RC:G7;
+      doc.setFillColor(...bg);doc.setDrawColor(...BDC);doc.setLineWidth(0.2);
+      doc.roundedRect(rx,ry,kpiW,14,1.5,1.5,'FD');
+      doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(...MT);doc.text(lbl,rx+kpiW/2,ry+5.5,{align:'center'});
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...fg);doc.text(String(val),rx+kpiW/2,ry+11.5,{align:'center'});
+    });
+    y+=Math.ceil(kpis.length/kpiCols)*17;
+    if(isEncerradoJudicial){
+      doc.setFont('helvetica','italic');doc.setFontSize(6.5);doc.setTextColor(...MT);
+      doc.text('Resolvido via recuperação judicial — parcelas originais substituídas/renegociadas pelo acordo/quitação judicial.',pd,y+4);
+      y+=7;
+    }
+    y+=7;
+
+    // BARRA DE PROGRESSO
+    const barW=W-2*pd,barH=8,pct=Math.min(100,Math.max(0,pctQuitado));
+    doc.setFillColor(...SEP);doc.roundedRect(pd,y,barW,barH,4,4,'F');
+    if(pct>0){doc.setFillColor(...SIG);doc.roundedRect(pd,y,barW*(pct/100),barH,4,4,'F');}
+    doc.setFont('helvetica','bold');doc.setFontSize(6.5);
+    doc.setTextColor(pct>50?255:DK[0],pct>50?255:DK[1],pct>50?255:DK[2]);
+    doc.text(pct.toFixed(0)+'% quitado',W/2,y+5.5,{align:'center'});
+    y+=barH+7;
+
+    // SITUAÇÃO FINANCEIRA
+    doc.setFillColor(...BDC);doc.roundedRect(pd,y,W-2*pd,7,1,1,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...DK);
+    doc.text('SITUAÇÃO FINANCEIRA',pd+4,y+4.8);
+    y+=10;
+    const finColW=(W-2*pd-4)/2,rHFin=8;
+    [{l:'Principal Contratado',v:fR(principalContratado),c:DK},{l:'Principal Recuperado',v:fR(principalRecuperado),c:G7},{l:'Principal Pendente',v:fR(principalPendente),c:principalPendente>0?RC:DK},{l:'Juros Contratados',v:fR(jurosContratados),c:DK},{l:'Juros Recebidos',v:fR(jurosRecebidos),c:G7},{l:'Juros Pendentes',v:fR(jurosPendentes),c:jurosPendentes>0?RC:DK},{l:'Total Recebido',v:fR(totalRecebido),c:G7},{l:'Saldo Devedor Atual',v:isQuitado?'R$ 0,00':fR(saldoDevedor),c:isQuitado?G7:saldoDevedor>0?RC:DK}].forEach(({l,v,c},i)=>{
+      const col=i%2,row=Math.floor(i/2),rx=pd+col*(finColW+4),ry=y+row*rHFin;
+      if(col===0){doc.setDrawColor(...BDC);doc.setLineWidth(0.1);doc.line(pd,ry+rHFin,W-pd,ry+rHFin);}
+      doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);doc.text(l,rx+4,ry+5.5);
+      doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...c);doc.text(String(v),rx+finColW-4,ry+5.5,{align:'right'});
+    });
+    y+=4*rHFin+8;
+
+    // RECUPERAÇÃO JUDICIAL (condicional)
+    if(temDadosJudiciais){
+      const SITUACAO_FIN_JUD_LABEL={EM_ABERTO:'Em Aberto',ACORDO_PARCELADO_ATIVO:'Acordo Parcelado Ativo',ACORDO_QUEBRADO:'Acordo Quebrado',QUITADO_JUDICIALMENTE:'Quitado Judicialmente',RECUPERADO_PARCIAL:'Recuperado Parcial',PERDA_JUDICIAL_DEFINITIVA:'Perda Judicial Definitiva'};
+      const valorExecutado=parseFloat(contrato.VALOR_EXECUTADO||0);
+      const principalRecJud=parseFloat(contrato.VALOR_RECUPERADO_JUDICIAL_PRINCIPAL||0);
+      const lucroRecJud=parseFloat(contrato.VALOR_RECUPERADO_JUDICIAL_LUCRO||0);
+      const honorarios=parseFloat(contrato.HONORARIOS_JUDICIAIS||0);
+      const custas=parseFloat(contrato.CUSTAS_JUDICIAIS||0);
+      const prejRestante=parseFloat(contrato.PREJUIZO_CAPITAL||0);
+      doc.setFillColor(...BDC);doc.roundedRect(pd,y,W-2*pd,7,1,1,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...DK);
+      doc.text('RECUPERAÇÃO JUDICIAL',pd+4,y+4.8);
+      y+=10;
+      const rjRows=[
+        {l:'Valor Executado',v:fR(valorExecutado),c:DK},
+        {l:'Principal Recuperado (Judicial)',v:fR(principalRecJud),c:G7},
+        {l:'Lucro Recuperado (Judicial)',v:fR(lucroRecJud),c:G7},
+        {l:'Honorários'+(contrato.QUEM_PAGA_HONORARIOS?' ('+String(contrato.QUEM_PAGA_HONORARIOS).toLowerCase()+')':''),v:fR(honorarios),c:DK},
+        {l:'Custas'+(contrato.QUEM_PAGA_CUSTAS?' ('+String(contrato.QUEM_PAGA_CUSTAS).toLowerCase()+')':''),v:fR(custas),c:DK},
+        {l:'Prejuízo Remanescente',v:fR(prejRestante),c:prejRestante>0?RC:G7},
+      ];
+      rjRows.forEach(({l,v,c},i)=>{
+        const col=i%2,row=Math.floor(i/2),rx=pd+col*(finColW+4),ry=y+row*rHFin;
+        if(col===0){doc.setDrawColor(...BDC);doc.setLineWidth(0.1);doc.line(pd,ry+rHFin,W-pd,ry+rHFin);}
+        doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);doc.text(l,rx+4,ry+5.5);
+        doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...c);doc.text(String(v),rx+finColW-4,ry+5.5,{align:'right'});
+      });
+      y+=Math.ceil(rjRows.length/2)*rHFin+4;
+      doc.setFillColor(...(situacaoFinJudicial==='QUITADO_JUDICIALMENTE'?LGR:situacaoFinJudicial==='PERDA_JUDICIAL_DEFINITIVA'?RL:LGR));
+      doc.setDrawColor(...BDC);doc.setLineWidth(0.3);
+      doc.roundedRect(pd,y,W-2*pd,10,2,2,'FD');
+      doc.setFont('helvetica','bold');doc.setFontSize(7.5);
+      doc.setTextColor(...(situacaoFinJudicial==='PERDA_JUDICIAL_DEFINITIVA'?RC:G7));
+      doc.text('Situação Financeira Final: '+(SITUACAO_FIN_JUD_LABEL[situacaoFinJudicial]||'Em andamento'),pd+4,y+6.5);
+      y+=16;
+    }
+
+    // ACORDO ASSISTIDO BLOCK
+    if(isAcordoAssistido){
+      const abatido=parseFloat(contrato.VALOR_ABATIDO_ASSISTIDO||0),saldoAA=Math.max(0,principalContratado-abatido);
+      doc.setFillColor(...BLL);doc.setDrawColor(...BLC);doc.setLineWidth(0.4);
+      doc.roundedRect(pd,y,W-2*pd,13,2,2,'FD');
+      doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...BLC);
+      doc.text('ACORDO ASSISTIDO  ·  Capital Abatido: '+fR(abatido)+'   |   Saldo Remanescente: '+fR(saldoAA),pd+4,y+8.5);
+      y+=19;
+    }
+
+    // PERCURSO DO CONTRATO — timeline completa (criação, pagamentos, jornada judicial)
+    const tipoMapPerc={pagamento_normal:'Pagamento',pagamento_com_atraso:'Pagamento (com atraso)',somente_juros:'Pagamento de Juros',quitacao_antecipada:'Quitação Antecipada',pagamento_antecipado:'Pagamento Antecipado',recuperacao_apos_baixa:'Recuperação Pós-Baixa',acordo_com_perda:'Acordo com Perda',abatimento_acordo_assistido:'Abatimento Assistido',renegociado:'Renegociação',recuperacao_judicial:'Recuperação Judicial'};
+    const percurso=[];
+    if(contrato.DATA_EMPRESTIMO) percurso.push({data:parseDate(contrato.DATA_EMPRESTIMO),evento:'Contrato criado',detalhe:nParc+'x de '+fR(parseFloat(contrato.VALOR_PARCELA||0))});
+    (pagamentosContrato||[]).forEach(p=>{
+      const tp=String(p.TIPO_PAGAMENTO||'').toLowerCase();
+      percurso.push({data:parseDate(p.DATA_PAGAMENTO),evento:tipoMapPerc[tp]||'Pagamento',detalhe:fR(p.VALOR_PAGO)});
+    });
+    (eventosContrato||[]).filter(ev=>String(ev.ID_CONTRATO||'').trim()===String(contrato.ID_CONTRATO||'').trim()&&_TIPOS_JURI_TIMELINE.includes(String(ev.TIPO_EVENTO||'').trim())).forEach(ev=>{
+      percurso.push({data:parseDate(ev.DATA_EVENTO),evento:_JURI_EVENTO_LABEL[String(ev.TIPO_EVENTO).trim()],detalhe:String(ev.OBSERVACOES||'—')});
+    });
+    percurso.sort((a,b)=>(a.data?a.data.getTime():0)-(b.data?b.data.getTime():0));
+    if(percurso.length>0){
+      if(y+30>285){doc.addPage();y=20;}
+      doc.setFillColor(...BDC);doc.roundedRect(pd,y,W-2*pd,7,1,1,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...DK);
+      doc.text('PERCURSO DO CONTRATO',pd+4,y+4.8);
+      y+=10;
+      const pCols=[{l:'Data',w:24},{l:'Evento',w:48},{l:'Detalhe',w:W-2*pd-24-48}];
+      const truncTxt=(txt,maxW)=>{
+        doc.setFont('helvetica','normal');doc.setFontSize(6.5);
+        let s=String(txt||'—');
+        if(doc.getTextWidth(s)<=maxW) return s;
+        while(s.length>1&&doc.getTextWidth(s+'…')>maxW) s=s.slice(0,-1);
+        return s+'…';
+      };
+      doc.setFillColor(...G);doc.rect(pd,y,W-2*pd,6,'F');
+      let px=pd;pCols.forEach(c=>{doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(255,255,255);doc.text(c.l,px+2,y+4.2);px+=c.w;});
+      y+=6;
+      percurso.forEach((ev,i)=>{
+        if(y+7>285){
+          doc.addPage();y=18;
+          doc.setFillColor(...G);doc.rect(pd,y,W-2*pd,6,'F');
+          let pxx=pd;pCols.forEach(c=>{doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(255,255,255);doc.text(c.l,pxx+2,y+4.2);pxx+=c.w;});y+=6;
+        }
+        if(i%2===0){doc.setFillColor(...LGR);doc.rect(pd,y,W-2*pd,7,'F');}
+        let px2=pd;
+        [fD(ev.data),ev.evento,truncTxt(ev.detalhe,pCols[2].w-4)].forEach((v,vi)=>{
+          doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(...DK);
+          doc.text(v,px2+2,y+5);px2+=pCols[vi].w;
+        });
+        doc.setDrawColor(...BDC);doc.setLineWidth(0.1);doc.line(pd,y+7,pd+(W-2*pd),y+7);
+        y+=7;
+      });
+      doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.line(pd,y,W-pd,y);
+      y+=8;
+    }
+
+    // HISTÓRICO DE PAGAMENTOS
+    if(parcelasPagas.length>0){
+      if(y+30>285){doc.addPage();y=20;}
+      y=_renderHistParcelas(doc,parcelasPagas,W,pd,y,GL,DK,BDC,fD,fR,'HISTÓRICO DE PAGAMENTOS');
+      y+=4;
+    }
+
+    // PARCELAS EM ABERTO
+    if(parcelasAbertas.length>0){
+      if(y+30>285){doc.addPage();y=20;}
+      const hdrBg=parcelasAtrasadas.length>0?RL:BDC,hdrFg=parcelasAtrasadas.length>0?RC:DK;
+      doc.setFillColor(...hdrBg);doc.roundedRect(pd,y,W-2*pd,7,1,1,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...hdrFg);
+      doc.text(parcelasAtrasadas.length>0?'PARCELAS EM ABERTO · EM ATRASO':'PARCELAS EM ABERTO',pd+4,y+4.8);
+      y+=10;
+      const aCols=[{l:'#',w:12},{l:'Vencimento',w:28},{l:'Dias Atraso',w:24},{l:'Valor Parcela',w:32},{l:'Principal',w:30},{l:'Juros',w:28},{l:'Status',w:20}];
+      const tableW=W-2*pd,tClr=parcelasAtrasadas.length>0?RC:G;
+      doc.setFillColor(...tClr);doc.rect(pd,y,tableW,6,'F');
+      let x=pd;aCols.forEach(c=>{doc.setFont('helvetica','bold');doc.setFontSize(6);doc.setTextColor(255,255,255);doc.text(c.l,x+2,y+4.2);x+=c.w;});
+      y+=6;
+      [...parcelasAbertas].sort((a,b)=>toNum(a.DATA_VENCIMENTO)-toNum(b.DATA_VENCIMENTO)).forEach((p,i)=>{
+        if(y+7>285){
+          doc.addPage();y=18;
+          doc.setFillColor(...tClr);doc.rect(pd,y,tableW,6,'F');
+          let xx=pd;aCols.forEach(c=>{doc.setFont('helvetica','bold');doc.setFontSize(6);doc.setTextColor(255,255,255);doc.text(c.l,xx+2,y+4.2);xx+=c.w;});y+=6;
+        }
+        const atrasada=isAtrasada(p);
+        let dias=0;if(atrasada){const dv=parseDate(p.DATA_VENCIMENTO);dv.setHours(0,0,0,0);dias=Math.round((hoje.getTime()-dv.getTime())/86400000);}
+        if(atrasada){doc.setFillColor(255,242,242);doc.rect(pd,y,tableW,7,'F');}
+        else if(i%2===0){doc.setFillColor(...LGR);doc.rect(pd,y,tableW,7,'F');}
+        const vals=[String(p.NUM_PARCELA||'—'),fD(p.DATA_VENCIMENTO),dias>0?dias+' d':'—',fR(parseFloat(p.VALOR_PARCELA||0)),fR(principalPorParc(p)),fR(jurosPorParc(p)),atrasada?'Atrasado':'Pendente'];
+        let x2=pd;
+        vals.forEach((v,vi)=>{
+          const alrt=(vi===2&&dias>0)||(vi===6&&atrasada);
+          doc.setFont('helvetica',alrt?'bold':'normal');doc.setFontSize(6.5);doc.setTextColor(...(alrt?RC:DK));
+          doc.text(v,x2+2,y+5);x2+=aCols[vi].w;
+        });
+        doc.setDrawColor(...BDC);doc.setLineWidth(0.1);doc.line(pd,y+7,pd+tableW,y+7);
+        y+=7;
+      });
+      doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.line(pd,y,pd+tableW,y);
+      y+=8;
+    }
+
+    // FOOTER
+    if(y+18>285){doc.addPage();y=20;}
+    doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.line(pd,y,W-pd,y);
+    doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(...MT);
+    const disc='Este documento representa a posição do contrato na data de emissão e não constitui documento fiscal ou judicial.';
+    const discL=doc.splitTextToSize(disc,W-2*pd);doc.text(discL,W/2,y+5,{align:'center'});
+    doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...G7);
+    doc.text('Borges Assessoria Financeira · CNPJ 63.124.205/0001-07 · borgesassessoriafinanceira@gmail.com',W/2,y+5+discL.length*4.5+3,{align:'center'});
+
+    // DOWNLOAD
+    const blob=doc.output('blob');const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=`extrato-${contrato.ID_CONTRATO}-${ts}.pdf`;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),3000);
+    if(opts.wpp){
+      const tel=String(cliente?.TELEFONE_WPP||cliente?.TELEFONE||'').replace(/\D/g,'');
+      const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      setTimeout(()=>window.open(tel?`https://wa.me/55${tel}`:(isMobile?'https://wa.me':'https://web.whatsapp.com'),'_blank'),700);
+    }
+  }catch(e){console.error('Extrato PDF error:',e);alert('Erro ao gerar extrato: '+e.message);}
 }
 
 function ComprovanteEnvioModal({parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes,onFechar}){
@@ -510,6 +898,7 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
   const [tipo, setTipo]             = useState("total");
   const [data, setData]             = useState(hojeStr());
   const [valor, setValor]           = useState("");
+  const [desconto, setDesconto]     = useState(0);
   const [loading, setLoading]       = useState(false);
   const [msg, setMsg]               = useState(null);
   const [pagoIds, setPagoIds]       = useState(new Set());
@@ -517,6 +906,12 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
   const [modo, setModo]             = useState("pagamento"); // "pagamento" | "reagendar"
   const [promData, setPromData]     = useState("");
   const [promObs, setPromObs]       = useState("");
+  const [sjPixLoad, setSjPixLoad]   = useState(false);
+  const [sjPixCode, setSjPixCode]   = useState("");
+  const [sjPixErr, setSjPixErr]     = useState("");
+  const [sjPixCopied, setSjPixCopied] = useState(false);
+  const [sjPixWppLoad, setSjPixWppLoad] = useState(false);
+  const [sjPixWppOk, setSjPixWppOk]   = useState(false);
   const mob = useIsMobile();
 
   const calcComAtraso = (p) => {
@@ -530,25 +925,80 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
   const selecionarParcela = (p) => {
     setParcelaSel(p);
     setTipo("total");
+    setDesconto(0);
     setMsg(null);
     setModo("pagamento");
     setPromData("");
     setPromObs("");
+    setSjPixLoad(false); setSjPixCode(""); setSjPixErr(""); setSjPixCopied(false); setSjPixWppLoad(false); setSjPixWppOk(false);
     const { total } = calcComAtraso(p);
     setValor(total.toFixed(2));
   };
 
   const changeTipo = (t) => {
     setTipo(t);
+    setDesconto(0);
+    setSjPixCode(""); setSjPixErr(""); setSjPixCopied(false); setSjPixWppOk(false);
     if (!parcelaSel) return;
     if (t === "total") {
       const { total } = calcComAtraso(parcelaSel);
       setValor(total.toFixed(2));
     } else if (t === "somente_juros") {
-      setValor(parseFloat(parcelaSel.VALOR_JUROS || 0).toFixed(2));
+      const fee = Math.round(parseFloat(parcelaSel.VALOR_PRINCIPAL || 0) * 0.05 * 100) / 100;
+      setValor((parseFloat(parcelaSel.VALOR_JUROS || 0) + fee).toFixed(2));
     } else {
       setValor(parseFloat(parcelaSel.VALOR_PARCELA || 0).toFixed(2));
     }
+  };
+
+  const changeDesconto = (v) => {
+    if (!parcelaSel) return;
+    const juros = parseFloat(parcelaSel.VALOR_JUROS || 0);
+    const principal = parseFloat(parcelaSel.VALOR_PRINCIPAL || 0);
+    const d = Math.min(Math.max(parseFloat(v) || 0, 0), juros);
+    setDesconto(d);
+    setValor((principal + Math.max(0, juros - d)).toFixed(2));
+  };
+
+  const gerarPixSJ = async () => {
+    if (!parcelaSel || sjPixLoad) return;
+    setSjPixLoad(true); setSjPixErr(""); setSjPixCode("");
+    const fee = Math.round(parseFloat(parcelaSel.VALOR_PRINCIPAL || 0) * 0.05 * 100) / 100;
+    const sjValor = parseFloat(parcelaSel.VALOR_JUROS || 0) + fee;
+    const cpf = String(cliente?.CPF || "").replace(/\D/g, "").padStart(11, "0");
+    try {
+      const r = await fetch("/api/efi-charges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idContrato: parcelaSel.ID_CONTRATO,
+          parcelas: [{ idParcela: parcelaSel.ID_PARCELA, numParcela: parseInt(parcelaSel.NUM_PARCELA||0), totalParcelas: parseInt(parcelaSel.TOTAL_PARCELAS||0), dataVencimento: parcelaSel.DATA_VENCIMENTO, valorParcela: sjValor }],
+          cliente: { nome: cliente?.NOME_CLIENTE || parcelaSel.NOME_CLIENTE || "", cpf },
+          isSJ: true
+        })
+      });
+      const d = await r.json();
+      if (d.ok && d.boletos?.[0]?.ok) setSjPixCode(d.boletos[0].pixCopiaECola || "");
+      else setSjPixErr((d.boletos?.[0]?.erro) || d.erro || "Erro ao gerar PIX SJ");
+    } catch(e) { setSjPixErr(e.message); }
+    setSjPixLoad(false);
+  };
+
+  const enviarSjPixWpp = async () => {
+    if (!sjPixCode || sjPixWppLoad || !parcelaSel) return;
+    setSjPixWppLoad(true);
+    const fee = Math.round(parseFloat(parcelaSel.VALOR_PRINCIPAL || 0) * 0.05 * 100) / 100;
+    const sjValor = parseFloat(parcelaSel.VALOR_JUROS || 0) + fee;
+    const res = await postAction({
+      action: "enviarPixManual",
+      idCliente: parcelaSel.ID_CLIENTE || "", idContrato: parcelaSel.ID_CONTRATO || "",
+      idParcela: parcelaSel.ID_PARCELA || "", nome: parcelaSel.NOME_CLIENTE || "",
+      telefone: cliente?.TELEFONE_WPP || cliente?.TELEFONE || "",
+      numParcela: parseInt(parcelaSel.NUM_PARCELA||0), totalParcelas: parseInt(parcelaSel.TOTAL_PARCELAS||0),
+      valorParcela: sjValor, dataVencimento: parcelaSel.DATA_VENCIMENTO || "", pixCode: sjPixCode
+    });
+    if (res.ok) { setSjPixWppOk(true); setTimeout(() => setSjPixWppOk(false), 3000); }
+    setSjPixWppLoad(false);
   };
 
   const reagendar = async () => {
@@ -574,13 +1024,17 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
     const action = tipo === "somente_juros" ? "pagamentoParcial" : "pagamento";
     const res = await postAction({
       action,
-      idParcela: parcelaSel.ID_PARCELA,
+      idParcela: parcelaSel.ID_PARCELA || "",
+      idContrato: parcelaSel.ID_CONTRATO || "",
+      numParcela: parcelaSel.NUM_PARCELA || "",
       valor: parseFloat(valor),
       data: apiDateStr(data),
-      forma: "dinheiro"
+      forma: "pix",
+      ...(desconto > 0 && { desconto })
     });
     if (res.ok) {
-      setPagoIds(prev => new Set([...prev, parcelaSel.ID_PARCELA]));
+      if(res.idUndo && _registrarUndoAtivo) _registrarUndoAtivo({idUndo:res.idUndo,tipo:tipo==="somente_juros"?"SOMENTE_JUROS":"PAGAMENTO_NORMAL",idContrato:parcelaSel.ID_CONTRATO||"",nomeCliente:cliente?.NOME_CLIENTE||"",segundosRestantes:900});
+      setPagoIds(prev => new Set([...prev, parcelaSel.ID_PARCELA || parcelaSel.ID_CONTRATO]));
       setComprovanteData({parcela:parcelaSel,valorPago:parseFloat(valor),dataPago:data,tipoLabel:tipo==="somente_juros"?"Somente Juros":tipo==="com_atraso"?"Com Atraso":"Pagamento Total"});
     } else {
       setMsg({ ok: false, t: res.erro || "Erro ao registrar pagamento." });
@@ -757,7 +1211,7 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
                     {[
                       { v:"total",         l:"Pagamento Total",   sub:"Valor original da parcela" },
                       { v:"com_atraso",    l:"Total + Encargos",  sub:"Multa + juros de mora" },
-                      { v:"somente_juros", l:"Somente Juros",     sub:"Principal rolado p/ nova parcela" },
+                      { v:"somente_juros", l:"Somente Juros",     sub:"Juros + fee 5% · principal rolado" },
                       { v:"personalizado", l:"Personalizado",     sub:"Informe o valor manualmente" },
                     ].map(op => (
                       <div
@@ -788,6 +1242,57 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
                   )}
                 </div>
 
+                {/* Desconto nos Juros — só visível em tipo "total" */}
+                {tipo === "total" && parcelaSel && parseFloat(parcelaSel.VALOR_JUROS || 0) > 0 && (
+                  <div>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                      <span style={LS()}>Desconto nos Juros (R$)</span>
+                      <span style={{fontSize:10,color:MUTED,fontWeight:600}}>máx {fmtR(parseFloat(parcelaSel.VALOR_JUROS||0))}</span>
+                    </div>
+                    <input
+                      type="number"
+                      value={desconto || ""}
+                      onChange={e => changeDesconto(e.target.value)}
+                      placeholder="0,00"
+                      min="0"
+                      max={parseFloat(parcelaSel.VALOR_JUROS||0)}
+                      style={{...IS(),color:desconto>0?GRN:TEXT}}
+                    />
+                    {desconto > 0 && (
+                      <div style={{marginTop:4,fontSize:11,color:GRN,fontWeight:600}}>
+                        Cliente paga {fmtR(parseFloat(parcelaSel.VALOR_PRINCIPAL||0))} + {fmtR(Math.max(0,parseFloat(parcelaSel.VALOR_JUROS||0)-desconto))} de juros
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* PIX Somente Juros */}
+                {tipo === "somente_juros" && parcelaSel && (
+                  <div style={{background:ORG+"08",border:`1px solid ${ORG}25`,borderRadius:10,padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
+                    <div style={{fontSize:12,fontWeight:700,color:ORG}}>
+                      PIX Somente Juros · {fmtR(parseFloat(parcelaSel.VALOR_JUROS||0) + Math.round(parseFloat(parcelaSel.VALOR_PRINCIPAL||0)*0.05*100)/100)}
+                    </div>
+                    {!sjPixCode ? (
+                      <button onClick={gerarPixSJ} disabled={sjPixLoad} style={{...BTN5(ORG),justifyContent:"center",opacity:sjPixLoad?0.6:1}}>
+                        {sjPixLoad ? <><IcoSpinner color={ORG}/> Gerando...</> : "Gerar PIX SJ"}
+                      </button>
+                    ) : (
+                      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                        <div style={{background:BG,borderRadius:7,padding:"8px 10px",fontSize:10,color:MUTED,fontFamily:"monospace",wordBreak:"break-all"}}>{sjPixCode}</div>
+                        <div style={{display:"flex",gap:8}}>
+                          <button onClick={()=>{navigator.clipboard.writeText(sjPixCode);setSjPixCopied(true);setTimeout(()=>setSjPixCopied(false),2000);}} style={{...BTN6(),flex:1,display:"flex",justifyContent:"center",alignItems:"center"}}>
+                            {sjPixCopied ? "Copiado!" : "Copiar PIX"}
+                          </button>
+                          <button onClick={enviarSjPixWpp} disabled={sjPixWppLoad} style={{flex:1,padding:"8px",borderRadius:9,border:"none",background:sjPixWppOk?"#16a34a":"#25D366",color:"#FFF",fontWeight:700,fontSize:12,cursor:sjPixWppLoad?"default":"pointer",opacity:sjPixWppLoad?0.6:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                            {sjPixWppLoad ? <><IcoSpinner color="#FFF"/> Enviando...</> : sjPixWppOk ? "Enviado!" : "Enviar WPP"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {sjPixErr && <div style={{fontSize:11,color:RED,fontWeight:600}}>{sjPixErr}</div>}
+                  </div>
+                )}
+
                 {/* Data */}
                 <div>
                   <span style={LS()}>Data do Pagamento</span>
@@ -806,7 +1311,7 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
                   disabled={loading || !valor || !data || parseFloat(valor) <= 0}
                   style={BTN1(loading || !valor || !data || parseFloat(valor) <= 0)}
                 >
-                  {loading?<><IcoSpinner color="#1B3305"/> Registrando...</>:<>{IcoCheck} Confirmar Pagamento</>}
+                  {loading?<><IcoSpinner color="#07241B"/> Registrando...</>:<>{IcoCheck} Confirmar Pagamento</>}
                 </button>
 
                 <button onClick={()=>setModo("reagendar")} style={BTN5(ORG)}>{IcoCal} Reagendar</button>
@@ -823,219 +1328,408 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
 }
 
 // ─── OUTROS MODAIS ───────────────────────────────────────────────
-function BaixaModal({contrato, parcelas, onConfirmar, onFechar}){
-  const [dados, setDados] = useState({substatus:"CLIENTE_DESAPARECIDO", motivo:"", observacao:"", possibilidadeRecuperacao:"BAIXA", statusJuridico:"NAO_ANALISADO", proximaProvidencia:""});
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState(null);
-  const ps = (parcelas||[]).filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
-  const valPrincipal = parseFloat(contrato.VALOR_PRINCIPAL||0);
-  const valTotal     = parseFloat(contrato.VALOR_TOTAL||contrato.VALOR_TOTAL_FINAL||0);
-  const pagasPs    = ps.filter(p=>p.STATUS==="pago");
-  const totalPago    = pagasPs.reduce((s,p)=>s+(parseFloat(p.VALOR_PAGO)||0),0);
-  const jurosJaPagos = pagasPs.reduce((s,p)=>s+Math.max(0,(parseFloat(p.VALOR_PAGO)||0)-(parseFloat(p.VALOR_PRINCIPAL)||0)),0);
-  // usa VALOR_PRINCIPAL por parcela; fallback: divide o principal igualmente entre parcelas
-  const ppUnit = ps.length>0?valPrincipal/ps.length:0;
-  const capitalRecuperado = Math.min(valPrincipal, pagasPs.reduce((s,p)=>{const vp=parseFloat(p.VALOR_PRINCIPAL||0);return s+(vp>0?vp:ppUnit);},0));
-  const prejuizoCapital   = Math.max(0, valPrincipal-capitalRecuperado);
-  const jurosNaoReal      = Math.max(0, (valTotal-valPrincipal)-jurosJaPagos);
-  const pctRecuperado     = valPrincipal>0?(capitalRecuperado/valPrincipal*100):0;
-  const atrasadas = ps.filter(p=>p.STATUS==="atrasado");
-  const diasAtraso = atrasadas.length>0?Math.max(...atrasadas.map(p=>{const dv=parseDate(p.DATA_VENCIMENTO);if(!dv)return 0;const d=Math.round((new Date()-dv)/86400000);return d>0?d:0;})):0;
-  const confirmar = async()=>{
-    if(!dados.motivo){setMsg("Informe o motivo da baixa.");return;}
+function AcordoAssistidoModal({contrato, onConfirmar, onFechar}){
+  const [motivo,setMotivo]=useState("");
+  const [observacao,setObservacao]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [erro,setErro]=useState("");
+  const MOTIVOS=[
+    {v:"",l:"Selecione o motivo..."},
+    {v:"Demissão",l:"Demissão"},
+    {v:"Afastamento INSS",l:"Afastamento INSS"},
+    {v:"Problema de saúde",l:"Problema de saúde"},
+    {v:"Redução de renda",l:"Redução de renda"},
+    {v:"Outro",l:"Outro"},
+  ];
+  const confirmar=async()=>{
+    if(!motivo){setErro("Selecione o motivo.");return;}
+    setLoading(true);setErro("");
+    try{
+      const res=await postAction({action:"moverParaAcordoAssistido",idContrato:contrato.ID_CONTRATO,dados:{motivo,observacao,data:hojeStr()}});
+      if(res.ok)onConfirmar();
+      else setErro(res.erro||"Erro ao mover para Acordo Assistido.");
+    }catch(e){setErro(e.message);}
+    setLoading(false);
+  };
+  return(
+    <div className="modal-overlay-anim" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div className="modal-box-anim" style={{background:CARD,borderRadius:16,width:"100%",maxWidth:400,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(0,0,0,0.28)"}}>
+        <div style={{padding:"18px 20px",borderBottom:`1px solid ${BD}`}}>
+          <div style={{fontWeight:800,fontSize:16,color:TEXT,display:"flex",alignItems:"center",gap:8}}>{IcoHandshake} Acordo Assistido</div>
+          <div style={{fontSize:12,color:MUTED,marginTop:3}}>{contrato.ID_CONTRATO} · {contrato.NOME_CLIENTE}</div>
+          <div style={{fontSize:12,color:MUTED,marginTop:6,lineHeight:1.5}}>Contrato entra em tratamento especial. A dívida é mantida integralmente — apenas a cobrança ativa é suspensa.</div>
+        </div>
+        <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+          <div>
+            <span style={LS()}>Motivo</span>
+            <select value={motivo} onChange={e=>{setMotivo(e.target.value);setErro("");}} style={IS()}>
+              {MOTIVOS.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+            </select>
+          </div>
+          <div>
+            <span style={LS()}>Observação (opcional)</span>
+            <textarea value={observacao} onChange={e=>setObservacao(e.target.value)} rows={3} style={{...IS(),resize:"vertical",fontFamily:"inherit"}} placeholder="Detalhes adicionais..."/>
+          </div>
+          {erro&&<div style={{padding:"8px 12px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:600}}>{erro}</div>}
+          <div style={{display:"flex",gap:8,marginTop:4}}>
+            <button onClick={onFechar} disabled={loading} style={{...BTN3(),flex:1}}>Cancelar</button>
+            <button onClick={confirmar} disabled={loading} style={{flex:2,padding:"13px",borderRadius:9999,border:"none",background:BLU,color:"#FFF",fontWeight:700,fontSize:14,cursor:loading?"default":"pointer",opacity:loading?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
+              {loading?"Salvando...":<>{IcoCheck} Confirmar Acordo</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AbatimentoAssistidoModal({contrato, parcelas, onConfirmar, onFechar}){
+  const [valor,setValor]=useState("");
+  const [observacao,setObservacao]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [erro,setErro]=useState("");
+  const principalOriginal=parseFloat(contrato.VALOR_PRINCIPAL||0);
+  const abatidoAtual=parseFloat(contrato.VALOR_ABATIDO_ASSISTIDO||0);
+  const capitalRestante=Math.max(0,principalOriginal-abatidoAtual);
+  const _psAbat=(parcelas||[]).filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
+  const lucroReman=_psAbat.filter(p=>!_ST_TERMINAL.has(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase())).reduce((s,p)=>s+parseFloat(p.VALOR_JUROS||0),0);
+  const vlNum=parseFloat(String(valor).replace(",","."))||0;
+  const confirmar=async()=>{
+    if(vlNum<=0){setErro("Valor deve ser maior que zero.");return;}
+    setLoading(true);setErro("");
+    try{
+      const res=await postAction({action:"registrarAbatimentoAssistido",idContrato:contrato.ID_CONTRATO,dados:{valorPago:vlNum,data:hojeStr(),forma:"pix",observacao}});
+      if(res.ok){if(res.idUndo&&_registrarUndoAtivo)_registrarUndoAtivo({idUndo:res.idUndo,tipo:"ABATIMENTO_ASSISTIDO",idContrato:contrato.ID_CONTRATO,nomeCliente:contrato.NOME_CLIENTE||"",segundosRestantes:900});onConfirmar();}
+      else setErro(res.erro||"Erro ao registrar abatimento.");
+    }catch(e){setErro(e.message);}
+    setLoading(false);
+  };
+  return(
+    <div className="modal-overlay-anim" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div className="modal-box-anim" style={{background:CARD,borderRadius:16,width:"100%",maxWidth:400,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(0,0,0,0.28)"}}>
+        <div style={{padding:"18px 20px",borderBottom:`1px solid ${BD}`}}>
+          <div style={{fontWeight:800,fontSize:16,color:TEXT}}>Registrar Abatimento</div>
+          <div style={{fontSize:12,color:MUTED,marginTop:3}}>{contrato.ID_CONTRATO} · {contrato.NOME_CLIENTE}</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,background:BG,borderRadius:10,padding:"10px 12px",marginTop:12}}>
+            <div><div style={LS()}>Capital emprestado</div><div style={{fontSize:13,fontWeight:700,color:TEXT}}>{fmtR(principalOriginal)}</div></div>
+            <div><div style={LS()}>Já recuperado</div><div style={{fontSize:13,fontWeight:700,color:BLU}}>{fmtR(abatidoAtual)}</div></div>
+            <div style={{gridColumn:"span 2"}}><div style={LS()}>Capital restante</div><div style={{fontSize:14,fontWeight:800,color:capitalRestante>0?RED:GRN}}>{fmtR(capitalRestante)}</div></div>
+            {lucroReman>0&&<div style={{gridColumn:"span 2",borderTop:`1px solid ${BD}`,paddingTop:8}}><div style={LS()}>Juros suspensos (potencial)</div><div style={{fontSize:13,fontWeight:700,color:ORG}}>{fmtR(lucroReman)}</div></div>}
+          </div>
+        </div>
+        <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+          <div>
+            <span style={LS()}>Valor do abatimento (R$)</span>
+            <input type="number" min="0.01" step="0.01" value={valor} onChange={e=>{setValor(e.target.value);setErro("");}} style={IS()} placeholder="0,00" autoFocus/>
+          </div>
+          <div>
+            <span style={LS()}>Observação (opcional)</span>
+            <input type="text" value={observacao} onChange={e=>setObservacao(e.target.value)} style={IS()} placeholder="Ex: referente a novembro..."/>
+          </div>
+          {vlNum>0&&<div style={{padding:"8px 12px",borderRadius:8,background:BLU+"10",color:BLU,fontSize:12,fontWeight:700}}>
+            Após: Recuperado={fmtR(abatidoAtual+vlNum)} · Capital restante={fmtR(Math.max(0,capitalRestante-vlNum))}
+          </div>}
+          {erro&&<div style={{padding:"8px 12px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:600}}>{erro}</div>}
+          <div style={{display:"flex",gap:8,marginTop:4}}>
+            <button onClick={onFechar} disabled={loading} style={{...BTN3(),flex:1}}>Cancelar</button>
+            <button onClick={confirmar} disabled={loading||vlNum<=0} style={{...BTN1(loading||vlNum<=0),flex:2}}>
+              {loading?<><IcoSpinner color="#07241B"/> Registrando...</>:<>{IcoCheck} Confirmar</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EncerrarContratoModal({contrato,parcelas,onConfirmar,onFechar}){
+  const [valorRecebido,setValorRecebido]=useState("");
+  const [dados,setDados]=useState({substatus:"CLIENTE_DESAPARECIDO",motivo:"",observacao:"",possibilidadeRecuperacao:"BAIXA",statusJuridico:"NAO_ANALISADO",proximaProvidencia:""});
+  const [loading,setLoading]=useState(false);
+  const [msg,setMsg]=useState(null);
+  const vRec=parseFloat(valorRecebido)||0;
+  const isBaixa=vRec===0;
+  const ps=(parcelas||[]).filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
+  const valPrincipal=parseFloat(contrato.VALOR_PRINCIPAL||0);
+  const valTotal=parseFloat(contrato.VALOR_TOTAL||contrato.VALOR_TOTAL_FINAL||0);
+  const isAA=contrato.STATUS_CONTRATO==="acordo_assistido";
+  const abatido=parseFloat(contrato.VALOR_ABATIDO_ASSISTIDO||0);
+  const pagasPs=ps.filter(p=>p.STATUS==="pago");
+  const jurosJaPagos=pagasPs.reduce((s,p)=>s+Math.max(0,(parseFloat(p.VALOR_PAGO)||0)-(parseFloat(p.VALOR_PRINCIPAL)||0)),0);
+  const ppUnit=ps.length>0?valPrincipal/ps.length:0;
+  const capitalRecup=isAA?abatido:Math.min(valPrincipal,pagasPs.reduce((s,p)=>{const vp=parseFloat(p.VALOR_PRINCIPAL||0);return s+(vp>0?vp:ppUnit);},0));
+  const atrasadas=ps.filter(p=>p.STATUS==="atrasado");
+  const diasAtraso=atrasadas.length>0?Math.max(...atrasadas.map(p=>{const dv=parseDate(p.DATA_VENCIMENTO);if(!dv)return 0;const d=Math.round((new Date()-dv)/86400000);return d>0?d:0;})):0;
+  const statusAberto=s=>!["pago","cancelado","baixado_como_prejuizo","quitacao_antecipada","renegociado"].includes(String(s||"").toLowerCase());
+  const abertas=ps.filter(p=>statusAberto(p.STATUS||p.STATUS_PAGAMENTO));
+  const principalAberto=abertas.reduce((s,p)=>s+parseFloat(p.VALOR_PRINCIPAL||0),0);
+  const jurosAberto=abertas.reduce((s,p)=>s+parseFloat(p.VALOR_JUROS||0),0);
+  const totalDivida=principalAberto+jurosAberto;
+  const prejCap=Math.max(0,valPrincipal-capitalRecup);
+  const jurosNaoReal=Math.max(0,(valTotal-valPrincipal)-jurosJaPagos);
+  const princRecupAcordo=Math.min(vRec,principalAberto);
+  const jurosRecupAcordo=Math.max(0,vRec-princRecupAcordo);
+  const descPrinc=principalAberto-princRecupAcordo;
+  const descJuros=jurosAberto-jurosRecupAcordo;
+  const confirmar=async()=>{
+    if(isBaixa&&!dados.motivo){setMsg("Informe o motivo da baixa.");return;}
     setLoading(true);setMsg(null);
-    const res=await postAction({action:"baixarContrato",idContrato:contrato.ID_CONTRATO,dados:{...dados,diasAtraso,valorRecuperadoAntesBaixa:capitalRecuperado,jurosJaRecebidos:jurosJaPagos,data:hojeStr()}});
-    if(res.ok){onConfirmar();}else setMsg(res.erro||"Erro.");
+    let res;
+    if(isBaixa){
+      res=await postAction({action:"baixarContrato",idContrato:contrato.ID_CONTRATO,dados:{...dados,diasAtraso,valorRecuperadoAntesBaixa:capitalRecup,jurosJaRecebidos:jurosJaPagos,data:hojeStr(),parcelasABaixar:abertas.map(p=>p.ID_PARCELA)}});
+    }else{
+      res=await postAction({action:"acordoComPerda",dados:{idContrato:contrato.ID_CONTRATO,valorAcordado:vRec,data:hojeStr(),forma:"pix",observacao:dados.observacao}});
+    }
+    if(res.ok){if(res.idUndo&&_registrarUndoAtivo)_registrarUndoAtivo({idUndo:res.idUndo,tipo:isBaixa?"BAIXA_PREJUIZO":"ACORDO_COM_PERDA",idContrato:contrato.ID_CONTRATO,nomeCliente:contrato.NOME_CLIENTE||"",segundosRestantes:900});onConfirmar();}else setMsg(res.erro||"Erro.");
     setLoading(false);
   };
   const campo=(label,field,opts)=>(<div><span style={LS()}>{label}</span>{opts?<select value={dados[field]} onChange={e=>setDados(p=>({...p,[field]:e.target.value}))} style={IS()}>{opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select>:<input value={dados[field]} onChange={e=>setDados(p=>({...p,[field]:e.target.value}))} style={IS()}/>}</div>);
   return(
     <div className="modal-overlay-anim" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div className="modal-box-anim" style={{background:CARD,borderRadius:16,width:"100%",maxWidth:600,maxHeight:"90vh",display:"flex",flexDirection:"column",boxShadow:"0 24px 80px rgba(0,0,0,0.28)",border:`1px solid ${BD}`,minWidth:0}}>
-        <div style={{padding:"18px 24px",borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}><div><h2 style={{color:RED,fontSize:18,fontWeight:800,margin:0,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.02em"}}>{IcoAlert} Baixar Contrato como Prejuízo</h2><p style={{fontSize:12,color:MUTED,margin:"4px 0 0"}}>Contrato {contrato.ID_CONTRATO} · {contrato.NOME_CLIENTE}</p></div></div>
-        <div style={{padding:24,overflowY:"auto",flex:1}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:24,padding:16,background:BG,borderRadius:10}}>
-            <div><span style={LS()}>Capital Emprestado</span><div style={{fontSize:15,fontWeight:700}}>{fmtR(valPrincipal)}</div></div>
-            <div><span style={LS()}>Capital Recuperado</span><div style={{fontSize:15,fontWeight:700,color:GRN}}>{fmtR(capitalRecuperado)}</div></div>
-            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS()}>Prejuízo de Capital</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{fmtR(prejuizoCapital)}</div></div>
-            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS()}>Juros Não Realizados</span><div style={{fontSize:15,fontWeight:700,color:ORG}}>{fmtR(jurosNaoReal)}</div></div>
-            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS()}>Total Pago</span><div style={{fontSize:15,fontWeight:700,color:GRN}}>{fmtR(totalPago)}</div></div>
-            <div style={{borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS()}>% Recuperado</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{fmtP(pctRecuperado)}</div></div>
-            <div style={{gridColumn:"1/-1",borderTop:`1px solid ${BD}`,paddingTop:8}}><span style={LS()}>Dias de Atraso (Máx)</span><div style={{fontSize:15,fontWeight:700,color:RED}}>{diasAtraso} dias</div></div>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:16}}>
-            {campo("Substatus","substatus",[{v:"CLIENTE_DESAPARECIDO",l:"Cliente Desaparecido"},{v:"SEM_BENS_PENHORAVEIS",l:"Sem Bens/Renda"},{v:"FALECIMENTO",l:"Falecimento"},{v:"FRAUDE_IDENTIFICADA",l:"Má-fé aparente"},{v:"ACORDO_VALOR_IRRISORIO",l:"Acordo Irrisório"}])}
-            {campo("Motivo Detalhado (Obrigatório)","motivo")}
-            {campo("Possibilidade de Recuperação","possibilidadeRecuperacao",[{v:"BAIXA",l:"Baixa"},{v:"RECURSOS_FUTUROS",l:"Remota"},{v:"JUDICIAL",l:"Judicial"}])}
-            {campo("Status Jurídico","statusJuridico",[{v:"NAO_ANALISADO",l:"Não analisado"},{v:"ANALISE_INTERNA",l:"Análise Interna"},{v:"PROCESSO_AJUIZADO",l:"Processo Ajuizado"}])}
-            <div><span style={LS()}>Próxima Providência</span><input value={dados.proximaProvidencia} onChange={e=>setDados(p=>({...p,proximaProvidencia:e.target.value}))} style={IS()}/></div>
-            <div><span style={LS()}>Observação</span><textarea value={dados.observacao} onChange={e=>setDados(p=>({...p,observacao:e.target.value}))} style={{...IS(),height:80,resize:"none"}}/></div>
-          </div>
-          {msg&&<div style={{marginTop:16,padding:12,borderRadius:8,background:RED+"10",color:RED,fontSize:13,textAlign:"center",fontWeight:600}}>{msg}</div>}
-        </div>
-        <div style={{padding:"14px 20px",borderTop:`1px solid ${BD}`,display:"flex",gap:10}}>
-          <button onClick={onFechar} style={{...BTN6(),flex:1}}>Cancelar</button>
-          <button onClick={confirmar} disabled={loading} style={{...BTN4(loading),flex:2}}>{loading?<><IcoSpinner color="#fff"/> Processando...</>:"Confirmar Baixa"}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ModalAcordoPerda({contrato,parcelas,onConfirmar,onFechar}){
-  const [valorAcordo,setValorAcordo]=useState("");
-  const [forma,setForma]=useState("dinheiro");
-  const [observacao,setObservacao]=useState("");
-  const [loading,setLoading]=useState(false);
-  const [msg,setMsg]=useState(null);
-
-  const statusAberto=s=>!["pago","cancelado","baixado_como_prejuizo","renegociado"].includes(String(s||"").toLowerCase());
-  const abertas=(parcelas||[]).filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO)&&statusAberto(p.STATUS||p.STATUS_PAGAMENTO));
-  const principalAberto=abertas.reduce((s,p)=>s+parseFloat(p.VALOR_PRINCIPAL||0),0);
-  const jurosAberto=abertas.reduce((s,p)=>s+parseFloat(p.VALOR_JUROS||0),0);
-  const totalDivida=principalAberto+jurosAberto;
-
-  const vAcordo=parseFloat(valorAcordo)||0;
-  // Abatimento: primeiro principal, depois juros
-  const principalRecuperado=Math.min(vAcordo,principalAberto);
-  const jurosRecuperado=Math.max(0,vAcordo-principalRecuperado);
-  const descontoPrincipal=principalAberto-principalRecuperado; // prejuízo real
-  const descontoJuros=jurosAberto-jurosRecuperado;             // receita não realizada
-
-  const confirmar=async()=>{
-    if(!valorAcordo||vAcordo<=0){setMsg("Informe o valor acordado.");return;}
-    setLoading(true);setMsg(null);
-    const res=await postAction({action:"acordoComPerda",dados:{
-      idContrato:contrato.ID_CONTRATO,
-      valorAcordado:vAcordo,
-      data:hojeStr(),
-      forma,
-      observacao
-    }});
-    if(res.ok)onConfirmar();else setMsg(res.erro||"Erro.");
-    setLoading(false);
-  };
-
-  return(
-    <div className="modal-overlay-anim" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div className="modal-box-anim" style={{background:CARD,borderRadius:16,width:"100%",maxWidth:520,display:"flex",flexDirection:"column",boxShadow:"0 24px 80px rgba(0,0,0,0.28)",border:`1px solid ${BD}`,maxHeight:"92vh",overflow:"hidden",minWidth:0}}>
+      <div className="modal-box-anim" style={{background:CARD,borderRadius:16,width:"100%",maxWidth:560,maxHeight:"90vh",display:"flex",flexDirection:"column",boxShadow:"0 24px 80px rgba(0,0,0,0.28)",border:`1px solid ${BD}`,minWidth:0}}>
         <div style={{padding:"18px 24px",borderBottom:`1px solid ${BD}`,flexShrink:0}}>
-          <h2 style={{margin:0,color:TEXT,fontSize:18,fontWeight:800,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.02em"}}>{IcoHandshake} Acordo com Perda</h2>
-          <p style={{fontSize:12,color:MUTED,margin:"3px 0 0"}}>Contrato: <strong>{contrato.ID_CONTRATO}</strong> · {contrato.NOME_CLIENTE}</p>
+          <h2 style={{margin:0,color:isBaixa?RED:ORG,fontSize:18,fontWeight:800,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.02em"}}>{isBaixa?IcoAlert:IcoHandshake} Encerrar Contrato</h2>
+          <p style={{fontSize:12,color:MUTED,margin:"4px 0 0"}}>{contrato.ID_CONTRATO} · {contrato.NOME_CLIENTE}<span style={{marginLeft:8,padding:"2px 8px",borderRadius:99,background:isBaixa?RED+"15":ORG+"15",color:isBaixa?RED:ORG,fontSize:11,fontWeight:700}}>{isBaixa?"Sem recebimento → Baixa":"Com recebimento → Acordo"}</span></p>
         </div>
         <div style={{padding:24,overflowY:"auto",flex:1}}>
-
-        {/* Dívida atual */}
-        <div style={{background:BG,padding:14,borderRadius:10,marginBottom:16}}>
-          <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:10}}>Dívida em Aberto ({abertas.length} parcelas)</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            <div><div style={{fontSize:10,color:MUTED,fontWeight:600}}>PRINCIPAL</div><div style={{fontSize:14,fontWeight:800}}>{fmtR(principalAberto)}</div></div>
-            <div><div style={{fontSize:10,color:MUTED,fontWeight:600}}>JUROS FUTUROS</div><div style={{fontSize:14,fontWeight:800,color:ORG}}>{fmtR(jurosAberto)}</div></div>
-            <div style={{gridColumn:"1/-1",borderTop:`1px solid ${BD}`,paddingTop:8}}><div style={{fontSize:10,color:MUTED,fontWeight:600}}>TOTAL DA DÍVIDA</div><div style={{fontSize:16,fontWeight:900}}>{fmtR(totalDivida)}</div></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,background:BG,borderRadius:10,padding:"12px 14px",marginBottom:18}}>
+            <div><span style={LS()}>Capital emprestado</span><div style={{fontSize:14,fontWeight:700}}>{fmtR(valPrincipal)}</div></div>
+            <div><span style={LS()}>Dívida em aberto</span><div style={{fontSize:14,fontWeight:700,color:ORG}}>{fmtR(totalDivida)}</div></div>
+            {capitalRecup>0&&<div><span style={LS()}>{isAA?"Abatido (Acordo)":"Capital já recuperado"}</span><div style={{fontSize:14,fontWeight:700,color:GRN}}>{fmtR(capitalRecup)}</div></div>}
+            {diasAtraso>0&&<div><span style={LS()}>Dias de atraso</span><div style={{fontSize:14,fontWeight:700,color:RED}}>{diasAtraso}d</div></div>}
           </div>
-        </div>
-
-        {/* Valor do acordo */}
-        <div style={{marginBottom:16}}>
-          <span style={LS()}>Valor Recebido no Acordo (R$)</span>
-          <input type="number" value={valorAcordo} onChange={e=>setValorAcordo(e.target.value)} placeholder="0.00" style={{...IS(),fontSize:20,fontWeight:800,height:52,textAlign:"center"}}/>
-        </div>
-
-        {/* Preview contábil — aparece ao digitar valor */}
-        {vAcordo>0&&(
-          <div style={{background:GRN+"10",border:`1px solid ${GRN}40`,borderRadius:10,padding:14,marginBottom:16}}>
-            <div style={{fontSize:11,fontWeight:700,color:GRN,marginBottom:10}}>RESUMO CONTÁBIL</div>
-            <div style={{display:"flex",flexDirection:"column",gap:7}}>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}>
-                <span style={{color:MUTED}}>Principal recuperado</span>
-                <strong style={{color:GRN}}>{fmtR(principalRecuperado)}</strong>
-              </div>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}>
-                <span style={{color:MUTED}}>Juros recebidos</span>
-                <strong style={{color:GRN}}>{fmtR(jurosRecuperado)}</strong>
-              </div>
-              <div style={{borderTop:`1px dashed ${BD}`,paddingTop:7,display:"flex",justifyContent:"space-between",fontSize:13}}>
-                <span style={{color:RED,fontWeight:700}}>Prejuízo real (capital perdido)</span>
-                <strong style={{color:RED}}>{fmtR(descontoPrincipal)}</strong>
-              </div>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}>
-                <span style={{color:ORG,fontWeight:700}}>Juros cancelados (não é prejuízo)</span>
-                <strong style={{color:ORG}}>{fmtR(descontoJuros)}</strong>
+          <div style={{marginBottom:18}}>
+            <span style={LS()}>Valor recebido no encerramento (R$)</span>
+            <input type="number" value={valorRecebido} onChange={e=>{setValorRecebido(e.target.value);setMsg(null);}} placeholder="0,00 — sem valor = baixa como prejuízo" style={{...IS(),fontSize:18,fontWeight:800,height:52,textAlign:"center"}}/>
+          </div>
+          {!isBaixa&&(
+            <div style={{background:ORG+"0D",border:`1px solid ${ORG}30`,borderRadius:10,padding:14,marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:ORG,marginBottom:10,textTransform:"uppercase"}}>Resumo Contábil do Acordo</div>
+              <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:MUTED}}>Principal recuperado</span><strong style={{color:GRN}}>{fmtR(princRecupAcordo)}</strong></div>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:MUTED}}>Juros recebidos</span><strong style={{color:GRN}}>{fmtR(jurosRecupAcordo)}</strong></div>
+                <div style={{borderTop:`1px dashed ${BD}`,paddingTop:7,display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:RED,fontWeight:700}}>Prejuízo real (capital perdido)</span><strong style={{color:RED}}>{fmtR(descPrinc)}</strong></div>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:ORG,fontWeight:700}}>Juros cancelados (não é prejuízo)</span><strong style={{color:ORG}}>{fmtR(descJuros)}</strong></div>
+                {descPrinc===0&&<div style={{marginTop:4,fontSize:11,color:GRN,fontWeight:700}}>✓ Principal inteiramente recuperado — apenas juros cancelados</div>}
               </div>
             </div>
-            {descontoPrincipal===0&&<div style={{marginTop:8,fontSize:11,color:GRN,fontWeight:700}}>✓ Principal inteiramente recuperado — apenas juros cancelados</div>}
+          )}
+          {isBaixa&&(
+            <div style={{background:RED+"0D",border:`1px solid ${RED}30`,borderRadius:10,padding:14,marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:RED,marginBottom:10,textTransform:"uppercase"}}>Impacto na Baixa</div>
+              <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:MUTED}}>Prejuízo de capital</span><strong style={{color:RED}}>{fmtR(prejCap)}</strong></div>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:MUTED}}>Juros não realizados</span><strong style={{color:ORG}}>{fmtR(jurosNaoReal)}</strong></div>
+              </div>
+            </div>
+          )}
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            {isBaixa&&<>
+              {campo("Substatus","substatus",[{v:"CLIENTE_DESAPARECIDO",l:"Cliente Desaparecido"},{v:"SEM_BENS_PENHORAVEIS",l:"Sem Bens/Renda"},{v:"FALECIMENTO",l:"Falecimento"},{v:"FRAUDE_IDENTIFICADA",l:"Má-fé aparente"},{v:"ACORDO_VALOR_IRRISORIO",l:"Acordo Irrisório"}])}
+              {campo("Motivo Detalhado (Obrigatório)","motivo")}
+              {campo("Possibilidade de Recuperação","possibilidadeRecuperacao",[{v:"BAIXA",l:"Baixa"},{v:"RECURSOS_FUTUROS",l:"Remota"},{v:"JUDICIAL",l:"Judicial"}])}
+              {campo("Status Jurídico","statusJuridico",[{v:"NAO_ANALISADO",l:"Não analisado"},{v:"ANALISE_INTERNA",l:"Análise Interna"},{v:"PROCESSO_AJUIZADO",l:"Processo Ajuizado"}])}
+              <div><span style={LS()}>Próxima Providência</span><input value={dados.proximaProvidencia} onChange={e=>setDados(p=>({...p,proximaProvidencia:e.target.value}))} style={IS()}/></div>
+            </>}
+            {!isBaixa&&<div><span style={LS()}>Meio de Recebimento</span><div style={{...IS(),display:"flex",alignItems:"center",gap:6,color:GRN,fontWeight:700}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>PIX</div></div>}
+            <div><span style={LS()}>Observação</span><textarea value={dados.observacao} onChange={e=>setDados(p=>({...p,observacao:e.target.value}))} style={{...IS(),height:72,resize:"none"}}/></div>
           </div>
-        )}
-
-        {/* Forma e observação */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-          <div><span style={LS()}>Forma</span><select value={forma} onChange={e=>setForma(e.target.value)} style={IS()}><option value="dinheiro">Dinheiro</option><option value="pix">PIX</option><option value="transferencia">Transferência</option></select></div>
-          <div><span style={LS()}>Observação</span><input value={observacao} onChange={e=>setObservacao(e.target.value)} placeholder="Opcional" style={IS()}/></div>
-        </div>
-
-        {msg&&<div style={{marginBottom:12,padding:10,borderRadius:8,background:RED+"10",color:RED,fontSize:13,textAlign:"center",fontWeight:600}}>{msg}</div>}
-
+          {msg&&<div style={{marginTop:14,padding:12,borderRadius:8,background:RED+"10",color:RED,fontSize:13,textAlign:"center",fontWeight:600}}>{msg}</div>}
         </div>
         <div style={{padding:"14px 20px",borderTop:`1px solid ${BD}`,display:"flex",gap:10,flexShrink:0}}>
           <button onClick={onFechar} style={{...BTN6(),flex:1}}>Cancelar</button>
-          <button onClick={confirmar} disabled={loading||vAcordo<=0} style={{...BTN1(loading||vAcordo<=0),flex:2}}>{loading?<><IcoSpinner color="#1B3305"/> Processando...</>:"Confirmar Acordo"}</button>
+          <button onClick={confirmar} disabled={loading} style={{...(isBaixa?BTN4(loading):BTN5(ORG)),flex:2,opacity:loading?0.6:1}}>{loading?<><IcoSpinner color={isBaixa?"#fff":ORG}/> Processando...</>:isBaixa?"Baixar como Prejuízo":"Confirmar Acordo"}</button>
         </div>
       </div>
     </div>
   );
 }
 
-function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
+function QuitacaoAntecipadaModal({contrato, parcelas, clientes, quitacoes, onConfirmar, onFechar, onVerContrato}){
   const abertas = useMemo(()=>(parcelas||[]).filter(p=>
     String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO) &&
-    !["pago","cancelado","baixado_como_prejuizo","renegociado","quitacao_antecipada"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase())
+    !_ST_TERMINAL.has(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase())
   ).sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0)),[parcelas,contrato]);
+
+  // Proposta PIX PENDENTE já existente para esse contrato
+  const propostaExistente = useMemo(()=>(quitacoes||[]).find(q=>
+    String(q.ID_CONTRATO)===String(contrato.ID_CONTRATO) &&
+    String(q.STATUS||"").toUpperCase()==="PENDENTE"
+  )||null,[quitacoes,contrato]);
+
+  // "form" | "pix" | "manual"
+  const [view, setView] = useState(()=>propostaExistente?"pix":"form");
 
   const [selecionadas, setSelecionadas] = useState(()=>new Set((abertas||[]).map(p=>p.ID_PARCELA)));
   const [desconto, setDesconto]         = useState("");
-  const [forma, setForma]               = useState("dinheiro");
+  const [pct, setPct]                   = useState("");
   const [observacao, setObservacao]     = useState("");
+  // manual flow
+  const [dataPag, setDataPag]           = useState(hojeStr());
+  // pix flow
+  const [pixCode, setPixCode]           = useState(()=>propostaExistente?.EFI_PIX_CODE||"");
+  const [propostaId, setPropostaId]     = useState(()=>propostaExistente?.ID_QUITACAO||"");
+  const [valorPix, setValorPix]         = useState(()=>parseFloat(propostaExistente?.VALOR_FINAL||0));
+  const [pixCopiado, setPixCopiado]     = useState(false);
   const [loading, setLoading]           = useState(false);
   const [msg, setMsg]                   = useState(null);
+  const [confirmado, setConfirmado]     = useState(null);
 
   const toggle = id => setSelecionadas(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
   const toggleTodas = () => setSelecionadas(selecionadas.size===abertas.length?new Set():new Set(abertas.map(p=>p.ID_PARCELA)));
 
-  const parcelasSel = abertas.filter(p=>selecionadas.has(p.ID_PARCELA));
+  const parcelasSel    = abertas.filter(p=>selecionadas.has(p.ID_PARCELA));
   const totalPrincipal = parcelasSel.reduce((s,p)=>s+parseFloat(p.VALOR_PRINCIPAL||0),0);
   const totalJuros     = parcelasSel.reduce((s,p)=>s+parseFloat(p.VALOR_JUROS||0),0);
   const descontoNum    = Math.min(parseFloat(desconto)||0, totalJuros);
   const totalCobrar    = totalPrincipal + totalJuros - descontoNum;
-  const todasSel       = selecionadas.size === abertas.length;
+  const todasSel       = selecionadas.size === abertas.length && abertas.length > 0;
+  const tituloModal    = todasSel ? "Quitação Antecipada" : "Amortização Antecipada";
+  const faixaSel       = parseFloat(pct)>0 ? ([25,40,60].find(f=>Math.abs(f-parseFloat(pct))<0.5)||null) : null;
+  const aplicarFaixa   = f => { setPct(String(f)); setDesconto(totalJuros>0?(totalJuros*f/100).toFixed(2):"0.00"); };
+  const onChangePct    = v => { setPct(v); if(totalJuros>0) setDesconto((totalJuros*parseFloat(v||0)/100).toFixed(2)); };
+  const onChangeDescR  = v => { setDesconto(v); setPct(totalJuros>0?((parseFloat(v||0)/totalJuros)*100).toFixed(1):""); };
 
-  const confirmar = async()=>{
-    if(selecionadas.size===0){setMsg("Selecione ao menos uma parcela.");return;}
+  const enviarPropostaWpp = () => {
+    const cli   = (clientes||[]).find(c=>String(c.ID_CLIENTE)===String(contrato.ID_CLIENTE))||{};
+    const tel   = normTel(cli.TELEFONE_WPP||cli.TELEFONE||contrato.TELEFONE_WPP||contrato.TELEFONE||"");
+    if(!tel||tel.length<10){alert("Telefone do cliente não encontrado no cadastro.");return;}
+    const todasP  = (parcelas||[]).filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
+    const pagas   = todasP.filter(p=>["pago","quitacao_antecipada"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase())).length;
+    const semDesc = totalPrincipal + totalJuros;
+    const nSel    = parcelasSel.length;
+    const primeiroNome = contrato.NOME_CLIENTE.split(' ')[0];
+    const jaRecuperadoWpp = parseFloat(contrato.VALOR_RECUPERADO_APOS_BAIXA||0);
+    const isLossWpp = ["baixado_como_prejuizo","em_recuperacao","recuperado_parcialmente"].includes(contrato.STATUS_CONTRATO) && jaRecuperadoWpp > 0;
+    const semDescEfetivo     = isLossWpp ? Math.max(0, semDesc - jaRecuperadoWpp)     : semDesc;
+    const totalCobrarEfetivo = isLossWpp ? Math.max(0, totalCobrar - jaRecuperadoWpp) : totalCobrar;
+    const secDesc = todasSel
+      ? (descontoNum>0
+          ? ['\n','💰 Condição especial para quitação à vista hoje:','','De: ~'+fmtR(semDescEfetivo)+'~','Por: *'+fmtR(totalCobrarEfetivo)+'*','','Essa condição representa um *DESCONTO de '+fmtR(descontoNum)+'* sobre o saldo em aberto.','','Caso tenha interesse em aproveitar esta proposta, basta me informar que encaminho os dados para pagamento.'].join('\n')
+          : '\n\n💰 Valor para quitação à vista hoje: *'+fmtR(semDescEfetivo)+'*\n\nCaso tenha interesse, basta me informar que encaminho os dados para pagamento.')
+      : (descontoNum>0
+          ? ['\n','💰 Condição especial para adiantamento à vista hoje:','','De: ~'+fmtR(semDescEfetivo)+'~','Por: *'+fmtR(totalCobrarEfetivo)+'*','','Essa condição representa um *DESCONTO de '+fmtR(descontoNum)+'* sobre o valor das parcelas.','','Caso tenha interesse em aproveitar esta proposta, basta me informar que encaminho os dados para pagamento.'].join('\n')
+          : '\n\n💰 Valor para adiantamento à vista hoje: *'+fmtR(semDescEfetivo)+'*\n\nCaso tenha interesse, basta me informar que encaminho os dados para pagamento.');
+    const linhas = todasSel
+      ? [primeiroNome+',','','Esta é a condição especial para a quitação antecipada do seu contrato.','','📋 Resumo do contrato:','• Contrato: '+contrato.ID_CONTRATO,'• Data da contratação: '+fmtDt(contrato.DATA_EMPRESTIMO||contrato.DATA_EMISSAO||contrato.DATA_CONTRATO),'• Total de parcelas: '+todasP.length,'• Parcelas já pagas: '+pagas,...(isLossWpp?['• Total já pago até hoje: '+fmtR(jaRecuperadoWpp)]:[]),'• Saldo das parcelas restantes: '+fmtR(semDescEfetivo)]
+      : [primeiroNome+',','','Esta é a condição especial para o adiantamento de '+nSel+' parcela(s) do seu contrato.','','📋 Resumo das parcelas:','• Contrato: '+contrato.ID_CONTRATO,'• Data da contratação: '+fmtDt(contrato.DATA_EMPRESTIMO||contrato.DATA_EMISSAO||contrato.DATA_CONTRATO),'• Total de parcelas do contrato: '+todasP.length,'• Parcelas selecionadas: '+nSel,...(isLossWpp?['• Total já pago até hoje: '+fmtR(jaRecuperadoWpp)]:[]),'• Valor das parcelas selecionadas: '+fmtR(semDescEfetivo)];
+    const msgWpp = linhas.join('\n') + secDesc;
+    const url = 'https://api.whatsapp.com/send?phone=55'+tel+'&text='+encodeURIComponent(msgWpp);
+    const a = document.createElement('a'); a.href=url; a.target='_blank'; a.rel='noopener noreferrer';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  };
+
+  // Gera proposta no GAS + cobv na Efí
+  const gerarPix = async()=>{
+    if(selecionadas.size===0){setMsg({ok:false,t:"Selecione ao menos uma parcela."});return;}
+    setLoading(true);setMsg(null);
+    // 1) Criar proposta no GAS
+    const cli = (clientes||[]).find(c=>String(c.ID_CLIENTE)===String(contrato.ID_CLIENTE))||{};
+    const resP = await postAction({action:"gerarPropostaQuitacaoPix",dados:{
+      idContrato:           contrato.ID_CONTRATO,
+      idCliente:            contrato.ID_CLIENTE,
+      nomeCliente:          contrato.NOME_CLIENTE,
+      parcelasSelecionadas: [...selecionadas],
+      descontoJuros:        descontoNum,
+      observacao
+    }});
+    if(!resP.ok){setMsg({ok:false,t:resP.erro||"Erro ao criar proposta."});setLoading(false);return;}
+
+    const idQuit   = resP.idQuitacao;
+    const txid     = resP.txid;
+    const vlFinal  = resP.valorFinal || totalCobrar;
+    setPropostaId(idQuit);
+    setValorPix(vlFinal);
+
+    // Se proposta já existia com PIX code, apenas exibir
+    if(resP.jaExistia && resP.pixCopiaECola){
+      setPixCode(resP.pixCopiaECola);
+      setView("pix");
+      setLoading(false);
+      return;
+    }
+
+    // 2) Gerar cobv na Efí
+    const cpf = String(cli.CPF||"").replace(/\D/g,"");
+    const resPix = await fetch("/api/efi-quitacao",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        idContrato: contrato.ID_CONTRATO,
+        idQuitacao: idQuit,
+        txidProposta: txid,
+        valorFinal: vlFinal,
+        cliente:{cpf,nome:contrato.NOME_CLIENTE}
+      })
+    }).then(r=>r.json()).catch(e=>({erro:e.message}));
+
+    if(resPix.ok && resPix.pixCopiaECola){
+      setPixCode(resPix.pixCopiaECola);
+      setView("pix");
+    } else {
+      setMsg({ok:false,t:resPix.erro||"Erro ao gerar PIX na Efí."});
+    }
+    setLoading(false);
+  };
+
+  const cancelarPix = async()=>{
+    if(!window.confirm("Cancelar a proposta PIX pendente? O cliente não poderá mais pagar por esse código.")) return;
+    setLoading(true);
+    await postAction({action:"cancelarPropostaQuitacao",dados:{
+      idContrato:  contrato.ID_CONTRATO,
+      idCliente:   contrato.ID_CLIENTE,
+      nomeCliente: contrato.NOME_CLIENTE
+    }});
+    setPixCode(""); setPropostaId(""); setValorPix(0);
+    setView("form"); setLoading(false);
+  };
+
+  // Registro manual (dinheiro/transferência — não usa PIX Efí)
+  const confirmarManual = async()=>{
+    if(selecionadas.size===0){setMsg({ok:false,t:"Selecione ao menos uma parcela."});return;}
     setLoading(true);setMsg(null);
     const res = await postAction({action:"quitacaoAntecipada",dados:{
       idContrato: contrato.ID_CONTRATO,
       parcelasSelecionadas: [...selecionadas],
       descontoJuros: descontoNum,
-      data: hojeStr(),
-      forma,
+      data: dataPag,
+      forma: "pix",
       observacao
     }});
     if(res.ok){
       const r = res.resultado||{};
-      setMsg({ok:true, t:`${r.parcelasQuitadas||selecionadas.size} parcela(s) quitadas. Recebido: ${fmtR(r.totalRecebido||totalCobrar)}${r.contratoQuitado?" · Contrato QUITADO ✓":""}`});
-      setTimeout(()=>onConfirmar(contrato), 1800);
+      if(res.idUndo&&_registrarUndoAtivo)_registrarUndoAtivo({idUndo:res.idUndo,tipo:"QUITACAO_ANTECIPADA",idContrato:contrato.ID_CONTRATO,nomeCliente:contrato.NOME_CLIENTE||"",segundosRestantes:900});
+      setConfirmado(r);
+      if(!r.contratoQuitado){
+        setMsg({ok:true, t:`${r.parcelasQuitadas||selecionadas.size} parcela(s) registradas. Recebido: ${fmtR(r.totalRecebido||totalCobrar)}`});
+        setTimeout(()=>onConfirmar(contrato), 1800);
+      }
     } else {
       setMsg({ok:false, t:res.erro||"Erro ao processar."});
     }
     setLoading(false);
   };
 
+  const copiarPix = ()=>{
+    if(!pixCode) return;
+    navigator.clipboard.writeText(pixCode).then(()=>{
+      setPixCopiado(true);
+      setTimeout(()=>setPixCopiado(false), 2500);
+    }).catch(()=>{ const el=document.createElement("textarea");el.value=pixCode;document.body.appendChild(el);el.select();document.execCommand("copy");document.body.removeChild(el);setPixCopiado(true);setTimeout(()=>setPixCopiado(false),2500); });
+  };
+
+  const headerIcon = view==="pix"
+    ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3m0 4h4M21 14h.01M21 17h.01M18 21h.01"/></svg>
+    : IcoZap;
+
   return(
     <div className="modal-overlay-anim" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onFechar}>
       <div className="modal-box-anim" onClick={e=>e.stopPropagation()} style={{background:CARD,borderRadius:16,width:"100%",maxWidth:620,maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 24px 80px rgba(0,0,0,0.28)",border:`1px solid ${BD}`,overflow:"hidden",minWidth:0}}>
 
+        {/* Header */}
         <div style={{padding:"18px 24px",borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
           <div>
-            <div style={{fontSize:18,fontWeight:800,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.02em",color:TEXT}}>{IcoZap} Quitação Antecipada</div>
+            <div style={{fontSize:18,fontWeight:800,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.02em",color:TEXT}}>{headerIcon} {tituloModal}</div>
             <div style={{fontSize:12,color:MUTED,marginTop:3}}>{contrato.ID_CONTRATO} · {contrato.NOME_CLIENTE}</div>
           </div>
           <button className="modal-close-btn" onClick={onFechar} style={{background:"transparent",border:"none",width:32,height:32,borderRadius:8,cursor:"pointer",color:MUTED,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -1045,94 +1739,662 @@ function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
 
         <div style={{flex:1,overflowY:"auto",padding:20,display:"flex",flexDirection:"column",gap:16}}>
 
-          {/* Lista de parcelas */}
-          <div>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-              <span style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase"}}>Parcelas em Aberto ({abertas.length})</span>
-              <button onClick={toggleTodas} style={{fontSize:11,fontWeight:700,color:ORG,background:"none",border:`1px solid ${ORG}40`,borderRadius:6,padding:"4px 10px",cursor:"pointer"}}>
-                {todasSel?"Desmarcar todas":"Selecionar todas"}
-              </button>
-            </div>
-            {abertas.length===0
-              ? <div style={{padding:12,background:GRN+"08",borderRadius:8,color:GRN,fontSize:13,fontWeight:700}}>Nenhuma parcela em aberto.</div>
-              : <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                  {abertas.map(p=>{
-                    const sel = selecionadas.has(p.ID_PARCELA);
-                    const _stEf = statusEfetivo(p);
-                    const stCor = {pendente:BLU,atrasado:RED,vence_hoje:ORG}[_stEf]||MUTED;
-                    return(
-                      <div key={p.ID_PARCELA} onClick={()=>toggle(p.ID_PARCELA)}
-                        style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:9,border:`2px solid ${sel?ORG:BD}`,background:sel?ORG+"06":CARD,cursor:"pointer",transition:"all 0.12s"}}
-                      >
-                        <div style={{width:18,height:18,borderRadius:5,border:`2px solid ${sel?GRN:BD}`,background:sel?GRN:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                          {sel&&<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2" fill="none" stroke="#fff" strokeWidth="1.8"/></svg>}
-                        </div>
-                        <div style={{flex:1,display:"flex",justifyContent:"space-between",alignItems:"center",minWidth:0}}>
-                          <div>
-                            <div style={{fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS} · venc. {fmtDt(p.DATA_VENCIMENTO)}{isUltima(p,todasParcelas)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 6px",borderRadius:99}}>última</span>}</div>
-                            <div style={{fontSize:11,color:MUTED,marginTop:2}}>Principal: {fmtR(p.VALOR_PRINCIPAL||0)} · Juros: {fmtR(p.VALOR_JUROS||0)}</div>
-                          </div>
-                          <div style={{textAlign:"right",flexShrink:0}}>
-                            <div style={{fontSize:13,fontWeight:800}}>{fmtR(p.VALOR_PARCELA||0)}</div>
-                            <Badge c={stCor}>{_ST_LABEL[_stEf]||_stEf}</Badge>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+          {/* ── VIEW: PIX AGUARDANDO ── */}
+          {view==="pix"&&!confirmado&&(
+            <>
+              <div style={{padding:16,borderRadius:12,background:GRN+"08",border:`1px solid ${GRN}30`,display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:10,height:10,borderRadius:99,background:GRN,boxShadow:`0 0 0 3px ${GRN}30`,flexShrink:0}}/>
+                  <span style={{fontSize:13,fontWeight:800,color:GRN}}>PIX gerado — aguardando pagamento do cliente</span>
                 </div>
-            }
-          </div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13}}>
+                  <span style={{color:MUTED}}>Valor</span>
+                  <strong style={{color:TEXT,fontSize:17}}>{fmtR(valorPix)}</strong>
+                </div>
+                {pixCode?(
+                  <div>
+                    <span style={{fontSize:10,fontWeight:700,color:MUTED,textTransform:"uppercase"}}>Copia e Cola</span>
+                    <div style={{display:"flex",gap:8,marginTop:4}}>
+                      <div style={{flex:1,background:BG,borderRadius:8,border:`1px solid ${BD}`,padding:"8px 10px",fontSize:10,fontFamily:"monospace",overflowX:"auto",wordBreak:"break-all",color:TEXT,maxHeight:56,overflowY:"hidden"}}>{pixCode}</div>
+                      <button onClick={copiarPix} style={{padding:"8px 14px",borderRadius:8,border:"none",background:pixCopiado?GRN:ACC,color:"#07241B",fontWeight:800,fontSize:11,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>
+                        {pixCopiado?"✓ Copiado!":"Copiar"}
+                      </button>
+                    </div>
+                    <div style={{fontSize:10,color:MUTED,marginTop:4}}>Expira em 48h após a geração · O sistema registra automaticamente ao confirmar</div>
+                  </div>
+                ):(
+                  <div style={{fontSize:12,color:MUTED,fontStyle:"italic"}}>Gerando código PIX...</div>
+                )}
+              </div>
+              <div style={{fontSize:12,color:MUTED,padding:"8px 12px",borderRadius:8,background:BLU+"08",border:`1px solid ${BLU}20`}}>
+                O pagamento é confirmado <strong style={{color:TEXT}}>automaticamente</strong> pelo webhook da Efí Bank. Não é necessário registrar manualmente após o cliente pagar.
+              </div>
+              <button onClick={cancelarPix} disabled={loading} style={{alignSelf:"flex-start",padding:"6px 14px",borderRadius:8,border:`1px solid ${RED}40`,background:"transparent",color:RED,fontWeight:700,fontSize:11,cursor:loading?"not-allowed":"pointer"}}>
+                {loading?<IcoSpinner color={RED}/>:"Cancelar proposta"}
+              </button>
+            </>
+          )}
 
-          {/* Desconto nos juros */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            <div>
-              <span style={LS()}>Desconto nos Juros (R$)</span>
-              <input type="number" value={desconto} onChange={e=>setDesconto(e.target.value)} placeholder="0.00" min="0" max={totalJuros} style={IS()}/>
-              {totalJuros>0&&<div style={{fontSize:10,color:MUTED,marginTop:3}}>Máx: {fmtR(totalJuros)}</div>}
+          {/* ── VIEW: FORM (seleção de parcelas + desconto) ── */}
+          {view==="form"&&!confirmado&&(
+            <>
+              {/* Lista de parcelas */}
+              <div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <span style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase"}}>Parcelas em Aberto ({abertas.length})</span>
+                  <button onClick={toggleTodas} style={{fontSize:11,fontWeight:700,color:ORG,background:"none",border:`1px solid ${ORG}40`,borderRadius:6,padding:"4px 10px",cursor:"pointer"}}>
+                    {todasSel?"Desmarcar todas":"Selecionar todas"}
+                  </button>
+                </div>
+                {abertas.length===0
+                  ? <div style={{padding:12,background:GRN+"08",borderRadius:8,color:GRN,fontSize:13,fontWeight:700}}>Nenhuma parcela em aberto.</div>
+                  : <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      {abertas.map(p=>{
+                        const sel  = selecionadas.has(p.ID_PARCELA);
+                        const _stEf = statusEfetivo(p);
+                        const stCor = {pendente:BLU,atrasado:RED,vence_hoje:ORG}[_stEf]||MUTED;
+                        return(
+                          <div key={p.ID_PARCELA} onClick={()=>toggle(p.ID_PARCELA)}
+                            style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:9,border:`2px solid ${sel?ORG:BD}`,background:sel?ORG+"06":CARD,cursor:"pointer",transition:"all 0.12s"}}
+                          >
+                            <div style={{width:18,height:18,borderRadius:5,border:`2px solid ${sel?GRN:BD}`,background:sel?GRN:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                              {sel&&<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2" fill="none" stroke="#fff" strokeWidth="1.8"/></svg>}
+                            </div>
+                            <div style={{flex:1,display:"flex",justifyContent:"space-between",alignItems:"center",minWidth:0}}>
+                              <div>
+                                <div style={{fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS} · venc. {fmtDt(p.DATA_VENCIMENTO)}{isUltima(p,parcelas)&&<span style={{fontSize:9,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 6px",borderRadius:99}}>última</span>}</div>
+                                <div style={{fontSize:11,color:MUTED,marginTop:2}}>Principal: {fmtR(p.VALOR_PRINCIPAL||0)} · Juros: {fmtR(p.VALOR_JUROS||0)}</div>
+                              </div>
+                              <div style={{textAlign:"right",flexShrink:0}}>
+                                <div style={{fontSize:13,fontWeight:800}}>{fmtR(p.VALOR_PARCELA||0)}</div>
+                                <Badge c={stCor}>{_ST_LABEL[_stEf]||_stEf}</Badge>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                }
+              </div>
+
+              {/* Desconto */}
+              <div>
+                <span style={LS()}>Desconto nos Juros</span>
+                <div style={{display:"flex",gap:6,alignItems:"center",marginTop:6,flexWrap:"wrap"}}>
+                  {[25,40,60].map(f=>(
+                    <button key={f} onClick={()=>aplicarFaixa(f)} style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${faixaSel===f?ACC:BD}`,background:faixaSel===f?ACC+"20":"transparent",color:faixaSel===f?GRN:TEXT,fontWeight:800,fontSize:12,cursor:"pointer",flexShrink:0}}>{f}%</button>
+                  ))}
+                  <input type="number" value={pct} onChange={e=>onChangePct(e.target.value)} placeholder="%" min="0" max="100" style={{...IS(),width:68,flexShrink:0,textAlign:"center"}}/>
+                  <span style={{color:MUTED,fontSize:13,flexShrink:0,padding:"0 2px"}}>→ R$</span>
+                  <input type="number" value={desconto} onChange={e=>onChangeDescR(e.target.value)} placeholder="0.00" min="0" style={{...IS(),flex:1,minWidth:100}}/>
+                </div>
+                {totalJuros>0&&<div style={{fontSize:10,color:MUTED,marginTop:3}}>Máx: {fmtR(totalJuros)} (100% dos juros)</div>}
+              </div>
+
+              {/* Observação */}
+              <div>
+                <span style={LS()}>Observação</span>
+                <input value={observacao} onChange={e=>setObservacao(e.target.value)} placeholder="Opcional" style={IS()}/>
+              </div>
+
+              {/* Preview de valores */}
+              {parcelasSel.length>0&&(
+                <div style={{background:ORG+"06",border:`1px solid ${ORG}25`,borderRadius:10,padding:14}}>
+                  <div style={{fontSize:11,fontWeight:700,color:ORG,marginBottom:10,textTransform:"uppercase"}}>{tituloModal} — {parcelasSel.length} parcela(s)</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:MUTED}}>Principal</span><strong>{fmtR(totalPrincipal)}</strong></div>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:MUTED}}>Juros originais</span><strong>{fmtR(totalJuros)}</strong></div>
+                    {descontoNum>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:GRN}}>Desconto concedido</span><strong style={{color:GRN}}>− {fmtR(descontoNum)}</strong></div>}
+                    <div style={{borderTop:`1px solid ${ORG}20`,paddingTop:8,display:"flex",justifyContent:"space-between",fontSize:15}}>
+                      <span style={{fontWeight:700}}>Total a Receber</span>
+                      <strong style={{color:ORG,fontSize:17}}>{fmtR(totalCobrar)}</strong>
+                    </div>
+                    {todasSel&&<div style={{fontSize:11,color:GRN,fontWeight:700}}>✓ Todas as parcelas selecionadas → contrato será marcado como Quitado</div>}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── VIEW: MANUAL ── */}
+          {view==="manual"&&!confirmado&&(
+            <>
+              <div style={{padding:"10px 14px",borderRadius:8,background:GRN+"08",border:`1px solid ${GRN}25`,fontSize:12,color:GRN,fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>
+                Registro de recebimento via PIX
+              </div>
+              <div>
+                <span style={LS()}>Data do Pagamento</span>
+                <input type="date" value={dataPag} onChange={e=>setDataPag(e.target.value)} style={IS()}/>
+              </div>
+              {/* Parcelas selecionadas herdadas do form */}
+              <div style={{fontSize:12,color:MUTED}}>{selecionadas.size} parcela(s) selecionadas · {fmtR(totalCobrar)}</div>
+            </>
+          )}
+
+          {/* Confirmado */}
+          {confirmado?.contratoQuitado&&(
+            <div style={{padding:20,borderRadius:12,background:GRN+"0C",border:`1px solid ${GRN}30`,textAlign:"center"}}>
+              <div style={{fontSize:20,fontWeight:900,color:GRN,marginBottom:6,letterSpacing:"-0.02em"}}>✓ Contrato Quitado!</div>
+              <div style={{fontSize:13,color:MUTED,marginBottom:4}}>{confirmado.parcelasQuitadas} parcela(s) liquidadas</div>
+              <div style={{fontSize:16,fontWeight:800,color:TEXT}}>Recebido: {fmtR(confirmado.totalRecebido)}</div>
+              {confirmado.descontoJuros>0&&<div style={{fontSize:12,color:GRN,marginTop:4}}>Desconto concedido: {fmtR(confirmado.descontoJuros)}</div>}
             </div>
-            <div>
-              <span style={LS()}>Forma de Pagamento</span>
-              <select value={forma} onChange={e=>setForma(e.target.value)} style={IS()}>
-                <option value="dinheiro">Dinheiro</option>
-                <option value="pix">PIX</option>
-                <option value="transferencia">Transferência</option>
+          )}
+
+          {msg&&!confirmado?.contratoQuitado&&(
+            <div style={{padding:"10px 14px",borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:13,fontWeight:700,textAlign:"center",border:`1px solid ${msg.ok?GRN:RED}25`}}>{msg.t}</div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{padding:"14px 20px",borderTop:`1px solid ${BD}`,display:"flex",gap:10,flexShrink:0,flexWrap:"wrap"}}>
+          {confirmado?.contratoQuitado?(
+            <>
+              <button onClick={()=>onConfirmar(contrato)} style={{...BTN6(),flex:1}}>Fechar</button>
+              {onVerContrato&&<button onClick={()=>onVerContrato(contrato)} style={{...BTN1(false),flex:2}}>Ver Contrato e Comprovante</button>}
+            </>
+          ):view==="pix"?(
+            <>
+              <button onClick={onFechar} style={{...BTN6(),flex:1}}>Fechar</button>
+              {pixCode&&<button onClick={copiarPix} style={{padding:"13px 14px",borderRadius:9999,border:"none",background:pixCopiado?GRN:BLU,color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",flex:1.5,whiteSpace:"nowrap"}}>{pixCopiado?"✓ Copiado!":"Copiar PIX"}</button>}
+            </>
+          ):view==="manual"?(
+            <>
+              <button onClick={()=>setView("form")} style={{...BTN6(),flex:1}}>Voltar</button>
+              <button onClick={confirmarManual} disabled={loading||selecionadas.size===0} style={{...BTN1(loading||selecionadas.size===0),flex:2}}>
+                {loading?<><IcoSpinner color="#07241B"/> Processando...</>:"Confirmar Registro Manual"}
+              </button>
+            </>
+          ):(
+            <>
+              <button onClick={onFechar} style={{...BTN6(),flex:"0 0 auto",minWidth:80}}>Cancelar</button>
+              <button onClick={enviarPropostaWpp} disabled={parcelasSel.length===0} style={{padding:"13px 12px",borderRadius:9999,border:"none",background:parcelasSel.length===0?MUTED+"80":"#25D366",color:"#fff",fontWeight:800,fontSize:12,cursor:parcelasSel.length===0?"not-allowed":"pointer",flex:"0 0 auto",whiteSpace:"nowrap"}}>
+                Proposta WPP
+              </button>
+              <button onClick={()=>setView("manual")} disabled={selecionadas.size===0} style={{padding:"13px 12px",borderRadius:9999,border:`1.5px solid ${BD}`,background:"transparent",color:MUTED,fontWeight:700,fontSize:11,cursor:selecionadas.size===0?"not-allowed":"pointer",flex:"0 0 auto",whiteSpace:"nowrap"}}>
+                Manual
+              </button>
+              <button onClick={gerarPix} disabled={loading||selecionadas.size===0} style={{...BTN1(loading||selecionadas.size===0),flex:1,minWidth:120,whiteSpace:"nowrap"}}>
+                {loading?<><IcoSpinner color="#07241B"/> Gerando PIX...</>:<>{headerIcon} <span style={{marginLeft:6}}>{todasSel?"Gerar PIX de Quitação":"Gerar PIX de Amortização"}</span></>}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AjuizarModal({contrato, onSucesso, onFechar}){
+  const [dados,setDados]=useState({
+    NUMERO_PROCESSO:"",DATA_AJUIZAMENTO:hojeStr(),VARA:"",COMARCA:"",
+    STATUS_PROCESSO:"EM_PREPARACAO",VALOR_EXECUTADO:String(parseFloat(contrato?.VALOR_TOTAL||contrato?.VALOR_PRINCIPAL||0)||""),
+    OBSERVACOES_JURIDICAS:"",LINK_PROCESSO:"",CODIGO_ACESSO_PROCESSO:"",
+    PROXIMA_ACAO:"",DATA_PROXIMA_ACAO:""
+  });
+  const [loading,setLoading]=useState(false);
+  const [erro,setErro]=useState("");
+  const mob=useIsMobile();
+  const set=f=>e=>setDados(p=>({...p,[f]:e.target.value}));
+  const salvar=async()=>{
+    if(!dados.NUMERO_PROCESSO.trim()&&!dados.DATA_AJUIZAMENTO){setErro("Número do processo ou data de ajuizamento é obrigatório.");return;}
+    setLoading(true);setErro("");
+    try{
+      const res=await postAction({action:"ajuizarContrato",idContrato:contrato.ID_CONTRATO,dados});
+      if(res.ok){onSucesso&&onSucesso();onFechar();}
+      else setErro(res.erro||"Erro ao ajuizar.");
+    }catch(e){setErro(e.message);}
+    setLoading(false);
+  };
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:mob?0:16}} onClick={onFechar}>
+      <div onClick={e=>e.stopPropagation()} style={{background:CARD,borderRadius:mob?0:16,width:"100%",maxWidth:480,maxHeight:mob?"100dvh":"90vh",overflowY:"auto",boxShadow:"0 30px 90px rgba(0,0,0,0.32)",border:mob?"none":`1px solid ${BD}`}}>
+        <div style={{padding:"18px 22px",borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
+          <div><h2 style={{color:RED,fontSize:18,fontWeight:800,margin:0,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.02em"}}>{IcoJur} Ajuizar Contrato</h2><p style={{fontSize:12,color:MUTED,margin:"4px 0 0"}}>{contrato?.ID_CONTRATO} · {contrato?.NOME_CLIENTE}</p></div>
+          <button onClick={onFechar} style={{background:"transparent",border:"none",color:MUTED,cursor:"pointer",fontSize:18,lineHeight:1,padding:4}}>×</button>
+        </div>
+        <div style={{padding:"18px 22px",display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{background:RED+"08",border:`1px solid ${RED}30`,borderRadius:8,padding:"10px 12px",fontSize:12,color:RED,fontWeight:600,display:"flex",alignItems:"center",gap:8}}>{IcoAlert} O contrato passará para status <strong>Em Processo Judicial</strong> e o cliente será marcado como judicializado.</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div style={{gridColumn:"1/-1"}}><span style={LS()}>Nº do Processo (CNJ)</span><input value={dados.NUMERO_PROCESSO} onChange={set("NUMERO_PROCESSO")} placeholder="0000000-00.0000.0.00.0000" style={IS()}/></div>
+            <div><span style={LS()}>Data do Ajuizamento</span><input type="date" value={dados.DATA_AJUIZAMENTO} onChange={set("DATA_AJUIZAMENTO")} style={IS()}/></div>
+            <div><span style={LS()}>Valor Executado (R$)</span><input type="number" value={dados.VALOR_EXECUTADO} onChange={set("VALOR_EXECUTADO")} placeholder="0.00" style={IS()}/></div>
+            <div><span style={LS()}>Vara</span><input value={dados.VARA} onChange={set("VARA")} placeholder="1ª Vara Cível" style={IS()}/></div>
+            <div><span style={LS()}>Comarca</span><input value={dados.COMARCA} onChange={set("COMARCA")} placeholder="Cidade" style={IS()}/></div>
+            <div style={{gridColumn:"1/-1"}}><span style={LS()}>Status Processual</span>
+              <select value={dados.STATUS_PROCESSO} onChange={set("STATUS_PROCESSO")} style={IS()}>
+                {[["EM_PREPARACAO","Em Preparação"],["AJUIZADO","Ajuizado"],["CITACAO_PENDENTE","Citação Pendente"],["CITADO","Citado"],["AUDIENCIA_DESIGNADA","Audiência Designada"],["AGUARDANDO_AUDIENCIA","Aguardando Audiência"],["EM_ACORDO","Em Acordo"],["EM_EXECUCAO","Em Execução"],["PAGO_PARCIALMENTE","Pago Parcialmente"],["QUITADO_JUDICIALMENTE","Quitado Judicialmente"],["ARQUIVADO","Arquivado"],["EXTINTO","Extinto"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}
               </select>
             </div>
-            <div style={{gridColumn:"1/-1"}}>
-              <span style={LS()}>Observação</span>
-              <input value={observacao} onChange={e=>setObservacao(e.target.value)} placeholder="Opcional" style={IS()}/>
+            <div><span style={LS()}>Próxima Ação</span><input value={dados.PROXIMA_ACAO} onChange={set("PROXIMA_ACAO")} placeholder="Ex: Audiência de conciliação" style={IS()}/></div>
+            <div><span style={LS()}>Data Próxima Ação</span><input type="date" value={dados.DATA_PROXIMA_ACAO} onChange={set("DATA_PROXIMA_ACAO")} style={IS()}/></div>
+            <div style={{gridColumn:"1/-1"}}><span style={LS()}>Link do Processo (TJSP, PJe...)</span><input value={dados.LINK_PROCESSO} onChange={set("LINK_PROCESSO")} placeholder="https://..." style={IS()}/></div>
+            <div style={{gridColumn:"1/-1"}}><span style={LS()}>Código de Acesso</span><input value={dados.CODIGO_ACESSO_PROCESSO} onChange={set("CODIGO_ACESSO_PROCESSO")} placeholder="Código para consultar sem login" style={IS()}/></div>
+            <div style={{gridColumn:"1/-1"}}><span style={LS()}>Observações</span><input value={dados.OBSERVACOES_JURIDICAS} onChange={set("OBSERVACOES_JURIDICAS")} placeholder="Informações adicionais..." style={IS()}/></div>
+          </div>
+          {erro&&<div style={{padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:600}}>{erro}</div>}
+          <div style={{display:"flex",gap:8,marginTop:4}}>
+            <button onClick={onFechar} disabled={loading} style={{flex:1,padding:"11px",borderRadius:9,border:`1px solid ${BD}`,background:"transparent",color:MUTED,cursor:"pointer",fontWeight:600,fontSize:13}}>Cancelar</button>
+            <button onClick={salvar} disabled={loading} style={{flex:2,...BTN4(loading)}}>{loading?<><IcoSpinner color="#fff"/> Ajuizando...</>:<>{IcoJur} Confirmar Ajuizamento</>}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AcordoJudicialModal({contrato, onSucesso, onFechar}){
+  const [dados,setDados]=useState({
+    tipo:"PARCELADO", data:hojeStr(), valorOriginal:String(parseFloat(contrato?.PREJUIZO_CAPITAL||contrato?.VALOR_EXECUTADO||0)||""),
+    saldoAtualizado:String(parseFloat(contrato?.PREJUIZO_CAPITAL||0)||""), valorNegociado:"", entrada:"",
+    qtdParcelas:"", dataPrimeiraParcela:hojeStr(), honorarios:"", quemPagaHonorarios:"",
+    custas:"", quemPagaCustas:"", observacoes:""
+  });
+  const [loading,setLoading]=useState(false);
+  const [erro,setErro]=useState("");
+  const mob=useIsMobile();
+  const set=f=>e=>setDados(p=>({...p,[f]:e.target.value}));
+  const ehParcelado=dados.tipo==="PARCELADO";
+  const salvar=async()=>{
+    if(!dados.valorNegociado||parseFloat(dados.valorNegociado)<=0){setErro("Informe o valor negociado.");return;}
+    if(ehParcelado&&(!dados.qtdParcelas||parseInt(dados.qtdParcelas)<=0)){setErro("Informe a quantidade de parcelas.");return;}
+    setLoading(true);setErro("");
+    try{
+      const res=await postAction({action:"registrarAcordoJudicial",idContrato:contrato.ID_CONTRATO,dados});
+      if(res.ok){onSucesso&&onSucesso();onFechar();}
+      else setErro(res.erro||"Erro ao registrar acordo judicial.");
+    }catch(e){setErro(e.message);}
+    setLoading(false);
+  };
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:mob?0:16}} onClick={onFechar}>
+      <div onClick={e=>e.stopPropagation()} style={{background:CARD,borderRadius:mob?0:16,width:"100%",maxWidth:520,maxHeight:mob?"100dvh":"90vh",overflowY:"auto",boxShadow:"0 30px 90px rgba(0,0,0,0.32)",border:mob?"none":`1px solid ${BD}`}}>
+        <div style={{padding:"18px 22px",borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
+          <div><h2 style={{color:BLU,fontSize:18,fontWeight:800,margin:0,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.02em"}}>{IcoHandshake} Acordo Judicial</h2><p style={{fontSize:12,color:MUTED,margin:"4px 0 0"}}>{contrato?.ID_CONTRATO} · {contrato?.NOME_CLIENTE}</p></div>
+          <button onClick={onFechar} style={{background:"transparent",border:"none",color:MUTED,cursor:"pointer",fontSize:18,lineHeight:1,padding:4}}>×</button>
+        </div>
+        <div style={{padding:"18px 22px",display:"flex",flexDirection:"column",gap:12}}>
+          <div><span style={LS()}>Tipo de Acordo</span>
+            <div style={{display:"flex",gap:8}}>
+              {[["PARCELADO","Parcelado"],["A_VISTA","À Vista"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setDados(p=>({...p,tipo:v}))} style={{flex:1,padding:"10px",borderRadius:9,border:`1.5px solid ${dados.tipo===v?BLU:BD}`,background:dados.tipo===v?BLU+"10":"transparent",color:dados.tipo===v?BLU:MUTED,fontWeight:700,fontSize:13,cursor:"pointer"}}>{l}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div><span style={LS()}>Data do Acordo</span><input type="date" value={dados.data} onChange={set("data")} style={IS()}/></div>
+            <div><span style={LS()}>Valor Original (R$)</span><input type="number" value={dados.valorOriginal} onChange={set("valorOriginal")} style={IS()}/></div>
+            <div><span style={LS()}>Saldo Atualizado (R$)</span><input type="number" value={dados.saldoAtualizado} onChange={set("saldoAtualizado")} style={IS()}/></div>
+            <div><span style={LS()}>Valor Negociado (R$)</span><input type="number" value={dados.valorNegociado} onChange={set("valorNegociado")} style={IS()}/></div>
+            <div><span style={LS()}>Entrada (R$)</span><input type="number" value={dados.entrada} onChange={set("entrada")} placeholder="0.00" style={IS()}/></div>
+            {ehParcelado&&<>
+              <div><span style={LS()}>Qtd. Parcelas</span><input type="number" value={dados.qtdParcelas} onChange={set("qtdParcelas")} style={IS()}/></div>
+              <div><span style={LS()}>Data 1ª Parcela</span><input type="date" value={dados.dataPrimeiraParcela} onChange={set("dataPrimeiraParcela")} style={IS()}/></div>
+            </>}
+            <div><span style={LS()}>Honorários (R$)</span><input type="number" value={dados.honorarios} onChange={set("honorarios")} placeholder="0.00" style={IS()}/></div>
+            <div><span style={LS()}>Quem Paga Honorários</span>
+              <select value={dados.quemPagaHonorarios} onChange={set("quemPagaHonorarios")} style={IS()}>
+                <option value="">Selecione...</option>
+                <option value="DEVEDOR">Devedor (reembolso)</option>
+                <option value="CREDOR">Credor (custo próprio)</option>
+              </select>
+            </div>
+            <div><span style={LS()}>Custas (R$)</span><input type="number" value={dados.custas} onChange={set("custas")} placeholder="0.00" style={IS()}/></div>
+            <div><span style={LS()}>Quem Paga Custas</span>
+              <select value={dados.quemPagaCustas} onChange={set("quemPagaCustas")} style={IS()}>
+                <option value="">Selecione...</option>
+                <option value="DEVEDOR">Devedor (reembolso)</option>
+                <option value="CREDOR">Credor (custo próprio)</option>
+              </select>
+            </div>
+            <div style={{gridColumn:"1/-1"}}><span style={LS()}>Observações</span><input value={dados.observacoes} onChange={set("observacoes")} placeholder="Detalhes do acordo..." style={IS()}/></div>
+          </div>
+          {erro&&<div style={{padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:600}}>{erro}</div>}
+          <div style={{display:"flex",gap:8,marginTop:4}}>
+            <button onClick={onFechar} disabled={loading} style={{flex:1,padding:"11px",borderRadius:9,border:`1px solid ${BD}`,background:"transparent",color:MUTED,cursor:"pointer",fontWeight:600,fontSize:13}}>Cancelar</button>
+            <button onClick={salvar} disabled={loading} style={{flex:2,...BTN1(loading)}}>{loading?<><IcoSpinner color="#07241B"/> Registrando...</>:<>{IcoHandshake} Confirmar Acordo</>}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuitacaoJudicialModal({contrato, onSucesso, onFechar}){
+  const [dados,setDados]=useState({
+    valorRecebido:String(parseFloat(contrato?.PREJUIZO_CAPITAL||0)||""), honorarios:"", quemPagaHonorarios:"",
+    custas:"", quemPagaCustas:"", data:hojeStr(), observacao:"", forma:"pix"
+  });
+  const [loading,setLoading]=useState(false);
+  const [erro,setErro]=useState("");
+  const mob=useIsMobile();
+  const set=f=>e=>setDados(p=>({...p,[f]:e.target.value}));
+  const salvar=async()=>{
+    if(!dados.valorRecebido||parseFloat(dados.valorRecebido)<=0){setErro("Informe o valor recebido.");return;}
+    setLoading(true);setErro("");
+    try{
+      const res=await postAction({action:"registrarQuitacaoJudicial",idContrato:contrato.ID_CONTRATO,dados});
+      if(res.ok){onSucesso&&onSucesso();onFechar();}
+      else setErro(res.erro||"Erro ao registrar quitação judicial.");
+    }catch(e){setErro(e.message);}
+    setLoading(false);
+  };
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:mob?0:16}} onClick={onFechar}>
+      <div onClick={e=>e.stopPropagation()} style={{background:CARD,borderRadius:mob?0:16,width:"100%",maxWidth:480,maxHeight:mob?"100dvh":"90vh",overflowY:"auto",boxShadow:"0 30px 90px rgba(0,0,0,0.32)",border:mob?"none":`1px solid ${BD}`}}>
+        <div style={{padding:"18px 22px",borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
+          <div><h2 style={{color:GRN,fontSize:18,fontWeight:800,margin:0,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.02em"}}>{IcoCheck} Quitação Judicial</h2><p style={{fontSize:12,color:MUTED,margin:"4px 0 0"}}>{contrato?.ID_CONTRATO} · {contrato?.NOME_CLIENTE}</p></div>
+          <button onClick={onFechar} style={{background:"transparent",border:"none",color:MUTED,cursor:"pointer",fontSize:18,lineHeight:1,padding:4}}>×</button>
+        </div>
+        <div style={{padding:"18px 22px",display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{background:GRN+"08",border:`1px solid ${GRN}30`,borderRadius:8,padding:"10px 12px",fontSize:12,color:GRN,fontWeight:600,display:"flex",alignItems:"center",gap:8}}>{IcoAlert} O contrato será encerrado judicialmente (irreversível). Prejuízo remanescente: {fmtR(parseFloat(contrato?.PREJUIZO_CAPITAL||0))}.</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div style={{gridColumn:"1/-1"}}><span style={LS()}>Valor Recebido (R$)</span><input type="number" value={dados.valorRecebido} onChange={set("valorRecebido")} style={IS()}/></div>
+            <div><span style={LS()}>Data</span><input type="date" value={dados.data} onChange={set("data")} style={IS()}/></div>
+            <div><span style={LS()}>Forma</span>
+              <select value={dados.forma} onChange={set("forma")} style={IS()}>
+                <option value="pix">PIX</option><option value="dinheiro">Dinheiro</option><option value="transferencia">Transferência</option>
+              </select>
+            </div>
+            <div><span style={LS()}>Honorários (R$)</span><input type="number" value={dados.honorarios} onChange={set("honorarios")} placeholder="0.00" style={IS()}/></div>
+            <div><span style={LS()}>Quem Paga Honorários</span>
+              <select value={dados.quemPagaHonorarios} onChange={set("quemPagaHonorarios")} style={IS()}>
+                <option value="">Selecione...</option>
+                <option value="DEVEDOR">Devedor (reembolso)</option>
+                <option value="CREDOR">Credor (custo próprio)</option>
+              </select>
+            </div>
+            <div><span style={LS()}>Custas (R$)</span><input type="number" value={dados.custas} onChange={set("custas")} placeholder="0.00" style={IS()}/></div>
+            <div><span style={LS()}>Quem Paga Custas</span>
+              <select value={dados.quemPagaCustas} onChange={set("quemPagaCustas")} style={IS()}>
+                <option value="">Selecione...</option>
+                <option value="DEVEDOR">Devedor (reembolso)</option>
+                <option value="CREDOR">Credor (custo próprio)</option>
+              </select>
+            </div>
+            <div style={{gridColumn:"1/-1"}}><span style={LS()}>Observação</span><input value={dados.observacao} onChange={set("observacao")} placeholder="Detalhes da quitação..." style={IS()}/></div>
+          </div>
+          {erro&&<div style={{padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:600}}>{erro}</div>}
+          <div style={{display:"flex",gap:8,marginTop:4}}>
+            <button onClick={onFechar} disabled={loading} style={{flex:1,padding:"11px",borderRadius:9,border:`1px solid ${BD}`,background:"transparent",color:MUTED,cursor:"pointer",fontWeight:600,fontSize:13}}>Cancelar</button>
+            <button onClick={salvar} disabled={loading} style={{flex:2,...BTN1(loading)}}>{loading?<><IcoSpinner color="#07241B"/> Confirmando...</>:<>{IcoCheck} Confirmar Quitação</>}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ArquivarProcessoModal({contrato, onSucesso, onFechar}){
+  const [dados,setDados]=useState({motivo:"QUITACAO", observacao:""});
+  const [loading,setLoading]=useState(false);
+  const [erro,setErro]=useState("");
+  const mob=useIsMobile();
+  const salvar=async()=>{
+    setLoading(true);setErro("");
+    try{
+      const res=await postAction({action:"arquivarProcessoJudicial",idContrato:contrato.ID_CONTRATO,dados});
+      if(res.ok){onSucesso&&onSucesso();onFechar();}
+      else setErro(res.erro||"Erro ao arquivar processo.");
+    }catch(e){setErro(e.message);}
+    setLoading(false);
+  };
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:mob?0:16}} onClick={onFechar}>
+      <div onClick={e=>e.stopPropagation()} style={{background:CARD,borderRadius:mob?0:16,width:"100%",maxWidth:440,maxHeight:mob?"100dvh":"90vh",overflowY:"auto",boxShadow:"0 30px 90px rgba(0,0,0,0.32)",border:mob?"none":`1px solid ${BD}`}}>
+        <div style={{padding:"18px 22px",borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
+          <div><h2 style={{color:MUTED,fontSize:18,fontWeight:800,margin:0,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.02em"}}>{IcoTrash} Arquivar Processo</h2><p style={{fontSize:12,color:MUTED,margin:"4px 0 0"}}>{contrato?.ID_CONTRATO} · {contrato?.NOME_CLIENTE}</p></div>
+          <button onClick={onFechar} style={{background:"transparent",border:"none",color:MUTED,cursor:"pointer",fontSize:18,lineHeight:1,padding:4}}>×</button>
+        </div>
+        <div style={{padding:"18px 22px",display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{background:RED+"08",border:`1px solid ${RED}30`,borderRadius:8,padding:"10px 12px",fontSize:12,color:RED,fontWeight:600,display:"flex",alignItems:"center",gap:8}}>{IcoAlert} Se o processo for arquivado sem recuperação total, o contrato será encerrado como perda judicial definitiva. O bloqueio de crédito do cliente é permanente e não será removido.</div>
+          <div><span style={LS()}>Motivo do Arquivamento</span>
+            <select value={dados.motivo} onChange={e=>setDados(p=>({...p,motivo:e.target.value}))} style={IS()}>
+              {[["QUITACAO","Quitação"],["ACORDO_CUMPRIDO","Acordo Cumprido"],["SENTENCA","Sentença"],["DESISTENCIA","Desistência"],["PRESCRICAO","Prescrição"],["INSOLVENCIA","Insolvência"],["OUTRO","Outro"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
+          <div><span style={LS()}>Observação</span><input value={dados.observacao} onChange={e=>setDados(p=>({...p,observacao:e.target.value}))} placeholder="Detalhes do arquivamento..." style={IS()}/></div>
+          {erro&&<div style={{padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:600}}>{erro}</div>}
+          <div style={{display:"flex",gap:8,marginTop:4}}>
+            <button onClick={onFechar} disabled={loading} style={{flex:1,padding:"11px",borderRadius:9,border:`1px solid ${BD}`,background:"transparent",color:MUTED,cursor:"pointer",fontWeight:600,fontSize:13}}>Cancelar</button>
+            <button onClick={salvar} disabled={loading} style={{flex:2,...BTN4(loading)}}>{loading?<><IcoSpinner color="#fff"/> Arquivando...</>:<>{IcoTrash} Confirmar Arquivamento</>}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RenegociacaoModal({contrato, parcelas, clientes, onConfirmar, onFechar}){
+  const cli = (clientes||[]).find(c=>String(c.ID_CLIENTE)===String(contrato.ID_CLIENTE))||{};
+
+  const abertas = useMemo(()=>(parcelas||[]).filter(p=>
+    String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO) &&
+    !_ST_TERMINAL.has(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase())
+  ).sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0)),[parcelas,contrato]);
+
+  const capitalFaltante = useMemo(()=>{
+    const tot = abertas.reduce((s,p)=>s+parseFloat(p.VALOR_PRINCIPAL||0),0);
+    return Math.max(0, tot - (parseFloat(contrato.VALOR_ABATIDO_ASSISTIDO||0)||0));
+  },[abertas,contrato]);
+
+  const jurosEmAberto = useMemo(()=>
+    abertas.reduce((s,p)=>s+parseFloat(p.VALOR_JUROS||0),0)
+  ,[abertas]);
+
+  const saldoTotal = capitalFaltante + jurosEmAberto;
+
+  const [novaValorParcela, setNovaValorParcela] = useState("");
+  const [novasParcelasQtd, setNovasParcelasQtd] = useState("");
+  const [novoVencimento, setNovoVencimento] = useState(()=>{
+    if(abertas.length>0){
+      const d=parseDate(abertas[0].DATA_VENCIMENTO);
+      if(d){const nx=new Date(d.getFullYear(),d.getMonth()+1,d.getDate(),12,0,0);return `${nx.getFullYear()}-${String(nx.getMonth()+1).padStart(2,"0")}-${String(nx.getDate()).padStart(2,"0")}`;}
+    }
+    const t=new Date();t.setMonth(t.getMonth()+1);
+    return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`;
+  });
+  const [observacao, setObservacao] = useState("");
+  const [loading, setLoading]       = useState(false);
+  const [msg, setMsg]               = useState(null);
+  const [pixStatus, setPixStatus]   = useState(null);
+
+  const valorNum = parseFloat(novaValorParcela)||0;
+  const qtdNum   = parseInt(novasParcelasQtd)||0;
+  const totalRenegociado  = valorNum * qtdNum;
+  const cobreCapital      = totalRenegociado >= capitalFaltante - 0.01;
+  const descontoImplicito = Math.max(0, saldoTotal - totalRenegociado);
+  const canSubmit         = valorNum > 0 && qtdNum > 0 && !!novoVencimento && cobreCapital;
+
+  const enviarPropostaWpp = () => {
+    const tel = normTel(cli.TELEFONE_WPP||cli.TELEFONE||"");
+    if(!tel||tel.length<10){alert("Telefone não encontrado.");return;}
+    const nome = contrato.NOME_CLIENTE.split(" ")[0];
+    const lines = [
+      nome+",","",
+      "Preparei uma proposta de renegociação para o seu contrato.","",
+      "📋 Contrato: "+contrato.ID_CONTRATO,
+      "💰 Saldo atual: "+fmtR(saldoTotal),"",
+      "📝 Proposta de renegociação:",
+      "• "+qtdNum+" parcelas de "+fmtR(valorNum),
+      "• Total a pagar: "+fmtR(totalRenegociado),
+      ...(descontoImplicito>=0.01?["• Desconto aplicado: "+fmtR(descontoImplicito)]:[]),"",
+      "Caso tenha interesse, me confirme para fecharmos o acordo."
+    ];
+    const url="https://api.whatsapp.com/send?phone=55"+tel+"&text="+encodeURIComponent(lines.join("\n"));
+    const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener noreferrer";
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+  };
+
+  const confirmar = async () => {
+    if(!canSubmit){
+      setMsg({ok:false,t:!cobreCapital?"O total não cobre o capital em aberto. Considere ajuizamento.":"Preencha todos os campos."});
+      return;
+    }
+    setLoading(true);setMsg(null);setPixStatus(null);
+    const cpf = String(cli.CPF||"").replace(/\D/g,"").padStart(11,"0");
+
+    const res = await postAction({action:"renegociarContrato",dados:{
+      idContrato:       contrato.ID_CONTRATO,
+      novaValorParcela: valorNum,
+      novasParcelasQtd: qtdNum,
+      novoVencimento,
+      descontoJuros:    Math.min(descontoImplicito, jurosEmAberto),
+      dataRenegociacao: hojeStr(),
+      observacao
+    }});
+
+    if(!res.ok){setMsg({ok:false,t:res.erro||"Erro ao renegociar."});setLoading(false);return;}
+
+    setPixStatus("gerando");
+    try {
+      const parcelasEfi=(res.parcelas||[]).map(p=>({
+        idParcela:p.idParcela,numParcela:parseInt(p.numParcela),totalParcelas:qtdNum,
+        dataVencimento:p.dataVencimento,valorParcela:p.valorParcela
+      }));
+      if(parcelasEfi.length>0){
+        const efiR=await fetch("/api/efi-charges",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+          idContrato:contrato.ID_CONTRATO,parcelas:parcelasEfi,
+          cliente:{nome:contrato.NOME_CLIENTE||"",cpf}
+        })});
+        const efiD=await efiR.json();
+        if(efiD.ok&&efiD.boletos?.length>0){await postAction({action:"salvarCobrancasEfi",cobracas:efiD.boletos});setPixStatus("ok");}
+        else setPixStatus("erro");
+      }
+    } catch(eEfi){console.warn("PIX renegociacao:",eEfi.message);setPixStatus("erro");}
+
+    setMsg({ok:true,t:`Renegociação concluída! ${res.parcelasEncerradas} parcela(s) encerradas, ${qtdNum} novas criadas.`});
+    setTimeout(()=>onConfirmar(),2000);
+    setLoading(false);
+  };
+
+  return(
+    <div className="modal-overlay-anim" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onFechar}>
+      <div className="modal-box-anim" onClick={e=>e.stopPropagation()} style={{background:CARD,borderRadius:16,width:"100%",maxWidth:600,maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 24px 80px rgba(0,0,0,0.28)",border:`1px solid ${BD}`,overflow:"hidden",minWidth:0}}>
+
+        <div style={{padding:"18px 24px",borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,background:PUR}}>
+          <div>
+            <div style={{fontSize:18,fontWeight:800,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.02em",color:"#fff"}}>{IcoRepeat} Renegociar Contrato</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.65)",marginTop:3}}>{contrato.ID_CONTRATO} · {contrato.NOME_CLIENTE}</div>
+          </div>
+          <button className="modal-close-btn" onClick={onFechar} style={{background:"rgba(255,255,255,0.15)",border:"none",width:32,height:32,borderRadius:8,cursor:"pointer",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div style={{flex:1,overflowY:"auto",padding:20,display:"flex",flexDirection:"column",gap:16}}>
+
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+            {[
+              {l:"Capital em aberto",v:fmtR(capitalFaltante),c:RED},
+              {l:"Juros em aberto",v:fmtR(jurosEmAberto),c:ORG},
+              {l:"Saldo total",v:fmtR(saldoTotal),c:TEXT}
+            ].map(({l,v,c})=>(
+              <div key={l} style={{background:BG,borderRadius:10,padding:"12px 14px",border:`1px solid ${BD}`}}>
+                <div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:5}}>{l}</div>
+                <div style={{fontSize:16,fontWeight:800,color:c}}>{v}</div>
+              </div>
+            ))}
+          </div>
+
+          {contrato.STATUS_CONTRATO==="acordo_assistido"&&parseFloat(contrato.VALOR_ABATIDO_ASSISTIDO||0)>0&&(
+            <div style={{padding:"10px 14px",borderRadius:8,background:BLU+"10",border:`1px solid ${BLU}25`,fontSize:12,color:BLU,fontWeight:500}}>
+              Capital já abatido em Acordo Assistido: {fmtR(parseFloat(contrato.VALOR_ABATIDO_ASSISTIDO))} (já deduzido do capital em aberto)
+            </div>
+          )}
+
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:8}}>{abertas.length} parcela(s) que serão encerradas</div>
+            <div style={{maxHeight:120,overflowY:"auto",border:`1px solid ${BD}`,borderRadius:10,background:BG}}>
+              {abertas.map((p,i)=>(
+                <div key={p.ID_PARCELA||i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",borderBottom:i<abertas.length-1?`1px solid ${BD}`:"none",fontSize:12}}>
+                  <span style={{color:MUTED}}>Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS}</span>
+                  <span style={{fontWeight:700,color:TEXT}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</span>
+                  <span style={{color:MUTED}}>{fmtDt(p.DATA_VENCIMENTO)}</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Preview */}
-          {parcelasSel.length>0&&(
-            <div style={{background:ORG+"06",border:`1px solid ${ORG}25`,borderRadius:10,padding:14}}>
-              <div style={{fontSize:11,fontWeight:700,color:ORG,marginBottom:10,textTransform:"uppercase"}}>Resumo — {parcelasSel.length} parcela(s)</div>
-              <div style={{display:"flex",flexDirection:"column",gap:7}}>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:MUTED}}>Principal</span><strong>{fmtR(totalPrincipal)}</strong></div>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:MUTED}}>Juros originais</span><strong>{fmtR(totalJuros)}</strong></div>
-                {descontoNum>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:GRN}}>Desconto concedido</span><strong style={{color:GRN}}>− {fmtR(descontoNum)}</strong></div>}
-                <div style={{borderTop:`1px solid ${ORG}20`,paddingTop:8,display:"flex",justifyContent:"space-between",fontSize:15}}>
-                  <span style={{fontWeight:700}}>Total a Receber</span>
-                  <strong style={{color:ORG,fontSize:17}}>{fmtR(totalCobrar)}</strong>
-                </div>
-                {todasSel&&<div style={{fontSize:11,color:GRN,fontWeight:700}}>✓ Todas as parcelas selecionadas → contrato será marcado como <strong>Quitado</strong></div>}
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase"}}>Nova configuração</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <div>
+                <label style={LS()}>Valor por parcela (R$)</label>
+                <input type="number" value={novaValorParcela} onChange={e=>setNovaValorParcela(e.target.value)} placeholder="0,00" min="0" step="0.01" style={IS()}/>
               </div>
+              <div>
+                <label style={LS()}>Quantidade de parcelas</label>
+                <input type="number" value={novasParcelasQtd} onChange={e=>setNovasParcelasQtd(e.target.value)} placeholder="0" min="1" step="1" style={IS()}/>
+              </div>
+            </div>
+            <div>
+              <label style={LS()}>Data do 1º vencimento</label>
+              <input type="date" value={novoVencimento} onChange={e=>setNovoVencimento(e.target.value)} style={IS()}/>
+            </div>
+          </div>
+
+          {valorNum>0&&qtdNum>0&&(
+            <div style={{padding:"14px 16px",borderRadius:12,border:`2px solid ${cobreCapital?PUR:RED}`,background:`${cobreCapital?PUR:RED}08`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:13,fontWeight:700,color:cobreCapital?PUR:RED}}>
+                  {cobreCapital?"Total renegociado":"⚠ Total insuficiente"}
+                </span>
+                <span style={{fontSize:18,fontWeight:900,color:cobreCapital?PUR:RED}}>{fmtR(totalRenegociado)}</span>
+              </div>
+              {!cobreCapital&&(
+                <div style={{fontSize:12,color:RED,fontWeight:500,marginTop:8}}>
+                  Faltam {fmtR(capitalFaltante-totalRenegociado)} para cobrir o capital. Considere ajuizamento se não for possível cobrir o principal.
+                </div>
+              )}
+              {cobreCapital&&descontoImplicito>=0.01&&(
+                <div style={{fontSize:12,color:MUTED,display:"flex",justifyContent:"space-between",marginTop:8}}>
+                  <span>Desconto sobre juros:</span>
+                  <span style={{fontWeight:700,color:ORG}}>{fmtR(descontoImplicito)}</span>
+                </div>
+              )}
+              {cobreCapital&&descontoImplicito<0.01&&(
+                <div style={{fontSize:12,color:PUR,fontWeight:600,display:"flex",alignItems:"center",gap:5,marginTop:8}}>
+                  {IcoCheck} Cobre capital + juros integralmente
+                </div>
+              )}
+            </div>
+          )}
+
+          <div>
+            <label style={LS()}>Observação (opcional)</label>
+            <textarea value={observacao} onChange={e=>setObservacao(e.target.value)} rows={2} placeholder="Ex: acordo feito por telefone..." style={{...IS(),resize:"vertical"}}/>
+          </div>
+
+          {pixStatus&&(
+            <div style={{padding:"8px 12px",borderRadius:8,fontSize:12,fontWeight:600,
+              background:pixStatus==="ok"?GRN+"10":pixStatus==="erro"?YEL+"10":BLU+"10",
+              color:pixStatus==="ok"?GRN:pixStatus==="erro"?YEL:BLU,
+              display:"flex",alignItems:"center",gap:6}}>
+              {pixStatus==="gerando"&&<IcoSpinner size={11}/>}
+              {pixStatus==="ok"&&IcoCheck}
+              {pixStatus==="gerando"&&"Gerando PIX para as novas parcelas..."}
+              {pixStatus==="ok"&&"PIX gerado para todas as parcelas!"}
+              {pixStatus==="erro"&&"PIX não gerado. Gere manualmente pelo contrato."}
             </div>
           )}
 
           {msg&&(
-            <div style={{padding:"10px 14px",borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:13,fontWeight:700,textAlign:"center",border:`1px solid ${msg.ok?GRN:RED}25`}}>
-              {""}{msg.t}
+            <div style={{padding:"10px 14px",borderRadius:8,fontSize:12,fontWeight:600,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED}}>
+              {msg.t}
             </div>
           )}
         </div>
 
-        <div style={{padding:"14px 20px",borderTop:`1px solid ${BD}`,display:"flex",gap:10,flexShrink:0}}>
-          <button onClick={onFechar} style={{...BTN6(),flex:1}}>Cancelar</button>
-          <button onClick={confirmar} disabled={loading||selecionadas.size===0} style={{...BTN1(loading||selecionadas.size===0),flex:2}}>
-            {loading?<><IcoSpinner color="#1B3305"/> Processando...</>:<>{IcoZap} Confirmar Quitação</>}
+        <div style={{padding:"12px 20px 16px",borderTop:`1px solid ${BD}`,display:"flex",gap:10,flexShrink:0}}>
+          {valorNum>0&&qtdNum>0&&canSubmit&&(
+            <button onClick={enviarPropostaWpp} style={{...BTN2(false),flex:"0 0 auto",padding:"13px 16px",fontSize:13}}>
+              {IcoWpp} Proposta WPP
+            </button>
+          )}
+          <button onClick={confirmar} disabled={loading||!canSubmit} style={{...BTN1(!canSubmit||loading),flex:1}}>
+            {loading?<><IcoSpinner size={12}/> Processando...</>:<>{IcoRepeat} Renegociar</>}
           </button>
         </div>
       </div>
@@ -1143,7 +2405,6 @@ function QuitacaoAntecipadaModal({contrato, parcelas, onConfirmar, onFechar}){
 function RecuperacaoModal({contrato,onConfirmar,onFechar}){
   const [valor,setValor]=useState("");
   const [data,setData]=useState(hojeStr());
-  const [forma,setForma]=useState("dinheiro");
   const [obs,setObs]=useState("");
   const [loading,setLoading]=useState(false);
   const [msg,setMsg]=useState(null);
@@ -1158,8 +2419,8 @@ function RecuperacaoModal({contrato,onConfirmar,onFechar}){
     if(!vRec||vRec<=0){setMsg("Informe o valor recebido.");return;}
     if(!data){setMsg("Informe a data.");return;}
     setLoading(true);setMsg(null);
-    const res=await postAction({action:"recuperacaoAposBaixa",idContrato:contrato.ID_CONTRATO,dados:{valorPago:vRec,data,forma,observacao:obs||"Recuperação pós-baixa"}});
-    if(res.ok)onConfirmar();else setMsg(res.erro||"Erro.");
+    const res=await postAction({action:"recuperacaoAposBaixa",idContrato:contrato.ID_CONTRATO,dados:{valorPago:vRec,data,forma:"pix",observacao:obs||"Recuperação pós-baixa"}});
+    if(res.ok){if(res.idUndo&&_registrarUndoAtivo)_registrarUndoAtivo({idUndo:res.idUndo,tipo:"RECUPERACAO_APOS_BAIXA",idContrato:contrato.ID_CONTRATO,nomeCliente:contrato.NOME_CLIENTE||"",segundosRestantes:900});onConfirmar();}else setMsg(res.erro||"Erro.");
     setLoading(false);
   };
   return(
@@ -1193,31 +2454,35 @@ function RecuperacaoModal({contrato,onConfirmar,onFechar}){
               </div>
             </div>
           )}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            <div><span style={LS()}>Data do Recebimento</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS()}/></div>
-            <div><span style={LS()}>Forma</span><select value={forma} onChange={e=>setForma(e.target.value)} style={IS()}><option value="dinheiro">Dinheiro</option><option value="pix">PIX</option><option value="transferencia">Transferência</option><option value="deposito">Depósito</option></select></div>
+          <div>
+            <span style={LS()}>Data do Recebimento</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS()}/>
           </div>
           <div><span style={LS()}>Observação (opcional)</span><input value={obs} onChange={e=>setObs(e.target.value)} placeholder="Ex: acordo verbal, parcela única..." style={IS()}/></div>
           {msg&&<div style={{padding:10,borderRadius:8,background:RED+"10",color:RED,fontSize:13,fontWeight:600,textAlign:"center"}}>{msg}</div>}
         </div>
         <div style={{padding:"14px 20px",borderTop:`1px solid ${BD}`,display:"flex",gap:10,flexShrink:0}}>
           <button onClick={onFechar} style={{...BTN6(),flex:1}}>Cancelar</button>
-          <button onClick={confirmar} disabled={loading||vRec<=0} style={{...BTN1(loading||vRec<=0),flex:2}}>{loading?<><IcoSpinner color="#1B3305"/> Registrando...</>:"Confirmar Recuperação"}</button>
+          <button onClick={confirmar} disabled={loading||vRec<=0} style={{...BTN1(loading||vRec<=0),flex:2}}>{loading?<><IcoSpinner color="#07241B"/> Registrando...</>:"Confirmar Recuperação"}</button>
         </div>
       </div>
     </div>
   );
 }
 
-function PerdaAcoesModal({contrato,parcelas,onBaixar,onAcordo,onRecuperar,onFechar}){
+function PerdaAcoesModal({contrato,parcelas,clientes,onEncerrar,onRecuperar,onAcordoAssistido,onAbatimento,onSairAcordo,onFechar}){
+  const [sairLoad,setSairLoad]=useState(false);
+  const [sairErr,setSairErr]=useState("");
+  const cliPA=(clientes||[]).find(c=>String(c.ID_CLIENTE)===String(contrato.ID_CLIENTE))||null;
   const ps=(parcelas||[]).filter(p=>String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO));
   const atrasadas=ps.filter(p=>["atrasado"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase()));
   const diasAtraso=atrasadas.length>0?Math.max(...atrasadas.map(p=>{const dv=parseDate(p.DATA_VENCIMENTO);if(!dv)return 0;const d=Math.round((new Date()-dv)/86400000);return d>0?d:0;})):0;
   const emAberto=ps.filter(p=>!["pago","cancelado","baixado_como_prejuizo","quitacao_antecipada","renegociado"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase())).reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
   const st=contrato.STATUS_CONTRATO;
-  const podeBaixar=["em_cobranca","pre_prejuizo"].includes(st);
-  const podeAcordo=["em_cobranca","pre_prejuizo","baixado_como_prejuizo","em_recuperacao","recuperado_parcialmente"].includes(st);
+  const isAcordoAssistido=st==="acordo_assistido";
+  const sairDoAcordo=async()=>{setSairLoad(true);setSairErr("");const r=await postAction({action:"sairDoAcordoAssistido",idContrato:contrato.ID_CONTRATO,destino:"normal"});setSairLoad(false);if(r?.ok){onSairAcordo&&onSairAcordo();}else setSairErr(r?.erro||"Erro ao sair do acordo");};
+  const podeEncerrar=["em_cobranca","pre_prejuizo"].includes(st)||isAcordoAssistido;
   const podeRecuperar=["baixado_como_prejuizo","em_recuperacao","recuperado_parcialmente"].includes(st);
+  const podeAcordoAssistido=["ativo_em_atraso","em_cobranca","pre_prejuizo"].includes(st);
   return(
     <div className="modal-overlay-anim" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:450,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div className="modal-box-anim" style={{background:CARD,borderRadius:16,width:"100%",maxWidth:380,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(0,0,0,0.28)",overflow:"hidden",minWidth:0}}>
@@ -1227,7 +2492,10 @@ function PerdaAcoesModal({contrato,parcelas,onBaixar,onAcordo,onRecuperar,onFech
               <div style={{fontWeight:800,fontSize:16,letterSpacing:"-0.02em",color:TEXT}}>{contrato.ID_CONTRATO}</div>
               <div style={{fontSize:12,color:MUTED,marginTop:2}}>{contrato.NOME_CLIENTE}</div>
             </div>
-            <Badge c={STATUS_COR[st]||MUTED}>{STATUS_LABEL[st]||st}</Badge>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
+              <Badge c={STATUS_COR[st]||MUTED}>{STATUS_LABEL[st]||st}</Badge>
+              {cliPA?.PERFIL_COBRANCA&&<Badge c={PERFIL_COR[cliPA.PERFIL_COBRANCA]||MUTED}>{PERFIL_LABEL[cliPA.PERFIL_COBRANCA]||cliPA.PERFIL_COBRANCA}</Badge>}
+            </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,background:BG,borderRadius:10,padding:"10px 12px"}}>
             <div><div style={LS()}>Capital</div><div style={{fontSize:13,fontWeight:700,color:TEXT}}>{fmtR(contrato.VALOR_PRINCIPAL)}</div></div>
@@ -1235,11 +2503,21 @@ function PerdaAcoesModal({contrato,parcelas,onBaixar,onAcordo,onRecuperar,onFech
             {emAberto>0&&<div><div style={LS()}>Em Aberto</div><div style={{fontSize:13,fontWeight:700,color:ORG}}>{fmtR(emAberto)}</div></div>}
             {parseFloat(contrato.PREJUIZO_CAPITAL||0)>0&&<div><div style={LS()}>Prejuízo</div><div style={{fontSize:13,fontWeight:700,color:RED}}>{fmtR(contrato.PREJUIZO_CAPITAL)}</div></div>}
             {parseFloat(contrato.VALOR_RECUPERADO_APOS_BAIXA||0)>0&&<div><div style={LS()}>Recuperado</div><div style={{fontSize:13,fontWeight:700,color:PUR}}>{fmtR(contrato.VALOR_RECUPERADO_APOS_BAIXA)}</div></div>}
+            {isAcordoAssistido&&parseFloat(contrato.VALOR_ABATIDO_ASSISTIDO||0)>0&&<div><div style={LS()}>Abatido</div><div style={{fontSize:13,fontWeight:700,color:BLU}}>{fmtR(parseFloat(contrato.VALOR_ABATIDO_ASSISTIDO||0))}</div></div>}
           </div>
+          {isAcordoAssistido&&contrato.MOTIVO_ACORDO_ASSISTIDO&&(
+            <div style={{marginTop:10,padding:"8px 10px",borderRadius:8,background:BLU+"08",border:`1px solid ${BLU}20`,fontSize:12,color:BLU}}>
+              <b>Motivo:</b> {contrato.MOTIVO_ACORDO_ASSISTIDO}
+              {contrato.DATA_ENTRADA_ACORDO_ASSISTIDO&&<span style={{color:MUTED}}> · desde {fmtDt(parseDate(contrato.DATA_ENTRADA_ACORDO_ASSISTIDO))}</span>}
+            </div>
+          )}
         </div>
         <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:8}}>
-          {podeBaixar&&<button onClick={onBaixar} style={BTN5(RED)}>{IcoAlert} Baixar como Prejuízo</button>}
-          {podeAcordo&&<button onClick={onAcordo} style={BTN5(ORG)}>{IcoHandshake} Registrar Acordo</button>}
+          {isAcordoAssistido&&<button onClick={onAbatimento} style={BTN5(BLU)}>+ Registrar Abatimento</button>}
+          {isAcordoAssistido&&<button onClick={sairDoAcordo} disabled={sairLoad} style={{...BTN5(GRN),opacity:sairLoad?0.6:1}}>{sairLoad?<IcoSpinner size={12}/>:"↩"} {sairLoad?"Processando...":"Retornar à Cobrança Normal"}</button>}
+          {isAcordoAssistido&&sairErr&&<div style={{fontSize:11,color:RED,fontWeight:600}}>{sairErr}</div>}
+          {podeAcordoAssistido&&<button onClick={onAcordoAssistido} style={BTN5(BLU)}>{IcoHandshake} Acordo Assistido</button>}
+          {podeEncerrar&&<button onClick={onEncerrar} style={BTN5(RED)}>{IcoAlert} Encerrar Contrato</button>}
           {podeRecuperar&&<button onClick={onRecuperar} style={{...BTN5(PUR),alignItems:"center",display:"flex",gap:8}}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
             Registrar Recuperação
@@ -1248,6 +2526,22 @@ function PerdaAcoesModal({contrato,parcelas,onBaixar,onAcordo,onRecuperar,onFech
         </div>
       </div>
     </div>
+  );
+}
+
+function InfoTooltip({text}){
+  const [show,setShow]=useState(false);
+  const ref=useRef(null);
+  const [xy,setXY]=useState({top:0,left:0});
+  const enter=()=>{
+    if(ref.current){const r=ref.current.getBoundingClientRect();setXY({top:r.bottom+6,left:Math.min(r.left,window.innerWidth-272)});}
+    setShow(true);
+  };
+  return(
+    <span ref={ref} onMouseEnter={enter} onMouseLeave={()=>setShow(false)} style={{display:"inline-flex",alignItems:"center",cursor:"default",marginLeft:4,flexShrink:0}}>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2" style={{display:"block"}}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      {show&&<div style={{position:"fixed",top:xy.top,left:xy.left,zIndex:2000,background:"#07241B",color:"#ECEFEE",fontSize:12,lineHeight:1.55,padding:"10px 14px",borderRadius:10,maxWidth:264,boxShadow:"0 8px 32px rgba(0,0,0,0.28)",pointerEvents:"none",fontWeight:400}}>{text}</div>}
+    </span>
   );
 }
 
@@ -1268,6 +2562,19 @@ function CampoEdit({label,field,tipo,opts,edit,setEdit,erros,fixup}){
   );
 }
 
+function ajustarDiaUtil(dateStr, feriadosSet) {
+  if (!dateStr || !feriadosSet?.size) return dateStr;
+  const [y, m, dy] = dateStr.split("-").map(Number);
+  if (!y || !m || !dy) return dateStr;
+  const d = new Date(y, m - 1, dy, 12);
+  for (let i = 0; i < 14; i++) {
+    const dow = d.getDay();
+    const ymd = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    if (dow !== 0 && dow !== 6 && !feriadosSet.has(ymd)) return ymd;
+    d.setDate(d.getDate() + 1);
+  }
+  return dateStr;
+}
 function calcProxVenc(diaVenc){
   if(!diaVenc)return"";
   const s=String(diaVenc).trim();
@@ -1290,13 +2597,55 @@ function titleCasePT(s){
   }).join(" ");
 }
 function normTel(s){
-  const d=String(s||"").replace(/\D/g,"");
-  if(d.length===10)return d.slice(0,2)+"9"+d.slice(2);
+  let d=String(s||"").replace(/\D/g,"");
+  if(d.length>11&&d.slice(0,2)==="55")d=d.slice(2);
+  if(d.length>10&&d.charAt(0)==="0")d=d.slice(1);
+  if(d.length===10)d=d.slice(0,2)+"9"+d.slice(2);
   return d;
 }
 function fixEmail(s){
   const v=String(s||"").toLowerCase().trim();
   return v.endsWith("@gmail.com.br")?v.slice(0,-3):v;
+}
+async function buscarCNPJ(cnpj){
+  const d=(cnpj||"").replace(/\D/g,"");
+  if(d.length!==14)return{status:"invalid"};
+  try{
+    const r=await fetch(`/api/utils?t=cnpj&cnpj=${d}`);
+    if(r.ok){const j=await r.json();return{status:"found",razaoSocial:j.razao_social||"",nomeFantasia:j.nome_fantasia||"",situacao:(j.situacao||"").toUpperCase(),dataAbertura:j.data_abertura||"",porte:j.porte||""};}
+    if(r.status===404)return{status:"not_found"};
+  }catch(_){}
+  return{status:"error"};
+}
+async function buscarCEP(cep){
+  const d=(cep||"").replace(/\D/g,"");
+  if(d.length!==8)return{status:"invalid"};
+  try{
+    const r=await fetch(`https://viacep.com.br/ws/${d}/json/`);
+    if(r.ok){const j=await r.json();if(!j.erro)return{status:"found",rua:j.logradouro||"",setor:j.bairro||"",cidadeEstado:j.localidade&&j.uf?`${j.localidade}/${j.uf}`:"",ibge:j.ibge||""};
+    }
+  }catch(_){}
+  try{
+    const r2=await fetch(`https://brasilapi.com.br/api/cep/v1/${d}`);
+    if(r2.ok){const j2=await r2.json();return{status:"found",rua:j2.street||"",setor:j2.neighborhood||"",cidadeEstado:j2.city&&j2.state?`${j2.city}/${j2.state}`:""};}
+    if(r2.status===404)return{status:"not_found"};
+  }catch(_){}
+  try{
+    const r3=await fetch(`https://cep.awesomeapi.com.br/json/${d}`);
+    if(r3.ok){const j3=await r3.json();if(j3.city)return{status:"found",rua:j3.address||"",setor:j3.district||"",cidadeEstado:j3.city&&j3.state?`${j3.city}/${j3.state}`:"",lat:j3.lat||"",lng:j3.lng||""};}
+    if(r3.status===404||r3.status===400)return{status:"not_found"};
+  }catch(_){}
+  return{status:"error"};
+}
+async function buscarCoordenadas(rua,setor,cidadeEstado){
+  const partes=[rua,setor,cidadeEstado,"Brasil"].filter(Boolean);
+  if(partes.length<2)return{status:"insufficient"};
+  const q=encodeURIComponent(partes.join(", "));
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${q}`,{headers:{"Accept-Language":"pt-BR,pt;q=0.9"}});
+    if(r.ok){const j=await r.json();if(j[0]?.lat)return{status:"found",lat:String(j[0].lat),lng:String(j[0].lon)};}
+  }catch(_){}
+  return{status:"error"};
 }
 
 function normEstadoCivil(v){
@@ -1310,7 +2659,7 @@ function normEstadoCivil(v){
   return v;
 }
 
-function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,onNovoContrato,onVerContrato,onSimular,abaInicial}){
+function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,onOptimisticUpdate,onNovoContrato,onVerContrato,onSimular,abaInicial}){
   const [t,setT]=useState(abaInicial||"perfil");
   const [edit,setEdit]=useState({
     NOME:         cliente.NOME||cliente.NOME_CLIENTE||"",
@@ -1323,11 +2672,21 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
     NACIONALIDADE:cliente.NACIONALIDADE||"",
     STATUS_CLIENTE:cliente.STATUS_CLIENTE||"ativo",
     DIA_VENCIMENTO_PREFERIDO:cliente.DIA_VENCIMENTO_PREFERIDO||"",
-    LIMITE_CREDITO:cliente.LIMITE_CREDITO||"",
+    RENDA_BRUTA:   cliente.RENDA_BRUTA||"",
+    RENDA_LIQUIDA: cliente.RENDA_LIQUIDA||"",
     RENDA_MENSAL:  cliente.RENDA_MENSAL||"",
     TIPO_RENDA:    cliente.TIPO_RENDA||"",
     RENDA_COMPROVADA: cliente.RENDA_COMPROVADA||"",
     QUALIDADE_COMUNICACAO: cliente.QUALIDADE_COMUNICACAO||"",
+    PERFIL_COBRANCA: cliente.PERFIL_COBRANCA||"",
+    CODIGO_IBGE:              cliente.CODIGO_IBGE||"",
+    LATITUDE:                 cliente.LATITUDE||"",
+    LONGITUDE:                cliente.LONGITUDE||"",
+    CNPJ_EMPREGADOR:          cliente.CNPJ_EMPREGADOR||"",
+    SITUACAO_EMPREGADOR:      cliente.SITUACAO_EMPREGADOR||"",
+    DATA_ABERTURA_EMPREGADOR: cliente.DATA_ABERTURA_EMPREGADOR||"",
+    EMPREGADOR:    cliente.EMPREGADOR||"",
+    DATA_ADMISSAO: (()=>{const d=parseDate(cliente.DATA_ADMISSAO||"");if(!d)return"";const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dy=String(d.getDate()).padStart(2,"0");return`${y}-${m}-${dy}`;})(),
     CONTATO_CONFIANCA_1: cliente.CONTATO_CONFIANCA_1||"",
     TEL_CONFIANCA_1:     cliente.TEL_CONFIANCA_1||"",
     CONTATO_CONFIANCA_2: cliente.CONTATO_CONFIANCA_2||"",
@@ -1346,6 +2705,10 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
   });
   const [saving,setSaving]=useState(false);
   const [saveMsg,setSaveMsg]=useState(null);
+  const [cepStatus,setCepStatus]=useState(null);
+  const [geoStatus,setGeoStatus]=useState(null);
+  const [cnpjStatus,setCnpjStatus]=useState(null);
+  const [cnpjInfo,setCnpjInfo]=useState(null);
   const [scoreLocal,setScoreLocal]=useState(null);
   const [scoreLoading,setScoreLoading]=useState(false);
   const recalcularScore=async()=>{
@@ -1371,24 +2734,36 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
   const disponivel=Math.max(0,limite-principalEmUso);
   const pctUso=limite>0?Math.min(100,(principalEmUso/limite)*100):0;
   const label=k=>String(k).replaceAll("_"," ").toLowerCase().replace(/\b\w/g,m=>m.toUpperCase());
+  const _MONEY_FIELDS=new Set(["RENDA_BRUTA","RENDA_LIQUIDA","RENDA_MENSAL","LIMITE_CREDITO","LTV_CLIENTE","LUCRO_TOTAL","PREJUIZO_TOTAL","TOTAL_EMPRESTADO","TOTAL_PAGO","SCORE_LIMITE_SUGERIDO","SCORE_PARCELA_MAX","VALOR_ACORDO","DESCONTO_PRINCIPAL_ACORDO","DESCONTO_JUROS_ACORDO"]);
+  const _PCT_FIELDS  =new Set(["ROI_CLIENTE","TAXA_ADIMPLENCIA","SCORE_TAXA_PCT","TAXA_JUROS_MENSAL","TAXA_JUROS_TOTAL"]);
+  const _DATE_FIELDS =new Set(["DATA_CADASTRO","DATA_ADMISSAO","SCORE_DATA","DATA_BAIXA_PREJUIZO","DATA_ACORDO","DATA_EMPRESTIMO","DATA_PRIMEIRA_PARCELA"]);
+  const fmtCampo=(k,v)=>{
+    if(v===null||v===undefined||String(v).trim()==="")return"—";
+    if(_DATE_FIELDS.has(k)){const d=v instanceof Date?v:parseDate(String(v));return(d&&!isNaN(d.getTime()))?fmtDt(d):String(v);}
+    if(k==="DIA_VENCIMENTO_PREFERIDO"){const n=String(v);const d=parseDate(n);if(d&&!isNaN(d.getTime()))return"Dia "+d.getDate();const num=parseInt(n);return isNaN(num)?n:"Dia "+num;}
+    if(_MONEY_FIELDS.has(k)){const n=parseFloat(v);return isNaN(n)?String(v):fmtR(n);}
+    if(_PCT_FIELDS.has(k)){const n=parseFloat(v);return isNaN(n)?String(v):n.toFixed(2)+"%";}
+    return String(v);
+  };
   const campos=Object.entries(cliente||{}).filter(([_,v])=>v!==null&&v!==undefined&&String(v).trim()!=="");
 
   const salvar=async()=>{
     setSaving(true);setSaveMsg(null);
-    const campos={...edit,STATUS_CLIENTE:"ativo"};
+    const campos={...edit,STATUS_CLIENTE:"ativo",LIMITE_CREDITO:Math.round(parseFloat(edit.RENDA_LIQUIDA||0)*0.8)};
     if(String(cliente.STATUS_CLIENTE||"").toLowerCase()==="aguardando_conferencia"){
       const OBS_PADRAO="Cadastro via formulario - aguardando conferencia";
       if(String(campos.OBSERVACOES||"").trim().toLowerCase()===OBS_PADRAO.toLowerCase())
         campos.OBSERVACOES="";
     }
+    if(cnpjInfo&&cnpjStatus==="found"){campos.SITUACAO_EMPREGADOR=cnpjInfo.situacao;campos.DATA_ABERTURA_EMPREGADOR=cnpjInfo.dataAbertura;}
     const res=await postAction({action:"atualizarCliente",idCliente:cliente.ID_CLIENTE,campos});
-    if(res.ok){setSaveMsg({ok:true,t:"Dados atualizados com sucesso!"});if(onAtualizar)setTimeout(onAtualizar,1200);}
+    if(res.ok){if(onOptimisticUpdate)onOptimisticUpdate(campos,cliente.ID_CLIENTE);if(onAtualizar)onAtualizar();}
     else setSaveMsg({ok:false,t:res.erro||"Erro ao salvar."});
     setSaving(false);
   };
 
   const _OBRIG=new Set(["NOME","TELEFONE_WPP","EMAIL","CPF","RG","PROFISSAO",
-    "DIA_VENCIMENTO_PREFERIDO","LIMITE_CREDITO","RENDA_MENSAL","TIPO_RENDA",
+    "DIA_VENCIMENTO_PREFERIDO","RENDA_MENSAL","TIPO_RENDA",
     "RENDA_COMPROVADA","QUALIDADE_COMUNICACAO","CONTATO_CONFIANCA_1","TEL_CONFIANCA_1",
     "CONTATO_CONFIANCA_2","TEL_CONFIANCA_2","PADRINHO"]);
   const validar=(field,val)=>{
@@ -1414,7 +2789,8 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
     if(field==="CEP"){const d=v.replace(/\D/g,"");if(d.length!==8)return "8 dígitos";if(/[.\-\/]/.test(v))return "Somente números";}
     return null;
   };
-  const erros=Object.fromEntries(Object.entries(edit).map(([k,v])=>[k,validar(k,v)]).filter(([,e])=>e));
+  const _errosBase=Object.fromEntries(Object.entries(edit).map(([k,v])=>[k,validar(k,v)]).filter(([,e])=>e));
+  const erros={..._errosBase,...(cepStatus==='not_found'&&!_errosBase.CEP?{CEP:"CEP não encontrado"}:{})};
   const temErros=Object.keys(erros).length>0;
   const nErros=Object.keys(erros).length;
   const mob = useIsMobile();
@@ -1443,6 +2819,7 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
               {[
                 {l:"Nome",v:nome},{l:"Score",v:score},{l:"CPF",v:cliente.CPF},{l:"RG",v:cliente.RG},{l:"WhatsApp",v:tel},{l:"Email",v:cliente.EMAIL},
                 {l:"Status",v:cliente.STATUS_CLIENTE},{l:"Profissão",v:cliente.PROFISSAO},{l:"Estado civil",v:cliente.ESTADO_CIVIL},{l:"Nacionalidade",v:cliente.NACIONALIDADE},
+                {l:"Empregador",v:[cliente.EMPREGADOR,cliente.CNPJ_EMPREGADOR&&`CNPJ: ${cliente.CNPJ_EMPREGADOR}`,cliente.SITUACAO_EMPREGADOR&&`Situação: ${cliente.SITUACAO_EMPREGADOR}`].filter(Boolean).join(" · ")},
                 {l:"Endereço",v:[cliente.RUA,cliente.NUMERO,cliente.QUADRA&&`Qd. ${cliente.QUADRA}`,cliente.LOTE&&`Lt. ${cliente.LOTE}`,cliente.SETOR,cliente.CIDADE_ESTADO].filter(Boolean).join(", ")},
                 {l:"CEP",v:cliente.CEP},{l:"Contato confiança 1",v:[cliente.CONTATO_CONFIANCA_1,cliente.TEL_CONFIANCA_1].filter(Boolean).join(" · ")},
                 {l:"Contato confiança 2",v:[cliente.CONTATO_CONFIANCA_2,cliente.TEL_CONFIANCA_2].filter(Boolean).join(" · ")},{l:"Padrinho",v:[cliente.PADRINHO,cliente.TEL_PADRINHO].filter(Boolean).join(" · ")},
@@ -1476,6 +2853,10 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
                           renda: parseFloat(cliente.RENDA_MENSAL||0)||0,
                           parcelaMax: parseFloat(base.SCORE_PARCELA_MAX||0)||0,
                           nome:  cliente.NOME||cliente.NOME_CLIENTE||"",
+                          ID_CLIENTE: cliente.ID_CLIENTE,
+                          TELEFONE_WPP: cliente.TELEFONE_WPP,
+                          TELEFONE: cliente.TELEFONE,
+                          SCORE_BLOQUEADO: cliente.SCORE_BLOQUEADO,
                         })} style={{fontSize:11,fontWeight:700,padding:"4px 12px",borderRadius:20,border:`1px solid ${BLU}40`,background:BLU+"15",color:BLU,cursor:"pointer"}}>
                           Simular
                         </button>}
@@ -1541,7 +2922,7 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
                                       <div style={{fontSize:12,fontWeight:800,color:m.v==="—"?MUTED:cor}}>{m.v}</div>
                                     </div>
                                   ))}
-                                  {onSimular&&<button onClick={()=>onSimular({valor:limiteRenov||parseFloat(base.SCORE_LIMITE_SUGERIDO||0)||1000,prazo:prazoRenov||parseInt(base.SCORE_PRAZO_MAX||0)||6,taxa:taxaRenov||parseFloat(base.SCORE_TAXA_PCT||0)||18,renda:parseFloat(cliente.RENDA_MENSAL||0)||0,parcelaMax:parseFloat(base.SCORE_PARCELA_MAX||0)||0,nome:cliente.NOME||cliente.NOME_CLIENTE||""})} style={{fontSize:11,fontWeight:700,padding:"6px 14px",borderRadius:20,border:`1px solid ${cor}40`,background:cor+"15",color:cor,cursor:"pointer",whiteSpace:"nowrap"}}>Simular Renovação</button>}
+                                  {onSimular&&<button onClick={()=>onSimular({valor:limiteRenov||parseFloat(base.SCORE_LIMITE_SUGERIDO||0)||1000,prazo:prazoRenov||parseInt(base.SCORE_PRAZO_MAX||0)||6,taxa:taxaRenov||parseFloat(base.SCORE_TAXA_PCT||0)||18,renda:parseFloat(cliente.RENDA_MENSAL||0)||0,parcelaMax:parseFloat(base.SCORE_PARCELA_MAX||0)||0,nome:cliente.NOME||cliente.NOME_CLIENTE||"",ID_CLIENTE:cliente.ID_CLIENTE,TELEFONE_WPP:cliente.TELEFONE_WPP,TELEFONE:cliente.TELEFONE,SCORE_BLOQUEADO:cliente.SCORE_BLOQUEADO})} style={{fontSize:11,fontWeight:700,padding:"6px 14px",borderRadius:20,border:`1px solid ${cor}40`,background:cor+"15",color:cor,cursor:"pointer",whiteSpace:"nowrap"}}>Simular Renovação</button>}
                                 </div>
                               )}
                             </div>
@@ -1570,6 +2951,59 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
                   </>
                 ):<div style={{fontSize:13,color:MUTED,marginTop:6}}>Não definido — edite o cliente para cadastrar.</div>}
               </div>
+
+              {/* MÉTRICAS ANALÍTICAS */}
+              {parseFloat(cliente.TOTAL_EMPRESTADO||0)>0&&(()=>{
+                const ltv      = parseFloat(cliente.LTV_CLIENTE||0);
+                const lucro    = parseFloat(cliente.LUCRO_TOTAL||0);
+                const roi      = parseFloat(cliente.ROI_CLIENTE||0);
+                const prejuizo = parseFloat(cliente.PREJUIZO_TOTAL||0);
+                const taAdim   = parseFloat(cliente.TAXA_ADIMPLENCIA||0);
+                const amMedio  = parseFloat(cliente.ATRASO_MEDIO||0);
+                const amMax    = parseInt(cliente.ATRASO_MAXIMO||0);
+                const promQueb = parseInt(cliente.PROMESSAS_QUEBRADAS||0);
+                const totEmp   = parseFloat(cliente.TOTAL_EMPRESTADO||0);
+                const totPago  = parseFloat(cliente.TOTAL_PAGO||0);
+                const ctAtivos = parseInt(cliente.CONTRATOS_ATIVOS||0);
+                const ctBaixados=parseInt(cliente.CONTRATOS_BAIXADOS||0);
+                const SecTit = ({title})=><div style={{fontSize:10,fontWeight:700,color:MUTED,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>{title}</div>;
+                const MetCard=({l,v,sub,c})=>(
+                  <div style={{background:BG,padding:"10px 12px",borderRadius:8,border:`1px solid ${BD}`}}>
+                    <div style={{fontSize:9,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>{l}</div>
+                    <div style={{fontSize:13,fontWeight:800,color:c||TEXT}}>{v}</div>
+                    {sub&&<div style={{fontSize:9,color:MUTED,marginTop:2}}>{sub}</div>}
+                  </div>
+                );
+                return(
+                  <div style={{gridColumn:"1/-1",background:CARD,padding:16,borderRadius:10,border:`1px solid ${BD}`}}>
+                    <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:14}}>Métricas Financeiras</div>
+
+                    <SecTit title="Receita & Resultado"/>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:8,marginBottom:16}}>
+                      <MetCard l="LTV" v={fmtR(ltv)} sub="juros recebidos" c={ltv>0?GRN:MUTED}/>
+                      <MetCard l="Lucro Total" v={fmtR(lucro)} sub="juros + atraso" c={lucro>0?GRN:MUTED}/>
+                      <MetCard l="ROI" v={roi.toFixed(1)+"%"} sub="retorno s/ capital" c={roi>=10?GRN:roi>=0?YEL:RED}/>
+                      <MetCard l="Prejuízo Total" v={fmtR(prejuizo)} sub="capital perdido" c={prejuizo>0?RED:GRN}/>
+                    </div>
+
+                    <SecTit title="Comportamento de Pagamento"/>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:8,marginBottom:16}}>
+                      <MetCard l="Adimplência" v={taAdim.toFixed(0)+"%"} sub="parcelas em dia" c={taAdim>=80?GRN:taAdim>=50?YEL:RED}/>
+                      <MetCard l="Atraso Médio" v={amMedio.toFixed(0)+" dias"} sub="média por pagamento" c={amMedio<=5?GRN:amMedio<=15?YEL:RED}/>
+                      <MetCard l="Atraso Máximo" v={amMax+" dias"} sub="maior atraso" c={amMax<=15?GRN:amMax<=30?YEL:RED}/>
+                      <MetCard l="Promessas Quebradas" v={promQueb} sub="acordos não cumpridos" c={promQueb===0?GRN:promQueb<=2?YEL:RED}/>
+                    </div>
+
+                    <SecTit title="Histórico Geral"/>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:8}}>
+                      <MetCard l="Total Emprestado" v={fmtR(totEmp)} sub="capital histórico"/>
+                      <MetCard l="Total Pago" v={fmtR(totPago)} sub="valor recebido"/>
+                      <MetCard l="Contratos Ativos" v={ctAtivos} sub="em aberto" c={ctAtivos>0?BLU:MUTED}/>
+                      <MetCard l="Contratos Baixados" v={ctBaixados} sub="como prejuízo" c={ctBaixados>0?RED:GRN}/>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
           {t==="editar"&&(
@@ -1585,25 +3019,23 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Nacionalidade" field="NACIONALIDADE"/>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Status" field="STATUS_CLIENTE" opts={[{v:"ativo",l:"Ativo"},{v:"inativo",l:"Inativo"},{v:"aguardando_conferencia",l:"Aguardando Conferência"},{v:"bloqueado",l:"Bloqueado"}]}/>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Dia vencimento preferido" field="DIA_VENCIMENTO_PREFERIDO"/>
-                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Limite de Crédito (R$)" field="LIMITE_CREDITO" tipo="number"/>
                 <div>
-                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Renda Mensal (R$)" field="RENDA_MENSAL" tipo="number"/>
-                  {(()=>{
-                    const rl=parseFloat(cliente.RENDA_LIQUIDA||0)||0;
-                    const rb=parseFloat(cliente.RENDA_BRUTA||0)||0;
-                    if(!rl&&!rb) return null;
-                    return(
-                      <div style={{marginTop:5,padding:"5px 10px",background:BLU+"10",border:`1px solid ${BLU}30`,borderRadius:8,display:"flex",gap:12,flexWrap:"wrap"}}>
-                        <span style={{fontSize:11,color:MUTED,fontWeight:600}}>Contracheque:</span>
-                        {rl>0&&<span style={{fontSize:11,color:BLU,fontWeight:700}}>Líquido: {fmtR(rl)}</span>}
-                        {rb>0&&<span style={{fontSize:11,color:MUTED}}>Bruto: {fmtR(rb)}</span>}
-                      </div>
-                    );
-                  })()}
+                  <span style={LS()}>Limite de Crédito (R$)</span>
+                  <div style={{...IS(),background:BG,display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"default"}}>
+                    <span style={{fontWeight:700}}>{fmtR(Math.round(parseFloat(edit.RENDA_LIQUIDA||0)*0.8))}</span>
+                    <span style={{fontSize:10,color:MUTED,fontWeight:600}}>80% da Renda Líquida</span>
+                  </div>
+                </div>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Renda Bruta (R$)" field="RENDA_BRUTA" tipo="number"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Renda Líquida (R$)" field="RENDA_LIQUIDA" tipo="number"/>
+                <div>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Renda Mensal Operacional (R$)" field="RENDA_MENSAL" tipo="number"/>
+                  <div style={{fontSize:10,color:MUTED,marginTop:3}}>Usado no score e limite de crédito</div>
                 </div>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Tipo de Renda" field="TIPO_RENDA" opts={[{v:"",l:"—"},{v:"CLT",l:"CLT"},{v:"Servidor",l:"Servidor Público"},{v:"Aposentado",l:"Aposentado"},{v:"Pensionista",l:"Pensionista"},{v:"Autonomo",l:"Autônomo"},{v:"Informal",l:"Informal"}]}/>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Renda Comprovada" field="RENDA_COMPROVADA" opts={[{v:"",l:"—"},{v:"Sim",l:"Sim"},{v:"Parcial",l:"Parcial"},{v:"Nao",l:"Não"}]}/>
-                <div style={{gridColumn:"1/-1"}}><CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Qualidade da Comunicação" field="QUALIDADE_COMUNICACAO" opts={[{v:"",l:"—"},{v:"Boa",l:"Boa"},{v:"Regular",l:"Regular"},{v:"Ruim",l:"Ruim"}]}/></div>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Qualidade da Comunicação" field="QUALIDADE_COMUNICACAO" opts={[{v:"",l:"—"},{v:"Boa",l:"Boa"},{v:"Regular",l:"Regular"},{v:"Ruim",l:"Ruim"}]}/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Perfil de Cobrança" field="PERFIL_COBRANCA" opts={[{v:"",l:"—"},{v:"COOPERATIVO",l:"Cooperativo"},{v:"NEUTRO",l:"Neutro"},{v:"RESISTENTE",l:"Resistente"},{v:"EVASIVO",l:"Evasivo"}]}/>
               </div>
               <div style={{borderTop:`1px solid ${BD}`,paddingTop:16}}>
                 <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:12}}>Contatos de Confiança</div>
@@ -1630,9 +3062,50 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
                 </div>
               </div>
               <div style={{borderTop:`1px solid ${BD}`,paddingTop:16}}>
+                <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:12}}>Empregador</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Empresa / Empregador" field="EMPREGADOR" fixup={titleCasePT}/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Data de Admissão" field="DATA_ADMISSAO" tipo="date"/>
+                  <div style={{gridColumn:"1/-1"}}>
+                    <span style={LS()}>CNPJ do Empregador</span>
+                    <div style={{position:"relative"}}>
+                      <input value={edit.CNPJ_EMPREGADOR||""} onChange={e=>{setEdit(p=>({...p,CNPJ_EMPREGADOR:e.target.value}));setCnpjStatus(null);setCnpjInfo(null);}} onBlur={async e=>{const d=(e.target.value||"").replace(/\D/g,"");if(d.length!==14){setCnpjStatus(null);setCnpjInfo(null);return;}setCnpjStatus("loading");const res=await buscarCNPJ(e.target.value);if(res.status==="found"){setCnpjStatus("found");setCnpjInfo(res);if(!String(edit.EMPREGADOR||"").trim())setEdit(p=>({...p,EMPREGADOR:res.nomeFantasia||res.razaoSocial}));}else{setCnpjStatus(res.status);setCnpjInfo(null);}}} style={{...IS(),border:`1px solid ${cnpjStatus==="not_found"?RED:cnpjStatus==="found"?GRN:BD}`,background:cnpjStatus==="not_found"?RED+"06":CARD}}/>
+                      {cnpjStatus==="loading"&&<div style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)"}}><IcoSpinner color={MUTED}/></div>}
+                      {cnpjStatus==="found"&&<div style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",color:GRN,fontSize:12,fontWeight:800}}>✓</div>}
+                    </div>
+                    {cnpjStatus==="not_found"&&<div style={{fontSize:10,color:RED,fontWeight:600,marginTop:3}}>⚠ CNPJ não encontrado na Receita Federal</div>}
+                    {cnpjStatus==="error"&&<div style={{fontSize:10,color:YEL,fontWeight:600,marginTop:3}}>⚠ Não foi possível verificar o CNPJ</div>}
+                  </div>
+                </div>
+                {cnpjInfo&&cnpjStatus==="found"&&(
+                  <div style={{marginTop:12,padding:"10px 14px",borderRadius:10,background:cnpjInfo.situacao==="ATIVA"?GRN+"08":RED+"08",border:`1px solid ${cnpjInfo.situacao==="ATIVA"?GRN+"25":RED+"25"}`}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                      <span style={{fontSize:11,fontWeight:800,color:cnpjInfo.situacao==="ATIVA"?GRN:RED,background:cnpjInfo.situacao==="ATIVA"?GRN+"15":RED+"15",padding:"2px 8px",borderRadius:99,border:`1px solid ${cnpjInfo.situacao==="ATIVA"?GRN+"30":RED+"30"}`}}>{cnpjInfo.situacao||"—"}</span>
+                      {cnpjInfo.situacao!=="ATIVA"&&<span style={{fontSize:11,fontWeight:700,color:RED}}>⚠ Empresa não ativa — verificar antes de aprovar crédito</span>}
+                    </div>
+                    <div style={{fontSize:12,fontWeight:700,color:TEXT}}>{cnpjInfo.razaoSocial}</div>
+                    {cnpjInfo.nomeFantasia&&cnpjInfo.nomeFantasia!==cnpjInfo.razaoSocial&&<div style={{fontSize:11,color:MUTED}}>{cnpjInfo.nomeFantasia}</div>}
+                    <div style={{fontSize:11,color:MUTED,marginTop:4,display:"flex",gap:16,flexWrap:"wrap"}}>
+                      {cnpjInfo.dataAbertura&&<span>Abertura: {fmtDt(cnpjInfo.dataAbertura)}</span>}
+                      {cnpjInfo.porte&&<span>Porte: {cnpjInfo.porte}</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div style={{borderTop:`1px solid ${BD}`,paddingTop:16}}>
                 <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:12}}>Endereço</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="CEP" field="CEP"/>
+                  <div>
+                    <span style={LS()}>CEP</span>
+                    <div style={{position:"relative"}}>
+                      <input value={edit.CEP||""} onChange={e=>{setEdit(p=>({...p,CEP:e.target.value}));setCepStatus(null);setGeoStatus(null);}} onBlur={async e=>{const d=(e.target.value||"").replace(/\D/g,"");if(d.length!==8){setCepStatus(null);return;}setCepStatus("loading");const res=await buscarCEP(e.target.value);if(res.status==="found"){setCepStatus("found");setEdit(p=>({...p,RUA:res.rua||p.RUA,SETOR:res.setor||p.SETOR,CIDADE_ESTADO:res.cidadeEstado||p.CIDADE_ESTADO,CODIGO_IBGE:res.ibge||p.CODIGO_IBGE}));if(res.lat&&res.lng){setEdit(p=>({...p,LATITUDE:res.lat,LONGITUDE:res.lng}));setGeoStatus("found");}else{setGeoStatus("loading");buscarCoordenadas(res.rua,res.setor,res.cidadeEstado).then(g=>{if(g.status==="found"){setEdit(p=>({...p,LATITUDE:g.lat,LONGITUDE:g.lng}));setGeoStatus("found");}else setGeoStatus(null);});}}else setCepStatus(res.status);}} style={{...IS(),border:`1px solid ${erros.CEP?RED:cepStatus==="found"?GRN:BD}`,background:erros.CEP?RED+"06":CARD}}/>
+                      {cepStatus==="loading"&&<div style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)"}}><IcoSpinner color={MUTED}/></div>}
+                      {cepStatus==="found"&&!erros.CEP&&<div style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",color:GRN,fontSize:12,fontWeight:800}}>✓</div>}
+                    </div>
+                    {erros.CEP&&<div style={{fontSize:10,color:RED,fontWeight:600,marginTop:3}}>⚠ {erros.CEP}</div>}
+                    {cepStatus==="found"&&!erros.CEP&&<div style={{fontSize:10,color:GRN,fontWeight:600,marginTop:3,display:"flex",alignItems:"center",gap:6}}>✓ Endereço preenchido{geoStatus==="loading"&&<IcoSpinner color={MUTED}/>}{geoStatus==="found"&&<span style={{color:MUTED}}>· 📍 Geolocalizado</span>}</div>}
+                    {cepStatus==="error"&&<div style={{fontSize:10,color:YEL,fontWeight:600,marginTop:3}}>⚠ Não foi possível verificar o CEP</div>}
+                  </div>
                   <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Cidade / Estado" field="CIDADE_ESTADO"/>
                   <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Rua / Avenida" field="RUA"/>
                   <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Número" field="NUMERO"/>
@@ -1649,7 +3122,7 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
             </div>
           )}
           {t==="todos os dados"&&(
-            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>{campos.map(([k,v])=><div key={k} style={{background:CARD,padding:13,borderRadius:10,border:`1px solid ${BD}`}}><span style={LS()}>{label(k)}</span><div style={{fontSize:13,fontWeight:600,wordBreak:"break-word"}}>{String(v)}</div></div>)}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>{campos.map(([k,v])=><div key={k} style={{background:CARD,padding:13,borderRadius:10,border:`1px solid ${BD}`}}><span style={LS()}>{label(k)}</span><div style={{fontSize:13,fontWeight:600,wordBreak:"break-word"}}>{fmtCampo(k,v)}</div></div>)}</div>
           )}
           {t.startsWith("contratos")&&(
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -1682,7 +3155,7 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
             {saveMsg&&<div style={{padding:"10px 14px",borderRadius:8,background:saveMsg.ok?GRN+"10":RED+"10",color:saveMsg.ok?GRN:RED,fontSize:13,fontWeight:700,border:`1px solid ${saveMsg.ok?GRN:RED}25`}}>{saveMsg.t}</div>}
             {temErros&&<div style={{padding:"10px 14px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:700,border:`1px solid ${RED}25`}}>{nErros} campo{nErros>1?"s":""} com erro ou não preenchido{nErros>1?"s":""} — corrija antes de salvar.</div>}
             <button onClick={salvar} disabled={saving||temErros} style={BTN1(saving||temErros)}>
-              {saving?<><IcoSpinner color="#1B3305"/> Salvando...</>:<>{IcoCheck} Salvar e Ativar Cliente</>}
+              {saving?<><IcoSpinner color="#07241B"/> Salvando...</>:<>{IcoCheck} Salvar e Ativar Cliente</>}
             </button>
           </div>
         )}
@@ -1692,14 +3165,23 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
 }
 
 function PagamentoDrop({contratos,parcelas,clientes,onSucesso,onSelecionarParcela}){
-  const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);const [cliente,setCliente]=useState(null);const [parcela,setParcela]=useState(null);const [tipo,setTipo]=useState(null);const [data,setData]=useState(hojeStr());const [valor,setValor]=useState("");const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const ref=useRef();
+  const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);const [cliente,setCliente]=useState(null);const [parcela,setParcela]=useState(null);const [tipo,setTipo]=useState(null);const [data,setData]=useState(hojeStr());const [valor,setValor]=useState("");const [desconto,setDesconto]=useState(0);const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const ref=useRef();
+  const [abatValor,setAbatValor]=useState("");const [abatObs,setAbatObs]=useState("");const [modoAtivo,setModoAtivo]=useState("pagamento");
+  const [sjPixLoadD,setSjPixLoadD]=useState(false);const [sjPixCodeD,setSjPixCodeD]=useState("");const [sjPixErrD,setSjPixErrD]=useState("");const [sjPixCopiedD,setSjPixCopiedD]=useState(false);const [sjPixWppLoadD,setSjPixWppLoadD]=useState(false);const [sjPixWppOkD,setSjPixWppOkD]=useState(false);
   useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
-  const ST_ATIVOS_PAG=new Set(["ativo","ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente"]);
-  const clis=useMemo(()=>{if(busca.length<2)return[];const ids=new Set();return (contratos||[]).filter(c=>{if(!ST_ATIVOS_PAG.has(String(c.STATUS_CONTRATO||"").toLowerCase()))return false;const m=(c.NOME_CLIENTE||"").toLowerCase().includes(busca.toLowerCase())||String(c.ID_CLIENTE||"").toLowerCase().includes(busca.toLowerCase());if(m&&!ids.has(c.ID_CLIENTE)){ids.add(c.ID_CLIENTE);return true;}return false;}).slice(0,6);},[busca,contratos]);
-  const pars=useMemo(()=>cliente?(parcelas||[]).filter(p=>String(p.ID_CLIENTE)===String(cliente.ID_CLIENTE)&&["pendente","atrasado","vence_hoje"].includes(p.STATUS)).sort((a,b)=>toNum(a.DATA_VENCIMENTO)-toNum(b.DATA_VENCIMENTO)):[],[cliente,parcelas]);
-  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){setMsg({ok:true,t:res.msg||(res.contratoQuitado?"✓ Contrato QUITADO!":"Sucesso!")});gerarEEnviarComprovante(parcela,parseFloat(valor),data,tipo==="parcial"?"Somente Juros":"Pagamento Total",parcelas,contratos,clientes);setTimeout(()=>onSucesso(res,parcela),1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
+  const clis=useMemo(()=>{if(busca.length<2)return[];const ids=new Set();return (contratos||[]).filter(c=>{if(!_ST_ATIVOS.has(String(c.STATUS_CONTRATO||"").toLowerCase()))return false;const m=(c.NOME_CLIENTE||"").toLowerCase().includes(busca.toLowerCase())||String(c.ID_CLIENTE||"").toLowerCase().includes(busca.toLowerCase());if(m&&!ids.has(c.ID_CLIENTE)){ids.add(c.ID_CLIENTE);return true;}return false;}).slice(0,6);},[busca,contratos]);
+  const pars=useMemo(()=>cliente?(parcelas||[]).filter(p=>String(p.ID_CLIENTE)===String(cliente.ID_CLIENTE)&&["pendente","atrasado","vence_hoje"].includes(p.STATUS)&&(()=>{const ctr=(contratos||[]).find(c=>String(c.ID_CONTRATO)===String(p.ID_CONTRATO));return ctr?.STATUS_CONTRATO!=="acordo_assistido";})()).sort((a,b)=>toNum(a.DATA_VENCIMENTO)-toNum(b.DATA_VENCIMENTO)):[],[cliente,parcelas,contratos]);
+  const ctrsAssist=useMemo(()=>cliente?(contratos||[]).filter(c=>String(c.ID_CLIENTE)===String(cliente.ID_CLIENTE)&&c.STATUS_CONTRATO==="acordo_assistido"):[],[cliente,contratos]);
+  const [ctrAssistSel,setCtrAssistSel]=useState(null);
+  useEffect(()=>{if(ctrsAssist.length>0){setCtrAssistSel(ctrsAssist[0]);if(pars.length===0)setModoAtivo("abatimento");}else{setModoAtivo("pagamento");}setCtrAssistSel(ctrsAssist[0]||null);},[ctrsAssist.length,pars.length]);
+  const changeTipoDrop=(t,p)=>{const parc=p||parcela;setTipo(t);setDesconto(0);setSjPixCodeD("");setSjPixErrD("");setSjPixCopiedD(false);setSjPixWppOkD(false);if(t==="total")setValor(parseFloat(parc?.VALOR_PARCELA||0).toFixed(2));else if(t==="parcial"){const fee=Math.round(parseFloat(parc?.VALOR_PRINCIPAL||0)*0.05*100)/100;setValor((parseFloat(parc?.VALOR_JUROS||0)+fee).toFixed(2));}};
+  const changeDescontoDrop=(v)=>{const juros=parseFloat(parcela?.VALOR_JUROS||0);const principal=parseFloat(parcela?.VALOR_PRINCIPAL||0);const d=Math.min(Math.max(parseFloat(v)||0,0),juros);setDesconto(d);setValor((principal+Math.max(0,juros-d)).toFixed(2));};
+  const gerarPixSJDrop=async()=>{if(!parcela||sjPixLoadD)return;setSjPixLoadD(true);setSjPixErrD("");setSjPixCodeD("");const fee=Math.round(parseFloat(parcela.VALOR_PRINCIPAL||0)*0.05*100)/100;const sjValor=parseFloat(parcela.VALOR_JUROS||0)+fee;const cliInfo=(clientes||[]).find(c=>String(c.ID_CLIENTE)===String(parcela.ID_CLIENTE));const cpf=String(cliInfo?.CPF||"").replace(/\D/g,"").padStart(11,"0");try{const r=await fetch("/api/efi-charges",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idContrato:parcela.ID_CONTRATO,parcelas:[{idParcela:parcela.ID_PARCELA,numParcela:parseInt(parcela.NUM_PARCELA||0),totalParcelas:parseInt(parcela.TOTAL_PARCELAS||0),dataVencimento:parcela.DATA_VENCIMENTO,valorParcela:sjValor}],cliente:{nome:cliInfo?.NOME||cliInfo?.NOME_CLIENTE||parcela.NOME_CLIENTE||"",cpf},isSJ:true})});const d=await r.json();if(d.ok&&d.boletos?.[0]?.ok)setSjPixCodeD(d.boletos[0].pixCopiaECola||"");else setSjPixErrD((d.boletos?.[0]?.erro)||d.erro||"Erro ao gerar PIX SJ");}catch(e){setSjPixErrD(e.message);}setSjPixLoadD(false);};
+  const enviarSjPixWppDrop=async()=>{if(!sjPixCodeD||sjPixWppLoadD||!parcela)return;setSjPixWppLoadD(true);const fee=Math.round(parseFloat(parcela.VALOR_PRINCIPAL||0)*0.05*100)/100;const sjValor=parseFloat(parcela.VALOR_JUROS||0)+fee;const cliInfo=(clientes||[]).find(c=>String(c.ID_CLIENTE)===String(parcela.ID_CLIENTE));const res=await postAction({action:"enviarPixManual",idCliente:parcela.ID_CLIENTE||"",idContrato:parcela.ID_CONTRATO||"",idParcela:parcela.ID_PARCELA||"",nome:parcela.NOME_CLIENTE||"",telefone:cliInfo?.TELEFONE_WPP||cliInfo?.TELEFONE||"",numParcela:parseInt(parcela.NUM_PARCELA||0),totalParcelas:parseInt(parcela.TOTAL_PARCELAS||0),valorParcela:sjValor,dataVencimento:parcela.DATA_VENCIMENTO||"",pixCode:sjPixCodeD});if(res.ok){setSjPixWppOkD(true);setTimeout(()=>setSjPixWppOkD(false),3000);}setSjPixWppLoadD(false);};
+  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA||"",idContrato:parcela.ID_CONTRATO||"",numParcela:parcela.NUM_PARCELA||"",valor:parseFloat(valor),data:apiDateStr(data),forma:"pix",...(desconto>0&&{desconto})});if(res.ok){if(res.idUndo&&_registrarUndoAtivo)_registrarUndoAtivo({idUndo:res.idUndo,tipo:tipo==="parcial"?"SOMENTE_JUROS":"PAGAMENTO_NORMAL",idContrato:parcela.ID_CONTRATO||"",nomeCliente:cliente?.NOME_CLIENTE||"",segundosRestantes:900});setMsg({ok:true,t:res.msg||(res.contratoQuitado?`✓ Contrato quitado — ${(parcela.NOME_CLIENTE||"").split(" ")[0]}`:`✓ Parcela ${parcela.NUM_PARCELA} · ${fmtR(parseFloat(valor))}`)});gerarEEnviarComprovante(parcela,parseFloat(valor),data,tipo==="parcial"?"Somente Juros":"Pagamento Total",parcelas,contratos,clientes);setTimeout(()=>onSucesso(res,parcela),1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
+  const registrarAbatimento=async()=>{const ctr=ctrAssistSel;if(!ctr||!abatValor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:"registrarAbatimentoAssistido",idContrato:ctr.ID_CONTRATO,dados:{valor:parseFloat(abatValor),data:apiDateStr(data),forma:"pix",observacao:abatObs}});if(res.ok){if(res.idUndo&&_registrarUndoAtivo)_registrarUndoAtivo({idUndo:res.idUndo,tipo:"ABATIMENTO_ASSISTIDO",idContrato:ctr.ID_CONTRATO,nomeCliente:ctr.NOME_CLIENTE||"",segundosRestantes:900});setMsg({ok:true,t:"Abatimento registrado!"});setTimeout(()=>onSucesso(res,null),1500);}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
   const [showParsDrop,setShowParsDrop]=useState(false);
-  const selecionarParcela=p=>{if(!p)return;setShowParsDrop(false);if(onSelecionarParcela){setParcela(null);setTipo(null);setValor("");onSelecionarParcela(p);return;}setParcela(p);setTipo("total");setValor(parseFloat(p.VALOR_PARCELA||0).toFixed(2));};
+  const selecionarParcela=p=>{if(!p)return;setShowParsDrop(false);if(onSelecionarParcela){setParcela(null);setTipo(null);setValor("");setDesconto(0);onSelecionarParcela(p);return;}setParcela(p);setTipo("total");setDesconto(0);setValor(parseFloat(p.VALOR_PARCELA||0).toFixed(2));setSjPixLoadD(false);setSjPixCodeD("");setSjPixErrD("");setSjPixCopiedD(false);setSjPixWppLoadD(false);setSjPixWppOkD(false);};
   const _hoje=new Date();_hoje.setHours(0,0,0,0);
   const isHoje=p=>{const d=parseDate(p.DATA_VENCIMENTO);if(!d)return false;const dd=new Date(d);dd.setHours(0,0,0,0);return dd.getTime()===_hoje.getTime();};
   const isAtrasada=p=>p.STATUS==='atrasado'||parseInt(p.DIAS_ATRASO||0)>0||p.STATUS==='vence_hoje';
@@ -1712,7 +3194,16 @@ function PagamentoDrop({contratos,parcelas,clientes,onSucesso,onSelecionarParcel
           <div style={{position:"relative"}}><div style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)"}}>{IcoSrch}</div><input value={cliente?cliente.NOME_CLIENTE:busca} onChange={e=>{setBusca(e.target.value);setCliente(null);setParcela(null);setShowDrop(true);}} onFocus={()=>setShowDrop(true)} placeholder="Nome ou ID..." style={{...IS(),paddingLeft:32}}/>{cliente&&<button onClick={()=>{setCliente(null);setBusca("");}} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:MUTED,fontSize:16}}>×</button>}</div>
           {showDrop&&clis.length>0&&<div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BD}`,borderRadius:8,marginTop:4,zIndex:100,boxShadow:"0 10px 30px rgba(0,0,0,0.1)"}}>{clis.map(c=><div key={c.ID_CLIENTE} onClick={()=>{setCliente(c);setShowDrop(false);}} style={{padding:"10px 14px",cursor:"pointer",fontSize:13,borderBottom:`1px solid ${BG}`}} onMouseEnter={e=>e.currentTarget.style.background=BG} onMouseLeave={e=>e.currentTarget.style.background=CARD}><strong>{c.ID_CLIENTE}</strong> - {c.NOME_CLIENTE}</div>)}</div>}
         </div>
-        {cliente&&<div><span style={LS()}>Parcela</span>{pars.length>0?(
+        {/* Toggle quando cliente tem acordo assistido + parcelas normais */}
+        {cliente&&ctrsAssist.length>0&&pars.length>0&&(
+          <div style={{display:"flex",gap:0,background:BG,borderRadius:8,padding:2,border:`1px solid ${BD}`}}>
+            {[["pagamento","Pagamento Normal"],["abatimento","Abatimento"]].map(([id,lbl])=>(
+              <button key={id} onClick={()=>setModoAtivo(id)} style={{flex:1,padding:"6px 8px",borderRadius:6,border:"none",background:modoAtivo===id?CARD:"transparent",color:modoAtivo===id?(id==="abatimento"?BLU:GRN):MUTED,fontSize:12,fontWeight:700,cursor:"pointer"}}>{lbl}</button>
+            ))}
+          </div>
+        )}
+        {/* Modo Pagamento Normal */}
+        {cliente&&modoAtivo==="pagamento"&&<div><span style={LS()}>Parcela</span>{pars.length>0?(
           <div style={{position:"relative"}}>
             <div onClick={()=>setShowParsDrop(v=>!v)} style={{...IS(),cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",userSelect:"none"}}>
               {parcela
@@ -1746,12 +3237,62 @@ function PagamentoDrop({contratos,parcelas,clientes,onSucesso,onSelecionarParcel
             </div>}
           </div>
         ):<div style={{padding:8,background:RED+"08",color:RED,fontSize:12,borderRadius:6}}>Nenhuma parcela pendente.</div>}</div>}
-        {parcela&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <div><span style={LS()}>Tipo</span><select value={tipo||""} onChange={e=>{const t=e.target.value;setTipo(t);if(t==="total")setValor(parseFloat(parcela?.VALOR_PARCELA||0).toFixed(2));else if(t==="parcial")setValor(parseFloat(parcela?.VALOR_JUROS||0).toFixed(2));}} style={IS()}><option value="">Selecione...</option><option value="total">Total</option><option value="parcial">Somente Juros</option></select></div>
+        {modoAtivo==="pagamento"&&parcela&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div><span style={LS()}>Tipo</span><select value={tipo||""} onChange={e=>changeTipoDrop(e.target.value)} style={IS()}><option value="">Selecione...</option><option value="total">Total</option><option value="parcial">Somente Juros</option></select></div>
           <div><span style={LS()}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} style={IS()}/></div>
+          {tipo==="total"&&parseFloat(parcela?.VALOR_JUROS||0)>0&&<div style={{gridColumn:"1/-1"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><span style={LS()}>Desconto nos Juros (R$)</span><span style={{fontSize:10,color:MUTED,fontWeight:600}}>máx {fmtR(parseFloat(parcela?.VALOR_JUROS||0))}</span></div>
+            <input type="number" value={desconto||""} onChange={e=>changeDescontoDrop(e.target.value)} placeholder="0,00" min="0" max={parseFloat(parcela?.VALOR_JUROS||0)} style={{...IS(),color:desconto>0?GRN:TEXT}}/>
+            {desconto>0&&<div style={{marginTop:4,fontSize:11,color:GRN,fontWeight:600}}>Cliente paga {fmtR(parseFloat(parcela?.VALOR_PRINCIPAL||0))} + {fmtR(Math.max(0,parseFloat(parcela?.VALOR_JUROS||0)-desconto))} de juros</div>}
+          </div>}
+          {tipo==="parcial"&&parcela&&<div style={{gridColumn:"1/-1",background:ORG+"08",border:`1px solid ${ORG}25`,borderRadius:10,padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
+            <div style={{fontSize:12,fontWeight:700,color:ORG}}>PIX Somente Juros · {fmtR(parseFloat(parcela.VALOR_JUROS||0)+Math.round(parseFloat(parcela.VALOR_PRINCIPAL||0)*0.05*100)/100)}</div>
+            {!sjPixCodeD?(
+              <button onClick={gerarPixSJDrop} disabled={sjPixLoadD} style={{padding:"8px",borderRadius:9,border:`1px solid ${ORG}`,background:"transparent",color:ORG,fontWeight:700,fontSize:12,cursor:sjPixLoadD?"default":"pointer",opacity:sjPixLoadD?0.6:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                {sjPixLoadD?<><IcoSpinner color={ORG}/> Gerando...</>:"Gerar PIX SJ"}
+              </button>
+            ):(
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                <div style={{background:BG,borderRadius:7,padding:"8px 10px",fontSize:10,color:MUTED,fontFamily:"monospace",wordBreak:"break-all"}}>{sjPixCodeD}</div>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={()=>{navigator.clipboard.writeText(sjPixCodeD);setSjPixCopiedD(true);setTimeout(()=>setSjPixCopiedD(false),2000);}} style={{flex:1,padding:"7px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:TEXT,fontWeight:600,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    {sjPixCopiedD?"Copiado!":"Copiar PIX"}
+                  </button>
+                  <button onClick={enviarSjPixWppDrop} disabled={sjPixWppLoadD} style={{flex:1,padding:"7px",borderRadius:8,border:"none",background:sjPixWppOkD?"#16a34a":"#25D366",color:"#FFF",fontWeight:700,fontSize:12,cursor:sjPixWppLoadD?"default":"pointer",opacity:sjPixWppLoadD?0.6:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                    {sjPixWppLoadD?<><IcoSpinner color="#FFF"/> Enviando...</>:sjPixWppOkD?"Enviado!":"Enviar WPP"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {sjPixErrD&&<div style={{fontSize:11,color:RED,fontWeight:600}}>{sjPixErrD}</div>}
+          </div>}
           <div style={{gridColumn:"1/-1"}}><span style={LS()}>Data</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS()}/></div>
-          <button onClick={registrar} disabled={loading||!tipo} style={{gridColumn:"1/-1",padding:"11px",borderRadius:12,border:"none",background:ACC,color:"#163300",fontWeight:700,cursor:"pointer",opacity:loading||!tipo?0.6:1}}>{loading?"Processando...":"Confirmar"}</button>
+          <button onClick={registrar} disabled={loading||!tipo} style={{gridColumn:"1/-1",padding:"11px",borderRadius:12,border:"none",background:ACC,color:"#07241B",fontWeight:700,cursor:"pointer",opacity:loading||!tipo?0.6:1}}>{loading?"Processando...":"Confirmar"}</button>
         </div>}
+        {/* Modo Abatimento */}
+        {cliente&&modoAtivo==="abatimento"&&ctrAssistSel&&(
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {ctrsAssist.length>1&&<div><span style={LS()}>Contrato</span><select value={ctrAssistSel.ID_CONTRATO} onChange={e=>setCtrAssistSel(ctrsAssist.find(c=>c.ID_CONTRATO===e.target.value))} style={IS()}>
+              {ctrsAssist.map(c=><option key={c.ID_CONTRATO} value={c.ID_CONTRATO}>{c.ID_CONTRATO} — {fmtR(c.VALOR_PRINCIPAL)}</option>)}
+            </select></div>}
+            {(()=>{const _abat=parseFloat(ctrAssistSel.VALOR_ABATIDO_ASSISTIDO||0);const _princ=parseFloat(ctrAssistSel.VALOR_PRINCIPAL||0);const _rest=Math.max(0,_princ-_abat);const _vlN=parseFloat(String(abatValor).replace(",","."))||0;return(
+            <div style={{padding:"10px 12px",borderRadius:8,background:BLU+"08",border:`1px solid ${BLU}20`,fontSize:12,color:MUTED}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span>Contrato</span><span style={{fontWeight:700,color:TEXT}}>{ctrAssistSel.ID_CONTRATO}</span></div>
+              {ctrAssistSel.MOTIVO_ACORDO_ASSISTIDO&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span>Motivo</span><span style={{fontWeight:600,color:BLU}}>{ctrAssistSel.MOTIVO_ACORDO_ASSISTIDO}</span></div>}
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span>Capital emprestado</span><span style={{fontWeight:700,color:TEXT}}>{fmtR(_princ)}</span></div>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span>Já recuperado</span><span style={{fontWeight:700,color:BLU}}>{fmtR(_abat)}</span></div>
+              <div style={{display:"flex",justifyContent:"space-between",paddingTop:4,borderTop:`1px solid ${BLU}20`}}><span>Capital restante</span><span style={{fontWeight:800,color:_rest>0?RED:GRN}}>{fmtR(_rest)}</span></div>
+              {_vlN>0&&<div style={{marginTop:6,paddingTop:6,borderTop:`1px solid ${BLU}20`,color:BLU,fontWeight:700}}>Após este abatimento: {fmtR(Math.max(0,_rest-_vlN))}</div>}
+            </div>
+            );})()}
+            <div><span style={LS()}>Valor do abatimento (R$)</span><input type="number" value={abatValor} onChange={e=>setAbatValor(e.target.value)} placeholder="0,00" min="0" style={IS()}/></div>
+            <div>
+              <span style={LS()}>Data</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS()}/>
+            </div>
+            <div><span style={LS()}>Observação (opcional)</span><input value={abatObs} onChange={e=>setAbatObs(e.target.value)} placeholder="Ex: Pix de R$200 — restante promete em 10 dias" style={IS()}/></div>
+            <button onClick={registrarAbatimento} disabled={loading||!abatValor||parseFloat(abatValor)<=0} style={{padding:"11px",borderRadius:12,border:"none",background:BLU,color:"#FFF",fontWeight:700,cursor:"pointer",opacity:loading||!abatValor||parseFloat(abatValor)<=0?0.6:1}}>{loading?<><IcoSpinner color="#fff"/> Registrando...</>:"Confirmar Abatimento"}</button>
+          </div>
+        )}
         {msg&&<div style={{padding:10,borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:12,textAlign:"center",fontWeight:600}}>{msg.t}</div>}
       </div>
     </div>
@@ -1762,15 +3303,22 @@ function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,
   const [tipo,setTipo]=useState("total");
   const [data,setData]=useState(hojeStr());
   const [valor,setValor]=useState(parseFloat(parcela?.VALOR_PARCELA||0).toFixed(2));
+  const [desconto,setDesconto]=useState(0);
   const [loading,setLoading]=useState(false);
   const [msg,setMsg]=useState(null);
   const [modo,setModo]=useState(initialModo); // "pagamento" | "reagendar"
   const [promData,setPromData]=useState("");
   const [promObs,setPromObs]=useState("");
   const [comprovanteData,setComprovanteData]=useState(null);
+  const [sjPixLoadP,setSjPixLoadP]=useState(false);const [sjPixCodeP,setSjPixCodeP]=useState("");const [sjPixErrP,setSjPixErrP]=useState("");const [sjPixCopiedP,setSjPixCopiedP]=useState(false);const [sjPixWppLoadP,setSjPixWppLoadP]=useState(false);const [sjPixWppOkP,setSjPixWppOkP]=useState(false);
   const resRef=useRef(null);
 
-  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA,valor:parseFloat(valor),data:apiDateStr(data),forma:"dinheiro"});if(res.ok){resRef.current=res;setComprovanteData({valorPago:parseFloat(valor),dataPago:data,tipoLabel:tipo==="parcial"?"Somente Juros":"Pagamento Total"});}else setMsg({ok:false,t:res.erro||"Erro ao registrar pagamento"});setLoading(false);};
+  const changeTipoPPM=(t)=>{setTipo(t);setDesconto(0);setSjPixCodeP("");setSjPixErrP("");setSjPixCopiedP(false);setSjPixWppOkP(false);if(t==="total")setValor(parseFloat(parcela?.VALOR_PARCELA||0).toFixed(2));else{const fee=Math.round(parseFloat(parcela?.VALOR_PRINCIPAL||0)*0.05*100)/100;setValor((parseFloat(parcela?.VALOR_JUROS||0)+fee).toFixed(2));}};
+  const changeDescontoPPM=(v)=>{const juros=parseFloat(parcela?.VALOR_JUROS||0);const principal=parseFloat(parcela?.VALOR_PRINCIPAL||0);const d=Math.min(Math.max(parseFloat(v)||0,0),juros);setDesconto(d);setValor((principal+Math.max(0,juros-d)).toFixed(2));};
+  const gerarPixSJP=async()=>{if(!parcela||sjPixLoadP)return;setSjPixLoadP(true);setSjPixErrP("");setSjPixCodeP("");const fee=Math.round(parseFloat(parcela.VALOR_PRINCIPAL||0)*0.05*100)/100;const sjValor=parseFloat(parcela.VALOR_JUROS||0)+fee;const cliInfo=(clientes||[]).find(c=>String(c.ID_CLIENTE)===String(parcela.ID_CLIENTE));const cpf=String(cliInfo?.CPF||"").replace(/\D/g,"").padStart(11,"0");try{const r=await fetch("/api/efi-charges",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idContrato:parcela.ID_CONTRATO,parcelas:[{idParcela:parcela.ID_PARCELA,numParcela:parseInt(parcela.NUM_PARCELA||0),totalParcelas:parseInt(parcela.TOTAL_PARCELAS||0),dataVencimento:parcela.DATA_VENCIMENTO,valorParcela:sjValor}],cliente:{nome:cliInfo?.NOME||cliInfo?.NOME_CLIENTE||parcela.NOME_CLIENTE||"",cpf},isSJ:true})});const d=await r.json();if(d.ok&&d.boletos?.[0]?.ok)setSjPixCodeP(d.boletos[0].pixCopiaECola||"");else setSjPixErrP((d.boletos?.[0]?.erro)||d.erro||"Erro ao gerar PIX SJ");}catch(e){setSjPixErrP(e.message);}setSjPixLoadP(false);};
+  const enviarSjPixWppP=async()=>{if(!sjPixCodeP||sjPixWppLoadP||!parcela)return;setSjPixWppLoadP(true);const fee=Math.round(parseFloat(parcela.VALOR_PRINCIPAL||0)*0.05*100)/100;const sjValor=parseFloat(parcela.VALOR_JUROS||0)+fee;const cliInfo=(clientes||[]).find(c=>String(c.ID_CLIENTE)===String(parcela.ID_CLIENTE));const res=await postAction({action:"enviarPixManual",idCliente:parcela.ID_CLIENTE||"",idContrato:parcela.ID_CONTRATO||"",idParcela:parcela.ID_PARCELA||"",nome:parcela.NOME_CLIENTE||"",telefone:cliInfo?.TELEFONE_WPP||cliInfo?.TELEFONE||"",numParcela:parseInt(parcela.NUM_PARCELA||0),totalParcelas:parseInt(parcela.TOTAL_PARCELAS||0),valorParcela:sjValor,dataVencimento:parcela.DATA_VENCIMENTO||"",pixCode:sjPixCodeP});if(res.ok){setSjPixWppOkP(true);setTimeout(()=>setSjPixWppOkP(false),3000);}setSjPixWppLoadP(false);};
+
+  const registrar=async()=>{if(!parcela||!valor||!data)return;setLoading(true);setMsg(null);const res=await postAction({action:tipo==="parcial"?"pagamentoParcial":"pagamento",idParcela:parcela.ID_PARCELA||"",idContrato:parcela.ID_CONTRATO||"",numParcela:parcela.NUM_PARCELA||"",valor:parseFloat(valor),data:apiDateStr(data),forma:"pix",...(desconto>0&&{desconto})});if(res.ok){if(res.idUndo&&_registrarUndoAtivo)_registrarUndoAtivo({idUndo:res.idUndo,tipo:tipo==="parcial"?"SOMENTE_JUROS":"PAGAMENTO_NORMAL",idContrato:parcela.ID_CONTRATO||"",nomeCliente:parcela.NOME_CLIENTE||"",segundosRestantes:900});resRef.current=res;setComprovanteData({valorPago:parseFloat(valor),dataPago:data,tipoLabel:tipo==="parcial"?"Somente Juros":"Pagamento Total"});}else setMsg({ok:false,t:res.erro||"Erro ao registrar pagamento"});setLoading(false);};
 
   const reagendar=async()=>{
     if(!promData)return;
@@ -1801,15 +3349,48 @@ function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,
         <div style={{padding:20,display:"flex",flexDirection:"column",gap:12}}>
         {modo==="pagamento"?(
           <>
-          <div><span style={LS()}>Tipo</span><select value={tipo} onChange={e=>{const t=e.target.value;setTipo(t);if(t==="total")setValor(parseFloat(parcela?.VALOR_PARCELA||0).toFixed(2));else setValor(parseFloat(parcela?.VALOR_JUROS||0).toFixed(2));}} style={IS()}><option value="total">Pagamento total</option><option value="parcial">Somente juros</option></select></div>
+          <div><span style={LS()}>Tipo</span><select value={tipo} onChange={e=>changeTipoPPM(e.target.value)} style={IS()}><option value="total">Pagamento total</option><option value="parcial">Somente juros</option></select></div>
           <div><span style={LS()}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} style={IS()}/></div>
+          {tipo==="total"&&parseFloat(parcela?.VALOR_JUROS||0)>0&&(
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <span style={LS()}>Desconto nos Juros (R$)</span>
+                <span style={{fontSize:10,color:MUTED,fontWeight:600}}>máx {fmtR(parseFloat(parcela?.VALOR_JUROS||0))}</span>
+              </div>
+              <input type="number" value={desconto||""} onChange={e=>changeDescontoPPM(e.target.value)} placeholder="0,00" min="0" max={parseFloat(parcela?.VALOR_JUROS||0)} style={{...IS(),color:desconto>0?GRN:TEXT}}/>
+              {desconto>0&&<div style={{marginTop:4,fontSize:11,color:GRN,fontWeight:600}}>Cliente paga {fmtR(parseFloat(parcela?.VALOR_PRINCIPAL||0))} + {fmtR(Math.max(0,parseFloat(parcela?.VALOR_JUROS||0)-desconto))} de juros</div>}
+            </div>
+          )}
+          {tipo==="parcial"&&parcela&&(
+            <div style={{background:ORG+"08",border:`1px solid ${ORG}25`,borderRadius:10,padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
+              <div style={{fontSize:12,fontWeight:700,color:ORG}}>PIX Somente Juros · {fmtR(parseFloat(parcela.VALOR_JUROS||0)+Math.round(parseFloat(parcela.VALOR_PRINCIPAL||0)*0.05*100)/100)}</div>
+              {!sjPixCodeP?(
+                <button onClick={gerarPixSJP} disabled={sjPixLoadP} style={{padding:"8px",borderRadius:9,border:`1px solid ${ORG}`,background:"transparent",color:ORG,fontWeight:700,fontSize:12,cursor:sjPixLoadP?"default":"pointer",opacity:sjPixLoadP?0.6:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                  {sjPixLoadP?<><IcoSpinner color={ORG}/> Gerando...</>:"Gerar PIX SJ"}
+                </button>
+              ):(
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  <div style={{background:BG,borderRadius:7,padding:"8px 10px",fontSize:10,color:MUTED,fontFamily:"monospace",wordBreak:"break-all"}}>{sjPixCodeP}</div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>{navigator.clipboard.writeText(sjPixCodeP);setSjPixCopiedP(true);setTimeout(()=>setSjPixCopiedP(false),2000);}} style={{flex:1,padding:"7px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:TEXT,fontWeight:600,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                      {sjPixCopiedP?"Copiado!":"Copiar PIX"}
+                    </button>
+                    <button onClick={enviarSjPixWppP} disabled={sjPixWppLoadP} style={{flex:1,padding:"7px",borderRadius:8,border:"none",background:sjPixWppOkP?"#16a34a":"#25D366",color:"#FFF",fontWeight:700,fontSize:12,cursor:sjPixWppLoadP?"default":"pointer",opacity:sjPixWppLoadP?0.6:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                      {sjPixWppLoadP?<><IcoSpinner color="#FFF"/> Enviando...</>:sjPixWppOkP?"Enviado!":"Enviar WPP"}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {sjPixErrP&&<div style={{fontSize:11,color:RED,fontWeight:600}}>{sjPixErrP}</div>}
+            </div>
+          )}
           <div><span style={LS()}>Data</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS()}/></div>
           {msg&&<div style={{padding:10,borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:12,fontWeight:700}}>{msg.t}</div>}
           <div style={{display:"flex",gap:8,marginTop:4}}>
             <button onClick={()=>setModo("reagendar")} style={BTN5(ORG)}>{IcoCal} Reagendar</button>
             <div style={{flex:1}}/>
             <button onClick={onFechar} style={BTN6()}>Cancelar</button>
-            <button onClick={registrar} disabled={loading||!valor||!data} style={BTN1(loading||!valor||!data)}>{loading?<><IcoSpinner color="#1B3305"/> Registrando...</>:"Confirmar"}</button>
+            <button onClick={registrar} disabled={loading||!valor||!data} style={BTN1(loading||!valor||!data)}>{loading?<><IcoSpinner color="#07241B"/> Registrando...</>:"Confirmar"}</button>
           </div>
           </>
         ):(
@@ -1823,7 +3404,7 @@ function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,
           <div style={{display:"flex",gap:8,marginTop:4}}>
             <button onClick={()=>{setModo("pagamento");setMsg(null);}} style={BTN6()}>{IcoArrL} Voltar</button>
             <div style={{flex:1}}/>
-            <button onClick={reagendar} disabled={loading||!promData} style={BTN1(loading||!promData)}>{loading?<><IcoSpinner color="#1B3305"/> Salvando...</>:"Registrar Promessa"}</button>
+            <button onClick={reagendar} disabled={loading||!promData} style={BTN1(loading||!promData)}>{loading?<><IcoSpinner color="#07241B"/> Salvando...</>:"Registrar Promessa"}</button>
           </div>
           </>
         )}
@@ -1844,10 +3425,14 @@ function NovoContrato({contratos,clientes,onSucesso,clienteInicial}){
   const [busca,setBusca]=useState("");const [showDrop,setShowDrop]=useState(false);
   const [cliente,setCliente]=useState(()=>clienteInicial?.ID_CLIENTE?{ID_CLIENTE:clienteInicial.ID_CLIENTE,NOME_CLIENTE:clienteInicial.NOME||clienteInicial.NOME_CLIENTE||""}:null);
   const [principal,setPrincipal]=useState(hasSimData?String(clienteInicial.valor):(_ini?.principal||""));const [nParcelas,setNParcelas]=useState(hasSimData?String(clienteInicial.prazo):(_ini?.nParcelas||""));const [taxa,setTaxa]=useState(hasSimData?String(clienteInicial.taxa):(_ini?.taxa||""));const [dtEmp,setDtEmp]=useState(hojeStr());
-  const [dtVenc,setDtVenc]=useState(()=>{const dia=clienteInicial?.DIA_VENCIMENTO_PREFERIDO||(clientes||[]).find(c=>String(c.ID_CLIENTE)===String(clienteInicial?.ID_CLIENTE))?.DIA_VENCIMENTO_PREFERIDO;return dia?calcProxVenc(dia):"";});const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const [contratoOk,setContratoOk]=useState(null);const [zapLoading,setZapLoading]=useState(false);const [zapUrl,setZapUrl]=useState("");const [zapErro,setZapErro]=useState("");const [zapWppUrl,setZapWppUrl]=useState("");const [carneLoading,setCarneLoading]=useState(false);const [carneOk,setCarneOk]=useState(false);const [carneErro,setCarneErro]=useState("");const ref=useRef();
+  const [dtVenc,setDtVenc]=useState(()=>{const dia=clienteInicial?.DIA_VENCIMENTO_PREFERIDO||(clientes||[]).find(c=>String(c.ID_CLIENTE)===String(clienteInicial?.ID_CLIENTE))?.DIA_VENCIMENTO_PREFERIDO;return dia?calcProxVenc(dia):"";});const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const [contratoOk,setContratoOk]=useState(null);const [docLoading,setDocLoading]=useState(false);const [zapLoading,setZapLoading]=useState(false);const [zapUrl,setZapUrl]=useState("");const [zapErro,setZapErro]=useState("");const [zapWppUrl,setZapWppUrl]=useState("");const [carneLoading,setCarneLoading]=useState(false);const [carneOk,setCarneOk]=useState(false);const [carneErro,setCarneErro]=useState("");const [criandoSteps,setCriandoSteps]=useState(null);const ref=useRef();
+  const [feriados,setFeriados]=useState(new Set());const [feriadosLoaded,setFeriadosLoaded]=useState(false);
+  useEffect(()=>{fetch("/api/utils?t=feriados").then(r=>r.ok?r.json():null).then(d=>{if(d?.datas){setFeriados(new Set(d.datas));setFeriadosLoaded(true);}}).catch(()=>{});},[]);
+  useEffect(()=>{if(!feriadosLoaded||!dtVenc)return;const aj=ajustarDiaUtil(dtVenc,feriados);if(aj!==dtVenc)setDtVenc(aj);},[feriadosLoaded]);
   useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
 
-  const ST_BLOQ=["ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente"];
+  const ST_BLOQ=["ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente","em_processo_judicial"];
+  const idsJudicializados=useMemo(()=>{const s=new Set();(clientes||[]).forEach(c=>{if(String(c.CLIENTE_JUDICIALIZADO||"").toUpperCase()==="SIM")s.add(String(c.ID_CLIENTE));});return s;},[clientes]);
   const idsComAtivo=useMemo(()=>{const s=new Set();(contratos||[]).forEach(c=>{if(ST_BLOQ.includes(c.STATUS_CONTRATO))s.add(String(c.ID_CLIENTE));});return s;},[contratos]);
 
   const clis=useMemo(()=>{
@@ -1867,13 +3452,13 @@ function NovoContrato({contratos,clientes,onSucesso,clienteInicial}){
     return res.slice(0,8);
   },[busca,clientes,contratos]);
 
-  const criar=async()=>{if(!cliente||!principal||!nParcelas||!taxa||!dtEmp||!dtVenc)return;setLoading(true);setMsg(null);const res=await postAction({action:"novoContrato",dados:{idCliente:cliente.ID_CLIENTE,nomeCliente:cliente.NOME_CLIENTE,principal,parcelas:nParcelas,taxa,dataEmprestimo:apiDateStr(dtEmp),dataVencimento:apiDateStr(dtVenc)}});if(res.ok){const cliF=(clientes||[]).find(c=>String(c.ID_CLIENTE)===String(cliente.ID_CLIENTE));const diaAtual=parseInt(cliF?.DIA_VENCIMENTO_PREFERIDO||0);const diaNovo=parseInt((dtVenc||"").split("-")[2]||0);if(diaNovo&&diaNovo!==diaAtual)postAction({action:"atualizarCliente",idCliente:cliente.ID_CLIENTE,campos:{DIA_VENCIMENTO_PREFERIDO:diaNovo}});setZapUrl("");setZapErro("");setZapWppUrl("");setCarneOk(false);setCarneErro("");setContratoOk({idContrato:res.idContrato||"",clienteId:cliente.ID_CLIENTE,nomeCliente:cliente.NOME_CLIENTE,principal,nParcelas,taxa,dtVenc,docUrl:res.docUrl||"",docId:res.docId||"",docErro:res.docErro||"",parcelas:res.parcelas||[],clienteEfi:res.cliente||null});if((res.parcelas||[]).length&&res.idContrato){setCarneLoading(true);fetch("/api/efi-charges",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idContrato:res.idContrato,parcelas:res.parcelas,cliente:res.cliente||{}})}).then(r=>r.json()).then(d=>{if(d.ok&&d.boletos?.every(b=>b.ok)){setCarneOk(true);postAction({action:"salvarCobrancasEfi",cobracas:d.boletos});}else{const errs=(d.boletos||[]).filter(b=>!b.ok).map(b=>`P${b.numParcela}: ${b.erro}`).join("; ");setCarneErro(errs||d.erro||"Erro ao gerar PIX");}}).catch(e=>setCarneErro(e.message)).finally(()=>setCarneLoading(false));}}else setMsg({ok:false,t:res.erro||"Erro"});setLoading(false);};
+  const criar=async()=>{if(!cliente||!principal||!nParcelas||!taxa||!dtEmp||!dtVenc)return;setLoading(true);setMsg(null);const _cts=[{l:"Validando dados",ok:false},{l:"Criando contrato",ok:false},{l:"Calculando parcelas",ok:false},{l:"Salvando no sistema",ok:false}];setCriandoSteps(_cts);const _t1=setTimeout(()=>setCriandoSteps(s=>s?s.map((x,i)=>i===0?{...x,ok:true}:x):s),220);const _t2=setTimeout(()=>setCriandoSteps(s=>s?s.map((x,i)=>i===1?{...x,ok:true}:x):s),750);const _t3=setTimeout(()=>setCriandoSteps(s=>s?s.map((x,i)=>i===2?{...x,ok:true}:x):s),1300);const dadosContrato={idCliente:cliente.ID_CLIENTE,nomeCliente:cliente.NOME_CLIENTE,principal,parcelas:nParcelas,taxa,dataEmprestimo:apiDateStr(dtEmp),dataVencimento:apiDateStr(dtVenc)};const res=await postAction({action:"novoContrato",dados:dadosContrato});if(res.ok){clearTimeout(_t1);clearTimeout(_t2);clearTimeout(_t3);setCriandoSteps(null);const cliF=(clientes||[]).find(c=>String(c.ID_CLIENTE)===String(cliente.ID_CLIENTE));const diaAtual=parseInt(cliF?.DIA_VENCIMENTO_PREFERIDO||0);const diaNovo=parseInt((dtVenc||"").split("-")[2]||0);if(diaNovo&&diaNovo!==diaAtual)postAction({action:"atualizarCliente",idCliente:cliente.ID_CLIENTE,campos:{DIA_VENCIMENTO_PREFERIDO:diaNovo}});setZapUrl("");setZapErro("");setZapWppUrl("");setCarneOk(false);setCarneErro("");setContratoOk({idContrato:res.idContrato||"",clienteId:cliente.ID_CLIENTE,nomeCliente:cliente.NOME_CLIENTE,principal,nParcelas,taxa,dtVenc,docUrl:"",docId:"",parcelas:res.parcelas||[],clienteEfi:res.cliente||null});setDocLoading(true);postAction({action:"gerarDoc",idContrato:res.idContrato,idCliente:cliente.ID_CLIENTE,dados:dadosContrato}).then(d=>{if(d.ok)setContratoOk(prev=>prev?{...prev,docUrl:d.docUrl||"",docId:d.docId||""}:prev);}).finally(()=>setDocLoading(false));if((res.parcelas||[]).length&&res.idContrato){setCarneLoading(true);fetch("/api/efi-charges",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idContrato:res.idContrato,parcelas:res.parcelas,cliente:res.cliente||{}})}).then(r=>r.json()).then(d=>{if(d.ok&&d.boletos?.every(b=>b.ok)){setCarneOk(true);postAction({action:"salvarCobrancasEfi",cobracas:d.boletos});}else{const errs=(d.boletos||[]).filter(b=>!b.ok).map(b=>`P${b.numParcela}: ${b.erro}`).join("; ");setCarneErro(errs||d.erro||"Erro ao gerar PIX");}}).catch(e=>setCarneErro(e.message)).finally(()=>setCarneLoading(false));}}else{clearTimeout(_t1);clearTimeout(_t2);clearTimeout(_t3);setCriandoSteps(null);setMsg({ok:false,t:res.erro||"Erro"});}setLoading(false);};
   const _fRc=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   const _fDvc=d=>{const dt=parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):d||'—';};
   const _cliOk=contratoOk?(clientes||[]).find(c=>String(c.ID_CLIENTE||"").trim()===String(contratoOk.clienteId||"").trim()):null;
   const _telOk=contratoOk?String(_cliOk?.TELEFONE_WPP||_cliOk?.TELEFONE||"").replace(/\D/g,""):"";
   const _pmtOk=contratoOk?parseFloat(contratoOk.parcelas?.[0]?.valorParcela||0):0;
-  const _abrirWppNovo=()=>{if(!contratoOk)return;const tel=_telOk?`55${_telOk}`:'';const txt=`💸 PIX ENVIADO! O valor já deve estar na sua conta. Confere lá!\n\nSegue abaixo o seu Carnê Digital com todas as parcelas e datas:\n\nLembretes Importantes:\n• Nosso sistema envia um lembrete automático 2 dias antes do vencimento para te ajudar a não esquecer.\n• Pagamentos em dia aumentam seu Score Interno, garantindo taxas menores e limites maiores nas próximas renovações.\n\nObrigado pela confiança! Conte com a gente.`;const url=tel?`https://wa.me/${tel}?text=${encodeURIComponent(txt)}`:'https://web.whatsapp.com';window.open(url,'_blank');setContratoOk(null);onSucesso();};
+  const _abrirWppNovo=()=>{if(!contratoOk)return;const tel=_telOk?`55${_telOk}`:'';const txt=`🎉 *Pagamento realizado com sucesso!*\n\nO valor já foi transferido para sua conta.\n\n*Informações importantes:*\n\n• Você receberá lembretes automáticos próximos aos vencimentos das parcelas.\n• O código PIX para pagamento será enviado automaticamente nas mensagens de cobrança.\n• Pagamentos realizados em dia aumentam seu *Score Interno*, podendo garantir melhores condições, limites maiores e taxas reduzidas em futuras operações.\n\nAgradecemos pela confiança.\n\n*Borges Assessoria*`;const url=tel?`https://wa.me/${tel}?text=${encodeURIComponent(txt)}`:'https://web.whatsapp.com';window.open(url,'_blank');setContratoOk(null);onSucesso();};
   const _enviarZapSign=async()=>{
     if(!contratoOk||zapLoading)return;
     setZapLoading(true);setZapErro("");
@@ -1888,8 +3473,9 @@ function NovoContrato({contratos,clientes,onSucesso,clienteInicial}){
   };
   const _gerarCarne=async()=>{if(!contratoOk||carneLoading)return;setCarneLoading(true);setCarneErro("");try{const r=await fetch("/api/efi-charges",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idContrato:contratoOk.idContrato,parcelas:contratoOk.parcelas,cliente:contratoOk.clienteEfi})});const d=await r.json();if(d.ok&&d.boletos?.every(b=>b.ok)){setCarneOk(true);postAction({action:"salvarCobrancasEfi",cobracas:d.boletos});}else{const errs=(d.boletos||[]).filter(b=>!b.ok).map(b=>`Parcela ${b.numParcela}: ${b.erro}`).join("; ");setCarneErro(errs||d.erro||"Erro ao gerar carnê");}}catch(e){setCarneErro(e.message);}setCarneLoading(false);};
   return(<>
-    {contratoOk&&<div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}><div style={{width:"100%",maxWidth:400,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.25)",overflow:"hidden",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}><div style={{background:GRN,padding:"22px 24px",textAlign:"center"}}><div style={{width:44,height:44,borderRadius:"50%",background:"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 8px"}}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><polyline points="20,6 9,17 4,12"/></svg></div><div style={{color:"#FFF",fontWeight:800,fontSize:17}}>Contrato criado</div><div style={{color:"rgba(255,255,255,0.8)",fontSize:12,marginTop:4}}>{contratoOk.nomeCliente} · {contratoOk.idContrato}</div></div><div style={{padding:"18px 20px"}}><div style={{background:BG,borderRadius:10,padding:"12px 16px",marginBottom:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Valor</div><div style={{fontWeight:800,fontSize:15,color:ORG}}>{_fRc(parseFloat(contratoOk.principal))}</div></div><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Parcelas</div><div style={{fontWeight:700,fontSize:13}}>{contratoOk.nParcelas}x de {_fRc(_pmtOk)}</div></div><div style={{gridColumn:"1/-1"}}><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>1º Vencimento</div><div style={{fontWeight:700,fontSize:13}}>{_fDvc(contratoOk.dtVenc)}</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{contratoOk.docUrl&&<button onClick={()=>window.open(contratoOk.docUrl,"_blank")} style={{padding:"12px",borderRadius:9,border:"none",background:TEXT,color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoDoc} Abrir no Google Docs</button>}{contratoOk.docId&&!zapUrl&&<button onClick={_enviarZapSign} disabled={zapLoading} style={{padding:"12px",borderRadius:9,border:"none",background:zapLoading?"#9B7FD4":"#6C3FC5",color:"#FFF",cursor:zapLoading?"default":"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{zapLoading?<><IcoSpinner color="#163300"/> Enviando...</>:<>{IcoSign} Enviar para ZapSign</>}</button>}{zapUrl&&<button onClick={()=>window.open(zapUrl,"_blank")} style={{padding:"12px",borderRadius:9,border:"none",background:"#6C3FC5",color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoSign} Assinar como credor</button>}
-{zapWppUrl&&<button onClick={()=>window.open(zapWppUrl,"_blank")} style={{padding:"12px",borderRadius:12,border:"none",background:"#25D366",color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoPhone} Enviar mensagem de assinatura (WhatsApp)</button>}{!carneOk?<button onClick={_gerarCarne} disabled={carneLoading} style={{padding:"12px",borderRadius:9,border:"none",background:carneLoading?"#7a6a2a":"#B8860B",color:"#FFF",cursor:carneLoading?"default":"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{carneLoading?<><IcoSpinner color="#163300"/> Gerando...</>:<>{IcoPag} Gerar Carnê PIX</>}</button>:<div style={{padding:"10px 12px",borderRadius:9,background:GRN+"20",color:GRN,fontWeight:700,fontSize:13,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{IcoCheck} Carnê PIX gerado</div>}{carneErro&&<div style={{padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:11,fontWeight:600}}>Erro carnê: {carneErro}</div>}<button onClick={_abrirWppNovo} style={{padding:"12px",borderRadius:12,border:"none",background:"#25D366",color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoPhone} Enviar boas-vindas pelo WhatsApp</button><button onClick={()=>{setContratoOk(null);onSucesso();}} style={{padding:"10px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:600,fontSize:13}}>Fechar</button>{contratoOk.docErro&&<div style={{marginTop:6,padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:11,fontWeight:600}}>Erro ao gerar doc: {contratoOk.docErro}</div>}{zapErro&&<div style={{marginTop:4,padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:11,fontWeight:600}}>Erro ZapSign: {zapErro}</div>}</div></div></div></div>}
+    {contratoOk&&<div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}><div style={{width:"100%",maxWidth:400,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.25)",overflow:"hidden",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}><div style={{background:GRN,padding:"22px 24px",textAlign:"center"}}><div style={{width:44,height:44,borderRadius:"50%",background:"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 8px"}}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><polyline points="20,6 9,17 4,12"/></svg></div><div style={{color:"#FFF",fontWeight:800,fontSize:17}}>Contrato criado</div><div style={{color:"rgba(255,255,255,0.8)",fontSize:12,marginTop:4}}>{contratoOk.nomeCliente} · {contratoOk.idContrato}</div></div><div style={{padding:"18px 20px"}}><div style={{background:BG,borderRadius:10,padding:"12px 16px",marginBottom:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Valor</div><div style={{fontWeight:800,fontSize:15,color:ORG}}>{_fRc(parseFloat(contratoOk.principal))}</div></div><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Parcelas</div><div style={{fontWeight:700,fontSize:13}}>{contratoOk.nParcelas}x de {_fRc(_pmtOk)}</div></div><div style={{gridColumn:"1/-1"}}><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>1º Vencimento</div><div style={{fontWeight:700,fontSize:13}}>{_fDvc(contratoOk.dtVenc)}</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{docLoading?<div style={{padding:"12px",borderRadius:9,background:BG,color:MUTED,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}><IcoSpinner color={MUTED}/> Gerando contrato...</div>:<>{contratoOk.docUrl&&<button onClick={()=>window.open(contratoOk.docUrl,"_blank")} style={{padding:"12px",borderRadius:9,border:"none",background:TEXT,color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoDoc} Abrir no Google Docs</button>}{contratoOk.docId&&!zapUrl&&<button onClick={_enviarZapSign} disabled={zapLoading} style={{padding:"12px",borderRadius:9,border:"none",background:zapLoading?"#9B7FD4":"#6C3FC5",color:"#FFF",cursor:zapLoading?"default":"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{zapLoading?<><IcoSpinner color="#ffffff"/> Enviando...</>:<>{IcoSign} Enviar para ZapSign</>}</button>}</>}{zapUrl&&<button onClick={()=>window.open(zapUrl,"_blank")} style={{padding:"12px",borderRadius:9,border:"none",background:"#6C3FC5",color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoSign} Assinar como credor</button>}
+{zapWppUrl&&<button onClick={()=>window.open(zapWppUrl,"_blank")} style={{padding:"12px",borderRadius:12,border:"none",background:"#25D366",color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoPhone} Enviar mensagem de assinatura (WhatsApp)</button>}{!carneOk?<button onClick={_gerarCarne} disabled={carneLoading} style={{padding:"12px",borderRadius:9,border:"none",background:carneLoading?"#7a6a2a":"#B8860B",color:"#FFF",cursor:carneLoading?"default":"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{carneLoading?<><IcoSpinner color="#ffffff"/> Gerando...</>:<>{IcoPag} Gerar Carnê PIX</>}</button>:<div style={{padding:"10px 12px",borderRadius:9,background:GRN+"20",color:GRN,fontWeight:700,fontSize:13,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{IcoCheck} Carnê PIX gerado</div>}{carneErro&&<div style={{padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:11,fontWeight:600}}>Erro carnê: {carneErro}</div>}<button onClick={_abrirWppNovo} style={{padding:"12px",borderRadius:12,border:"none",background:"#25D366",color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoPhone} Enviar boas-vindas pelo WhatsApp</button><button onClick={()=>{setContratoOk(null);onSucesso();}} style={{padding:"10px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:600,fontSize:13}}>Fechar</button>{contratoOk.docErro&&<div style={{marginTop:6,padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:11,fontWeight:600}}>Erro ao gerar doc: {contratoOk.docErro}</div>}{zapErro&&<div style={{marginTop:4,padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:11,fontWeight:600}}>Erro ZapSign: {zapErro}</div>}</div></div></div></div>}
+    {loading&&criandoSteps&&<div style={{position:"fixed",inset:0,zIndex:490,background:"rgba(15,23,42,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}><div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.25)",padding:"28px 32px",minWidth:280,animation:"fadeUp 0.2s ease"}}><div style={{fontWeight:800,fontSize:16,marginBottom:20,color:TEXT}}>Criando contrato...</div>{criandoSteps.map((s,i)=>{const isActive=!s.ok&&(i===0||criandoSteps[i-1]?.ok);return(<div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:i<criandoSteps.length-1?14:0,opacity:(!s.ok&&!isActive)?0.35:1,transition:"opacity 0.3s"}}><div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",border:`1.5px solid ${s.ok?GRN:isActive?ACC:BD}`,background:s.ok?GRN+"18":isActive?ACC+"18":"transparent",transition:"all 0.3s"}}>{s.ok?<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={GRN} strokeWidth="3"><polyline points="20,6 9,17 4,12"/></svg>:isActive?<IcoSpinner size={10} color={ACC}/>:null}</div><span style={{fontSize:13,fontWeight:s.ok||isActive?600:400,color:s.ok?GRN:isActive?TEXT:MUTED,transition:"all 0.3s"}}>{s.l}</span></div>);})}</div></div>}
     <div style={{background:CARD,borderRadius:16,padding:20,border:`1px solid ${BD}`,boxShadow:SHD}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}><div style={{background:ORG+"15",color:ORG,padding:8,borderRadius:8}}>{IcoCtr}</div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>Novo Contrato</h3></div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -1899,13 +3485,16 @@ function NovoContrato({contratos,clientes,onSucesso,clienteInicial}){
           {showDrop&&clis.length>0&&<div style={{position:"absolute",top:"100%",left:0,right:0,background:CARD,border:`1px solid ${BD}`,borderRadius:8,marginTop:4,zIndex:100,boxShadow:"0 10px 30px rgba(0,0,0,0.1)"}}>
             {clis.map(c=>{
               const bloq=idsComAtivo.has(String(c.ID_CLIENTE));
+              const judi=idsJudicializados.has(String(c.ID_CLIENTE));
+              const blocked=bloq||judi;
               return<div key={c.ID_CLIENTE}
-                onClick={()=>{if(!bloq){setCliente(c);setShowDrop(false);const cliF=(clientes||[]).find(cl=>String(cl.ID_CLIENTE)===String(c.ID_CLIENTE));if(cliF?.DIA_VENCIMENTO_PREFERIDO){const dv=calcProxVenc(cliF.DIA_VENCIMENTO_PREFERIDO);if(dv)setDtVenc(dv);}const pf=prefill(c.ID_CLIENTE);if(pf){setPrincipal(pf.principal);setNParcelas(pf.nParcelas);setTaxa(pf.taxa);}else{setPrincipal("");setNParcelas("");setTaxa("");}}}}
-                style={{padding:"10px 14px",cursor:bloq?"not-allowed":"pointer",fontSize:13,borderBottom:`1px solid ${BG}`,background:bloq?RED+"05":CARD,display:"flex",justifyContent:"space-between",alignItems:"center",opacity:bloq?0.7:1}}
-                onMouseEnter={e=>!bloq&&(e.currentTarget.style.background=BG)}
-                onMouseLeave={e=>e.currentTarget.style.background=bloq?RED+"05":CARD}>
-                <span style={{color:bloq?MUTED:TEXT}}><strong style={{color:bloq?MUTED:TEXT}}>{c.ID_CLIENTE}</strong> — {c.NOME_CLIENTE}</span>
-                {bloq&&<span style={{fontSize:11,fontWeight:700,color:RED,background:RED+"12",padding:"2px 8px",borderRadius:99,whiteSpace:"nowrap",marginLeft:8,display:"inline-flex",alignItems:"center",gap:4}}>{IcoLock} contrato ativo</span>}
+                onClick={()=>{if(!blocked){setCliente(c);setShowDrop(false);const cliF=(clientes||[]).find(cl=>String(cl.ID_CLIENTE)===String(c.ID_CLIENTE));if(cliF?.DIA_VENCIMENTO_PREFERIDO){const dv=calcProxVenc(cliF.DIA_VENCIMENTO_PREFERIDO);if(dv)setDtVenc(ajustarDiaUtil(dv,feriados));}const pf=prefill(c.ID_CLIENTE);if(pf){setPrincipal(pf.principal);setNParcelas(pf.nParcelas);setTaxa(pf.taxa);}else{setPrincipal("");setNParcelas("");setTaxa("");}}}}
+                style={{padding:"10px 14px",cursor:blocked?"not-allowed":"pointer",fontSize:13,borderBottom:`1px solid ${BG}`,background:blocked?RED+"05":CARD,display:"flex",justifyContent:"space-between",alignItems:"center",opacity:blocked?0.7:1}}
+                onMouseEnter={e=>!blocked&&(e.currentTarget.style.background=BG)}
+                onMouseLeave={e=>e.currentTarget.style.background=blocked?RED+"05":CARD}>
+                <span style={{color:blocked?MUTED:TEXT}}><strong style={{color:blocked?MUTED:TEXT}}>{c.ID_CLIENTE}</strong> — {c.NOME_CLIENTE}</span>
+                {judi&&<span style={{fontSize:11,fontWeight:700,color:RED,background:RED+"12",padding:"2px 8px",borderRadius:99,whiteSpace:"nowrap",marginLeft:8,display:"inline-flex",alignItems:"center",gap:4}}>{IcoJur} judicializado</span>}
+                {!judi&&bloq&&<span style={{fontSize:11,fontWeight:700,color:RED,background:RED+"12",padding:"2px 8px",borderRadius:99,whiteSpace:"nowrap",marginLeft:8,display:"inline-flex",alignItems:"center",gap:4}}>{IcoLock} contrato ativo</span>}
               </div>;
             })}
           </div>}
@@ -1914,9 +3503,9 @@ function NovoContrato({contratos,clientes,onSucesso,clienteInicial}){
           <div><span style={LS()}>Principal</span><input type="number" value={principal} onChange={e=>setPrincipal(e.target.value)} placeholder="0.00" style={IS()}/></div>
           <div><span style={LS()}>Parcelas</span><input type="number" value={nParcelas} onChange={e=>setNParcelas(e.target.value)} placeholder="1" style={IS()}/></div>
           <div><span style={LS()}>Taxa Mensal (%)</span><input type="number" value={taxa} onChange={e=>setTaxa(e.target.value)} placeholder="0.00" style={IS()}/></div>
-          <div><span style={LS()}>1º Vencimento</span><input type="date" value={dtVenc} onChange={e=>setDtVenc(e.target.value)} style={IS()}/></div>
+          <div><span style={LS()}>1º Vencimento</span><input type="date" value={dtVenc} onChange={e=>setDtVenc(e.target.value)} onBlur={e=>{const aj=ajustarDiaUtil(e.target.value,feriados);if(aj!==e.target.value)setDtVenc(aj);}} style={IS()}/></div>
           <div style={{gridColumn:"1/-1"}}><span style={LS()}>Data Empréstimo</span><input type="date" value={dtEmp} onChange={e=>setDtEmp(e.target.value)} style={IS()}/></div>
-          <button onClick={criar} disabled={loading} style={{...BTN1(loading),gridColumn:"1/-1"}}>{loading?<><IcoSpinner color="#1B3305"/> Criando...</>:<>{IcoCtr} Gerar Contrato</>}</button>
+          <button onClick={criar} disabled={loading} style={{...BTN1(loading),gridColumn:"1/-1"}}>{loading?<><IcoSpinner color="#07241B"/> Criando...</>:<>{IcoCtr} Gerar Contrato</>}</button>
         </div>}
         {msg&&<div style={{padding:10,borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:12,textAlign:"center",fontWeight:600}}>{msg.t}</div>}
       </div>
@@ -1925,18 +3514,36 @@ function NovoContrato({contratos,clientes,onSucesso,clienteInicial}){
 }
 
 // ─── MODAL CONTRATO ──────────────────────────────────────────────
-function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPagamento, onReagendar, onBaixar, onQuitacaoAntecipada, onComprovante, onAlterarVencimento, onFechar }) {
+function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRegistrarPagamento, onReagendar, onBaixar, onQuitacaoAntecipada, onComprovante, onAlterarVencimento, onFechar, onExcluir, onAcordoAssistido, onAbatimento, onVoltarCliente, onAjuizar, onRenegociar, onRecuperar, onAcordoJudicial, onQuitacaoJudicial, onArquivarProcesso }) {
   const [histPanel, setHistPanel] = useState(false);
   const [abaPanel, setAbaPanel] = useState("parcelas");
+  const [maisAcoesOpen, setMaisAcoesOpen] = useState(false);
   const [altVencOpen,setAltVencOpen]=useState(false);
-  const [altVencDia,setAltVencDia]=useState("");
+  const [altVencDate,setAltVencDate]=useState("");
   const [altVencLoad,setAltVencLoad]=useState(false);
   const [altVencErr,setAltVencErr]=useState("");
+  const [sairLoad,setSairLoad]=useState(false);
+  const [sairErr,setSairErr]=useState("");
   const [pixLoad,setPixLoad]=useState(false);
   const [pixOk,setPixOk]=useState(false);
   const [pixErr,setPixErr]=useState("");
   const [pixCopied,setPixCopied]=useState(false);
   const [pixCodeNew,setPixCodeNew]=useState("");
+  const [delConfirm,setDelConfirm]=useState(false);
+  const [delLoad,setDelLoad]=useState(false);
+  const [delErr,setDelErr]=useState("");
+  const [pixWppLoad,setPixWppLoad]=useState(false);
+  const [pixWppOk,setPixWppOk]=useState(false);
+  const [pixWppErr,setPixWppErr]=useState("");
+  const [juriEdit,setJuriEdit]=useState(false);
+  const [juriDados,setJuriDados]=useState({});
+  const [juriLoad,setJuriLoad]=useState(false);
+  const [juriErr,setJuriErr]=useState("");
+  const [juriOk,setJuriOk]=useState(false);
+  const [movDesc,setMovDesc]=useState("");
+  const [movData,setMovData]=useState(hojeStr());
+  const [movLoad,setMovLoad]=useState(false);
+  const [movErr,setMovErr]=useState("");
 
   const ps = (parcelas||[])
     .filter(p => String(p.ID_CONTRATO) === String(contrato.ID_CONTRATO))
@@ -1955,7 +3562,27 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
   const proxParcela = pendentes[0] || null;
   const pixCodeSaved = proxParcela?.EFI_PIX_CODE || "";
   const pixCodeToShow = pixCodeNew || pixCodeSaved;
-  const saldoDevedor = pendentes.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
+  const isAcordoAssistido = contrato.STATUS_CONTRATO === "acordo_assistido";
+  const isJudicial = contrato.STATUS_CONTRATO === "em_processo_judicial";
+  const isEncerradoJudicial = contrato.STATUS_CONTRATO === "encerrado_judicialmente";
+  const situacaoFinJudicial = contrato.SITUACAO_FINANCEIRA_JUDICIAL || "EM_ABERTO";
+  const pendentesJudiciais = pendentes.filter(p=>String(p.ORIGEM_PARCELA||"").toLowerCase()==="acordo_judicial");
+  const podeAcordoJudicial = isJudicial && (situacaoFinJudicial==="EM_ABERTO" || situacaoFinJudicial==="ACORDO_QUEBRADO");
+  const podeQuitacaoJudicial = isJudicial;
+  const podeArquivarProcesso = isJudicial;
+  const podeAcordoAssistido = ["ativo_em_atraso","em_cobranca","pre_prejuizo"].includes(contrato.STATUS_CONTRATO);
+  const jaRenegociado = ps.some(p=>String(p.ORIGEM_PARCELA||"").toLowerCase()==="renegociada");
+  const podeAjuizar = ["em_cobranca","pre_prejuizo","baixado_como_prejuizo"].includes(contrato.STATUS_CONTRATO)
+    || (jaRenegociado && contrato.STATUS_CONTRATO==="ativo_em_atraso");
+  const stLoss = ["baixado_como_prejuizo","em_recuperacao","recuperado_parcialmente","recuperado_integralmente","encerrado_sem_recuperacao","em_processo_judicial","encerrado_judicialmente"].includes(contrato.STATUS_CONTRATO);
+  const saldoDevedor = stLoss
+    ? parseFloat(contrato.PREJUIZO_CAPITAL||0)
+    : pendentes.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
+  const abatidoAssistido = parseFloat(contrato.VALOR_ABATIDO_ASSISTIDO||0);
+  const capitalRestante = Math.max(0, parseFloat(contrato.VALOR_PRINCIPAL||0) - abatidoAssistido);
+  const lucroRemanescente = isAcordoAssistido
+    ? ps.filter(p=>!["pago","quitacao_antecipada","baixado_como_prejuizo","cancelado","renegociado"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase())).reduce((s,p)=>s+parseFloat(p.VALOR_JUROS||0),0)
+    : 0;
   const pct = parseFloat(contrato.VALOR_PRINCIPAL||0) > 0
     ? (totalPago / parseFloat(contrato.VALOR_TOTAL||contrato.VALOR_PRINCIPAL||1)) * 100 : 0;
   const proxVenc = proxParcela ? parseDate(proxParcela.DATA_VENCIMENTO) : null;
@@ -1963,6 +3590,15 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
   const taxa = parseFloat(contrato.TAXA_JUROS_MENSAL||0);
   const juros = parseFloat(contrato.VALOR_PRINCIPAL||0) * taxa;
   const parcsPagas = parseInt(contrato.NUM_PARCELAS||0) - pendentes.length;
+  const sairDoAcordo = async () => {
+    setSairLoad(true); setSairErr("");
+    try {
+      const res = await postAction({action:"sairDoAcordoAssistido",idContrato:contrato.ID_CONTRATO,destino:"normal"});
+      if(res.ok){onAlterarVencimento&&onAlterarVencimento();onFechar();}
+      else setSairErr(res.erro||"Erro ao sair do acordo.");
+    } catch(e){setSairErr(e.message);}
+    setSairLoad(false);
+  };
 
   const fmtDtLong = v => {
     if(!v)return"—";
@@ -1973,10 +3609,24 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
 
   const stCor = { pago:GRN, pendente:MUTED, atrasado:RED, vence_hoje:YEL, baixado_como_prejuizo:RED, cancelado:MUTED, quitacao_antecipada:GRN, reagendado:YEL };
   const stLabel = { pago:"Pago", pendente:"Pendente", atrasado:"Atrasado", vence_hoje:"Vence Hoje", baixado_como_prejuizo:"Baixado", cancelado:"Cancelado", reagendado:"Reagendado" };
-  const podeRegistrar = !["baixado_como_prejuizo","quitado","cancelado","recuperado_integralmente"].includes(contrato.STATUS_CONTRATO);
-  const podeBaixar    = !["baixado_como_prejuizo","quitado","cancelado","recuperado_integralmente","recuperado_parcialmente"].includes(contrato.STATUS_CONTRATO);
-  const tipoPagLabel  = { pagamento_normal:"Normal", normal:"Normal", pagamento_com_atraso:"Com Atraso", com_atraso:"Com Atraso", somente_juros:"Só Juros", recuperacao_apos_baixa:"Recuperação", pagamento_antecipado:"Antecipado", antecipado:"Antecipado" };
-  const tipoPagCor    = { pagamento_normal:GRN, normal:GRN, pagamento_com_atraso:YEL, com_atraso:YEL, somente_juros:RED, recuperacao_apos_baixa:PUR, pagamento_antecipado:GRN, antecipado:GRN };
+  const podeRegistrar = isJudicial
+    ? pendentesJudiciais.length > 0
+    : !["baixado_como_prejuizo","quitado","cancelado","recuperado_integralmente","acordo_assistido","em_processo_judicial","encerrado_judicialmente"].includes(contrato.STATUS_CONTRATO);
+  const podeBaixar    = !["baixado_como_prejuizo","quitado","cancelado","recuperado_integralmente","recuperado_parcialmente","acordo_assistido","em_processo_judicial","encerrado_judicialmente"].includes(contrato.STATUS_CONTRATO);
+  const podeExcluir   = pags.length===0&&!["cancelado","baixado_como_prejuizo","quitado","recuperado_integralmente","recuperado_parcialmente","encerrado_sem_recuperacao","renegociado","acordo_assistido","em_processo_judicial","encerrado_judicialmente"].includes(String(contrato.STATUS_CONTRATO||"").toLowerCase());
+  const podeRenegociar = !jaRenegociado && pendentes.length > 0 && ["ativo_em_atraso","em_cobranca","pre_prejuizo","acordo_assistido"].includes(contrato.STATUS_CONTRATO);
+  const podeRecuperar = ["baixado_como_prejuizo","em_recuperacao","recuperado_parcialmente"].includes(contrato.STATUS_CONTRATO);
+  const excluirContrato=async()=>{
+    setDelLoad(true);setDelErr("");
+    try{
+      const res=await postAction({action:"excluirContrato",idContrato:contrato.ID_CONTRATO});
+      if(res.ok){setDelConfirm(false);if(onExcluir)onExcluir();else onFechar();}
+      else setDelErr(res.erro||"Erro ao excluir contrato.");
+    }catch(e){setDelErr(e.message);}
+    setDelLoad(false);
+  };
+  const tipoPagLabel  = { pagamento_normal:"Normal", normal:"Normal", pagamento_com_atraso:"Com Atraso", com_atraso:"Com Atraso", somente_juros:"Só Juros", recuperacao_apos_baixa:"Recuperação", pagamento_antecipado:"Antecipado", antecipado:"Antecipado", abatimento_acordo_assistido:"Abatimento", acordo_com_perda:"Acordo", recuperacao_judicial:"Recuperação Judicial" };
+  const tipoPagCor    = { pagamento_normal:GRN, normal:GRN, pagamento_com_atraso:YEL, com_atraso:YEL, somente_juros:RED, recuperacao_apos_baixa:PUR, pagamento_antecipado:GRN, antecipado:GRN, abatimento_acordo_assistido:BLU, acordo_com_perda:ORG, recuperacao_judicial:RED };
   const mob = useIsMobile();
 
   const _gerarPix = async () => {
@@ -2012,6 +3662,29 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
     window.open(tel?`https://wa.me/55${tel}`:`https://web.whatsapp.com`,"_blank");
   };
 
+  const _enviarPixWpp = async () => {
+    if (!pixCodeToShow || !proxParcela || pixWppLoad) return;
+    setPixWppLoad(true); setPixWppOk(false); setPixWppErr("");
+    try {
+      const res = await postAction({
+        action:        "enviarPixManual",
+        idCliente:     cli?.ID_CLIENTE     || "",
+        idContrato:    contrato.ID_CONTRATO,
+        idParcela:     proxParcela.ID_PARCELA || "",
+        nome:          cli?.NOME_CLIENTE   || contrato.NOME_CLIENTE || "",
+        telefone:      cli?.TELEFONE_WPP   || cli?.TELEFONE || "",
+        numParcela:    parseInt(proxParcela.NUM_PARCELA    || 0),
+        totalParcelas: parseInt(proxParcela.TOTAL_PARCELAS || 0),
+        valorParcela:  parseFloat(proxParcela.VALOR_PARCELA || 0),
+        dataVencimento: proxParcela.DATA_VENCIMENTO || "",
+        pixCode:       pixCodeToShow,
+      });
+      if (res.ok) { setPixWppOk(true); setTimeout(() => setPixWppOk(false), 3000); }
+      else setPixWppErr(res.erro || "Erro ao enviar");
+    } catch(e) { setPixWppErr(e.message); }
+    setPixWppLoad(false);
+  };
+
   const timelineEvents = useMemo(()=>{
     const ev=[];
     if(contrato.DATA_EMPRESTIMO) ev.push({
@@ -2027,7 +3700,7 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
       cor:ORG
     }));
     pags.forEach(p=>{
-      const extra=parseFloat(p.RECEITA_EXTRA_ATRASO||p.DIFERENCA_RECEBIDA||0);
+      const extra=parseFloat(p.RECEITA_EXTRA_ATRASO||p.DIFERENCA_RECEBIDA||0)+parseFloat(p.FEE_PRORROGACAO||0);
       ev.push({
         data:parseDate(p.DATA_PAGAMENTO),tipo:"pagamento",
         titulo:tipoPagLabel[p.TIPO_PAGAMENTO]||"Pagamento",
@@ -2039,14 +3712,37 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
   },[ps,pags,contrato,taxa]);
 
   return (
-    <div className="modal-overlay-anim" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:mob?0:16}} onClick={onFechar}>
-      <div className="modal-box-anim" onClick={e=>e.stopPropagation()} style={{background:CARD,borderRadius:mob?0:16,width:"100%",maxWidth:mob?undefined:histPanel?1080:520,maxHeight:mob?"100dvh":"92vh",display:"flex",flexDirection:"row",boxShadow:"0 30px 90px rgba(0,0,0,0.32)",border:mob?"none":`1px solid ${BD}`,overflow:"hidden",minWidth:0,transition:"max-width 0.3s cubic-bezier(0.16,1,0.3,1)"}}>
+    <div className="modal-overlay-anim" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:350,display:"flex",alignItems:"center",justifyContent:"center",padding:mob?0:16}} onClick={onFechar}>
+      <div className="modal-box-anim" onClick={e=>e.stopPropagation()} style={{background:CARD,borderRadius:mob?0:16,width:"100%",maxWidth:mob?undefined:histPanel?1080:520,maxHeight:mob?"100dvh":"92vh",display:"flex",flexDirection:"row",boxShadow:"0 30px 90px rgba(0,0,0,0.32)",border:mob?"none":`1px solid ${BD}`,overflow:"hidden",minWidth:0,transition:"max-width 0.3s cubic-bezier(0.16,1,0.3,1)",position:"relative"}}>
+        {delConfirm&&(
+          <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.55)",zIndex:20,display:"flex",alignItems:"center",justifyContent:"center",padding:24,borderRadius:"inherit"}}>
+            <div style={{background:CARD,borderRadius:14,padding:24,maxWidth:340,width:"100%",border:`1.5px solid ${RED}50`,boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}}>
+              <div style={{fontSize:15,fontWeight:800,color:TEXT,marginBottom:8,display:"flex",alignItems:"center",gap:8}}><span style={{color:RED}}>{IcoAlert}</span>Excluir contrato?</div>
+              <div style={{fontSize:13,color:MUTED,lineHeight:1.6,marginBottom:16}}>
+                O contrato <strong style={{color:TEXT}}>{contrato.ID_CONTRATO}</strong> será marcado como <em>cancelado</em> no Sheets e o ID ficará reservado.<br/>
+                Todas as parcelas serão <strong style={{color:RED}}>apagadas permanentemente</strong>. Esta ação não pode ser desfeita.
+              </div>
+              {delErr&&<div style={{padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:600,marginBottom:12}}>{delErr}</div>}
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>{setDelConfirm(false);setDelErr("");}} disabled={delLoad} style={{flex:1,padding:"10px",borderRadius:9,border:`1px solid ${BD}`,background:"transparent",color:MUTED,cursor:"pointer",fontWeight:600,fontSize:13}}>Cancelar</button>
+                <button onClick={excluirContrato} disabled={delLoad} style={{flex:1,padding:"10px",borderRadius:9,border:"none",background:RED,color:"#fff",cursor:delLoad?"default":"pointer",fontWeight:700,fontSize:13,opacity:delLoad?0.7:1}}>
+                  {delLoad?"Excluindo...":"Sim, excluir"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── MAIN CONTENT ── */}
         <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0,overflow:"hidden"}}>
 
           {/* HEADER */}
           <div style={{padding:mob?"18px 20px 16px":"22px 24px 18px",flexShrink:0}}>
+            {onVoltarCliente&&(
+              <button onClick={onVoltarCliente} style={{display:"flex",alignItems:"center",gap:5,background:"transparent",border:"none",color:MUTED,cursor:"pointer",fontSize:12,fontWeight:600,padding:0,marginBottom:10}}>
+                {IcoArrL} Voltar para {cli?.NOME||cli?.NOME_CLIENTE||"Cliente"}
+              </button>
+            )}
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
               <div style={{minWidth:0}}>
                 <div style={{fontSize:mob?20:22,fontWeight:800,color:TEXT,letterSpacing:"-0.3px",lineHeight:1.15,marginBottom:10}}>Contrato {contrato.ID_CONTRATO}</div>
@@ -2056,8 +3752,8 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
                     <span style={{width:6,height:6,borderRadius:"50%",background:STATUS_COR[contrato.STATUS_CONTRATO]||MUTED,display:"inline-block",flexShrink:0}}/>
                     {STATUS_LABEL[contrato.STATUS_CONTRATO]||contrato.STATUS_CONTRATO}
                   </span>
-                  {diasAteVenc!==null&&diasAteVenc<0&&<Badge c={RED}>Em Atraso</Badge>}
                   {diasAteVenc===0&&<Badge c={YEL}>Vence Hoje</Badge>}
+                  {cli?.PERFIL_COBRANCA&&<Badge c={PERFIL_COR[cli.PERFIL_COBRANCA]||MUTED}>{PERFIL_LABEL[cli.PERFIL_COBRANCA]||cli.PERFIL_COBRANCA}</Badge>}
                 </div>
               </div>
               <button className="modal-close-btn" onClick={onFechar} style={{background:"transparent",border:"none",width:34,height:34,borderRadius:10,cursor:"pointer",color:MUTED,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
@@ -2070,9 +3766,16 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
           <div style={{flex:1,overflowY:"auto",padding:mob?"0 16px 16px":"0 24px 20px",display:"flex",flexDirection:"column",gap:16}}>
 
             {/* GRADIENT CARD */}
-            <div style={{background:"linear-gradient(135deg,#1FB877 0%,#0E5C44 40%,#07241B 100%)",borderRadius:14,padding:mob?"16px 18px":"18px 20px",color:"#fff"}}>
+            <div style={{background:GRN,borderRadius:14,padding:mob?"16px 18px":"18px 20px",color:"#fff"}}>
               <div style={{fontSize:13,fontWeight:400,color:"rgba(255,255,255,0.60)",marginBottom:6}}>{contrato.NOME_CLIENTE}</div>
-              <div style={{fontSize:mob?26:30,fontWeight:900,letterSpacing:"0.5px",lineHeight:1,marginBottom:8}}>{fmtR(contrato.VALOR_PRINCIPAL)}</div>
+              <div style={{fontSize:mob?26:30,fontWeight:900,letterSpacing:"0.5px",lineHeight:1,marginBottom:6}}>{fmtR(contrato.VALOR_TOTAL||contrato.VALOR_PRINCIPAL)}</div>
+              {parseFloat(contrato.VALOR_TOTAL||0)>0&&parseFloat(contrato.VALOR_TOTAL)!==parseFloat(contrato.VALOR_PRINCIPAL||0)&&(
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",display:"flex",gap:10,marginBottom:8,flexWrap:"wrap"}}>
+                  <span>Principal: {fmtR(contrato.VALOR_PRINCIPAL)}</span>
+                  <span>·</span>
+                  <span>Juros totais: {fmtR(parseFloat(contrato.VALOR_TOTAL)-parseFloat(contrato.VALOR_PRINCIPAL||0))}</span>
+                </div>
+              )}
               <div style={{fontSize:12,color:"rgba(255,255,255,0.50)",display:"flex",alignItems:"center",gap:6}}>
                 <span>{parcsPagas > 0 ? parcsPagas : 0} de {contrato.NUM_PARCELAS} parcelas</span>
                 {taxa>0&&<><span>·</span><span>{(taxa*100).toFixed(1)}% a.m.</span></>}
@@ -2085,9 +3788,23 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
                 {l:"Próximo vencimento",v:proxParcela?(proxParcela.DATA_ACORDO?`${fmtDtLong(proxParcela.DATA_ACORDO)} (acordo)`:fmtDtLong(proxParcela.DATA_VENCIMENTO)):"—",c:diasAteVenc!==null&&diasAteVenc<0?RED:diasAteVenc===0?YEL:TEXT},
                 ...(!proxParcela?[{l:"Valor da parcela",v:fmtR(contrato.VALOR_PARCELA),c:TEXT}]:[]),
                 ...(taxa>0?[{l:`Juros do mês (${(taxa*100).toFixed(1)}% a.m.)`,v:fmtR(juros),c:TEXT}]:[]),
-                {l:"Saldo devedor",v:fmtR(saldoDevedor),c:saldoDevedor>0?RED:MUTED},
+                {l:stLoss?"Prejuízo remanescente":"Saldo devedor",v:fmtR(saldoDevedor),c:saldoDevedor>0?RED:MUTED},
+                ...(isAcordoAssistido?[
+                  {l:"Capital recuperado",v:fmtR(abatidoAssistido),c:abatidoAssistido>0?BLU:MUTED},
+                  {l:"Capital restante",v:fmtR(capitalRestante),c:capitalRestante>0?RED:GRN},
+                  ...(lucroRemanescente>0?[{l:"Juros suspensos (potencial)",v:fmtR(lucroRemanescente),c:ORG}]:[]),
+                ]:[]),
                 {l:"Total pago até hoje",v:fmtR(totalPago),c:totalPago>0?GRN:MUTED},
-                ...(pendentes.length===0?[{l:"Parcelas restantes",v:"Concluído",c:GRN}]:[]),
+                ...(parseInt(contrato.TOTAL_SOMENTE_JUROS||0)>0?[{
+                  l:"Prorrogações usadas",
+                  v:`${contrato.TOTAL_SOMENTE_JUROS}/2`,
+                  c:parseInt(contrato.TOTAL_SOMENTE_JUROS)>=2?RED:YEL
+                }]:[]),
+                ...(pendentes.length===0&&!stLoss?[{
+                  l:"Encerramento",
+                  v:contrato.STATUS_CONTRATO==="quitado"?"Quitado":contrato.STATUS_CONTRATO==="cancelado"?"Cancelado":"Concluído",
+                  c:contrato.STATUS_CONTRATO==="cancelado"?MUTED:GRN
+                }]:[]),
               ].map((row,i,arr)=>(
                 <div key={row.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 0",borderBottom:i<arr.length-1?`1px solid ${BD}`:"none"}}>
                   <span style={{fontSize:14,color:MUTED,fontWeight:400}}>{row.l}</span>
@@ -2104,79 +3821,126 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
                   <span style={{fontSize:11,fontWeight:800,color:GRN}}>{pct.toFixed(0)}% pago</span>
                 </div>
                 <div style={{background:BD,borderRadius:99,height:6,overflow:"hidden"}}>
-                  <div style={{background:`linear-gradient(90deg,${GRN},${ACC})`,width:`${Math.min(100,Math.max(0,pct))}%`,height:"100%",borderRadius:99,transition:"width 0.5s ease"}}/>
+                  <div style={{background:GRN,width:`${Math.min(100,Math.max(0,pct))}%`,height:"100%",borderRadius:99,transition:"width 0.5s ease"}}/>
                 </div>
               </div>
             )}
 
             {/* PRÓXIMA PARCELA */}
             {proxParcela&&(
-              <div style={{background:"rgba(168,224,63,0.09)",borderRadius:12,padding:"16px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
-                <div style={{fontSize:14,fontWeight:700,color:TEXT}}>Próxima parcela</div>
-                <div style={{fontSize:mob?20:24,fontWeight:900,color:GRN,letterSpacing:"0.3px",flexShrink:0}}>{fmtR(proxParcela.VALOR_PARCELA)}</div>
+              <div style={{background:"rgba(168,224,63,0.09)",borderRadius:12,padding:"16px 18px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+                  <div style={{fontSize:14,fontWeight:700,color:TEXT}}>Próxima parcela</div>
+                  <div style={{fontSize:mob?20:24,fontWeight:900,color:GRN,letterSpacing:"0.3px",flexShrink:0}}>{fmtR(proxParcela.VALOR_PARCELA)}</div>
+                </div>
+                {parseFloat(proxParcela.VALOR_JUROS||0)>0&&(
+                  <div style={{display:"flex",gap:16,marginTop:8}}>
+                    <span style={{fontSize:11,color:MUTED}}>Principal: <strong style={{color:TEXT,fontWeight:700}}>{fmtR(proxParcela.VALOR_PRINCIPAL||0)}</strong></span>
+                    <span style={{fontSize:11,color:MUTED}}>Juros: <strong style={{color:TEXT,fontWeight:700}}>{fmtR(proxParcela.VALOR_JUROS||0)}</strong></span>
+                  </div>
+                )}
               </div>
             )}
 
             {/* ALTERAR VENCIMENTO */}
             {altVencOpen&&(
-              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",padding:"10px 14px",borderRadius:10,background:BG,border:`1px solid ${BD}`}}>
-                <span style={{fontSize:12,color:MUTED,fontWeight:600,whiteSpace:"nowrap"}}>Novo dia (1–28):</span>
-                <input type="number" min="1" max="28" value={altVencDia} onChange={e=>setAltVencDia(e.target.value)}
-                  style={{width:60,padding:"6px 8px",borderRadius:7,border:`1px solid ${BD}`,background:CARD,color:TEXT,fontSize:14,fontWeight:700,textAlign:"center",outline:"none"}}
-                  placeholder="dia" autoFocus/>
-                <button onClick={async()=>{
-                  const d=parseInt(altVencDia);
-                  if(!d||d<1||d>28){setAltVencErr("Dia inválido (1–28)");return;}
-                  setAltVencLoad(true);setAltVencErr("");
-                  const r=await postAction({action:"alterarDiaVencimento",idContrato:contrato.ID_CONTRATO,novoDia:d});
-                  setAltVencLoad(false);
-                  if(r?.ok){setAltVencOpen(false);setAltVencDia("");onAlterarVencimento&&onAlterarVencimento();}
-                  else setAltVencErr(r?.erro||"Erro ao salvar");
-                }} disabled={altVencLoad} style={{padding:"7px 14px",borderRadius:7,border:"none",background:GRN,color:"#FFF",fontWeight:700,fontSize:12,cursor:"pointer",opacity:altVencLoad?0.6:1}}>
-                  {altVencLoad?<><IcoSpinner color="#fff"/> Salvando...</>:"Confirmar"}
-                </button>
-                <button onClick={()=>{setAltVencOpen(false);setAltVencDia("");setAltVencErr("");}} style={{padding:"7px 12px",borderRadius:7,border:`1px solid ${BD}`,background:"transparent",color:MUTED,fontWeight:600,fontSize:12,cursor:"pointer"}}>Cancelar</button>
+              <div style={{display:"flex",flexDirection:"column",gap:10,padding:"14px 16px",borderRadius:10,background:BG,border:`1px solid ${BD}`}}>
+                <div style={{fontSize:12,color:MUTED,fontWeight:600}}>Nova data da próxima parcela pendente — somente parcelas futuras serão ajustadas (+1 mês cada). Parcelas em atraso não são alteradas.</div>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <input type="date" value={altVencDate} onChange={e=>setAltVencDate(e.target.value)} autoFocus
+                    style={{padding:"8px 12px",borderRadius:7,border:`1.5px solid ${GRN}50`,background:CARD,color:TEXT,fontSize:14,fontWeight:700,outline:"none",cursor:"pointer"}}/>
+                  <button onClick={async()=>{
+                    if(!altVencDate){setAltVencErr("Selecione uma data");return;}
+                    setAltVencLoad(true);setAltVencErr("");
+                    const r=await postAction({action:"alterarVencimento",idContrato:contrato.ID_CONTRATO,novaData:altVencDate});
+                    setAltVencLoad(false);
+                    if(r?.ok){setAltVencOpen(false);setAltVencDate("");onAlterarVencimento&&onAlterarVencimento();}
+                    else setAltVencErr(r?.erro||"Erro ao salvar");
+                  }} disabled={altVencLoad} style={{padding:"8px 16px",borderRadius:7,border:"none",background:GRN,color:"#FFF",fontWeight:700,fontSize:12,cursor:"pointer",opacity:altVencLoad?0.6:1}}>
+                    {altVencLoad?<><IcoSpinner color="#fff"/> Salvando...</>:"Confirmar"}
+                  </button>
+                  <button onClick={()=>{setAltVencOpen(false);setAltVencDate("");setAltVencErr("");}} style={{padding:"8px 12px",borderRadius:7,border:`1px solid ${BD}`,background:"transparent",color:MUTED,fontWeight:600,fontSize:12,cursor:"pointer"}}>Cancelar</button>
+                </div>
                 {altVencErr&&<span style={{color:RED,fontSize:11,fontWeight:700}}>{altVencErr}</span>}
               </div>
             )}
 
             {pixErr&&<div style={{padding:"8px 12px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:600}}>{pixErr}</div>}
             {pixOk&&<div style={{padding:"8px 12px",borderRadius:8,background:GRN+"10",color:GRN,fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:5}}>{IcoCheck} PIX gerado!</div>}
+            {sairErr&&<div style={{padding:"8px 12px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:600}}>{sairErr}</div>}
           </div>
 
-          {/* SECONDARY ACTIONS — só para contratos ativos */}
-          {podeRegistrar&&(pendentes.length>0||podeBaixar)&&(
-            <div style={{padding:"6px 16px 0",display:"flex",gap:6,alignItems:"center",flexShrink:0,flexWrap:"wrap"}}>
-              {pendentes.length>0&&!altVencOpen&&<button onClick={()=>{setAltVencOpen(true);setAltVencErr("");}} style={{padding:"5px 10px",borderRadius:7,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:4}}>{IcoCal} Alt. Vcto</button>}
-              {pendentes.length>0&&<button onClick={()=>onQuitacaoAntecipada&&onQuitacaoAntecipada(contrato)} style={{padding:"5px 10px",borderRadius:7,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:4}}>{IcoZap} Quitar</button>}
-              {podeBaixar&&<button onClick={()=>onBaixar(contrato)} style={{padding:"5px 10px",borderRadius:7,border:`1px solid ${RED}30`,background:CARD,color:RED,cursor:"pointer",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:4,marginLeft:"auto"}}>{IcoAlert} Baixar</button>}
-            </div>
-          )}
-
-          {/* PRIMARY FOOTER */}
-          <div style={{padding:"12px 16px 16px",background:CARD,display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
-            {podeRegistrar&&pendentes.length>0
-              ?<>
-                <button onClick={()=>onRegistrarPagamento(pendentes[0])} style={{...BTN1(false),flex:1}}>
-                  {IcoCheck} Registrar Pagamento
-                </button>
-                {pixCodeToShow
-                  ?<button onClick={_copiarPix} title={pixCodeToShow} style={{padding:"14px 16px",borderRadius:12,border:`1.5px solid ${pixCopied?GRN:BD}`,background:pixCopied?GRN+"18":CARD,color:pixCopied?GRN:TEXT,cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap",transition:"all 0.2s"}}>
-                    {pixCopied?IcoCheck:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>}{pixCopied?"OK!":"Copiar PIX"}
-                  </button>
-                  :<button onClick={_gerarPix} disabled={pixLoad} style={{padding:"14px 16px",borderRadius:12,border:`1.5px solid ${BD}`,background:CARD,color:TEXT,cursor:pixLoad?"default":"pointer",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:5,opacity:pixLoad?0.7:1,whiteSpace:"nowrap"}}>
-                    {pixLoad?<IcoSpinner size={12}/>:null}{pixLoad?"...":"Gerar PIX"}
-                  </button>
-                }
-                <button onClick={()=>onComprovante&&onComprovante(contrato,ps,cli)} style={{...BTN3(),whiteSpace:"nowrap",padding:"14px 14px"}}>
-                  {IcoPhone}
-                </button>
-              </>
-              :<button onClick={()=>onComprovante&&onComprovante(contrato,ps,cli)} style={{...BTN1(false),flex:1}}>
-                {IcoPhone} Enviar Comprovante
-              </button>
-            }
-          </div>
+          {/* FOOTER */}
+          {(()=>{
+            const temAdm = ps.length>0||(podeRegistrar&&pendentes.length>0)||(podeRegistrar&&podeBaixar)||podeExcluir||podeAcordoAssistido||isAcordoAssistido||podeAjuizar||isJudicial||isEncerradoJudicial||podeRecuperar;
+            const _allTermPs=ps.length>0&&ps.every(p=>_ST_TERMINAL.has(String(p.STATUS||"").toLowerCase()));
+            const _isContratoQuitado=_allTermPs&&(contrato.STATUS_CONTRATO==="quitado"||contrato.STATUS_CONTRATO==="renegociado"||ps.some(p=>["pago","quitacao_antecipada"].includes(String(p.STATUS||"").toLowerCase())));
+            const _openAltVenc = () => {
+              const p0=pendentes[0];const d=p0?parseDate(p0.DATA_VENCIMENTO):null;
+              const ymd=d?`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`:"";
+              setAltVencDate(ymd);setAltVencOpen(true);setAltVencErr("");setMaisAcoesOpen(false);
+            };
+            return(
+              <div style={{padding:"12px 16px 16px",background:CARD,flexShrink:0,position:"relative"}}>
+                {/* DROPDOWN MAIS AÇÕES */}
+                {maisAcoesOpen&&temAdm&&(
+                  <div style={{position:"absolute",bottom:"calc(100% + 4px)",right:16,background:CARD,border:`1px solid ${BD}`,borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.14)",minWidth:200,zIndex:10,overflow:"hidden"}}>
+                    <button onClick={()=>{setMaisAcoesOpen(false);if(_isContratoQuitado){const _pagsSemAbat=pags.filter(p=>p.TIPO_PAGAMENTO!=="abatimento_acordo_assistido");const _totPag=_pagsSemAbat.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);const _ultD=_pagsSemAbat.reduce((l,p)=>{const d=parseDate(p.DATA_PAGAMENTO);return d&&(!l||d>l)?d:l;},null);gerarComprovante(contrato,ps,cli,_totPag,_ultD);}else{gerarExtratoPDF(contrato,ps,pags,cli,eventos);}}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:TEXT,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoDoc} {_isContratoQuitado?"Comprovante de Quitação":"Extrato do Contrato"}</button>
+                    <div style={{height:1,background:BD,margin:"4px 0"}}/>
+                    {podeRegistrar&&pendentes.length>0&&!altVencOpen&&<button onClick={_openAltVenc} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:TEXT,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoCal} Alterar vencimento</button>}
+                    {podeRegistrar&&pendentes.length>0&&<button onClick={()=>{setMaisAcoesOpen(false);onQuitacaoAntecipada&&onQuitacaoAntecipada(contrato);}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:TEXT,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoZap} Quitar antecipado</button>}
+                    {podeRenegociar&&<button onClick={()=>{setMaisAcoesOpen(false);onRenegociar&&onRenegociar(contrato);}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:PUR,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoRepeat} Renegociar contrato</button>}
+                    {(podeRegistrar&&podeBaixar)&&<button onClick={()=>{setMaisAcoesOpen(false);onBaixar(contrato);}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:RED,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoAlert} Encerrar contrato</button>}
+                    {podeAcordoAssistido&&<button onClick={()=>{setMaisAcoesOpen(false);onAcordoAssistido&&onAcordoAssistido(contrato);}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:BLU,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoHandshake} Acordo assistido</button>}
+                    {podeAjuizar&&<button onClick={()=>{setMaisAcoesOpen(false);onAjuizar&&onAjuizar(contrato);}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:RED,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoJur} Ajuizar contrato</button>}
+                    {podeRecuperar&&<button onClick={()=>{setMaisAcoesOpen(false);onRecuperar&&onRecuperar(contrato);}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:PUR,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Registrar Recuperação</button>}
+                    {(isJudicial||isEncerradoJudicial)&&<><div style={{height:1,background:BD,margin:"4px 0"}}/><button onClick={()=>{setMaisAcoesOpen(false);setHistPanel(true);setAbaPanel("juridico");}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:RED,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoJur} Dados jurídicos</button></>}
+                    {podeAcordoJudicial&&<button onClick={()=>{setMaisAcoesOpen(false);onAcordoJudicial&&onAcordoJudicial(contrato);}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:BLU,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoHandshake} Registrar Acordo Judicial</button>}
+                    {podeQuitacaoJudicial&&<button onClick={()=>{setMaisAcoesOpen(false);onQuitacaoJudicial&&onQuitacaoJudicial(contrato);}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:GRN,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoCheck} Quitação Judicial</button>}
+                    {podeArquivarProcesso&&<button onClick={()=>{setMaisAcoesOpen(false);onArquivarProcesso&&onArquivarProcesso(contrato);}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:MUTED,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoTrash} Arquivar Processo</button>}
+                    {isAcordoAssistido&&<>
+                      <button onClick={()=>{setMaisAcoesOpen(false);onAbatimento&&onAbatimento(contrato);}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:BLU,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>+ Abatimento</button>
+                      <button onClick={()=>{setMaisAcoesOpen(false);sairDoAcordo();}} disabled={sairLoad} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:GRN,cursor:sairLoad?"default":"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left",opacity:sairLoad?0.6:1}}>{sairLoad?<IcoSpinner size={11}/>:"↩"} Retornar ao contrato</button>
+                      <button onClick={()=>{setMaisAcoesOpen(false);onBaixar&&onBaixar(contrato);}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:RED,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoAlert} Encerrar contrato</button>
+                    </>}
+                    {podeExcluir&&<><div style={{height:1,background:BD,margin:"4px 0"}}/><button onClick={()=>{setMaisAcoesOpen(false);setDelConfirm(true);setDelErr("");}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:RED,cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoTrash} Excluir contrato</button></>}
+                  </div>
+                )}
+                {/* BOTÕES PRINCIPAIS */}
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  {podeRegistrar&&pendentes.length>0
+                    ?<>
+                      <button onClick={()=>onRegistrarPagamento(pendentes[0])} style={{...BTN1(false),flex:1}}>
+                        {IcoCheck} Registrar Pagamento
+                      </button>
+                      {pixCodeToShow
+                        ?<button onClick={_enviarPixWpp} disabled={pixWppLoad} title={pixWppErr||"Enviar código PIX via WhatsApp"} style={{padding:"14px 16px",borderRadius:12,border:`1.5px solid ${pixWppOk?"#25D366":pixWppErr?RED:"#25D366"}`,background:pixWppOk?"#25D36618":pixWppErr?RED+"10":"#25D36618",color:pixWppOk?"#25D366":pixWppErr?RED:"#25D366",cursor:pixWppLoad?"default":"pointer",display:"flex",alignItems:"center",gap:6,transition:"all 0.2s",flexShrink:0,opacity:pixWppLoad?0.7:1,fontWeight:700,fontSize:13,whiteSpace:"nowrap"}}>
+                          {pixWppLoad?<><IcoSpinner size={12}/> Enviando...</>:pixWppOk?<>{IcoCheck} Enviado!</>:<>{IcoWpp} Enviar PIX</>}
+                        </button>
+                        :<button onClick={()=>onComprovante&&onComprovante(contrato,ps,cli)} style={{...BTN3(),whiteSpace:"nowrap",padding:"14px 14px"}}>
+                          {IcoPhone}
+                        </button>
+                      }
+                      {pixCodeToShow
+                        ?<button onClick={_copiarPix} title={pixCodeToShow} style={{padding:"14px 14px",borderRadius:12,border:`1.5px solid ${pixCopied?GRN:BD}`,background:pixCopied?GRN+"18":CARD,color:pixCopied?GRN:MUTED,cursor:"pointer",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:4,transition:"all 0.2s",flexShrink:0}}>
+                          {pixCopied?IcoCheck:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>}
+                        </button>
+                        :<button onClick={_gerarPix} disabled={pixLoad} style={{padding:"14px 16px",borderRadius:12,border:`1.5px solid ${BD}`,background:CARD,color:TEXT,cursor:pixLoad?"default":"pointer",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:5,opacity:pixLoad?0.7:1,whiteSpace:"nowrap"}}>
+                          {pixLoad?<IcoSpinner size={12}/>:null}{pixLoad?"...":"Gerar PIX"}
+                        </button>
+                      }
+                    </>
+                    :<button onClick={()=>onComprovante&&onComprovante(contrato,ps,cli)} style={{...BTN1(false),flex:1}}>
+                      {IcoPhone} Enviar Comprovante
+                    </button>
+                  }
+                  {temAdm&&<button onClick={()=>setMaisAcoesOpen(p=>!p)} style={{padding:"14px 12px",borderRadius:12,border:`1.5px solid ${maisAcoesOpen?GRN:BD}`,background:maisAcoesOpen?GRN+"12":CARD,color:maisAcoesOpen?GRN:MUTED,cursor:"pointer",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:4,whiteSpace:"nowrap",flexShrink:0,transition:"all 0.2s"}}>
+                    Mais ações <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points={maisAcoesOpen?"18,15 12,9 6,15":"6,9 12,15 18,9"}/></svg>
+                  </button>}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* ── TOGGLE BUTTON ── */}
@@ -2195,8 +3959,9 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
             <div style={{padding:"14px 16px",borderBottom:`1px solid ${BD}`,background:CARD,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexShrink:0}}>
               <span style={{fontSize:13,fontWeight:800,color:TEXT}}>Histórico</span>
               <div style={{display:"flex",gap:0,background:BG,borderRadius:8,padding:2,border:`1px solid ${BD}`}}>
-                {[["parcelas",`Parcelas (${ps.length})`],["timeline","Linha do Tempo"]].map(([id,lbl])=>(
-                  <button key={id} onClick={()=>setAbaPanel(id)} style={{padding:"5px 10px",borderRadius:6,border:"none",background:abaPanel===id?CARD:"transparent",color:abaPanel===id?GRN:MUTED,fontSize:11,fontWeight:700,cursor:"pointer"}}>{lbl}</button>
+                {[["parcelas",`Parcelas (${ps.length})`],["timeline","Linha do Tempo"],...((isJudicial||isEncerradoJudicial)?[["juridico","⚖ Jurídico"]]:[])]
+                  .map(([id,lbl])=>(
+                  <button key={id} onClick={()=>setAbaPanel(id)} style={{padding:"5px 10px",borderRadius:6,border:"none",background:abaPanel===id?(id==="juridico"?RED+"18":CARD):"transparent",color:abaPanel===id?(id==="juridico"?RED:GRN):MUTED,fontSize:11,fontWeight:700,cursor:"pointer"}}>{lbl}</button>
                 ))}
               </div>
             </div>
@@ -2212,18 +3977,20 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
                   </tr></thead>
                   <tbody>{ps.map((p,i)=>{
                     const st=statusEfetivo(p);
+                    const isSubstituida=st==="renegociado";
+                    const isNovaParcela=String(p.ORIGEM_PARCELA||"").toLowerCase()==="renegociada";
                     const foiPago=parseFloat(p.VALOR_PAGO||0)>0;
-                    const sitCor=stCor[st]||MUTED;
-                    const sitLbl=stLabel[st]||_ST_LABEL[st]||st;
+                    const sitCor=isSubstituida?MUTED:(stCor[st]||MUTED);
+                    const sitLbl=isSubstituida?"Substituída":(stLabel[st]||_ST_LABEL[st]||st);
                     const ativa=!_ST_TERMINAL.has(st);
                     return(
-                      <tr key={p.ID_PARCELA||i} style={{borderBottom:`1px solid ${BD}`,fontSize:12,background:i%2===0?CARD:BG}}>
+                      <tr key={p.ID_PARCELA||i} style={{borderBottom:`1px solid ${BD}`,fontSize:12,background:i%2===0?CARD:BG,opacity:isSubstituida?0.5:1}}>
                         <td style={{padding:"9px 14px",color:MUTED,fontWeight:600}}>{p.NUM_PARCELA}{isUltima(p,ps)&&<span style={{fontSize:8,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 4px",borderRadius:99,marginLeft:4}}>ult.</span>}</td>
-                        <td style={{fontWeight:600,color:TEXT,fontSize:11}}>
+                        <td style={{fontWeight:600,color:isSubstituida?MUTED:TEXT,fontSize:11}}>
                           {p.DATA_ACORDO?<span style={{color:ORG}}>{fmtDt(p.DATA_ACORDO)}<span style={{fontSize:8,fontWeight:800,background:ORG+"18",padding:"1px 4px",borderRadius:99,marginLeft:3}}>acordo</span></span>:fmtDt(p.DATA_VENCIMENTO)}
                         </td>
-                        <td><Badge c={sitCor}>{sitLbl}</Badge></td>
-                        <td style={{textAlign:"right",padding:"9px 14px",fontWeight:700,color:foiPago?GRN:TEXT}}>{foiPago?fmtR(p.VALOR_PAGO):fmtR(p.VALOR_PARCELA)}</td>
+                        <td><Badge c={sitCor}>{sitLbl}</Badge>{isNovaParcela&&<span style={{fontSize:9,color:PUR,background:PUR+"18",padding:"1px 5px",borderRadius:99,fontWeight:800,marginLeft:4}}>↺ nova</span>}</td>
+                        <td style={{textAlign:"right",padding:"9px 14px",fontWeight:700,color:isSubstituida?MUTED:(foiPago?GRN:TEXT),textDecoration:isSubstituida?"line-through":"none"}}>{foiPago&&!isSubstituida?fmtR(p.VALOR_PAGO):fmtR(p.VALOR_PARCELA)}</td>
                         <td style={{padding:"6px 8px"}}>
                           {ativa&&<div style={{display:"flex",gap:3}}>
                             <button onClick={e=>{e.stopPropagation();onRegistrarPagamento(p);}} style={BTN7(GRN)}>Pagar</button>
@@ -2241,14 +4008,12 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
                   : <div style={{padding:"8px 0"}}>
                       {timelineEvents.map((ev,i)=>(
                         <div key={i} style={{display:"flex",gap:0,padding:"0 14px"}}>
-                          {/* Coluna da linha + dot */}
                           <div style={{display:"flex",flexDirection:"column",alignItems:"center",marginRight:12,flexShrink:0}}>
                             <div style={{width:20,height:20,borderRadius:"50%",background:ev.cor+"20",border:`2px solid ${ev.cor}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:12,fontSize:9,color:ev.cor,fontWeight:900,zIndex:1}}>
                               {ev.tipo==="criacao"?"★":ev.tipo==="reagendamento"?"↻":"✓"}
                             </div>
                             {i<timelineEvents.length-1&&<div style={{flex:1,width:2,background:BD,minHeight:12}}/>}
                           </div>
-                          {/* Conteúdo */}
                           <div style={{flex:1,paddingTop:10,paddingBottom:14,borderBottom:i<timelineEvents.length-1?`1px solid ${BD}00`:"none"}}>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6}}>
                               <div style={{fontSize:12,fontWeight:700,color:TEXT,lineHeight:1.3}}>{ev.titulo}</div>
@@ -2260,6 +4025,128 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, onRegistrarPa
                       ))}
                     </div>
               )}
+              {abaPanel==="juridico"&&(isJudicial||isEncerradoJudicial)&&(()=>{
+                const STATUS_PROC_LABEL={EM_PREPARACAO:"Em Preparação",AJUIZADO:"Ajuizado",CITACAO_PENDENTE:"Citação Pendente",CITADO:"Citado",AUDIENCIA_DESIGNADA:"Audiência Designada",AGUARDANDO_AUDIENCIA:"Aguardando Audiência",EM_ACORDO:"Em Acordo",EM_EXECUCAO:"Em Execução",PAGO_PARCIALMENTE:"Pago Parcialmente",QUITADO_JUDICIALMENTE:"Quitado Judicialmente",ARQUIVADO:"Arquivado",EXTINTO:"Extinto"};
+                const STATUS_PROC_COR={EM_PREPARACAO:MUTED,AJUIZADO:BLU,CITACAO_PENDENTE:YEL,CITADO:YEL,AUDIENCIA_DESIGNADA:ORG,AGUARDANDO_AUDIENCIA:ORG,EM_ACORDO:GRN,EM_EXECUCAO:PUR,PAGO_PARCIALMENTE:PUR,QUITADO_JUDICIALMENTE:GRN,ARQUIVADO:MUTED,EXTINTO:MUTED};
+                const spCor=STATUS_PROC_COR[contrato.STATUS_PROCESSO]||MUTED;
+                const spLbl=STATUS_PROC_LABEL[contrato.STATUS_PROCESSO]||contrato.STATUS_PROCESSO||"Não definido";
+                const allJuriEvents=(eventos||[]).filter(ev=>String(ev.ID_CONTRATO||"").trim()===String(contrato.ID_CONTRATO).trim()&&_TIPOS_JURI_TIMELINE.includes(String(ev.TIPO_EVENTO||"").trim())).sort((a,b)=>(parseDate(b.DATA_EVENTO)||new Date(0))-(parseDate(a.DATA_EVENTO)||new Date(0)));
+                const salvarJuri=async()=>{
+                  setJuriLoad(true);setJuriErr("");setJuriOk(false);
+                  try{
+                    const res=await postAction({action:"atualizarDadosJuridicos",idContrato:contrato.ID_CONTRATO,campos:juriDados});
+                    if(res.ok){setJuriOk(true);setJuriEdit(false);setTimeout(()=>setJuriOk(false),3000);}
+                    else setJuriErr(res.erro||"Erro ao salvar.");
+                  }catch(e){setJuriErr(e.message);}
+                  setJuriLoad(false);
+                };
+                const addMov=async()=>{
+                  if(!movDesc.trim())return;
+                  setMovLoad(true);setMovErr("");
+                  try{
+                    const res=await postAction({action:"adicionarMovimentacaoJuridica",idContrato:contrato.ID_CONTRATO,dados:{descricao:movDesc,data:movData}});
+                    if(res.ok){setMovDesc("");setMovData(hojeStr());}
+                    else setMovErr(res.erro||"Erro.");
+                  }catch(e){setMovErr(e.message);}
+                  setMovLoad(false);
+                };
+                return(
+                  <div style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:14}}>
+                    {/* Resumo */}
+                    <div style={{background:RED+"08",border:`1px solid ${RED}30`,borderRadius:10,padding:"12px 14px"}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                        <span style={{fontSize:12,fontWeight:800,color:RED,display:"flex",alignItems:"center",gap:5}}>{IcoJur} Processo Judicial</span>
+                        <span style={{fontSize:10,fontWeight:800,color:spCor,background:spCor+"18",padding:"2px 8px",borderRadius:20,border:`1px solid ${spCor}30`}}>{spLbl}</span>
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:11}}>
+                        <div><span style={{color:MUTED,fontWeight:700,display:"block",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Nº Processo</span><span style={{color:TEXT,fontWeight:600}}>{contrato.NUMERO_PROCESSO||"—"}</span></div>
+                        <div><span style={{color:MUTED,fontWeight:700,display:"block",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Ajuizado em</span><span style={{color:TEXT,fontWeight:600}}>{contrato.DATA_AJUIZAMENTO?fmtDt(parseDate(contrato.DATA_AJUIZAMENTO)):"—"}</span></div>
+                        <div><span style={{color:MUTED,fontWeight:700,display:"block",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Vara</span><span style={{color:TEXT,fontWeight:600}}>{contrato.VARA||"—"}</span></div>
+                        <div><span style={{color:MUTED,fontWeight:700,display:"block",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Comarca</span><span style={{color:TEXT,fontWeight:600}}>{contrato.COMARCA||"—"}</span></div>
+                        <div><span style={{color:MUTED,fontWeight:700,display:"block",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Valor Executado</span><span style={{color:RED,fontWeight:700}}>{contrato.VALOR_EXECUTADO?fmtR(parseFloat(contrato.VALOR_EXECUTADO)):"—"}</span></div>
+                        <div><span style={{color:MUTED,fontWeight:700,display:"block",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Próxima Ação</span><span style={{color:TEXT,fontWeight:600,fontSize:10}}>{contrato.DATA_PROXIMA_ACAO?fmtDt(parseDate(contrato.DATA_PROXIMA_ACAO)):"—"}</span></div>
+                      </div>
+                      {contrato.PROXIMA_ACAO&&<div style={{marginTop:8,fontSize:11,color:ORG,fontWeight:600}}>→ {contrato.PROXIMA_ACAO}</div>}
+                      {contrato.ULTIMA_MOVIMENTACAO&&<div style={{marginTop:6,fontSize:11,color:MUTED}}>Última mov.: {contrato.ULTIMA_MOVIMENTACAO}</div>}
+                      {/* Botões de cópia e link */}
+                      <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
+                        {contrato.NUMERO_PROCESSO&&<button onClick={()=>navigator.clipboard.writeText(contrato.NUMERO_PROCESSO)} style={{...BTN7(MUTED),fontSize:10,padding:"4px 9px"}}>Copiar Nº</button>}
+                        {contrato.CODIGO_ACESSO_PROCESSO&&<button onClick={()=>navigator.clipboard.writeText(contrato.CODIGO_ACESSO_PROCESSO)} style={{...BTN7(MUTED),fontSize:10,padding:"4px 9px"}}>Copiar Código</button>}
+                        {contrato.LINK_PROCESSO&&<button onClick={()=>window.open(contrato.LINK_PROCESSO,"_blank")} style={{...BTN7(BLU),fontSize:10,padding:"4px 9px"}}>Abrir Processo ↗</button>}
+                        <button onClick={()=>{setJuriEdit(p=>!p);if(!juriEdit)setJuriDados({NUMERO_PROCESSO:contrato.NUMERO_PROCESSO||"",DATA_AJUIZAMENTO:contrato.DATA_AJUIZAMENTO?apiDateStr(contrato.DATA_AJUIZAMENTO).slice(0,10):"",VARA:contrato.VARA||"",COMARCA:contrato.COMARCA||"",STATUS_PROCESSO:contrato.STATUS_PROCESSO||"EM_PREPARACAO",VALOR_EXECUTADO:String(contrato.VALOR_EXECUTADO||""),OBSERVACOES_JURIDICAS:contrato.OBSERVACOES_JURIDICAS||"",LINK_PROCESSO:contrato.LINK_PROCESSO||"",CODIGO_ACESSO_PROCESSO:contrato.CODIGO_ACESSO_PROCESSO||"",PROXIMA_ACAO:contrato.PROXIMA_ACAO||"",DATA_PROXIMA_ACAO:contrato.DATA_PROXIMA_ACAO?apiDateStr(contrato.DATA_PROXIMA_ACAO).slice(0,10):""});}} style={{...BTN7(GRN),fontSize:10,padding:"4px 9px"}}>{juriEdit?"Cancelar":"Editar"}</button>
+                      </div>
+                    </div>
+                    {/* Situação financeira judicial */}
+                    <div style={{background:CARD,border:`1px solid ${BD}`,borderRadius:10,padding:"12px 14px"}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                        <span style={{fontSize:12,fontWeight:800,color:TEXT}}>Situação Financeira</span>
+                        <span style={{fontSize:10,fontWeight:800,color:SITUACAO_FIN_JUDICIAL_COR[situacaoFinJudicial]||MUTED,background:(SITUACAO_FIN_JUDICIAL_COR[situacaoFinJudicial]||MUTED)+"18",padding:"2px 8px",borderRadius:20,border:`1px solid ${(SITUACAO_FIN_JUDICIAL_COR[situacaoFinJudicial]||MUTED)}30`}}>{SITUACAO_FIN_JUDICIAL_LABEL[situacaoFinJudicial]||situacaoFinJudicial}</span>
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:11,marginBottom:10}}>
+                        <div><span style={{color:MUTED,fontWeight:700,display:"block",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Prejuízo Remanescente</span><span style={{color:RED,fontWeight:700}}>{fmtR(parseFloat(contrato.PREJUIZO_CAPITAL||0))}</span></div>
+                        <div><span style={{color:MUTED,fontWeight:700,display:"block",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Principal Recuperado</span><span style={{color:GRN,fontWeight:700}}>{fmtR(parseFloat(contrato.VALOR_RECUPERADO_JUDICIAL_PRINCIPAL||0))}</span></div>
+                        <div><span style={{color:MUTED,fontWeight:700,display:"block",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Lucro Recuperado</span><span style={{color:GRN,fontWeight:700}}>{fmtR(parseFloat(contrato.VALOR_RECUPERADO_JUDICIAL_LUCRO||0))}</span></div>
+                        <div><span style={{color:MUTED,fontWeight:700,display:"block",fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Parcelas do Acordo</span><span style={{color:TEXT,fontWeight:600}}>{pendentesJudiciais.length} pendente(s)</span></div>
+                      </div>
+                      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                        {podeAcordoJudicial&&<button onClick={()=>onAcordoJudicial&&onAcordoJudicial(contrato)} style={{...BTN7(BLU),fontSize:10,padding:"5px 10px"}}>Registrar Acordo Judicial</button>}
+                        {podeQuitacaoJudicial&&<button onClick={()=>onQuitacaoJudicial&&onQuitacaoJudicial(contrato)} style={{...BTN7(GRN),fontSize:10,padding:"5px 10px"}}>Quitação Judicial</button>}
+                        {podeArquivarProcesso&&<button onClick={()=>onArquivarProcesso&&onArquivarProcesso(contrato)} style={{...BTN7(MUTED),fontSize:10,padding:"5px 10px"}}>Arquivar Processo</button>}
+                      </div>
+                    </div>
+                    {/* Form de edição */}
+                    {juriEdit&&(
+                      <div style={{background:CARD,border:`1px solid ${BD}`,borderRadius:10,padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
+                        <div style={{fontSize:12,fontWeight:800,color:TEXT}}>Editar Dados Jurídicos</div>
+                        {[["NUMERO_PROCESSO","Nº Processo","text"],["VARA","Vara","text"],["COMARCA","Comarca","text"],["VALOR_EXECUTADO","Valor Executado (R$)","number"],["LINK_PROCESSO","Link do Processo","text"],["CODIGO_ACESSO_PROCESSO","Código de Acesso","text"],["PROXIMA_ACAO","Próxima Ação","text"],["OBSERVACOES_JURIDICAS","Observações","text"]].map(([f,lbl,tp])=>(
+                          <div key={f}><span style={{...LS()}}>{lbl}</span><input type={tp} value={juriDados[f]||""} onChange={e=>setJuriDados(p=>({...p,[f]:e.target.value}))} style={IS()}/></div>
+                        ))}
+                        {[["DATA_AJUIZAMENTO","Data Ajuizamento"],["DATA_PROXIMA_ACAO","Data Próxima Ação"]].map(([f,lbl])=>(
+                          <div key={f}><span style={{...LS()}}>{lbl}</span><input type="date" value={juriDados[f]||""} onChange={e=>setJuriDados(p=>({...p,[f]:e.target.value}))} style={IS()}/></div>
+                        ))}
+                        <div><span style={{...LS()}}>Status Processual</span>
+                          <select value={juriDados["STATUS_PROCESSO"]||"EM_PREPARACAO"} onChange={e=>setJuriDados(p=>({...p,STATUS_PROCESSO:e.target.value}))} style={IS()}>
+                            {[["EM_PREPARACAO","Em Preparação"],["AJUIZADO","Ajuizado"],["CITACAO_PENDENTE","Citação Pendente"],["CITADO","Citado"],["AUDIENCIA_DESIGNADA","Audiência Designada"],["AGUARDANDO_AUDIENCIA","Aguardando Audiência"],["EM_ACORDO","Em Acordo"],["EM_EXECUCAO","Em Execução"],["PAGO_PARCIALMENTE","Pago Parcialmente"],["QUITADO_JUDICIALMENTE","Quitado Judicialmente"],["ARQUIVADO","Arquivado"],["EXTINTO","Extinto"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}
+                          </select>
+                        </div>
+                        {juriErr&&<div style={{padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:600}}>{juriErr}</div>}
+                        {juriOk&&<div style={{padding:"8px 10px",borderRadius:8,background:GRN+"10",color:GRN,fontSize:12,fontWeight:700}}>Salvo com sucesso!</div>}
+                        <button onClick={salvarJuri} disabled={juriLoad} style={{...BTN1(juriLoad),marginTop:2}}>{juriLoad?<><IcoSpinner color="#07241B"/> Salvando...</>:"Salvar"}</button>
+                      </div>
+                    )}
+                    {/* Add movimentação */}
+                    <div style={{background:CARD,border:`1px solid ${BD}`,borderRadius:10,padding:"12px 14px"}}>
+                      <div style={{fontSize:12,fontWeight:800,color:TEXT,marginBottom:8}}>+ Registrar Movimentação</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                        <div><span style={{...LS()}}>Data</span><input type="date" value={movData} onChange={e=>setMovData(e.target.value)} style={IS()}/></div>
+                        <div><span style={{...LS()}}>Descrição</span><input value={movDesc} onChange={e=>setMovDesc(e.target.value)} placeholder="Ex: Audiência realizada, decisão proferida..." style={IS()}/></div>
+                        {movErr&&<div style={{padding:"6px 8px",borderRadius:6,background:RED+"10",color:RED,fontSize:11,fontWeight:600}}>{movErr}</div>}
+                        <button onClick={addMov} disabled={movLoad||!movDesc.trim()} style={{...BTN1(movLoad||!movDesc.trim())}}>{movLoad?<><IcoSpinner color="#07241B"/> Registrando...</>:"Registrar"}</button>
+                      </div>
+                    </div>
+                    {/* Timeline de movimentações */}
+                    {allJuriEvents.length>0&&(
+                      <div>
+                        <div style={{fontSize:11,fontWeight:800,color:MUTED,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Histórico Judicial</div>
+                        <div style={{display:"flex",flexDirection:"column",gap:0}}>
+                          {allJuriEvents.map((ev,i)=>(
+                            <div key={i} style={{display:"flex",gap:10,paddingBottom:12,borderBottom:i<allJuriEvents.length-1?`1px solid ${BD}`:"none",paddingTop:i>0?12:0}}>
+                              <div style={{width:28,height:28,borderRadius:"50%",background:RED+"18",border:`2px solid ${RED}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1,fontSize:10,color:RED,fontWeight:900}}>⚖</div>
+                              <div style={{flex:1}}>
+                                <div style={{display:"flex",justifyContent:"space-between",gap:4}}>
+                                  <div style={{fontSize:12,fontWeight:700,color:TEXT}}>{_JURI_EVENTO_LABEL[String(ev.TIPO_EVENTO||"").trim()]||"Movimentação"}</div>
+                                  <div style={{fontSize:10,color:MUTED,whiteSpace:"nowrap"}}>{ev.DATA_EVENTO?fmtDt(parseDate(ev.DATA_EVENTO)):"—"}</div>
+                                </div>
+                                <div style={{fontSize:11,color:MUTED,marginTop:2}}>{ev.OBSERVACOES||"—"}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -2355,7 +4242,7 @@ function NovaPromessaModal({contratos,clientes,onConfirmar,onFechar}){
           <div style={{display:"flex",gap:10}}>
             <button onClick={onFechar} style={{...BTN6(),flex:1}}>Cancelar</button>
             <button onClick={confirmar} disabled={loading||!cliente||!contratoId||!dataPrevista||!valorPrometido} style={{...BTN1(loading||!cliente||!contratoId||!dataPrevista||!valorPrometido),flex:2}}>
-              {loading?<><IcoSpinner color="#1B3305"/> Registrando...</>:<>{IcoCheck} Registrar Promessa</>}
+              {loading?<><IcoSpinner color="#07241B"/> Registrando...</>:<>{IcoCheck} Registrar Promessa</>}
             </button>
           </div>
         </div>
@@ -2390,51 +4277,77 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
     const parcelasRestantes=Math.max(0,totalParc-pagas.length);
     const valorParcOrig=parseFloat(hist[0]?.VALOR_PARCELA||0);
     const saldo=Math.max(0,parcelasRestantes*valorParcOrig);
+    const now=new Date();
     const doc=new jsPDF({unit:'mm',format:'a4'});
-    const W=210,pd=16;
-    const {G,GL,DK,MT,BDC}=_PDF_CLR;
-    let y=_pdfBrandHeader(doc,W,pd,'COMPROVANTE DE PAGAMENTO DE PARCELA',G,DK,GL,MT,BDC);
-    doc.setFillColor(...G);doc.roundedRect(pd,y,W-2*pd,11,2,2,'F');
-    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);doc.text('PAGAMENTO CONFIRMADO',W/2,y+7.5,{align:'center'});
-    y+=19;
-    const sect=(title,rows)=>{
-      const rH=11,sH=9+rows.length*rH+2;
-      doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.roundedRect(pd,y,W-2*pd,sH,3,3,'D');
-      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...DK);doc.text(title,pd+4,y+5.5);
-      doc.setDrawColor(...BDC);doc.setLineWidth(0.2);doc.line(pd,y+8,W-pd,y+8);
-      let ry=y+12;const mx=pd+(W-2*pd)/2;
-      rows.forEach(r=>{
-        doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...GL);if(r.ll)doc.text(r.ll,pd+4,ry);
-        doc.setFont('helvetica',r.lvB?'bold':'normal');doc.setFontSize(8.5);doc.setTextColor(...DK);doc.text(r.lv||'—',pd+4,ry+4.5);
-        if(r.rl){doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...GL);doc.text(r.rl,mx+4,ry);
-          doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...(r.rvR?RD:DK));doc.text(r.rv||'—',mx+4,ry+4.5);}
-        ry+=rH;
-      });
-      y+=sH+5;
-    };
-    sect('DADOS DO CLIENTE E DO CONTRATO',[
-      {ll:'NOME DO CLIENTE',lv:String(pag.NOME_CLIENTE||'—'),rl:'NÚMERO DO CONTRATO',rv:String(pag.ID_CONTRATO)},
-      {ll:'CPF',lv:String(cliente?.CPF||'—'),rl:'DATA DO CONTRATO',rv:fD(contrato?.DATA_EMPRESTIMO||contrato?.DATA_CONTRATO)},
-    ]);
-    sect('DETALHES DO PAGAMENTO',[
-      {ll:'PARCELA PAGA',lv:`${pNum} de ${totalParc}`,rl:'DATA DE VENCIMENTO',rv:fD(parcela?.DATA_VENCIMENTO)},
-      {ll:'VALOR DA PARCELA',lv:fR(pag.VALOR_PAGO),lvB:true,rl:'DATA DO PAGAMENTO',rv:fD(pag.DATA_PAGAMENTO)},
-      {ll:'FORMA DE PAGAMENTO',lv:String(pag.FORMA_PAGAMENTO||tLbl||'—'),rl:'CÓDIGO DE TRANSAÇÃO',rv:String(pag.ID_PARCELA||parcela?.ID_PARCELA||'—')},
-    ]);
-    sect('RESUMO FINANCEIRO ATUALIZADO',[
-      {ll:'VALOR TOTAL DO EMPRÉSTIMO',lv:fR(valorOriginal),rl:'PARCELAS RESTANTES',rv:String(parcelasRestantes)},
-      {ll:'VALOR TOTAL JÁ PAGO',lv:fR(totalJaPago),rl:'SALDO DEVEDOR ESTIMADO',rv:fR(saldo)},
-    ]);
-    y+=2;
-    const qt='"Declaramos, para os devidos fins, que o pagamento acima identificado foi recebido e registrado em nosso controle interno, referente à parcela informada neste comprovante."';
-    doc.setFont('helvetica','italic');doc.setFontSize(8.5);doc.setTextColor(...MT);
-    const qtL=doc.splitTextToSize(qt,W-2*pd-8);doc.text(qtL,W/2,y,{align:'center'});y+=qtL.length*5+7;
-    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);
-    doc.text(`Documento emitido em: ${new Date().toLocaleDateString('pt-BR')}`,W/2,y,{align:'center'});y+=6;
-    const ds='Este comprovante confirma exclusivamente o recebimento da parcela indicada, não representando quitação total do contrato, salvo quando expressamente informado.';
-    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...DK);
-    const dsL=doc.splitTextToSize(ds,W-2*pd-8);doc.text(dsL,W/2,y,{align:'center'});y+=dsL.length*5+5;
-    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...GL);doc.text('Borges Assessoria · Crédito Privado',W/2,y,{align:'center'});
+    const W=210,pd=20;
+    const {G,GL,DK,MT,BDC,LMK}=_PDF_CLR;
+    const G3=[135,223,182],G7=[14,92,68],GI=[230,248,239],SEP=[236,239,238],LGR=[247,249,248];
+    const nomeCli=String(pag.NOME_CLIENTE||cliente?.NOME||'—');
+
+    // ─── HEADER ────────────────────────────────────────────────────
+    doc.setFillColor(...LMK);doc.rect(0,0,W,26,'F');
+    doc.setFillColor(31,184,119);doc.roundedRect(pd,8,11,11,2.5,2.5,'F');
+    doc.setFillColor(255,255,255);doc.roundedRect(pd+7,12,11,11,2.5,2.5,'F');
+    doc.setFillColor(14,92,68);doc.roundedRect(pd+7,12,4,4,1,1,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(255,255,255);
+    doc.text('BORGES ASSESSORIA',pd+22,14);
+    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...G3);
+    doc.text('Comprovante de Pagamento',pd+22,20);
+    ['CNPJ 63.124.205/0001-07','borgesassessoriafinanceira@gmail.com'].forEach((l,i)=>{
+      doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(...G3);
+      doc.text(l,W-pd,14+i*6,{align:'right'});
+    });
+
+    let y=42;
+
+    // ─── CHECK CIRCLE + VALOR ──────────────────────────────────────
+    doc.setFillColor(...GI);doc.circle(W/2,y,9,'F');
+    doc.setDrawColor(21,160,106);doc.setLineWidth(1.6);
+    doc.line(W/2-3.5,y,W/2-0.5,y+3.5);doc.line(W/2-0.5,y+3.5,W/2+5,y-3);
+    y+=15;
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...MT);
+    doc.text('Pagamento confirmado',W/2,y,{align:'center'});
+    y+=7;
+    doc.setFont('helvetica','bold');doc.setFontSize(22);doc.setTextColor(...DK);
+    doc.text(fR(parseFloat(pag.VALOR_PAGO||0)),W/2,y,{align:'center'});
+    y+=8;
+    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...G7);
+    doc.text(`Parcela ${pNum} de ${totalParc}`,W/2,y,{align:'center'});
+    y+=14;
+
+    // ─── DATA ROWS ─────────────────────────────────────────────────
+    const dataRows=[
+      ['Cliente',nomeCli],
+      ['CPF',String(cliente?.CPF||'—')],
+      ['Contrato',String(pag.ID_CONTRATO)],
+      ['Forma de pagamento',String(pag.FORMA_PAGAMENTO||tLbl||'—')],
+      ['Pago em',fD(pag.DATA_PAGAMENTO)],
+      ['Vencimento original',fD(parcela?.DATA_VENCIMENTO)],
+      ['Saldo devedor após',fR(saldo)],
+      ['ID da transação',String(pag.ID_PARCELA||parcela?.ID_PARCELA||'—')],
+    ];
+    dataRows.forEach(([k,v],i)=>{
+      const ry=y+i*10;
+      doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...MT);doc.text(k,pd,ry);
+      doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...DK);doc.text(String(v),W-pd,ry,{align:'right'});
+      if(i<dataRows.length-1){doc.setDrawColor(...SEP);doc.setLineWidth(0.2);doc.line(pd,ry+3,W-pd,ry+3);}
+    });
+    y+=dataRows.length*10+10;
+
+    // ─── FOOTER ────────────────────────────────────────────────────
+    doc.setFillColor(...LGR);doc.rect(0,y,W,30,'F');
+    doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.line(pd,y,W-pd,y);
+    y+=7;
+    const qt='"Declaramos que o pagamento acima foi recebido e registrado em nosso controle interno, referente à parcela informada neste comprovante."';
+    doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(...MT);
+    const qtL=doc.splitTextToSize(qt,W-2*pd);doc.text(qtL,W/2,y,{align:'center'});y+=qtL.length*5+3;
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MT);
+    doc.text('Borges Assessoria · CNPJ 63.124.205/0001-07 · borgesassessoriafinanceira@gmail.com',W/2,y,{align:'center'});y+=4;
+    const authPag=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}·BORGES·${String(pag.ID_PARCELA||'').slice(-4).toUpperCase()}`;
+    doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...DK);
+    doc.text(`Autenticação: ${authPag}`,W/2,y,{align:'center'});y+=4;
+    doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(...MT);
+    doc.text('Documento gerado eletronicamente. Não constitui documento fiscal.',W/2,y,{align:'center'});
     return doc.output('blob');
   };
 
@@ -2482,7 +4395,8 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
               <div style={{background:BG,borderRadius:8,padding:"10px 14px"}}><div style={{fontSize:10,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:3}}>Tipo</div><Badge c={tCor}>{tLbl}</Badge></div>
               {parseFloat(pag.VALOR_MULTA||0)>0&&<Info l="Multa" v={fmtR(pag.VALOR_MULTA)} c={ORG}/>}
               {parseFloat(pag.VALOR_MORA||0)>0&&<Info l="Mora" v={fmtR(pag.VALOR_MORA)} c={ORG}/>}
-              {parseFloat(pag.RECEITA_EXTRA_ATRASO||0)>0&&<Info l="Receita Extra" v={fmtR(pag.RECEITA_EXTRA_ATRASO)} c={ORG}/>}
+              {parseFloat(pag.RECEITA_EXTRA_ATRASO||0)>0&&<Info l="Mora/Multa" v={fmtR(pag.RECEITA_EXTRA_ATRASO)} c={ORG}/>}
+              {parseFloat(pag.FEE_PRORROGACAO||0)>0&&<Info l="Fee Prorrogação" v={fmtR(pag.FEE_PRORROGACAO)} c={YEL}/>}
               <Info l="Forma" v={pag.FORMA_PAGAMENTO||"manual"}/>
             </div>
           </div>
@@ -2503,13 +4417,15 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
                   <tbody>{hist.map((p,i)=>{
                     const _stH=statusEfetivo(p);
                     const isPago=["pago","quitacao_antecipada"].includes(_stH);
-                    const _corH={pago:GRN,quitacao_antecipada:GRN,atrasado:RED,vence_hoje:ORG,pendente:BLU}[_stH]||YEL;
+                    const isSubstH=_stH==="renegociado";
+                    const _corH=isSubstH?MUTED:({pago:GRN,quitacao_antecipada:GRN,atrasado:RED,vence_hoje:ORG,pendente:BLU}[_stH]||YEL);
+                    const _lblH=isSubstH?"Substituída":(_ST_LABEL[_stH]||_stH);
                     const isAtual=String(p.NUM_PARCELA||"")===String(numParc||"");
-                    return<tr key={i} style={{borderTop:`1px solid ${BD}`,background:isAtual?ORG+"08":"transparent"}}>
+                    return<tr key={i} style={{borderTop:`1px solid ${BD}`,background:isAtual?ORG+"08":"transparent",opacity:isSubstH?0.5:1}}>
                       <td style={{padding:"7px 12px",fontWeight:isAtual?800:400,color:isAtual?ORG:TEXT}}>{p.NUM_PARCELA}</td>
                       <td style={{padding:"7px 12px",color:MUTED}}>{fmtDt(parseDate(p.DATA_VENCIMENTO))}</td>
-                      <td style={{padding:"7px 12px",textAlign:"right"}}>{fmtR(p.VALOR_PARCELA)}</td>
-                      <td style={{padding:"7px 12px"}}><Badge c={_corH}>{_ST_LABEL[_stH]||_stH}</Badge></td>
+                      <td style={{padding:"7px 12px",textAlign:"right",textDecoration:isSubstH?"line-through":"none",color:isSubstH?MUTED:TEXT}}>{fmtR(p.VALOR_PARCELA)}</td>
+                      <td style={{padding:"7px 12px"}}><Badge c={_corH}>{_lblH}</Badge></td>
                       <td style={{padding:"7px 12px",textAlign:"right",fontWeight:700,color:isPago?GRN:MUTED}}>{isPago?fmtR(p.VALOR_PAGO):"—"}</td>
                     </tr>;
                   })}</tbody>
@@ -2530,63 +4446,113 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
 }
 
 // ─── COMPROVANTE DE QUITAÇÃO ─────────────────────────────────────
-function gerarComprovante(contrato, parcelasContrato, cliente) {
+function gerarComprovante(contrato, parcelasContrato, cliente, totalPagoOverride, ultPagOverride) {
   try{
     const ps=[...parcelasContrato].sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
-    const totalPago=ps.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+    const totalPagoPs=ps.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+    const totalPago=totalPagoOverride!==undefined?Math.max(totalPagoPs,totalPagoOverride):totalPagoPs;
     const valorOriginal=parseFloat(contrato.VALOR_PRINCIPAL||contrato.VALOR_TOTAL||0);
-    const datas=ps.map(p=>parseDate(p.DATA_PAGAMENTO)).filter(Boolean);
-    const ultPag=datas.length?datas.reduce((a,b)=>a>b?a:b):null;
+    const datasPs=ps.map(p=>parseDate(p.DATA_PAGAMENTO)).filter(Boolean);
+    const ultPagPs=datasPs.length?datasPs.reduce((a,b)=>a>b?a:b):null;
+    const ultPag=ultPagOverride||ultPagPs;
     const nome=String(contrato.NOME_CLIENTE||cliente?.NOME_CLIENTE||'—');
     const cpf=String(contrato.CPF||cliente?.CPF||'—');
     const fD=d=>{if(!d)return'—';const dt=d instanceof Date?d:parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):'—';};
     const fR=fmtR;
     const now=new Date();
     const doc=new jsPDF({unit:'mm',format:'a4'});
-    const W=210,pd=16;
-    const {G,GL,DK,MT,BDC}=_PDF_CLR;
-    let y=_pdfBrandHeader(doc,W,pd,'COMPROVANTE DE QUITAÇÃO DE CONTRATO',G,DK,GL,MT,BDC);
-    doc.setFillColor(...G);doc.roundedRect(pd,y,W-2*pd,11,2,2,'F');
-    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);doc.text('CONTRATO QUITADO',W/2,y+7.5,{align:'center'});
-    y+=19;
-    const sect=(title,rows)=>{
-      const rH=11,sH=9+rows.length*rH+2;
-      doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.roundedRect(pd,y,W-2*pd,sH,3,3,'D');
-      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...DK);doc.text(title,pd+4,y+5.5);
-      doc.setDrawColor(...BDC);doc.setLineWidth(0.2);doc.line(pd,y+8,W-pd,y+8);
-      let ry=y+12;const mx=pd+(W-2*pd)/2;
-      rows.forEach(r=>{
-        doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...GL);if(r.ll)doc.text(r.ll,pd+4,ry);
-        doc.setFont('helvetica',r.lvB?'bold':'normal');doc.setFontSize(8.5);doc.setTextColor(...DK);doc.text(r.lv||'—',pd+4,ry+4.5);
-        if(r.rl){doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...GL);doc.text(r.rl,mx+4,ry);
-          doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...DK);doc.text(r.rv||'—',mx+4,ry+4.5);}
-        ry+=rH;
-      });
-      y+=sH+5;
-    };
-    sect('DADOS DO CLIENTE E DO CONTRATO',[
-      {ll:'NOME DO CLIENTE',lv:nome,rl:'NÚMERO DO CONTRATO',rv:String(contrato.ID_CONTRATO)},
-      {ll:'CPF',lv:cpf,rl:'DATA DO CONTRATO',rv:fD(contrato.DATA_EMPRESTIMO||contrato.DATA_CONTRATO)},
-    ]);
-    sect('DETALHES DA QUITAÇÃO',[
-      {ll:'TOTAL DE PARCELAS',lv:String(contrato.NUM_PARCELAS||ps.length),rl:'DATA DA ÚLTIMA PARCELA',rv:fD(ultPag)},
-      {ll:'VALOR TOTAL PAGO',lv:fR(totalPago),lvB:true,rl:'STATUS',rv:'QUITADO'},
-    ]);
-    sect('RESUMO FINANCEIRO',[
-      {ll:'VALOR ORIGINAL DO CONTRATO',lv:fR(valorOriginal),rl:'PARCELAS PAGAS',rv:String(ps.length)+' de '+String(contrato.NUM_PARCELAS||ps.length)},
-      {ll:'VALOR TOTAL PAGO',lv:fR(totalPago),rl:'SALDO REMANESCENTE',rv:'R$ 0,00'},
-    ]);
-    y=_renderHistParcelas(doc,ps,W,pd,y,GL,DK,BDC,fD,fR);
-    y+=2;
-    const qt='"Declaramos, para os devidos fins, que todos os pagamentos referentes ao contrato acima identificado foram recebidos e registrados, confirmando a quitação integral da dívida."';
-    doc.setFont('helvetica','italic');doc.setFontSize(8.5);doc.setTextColor(...MT);
-    const qtL=doc.splitTextToSize(qt,W-2*pd-8);doc.text(qtL,W/2,y,{align:'center'});y+=qtL.length*5+7;
-    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);
-    doc.text(`Documento emitido em: ${now.toLocaleDateString('pt-BR')}`,W/2,y,{align:'center'});y+=6;
-    const ds='Este comprovante confirma a quitação integral do contrato identificado acima, sendo válido como prova de liquidação total da dívida contratada.';
+    const W=210,pd=20;
+    const {G,GL,DK,MT,BDC,LMK}=_PDF_CLR;
+    const G7=[14,92,68],G6=[17,128,94],GI=[230,248,239],G2=[194,239,216],LGR=[247,249,248];
+
+    // ─── LETTERHEAD ────────────────────────────────────────────────
+    let y=16;
+    doc.setFillColor(31,184,119);doc.roundedRect(pd,y,13,13,3,3,'F');
+    doc.setFillColor(...G);doc.roundedRect(pd+9,y+5,13,13,3,3,'F');
+    doc.setFillColor(...LMK);doc.roundedRect(pd+9,y+5,4.5,4.5,1,1,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(17);doc.setTextColor(...DK);
+    doc.text('Borges Assessoria',pd+27,y+7);
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...G7);
+    doc.text('Infraestrutura de crédito privado',pd+27,y+12.5);
+    ['CNPJ 63.124.205/0001-07','borgesassessoriafinanceira@gmail.com','Tel/WPP: (62) 98487-7843'].forEach((l,i)=>{
+      doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...MT);
+      doc.text(l,W-pd,y+i*4.5,{align:'right'});
+    });
+    y+=21;
+    doc.setFillColor(...G);doc.rect(pd,y,16,1.5,'F');
+    doc.setFillColor(...BDC);doc.rect(pd+16,y,W-2*pd-16,1.5,'F');
+    y+=10;
+
+    // ─── QUITAÇÃO TOTAL (substituí o stamp rotacionado por badge) ──
+    const stampCx=W-pd-17,stampCy=y+5;
+    doc.setDrawColor(17,128,94);doc.setLineWidth(1.2);doc.circle(stampCx,stampCy,14,'D');
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(14,92,68);
+    doc.text('QUITAÇÃO TOTAL',stampCx,stampCy-1.5,{align:'center',angle:11});
+    doc.setFont('helvetica','normal');doc.setFontSize(5.5);doc.setTextColor(...GL);
+    doc.text('NADA CONSTA',stampCx,stampCy+5,{align:'center',angle:11});
+
+    // ─── TÍTULO ────────────────────────────────────────────────────
+    doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...G7);
+    doc.text('COMPROVANTE DE QUITAÇÃO DE CONTRATO',pd,y);
+    y+=9;
+    doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(...DK);
+    doc.text('Contrato integralmente quitado',pd,y);
+    y+=11;
+
+    // ─── DECLARAÇÃO ────────────────────────────────────────────────
+    doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(78,88,84);
+    const decl=`A Borges Assessoria declara, para os devidos fins, que o contrato de crédito abaixo identificado foi integralmente quitado pelo(a) cliente, nada mais havendo a ser cobrado a título de principal, juros ou encargos relativos a esta operação.`;
+    const declL=doc.splitTextToSize(decl,W-2*pd-10);doc.text(declL,pd,y);
+    y+=declL.length*5.5+10;
+
+    // ─── BOX RESUMO (verde-100) ────────────────────────────────────
+    const boxRows=[
+      ['Cliente',`${nome} — CPF ${cpf}`],
+      ['Contrato',String(contrato.ID_CONTRATO)],
+      ['Valor principal',fR(valorOriginal)],
+      ['Total pago (principal + juros)',fR(totalPago)],
+      ['Parcelas',`${ps.filter(p=>_ST_TERMINAL.has(String(p.STATUS||"").toLowerCase())).length} de ${ps.length} encerradas`],
+      ['Data da quitação',fD(ultPag)],
+    ];
+    const boxH=8+boxRows.length*10+6;
+    doc.setFillColor(...GI);doc.setDrawColor(...G2);doc.setLineWidth(0.5);
+    doc.roundedRect(pd,y,W-2*pd,boxH,3,3,'FD');
+    let by=y+10;
+    boxRows.forEach(([k,v],i)=>{
+      doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...MT);doc.text(k,pd+6,by);
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...DK);doc.text(String(v),W-pd-6,by,{align:'right'});
+      if(i<boxRows.length-1){doc.setDrawColor(...G2);doc.setLineWidth(0.2);doc.line(pd+6,by+3,W-pd-6,by+3);}
+      by+=10;
+    });
+    y+=boxH+10;
+
+    // ─── HISTÓRICO ─────────────────────────────────────────────────
+    const psForPdf=ps.map(p=>String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase()==="renegociado"?{...p,VALOR_PAGO:null,TIPO_PAGAMENTO:"renegociado"}:p);
+    y=_renderHistParcelas(doc,psForPdf,W,pd,y,GL,DK,BDC,fD,fR);
+    y+=10;
+
+    // ─── ASSINATURA + AUTENTICAÇÃO ─────────────────────────────────
+    const authCode=`QT·${String(contrato.ID_CONTRATO).slice(-4)}·${now.getFullYear()}·BORGES`;
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MT);
+    doc.text('Autenticação',pd,y);
     doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...DK);
-    const dsL=doc.splitTextToSize(ds,W-2*pd-8);doc.text(dsL,W/2,y,{align:'center'});y+=dsL.length*5+5;
-    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...GL);doc.text('Borges Assessoria · Crédito Privado',W/2,y,{align:'center'});
+    doc.text(authCode,pd,y+5);
+    doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(...MT);
+    doc.text('Verifique em borgesassessoriafinanceira.com.br/validar',pd,y+10);
+    const sx=W-pd-65;
+    doc.setDrawColor(...DK);doc.setLineWidth(0.8);doc.line(sx,y,sx+65,y);
+    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...DK);
+    doc.text('Borges Assessoria',sx+32,y+6,{align:'center'});
+    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);
+    doc.text('Assinado digitalmente',sx+32,y+11,{align:'center'});
+    y+=18;
+
+    // ─── RODAPÉ ────────────────────────────────────────────────────
+    doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.line(pd,y,W-pd,y);y+=5;
+    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);
+    doc.text('Borges Assessoria · borgesassessoriafinanceira@gmail.com',pd,y);
+    doc.text(`Página 1 de 1 · ${contrato.ID_CONTRATO}`,W-pd,y,{align:'right'});
+
     const nomeArq=`comprovante-quitacao-${contrato.ID_CONTRATO}-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.pdf`;
     doc.save(nomeArq);
   }catch(e){console.error('Quitacao PDF error:',e);}
@@ -2642,6 +4608,7 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
   const [buscaCli,setBuscaCli]=useState("");
   const [showDrop,setShowDrop]=useState(false);
   const dropRef=useRef();
+  const clienteDefaultsApplied=useRef(null);
   const ini=simInicial||{};
   const [valor,setValor]=useState(ini.valor||1000);
   const [prazo,setPrazo]=useState(ini.prazo||6);
@@ -2654,7 +4621,13 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
   },[]);
 
   useEffect(()=>{
-    if(simInicial){setValor(simInicial.valor||1000);setPrazo(simInicial.prazo||6);setTaxa(simInicial.taxa||14);setClienteSel(null);}
+    if(simInicial){
+      setValor(simInicial.valor||1000);
+      setPrazo(simInicial.prazo||6);
+      setTaxa(simInicial.taxa||14);
+      setClienteSel(null);
+      clienteDefaultsApplied.current=simInicial.ID_CLIENTE||"simInicial";
+    }
   },[simInicial]);
 
   const taxaPorScore=(score,bloqueado)=>{
@@ -2705,7 +4678,12 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
   },[clienteSel,contratos]);
 
   useEffect(()=>{
-    if(ctxManual){setTaxa(ctxManual.taxaDef);setValor(ctxManual.valorDef);setPrazo(ctxManual.prazoDef);}
+    if(ctxManual&&clienteSel?.ID_CLIENTE&&clienteSel.ID_CLIENTE!==clienteDefaultsApplied.current){
+      setTaxa(ctxManual.taxaDef);
+      setValor(ctxManual.valorDef);
+      setPrazo(ctxManual.prazoDef);
+      clienteDefaultsApplied.current=clienteSel.ID_CLIENTE;
+    }
   },[ctxManual]);
 
   const ctx=simInicial?.nome?{...simInicial}:ctxManual;
@@ -2749,7 +4727,7 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
                         <div style={{fontSize:11,color:MUTED}}>{c.ID_CLIENTE}{cts.length>0?` · ${cts.length} contrato${cts.length>1?"s":""}`:""}</div>
                       </div>
                       <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                        {bloq&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20,background:RED+"15",color:RED,border:`1px solid ${RED}30`}}>BLOQ</span>}
+                        {bloq&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20,background:RED+"15",color:RED,border:`1px solid ${RED}30`}}>Bloqueado</span>}
                         <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20,background:GRN+"10",color:GRN}}>{c.STATUS_CLIENTE==="ativo"?"Ativo":c.STATUS_CLIENTE||"—"}</span>
                       </div>
                     </div>
@@ -2781,7 +4759,7 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
 
   const rentPct=valor>0?(juros/valor)*100:0;
   const taxaAnualEfetiva=taxa*12;
-  const riskScore=(prazo/12)*0.4+(taxa/25)*0.3+(valor/20000)*0.3;
+  const riskScore=(prazo/18)*0.4+(taxa/25)*0.3+(valor/20000)*0.3;
   const riskLabel=riskScore>0.65?"Alto":riskScore>0.35?"Moderado":"Baixo";
   const riskColor=riskScore>0.65?RED:riskScore>0.35?YEL:GRN;
 
@@ -2792,10 +4770,10 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
     return{n:k+1,pmt,juros:jur,principal:prin,saldo};
   });
 
-  const cenariosOpts=[2,3,4,6,8,9,10,12];
-  const cenariosBase=[prazo,...cenariosOpts.filter(p=>p!==prazo&&p>=1&&p<=12).sort((a,b)=>Math.abs(a-prazo)-Math.abs(b-prazo)).slice(0,2)].sort((a,b)=>a-b);
+  const cenariosOpts=[2,3,4,6,9,12,15,18];
+  const cenariosBase=[prazo,...cenariosOpts.filter(p=>p!==prazo&&p>=1&&p<=18).sort((a,b)=>Math.abs(a-prazo)-Math.abs(b-prazo)).slice(0,2)].sort((a,b)=>a-b);
 
-  const handleLimpar=()=>{setClienteSel(null);setBuscaCli("");setValor(1000);setPrazo(6);setTaxa(18);if(onClear)onClear();};
+  const handleLimpar=()=>{setClienteSel(null);setBuscaCli("");setValor(1000);setPrazo(6);setTaxa(14);clienteDefaultsApplied.current=null;if(onClear)onClear();};
 
   const SliderInput=({label,value,onChange,min,max,step,fmt})=>(
     <div>
@@ -2844,10 +4822,10 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
             onFocus={()=>{}} onBlur={()=>{}}>
             <span style={{padding:"10px 14px",fontSize:15,fontWeight:800,color:GRN,background:GRN+"10",borderRight:`1px solid ${GRN}25`,flexShrink:0}}>R$</span>
             <input
-              type="number" min={100} max={100000} step={50}
+              type="number" min={100} max={100000} step={1}
               value={valor}
               onChange={e=>{const v=Number(e.target.value);if(v>=0)setValor(v);}}
-              onBlur={e=>{const v=Math.max(100,Math.round(Number(e.target.value)/50)*50);setValor(v);}}
+              onBlur={e=>{const v=Math.max(100,Math.min(100000,Math.round(Number(e.target.value))));setValor(v);}}
               style={{flex:1,padding:"10px 14px",background:"none",border:"none",outline:"none",fontSize:22,fontWeight:900,color:TEXT,width:"100%"}}
             />
           </div>
@@ -2858,7 +4836,7 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
             <span style={{fontSize:18,fontWeight:900,color:TEXT}}>{prazo}x</span>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6}}>
-            {[1,2,3,4,5,6,7,8,9,10,11,12].map(p=>(
+            {[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18].map(p=>(
               <button key={p} onClick={()=>setPrazo(p)}
                 style={{padding:"8px 0",borderRadius:8,border:`1.5px solid ${prazo===p?GRN:BD}`,background:prazo===p?GRN+"20":CARD,color:prazo===p?GRN:MUTED,fontSize:13,fontWeight:prazo===p?800:600,cursor:"pointer",transition:"all 0.12s"}}>
                 {p}x
@@ -2886,9 +4864,9 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
                   <span style={{fontSize:11,color:MUTED}}>·</span>
                   <span style={{fontSize:11,color:MUTED}}>{ctx?.faixaLabel||"sem score — taxa padrão"}</span>
                 </div>
-                <div style={{display:"flex",gap:4}}>
-                  {[{t:9},{t:12},{t:14},{t:16},{t:22}].map(({t})=>(
-                    <button key={t} onClick={()=>setTaxa(t)} style={{fontSize:10,fontWeight:t===taxa?800:500,padding:"2px 7px",borderRadius:6,background:t===taxa?GRN+"25":"transparent",color:t===taxa?GRN:MUTED,border:t===taxa?`1px solid ${GRN}40`:`1px solid ${BD}`,cursor:"pointer"}}>{t}%</button>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                  {[{t:7,vip:true},{t:9},{t:12},{t:14},{t:16},{t:22}].map(({t,vip})=>(
+                    <button key={t} onClick={()=>setTaxa(t)} style={{fontSize:10,fontWeight:t===taxa?800:500,padding:"2px 7px",borderRadius:6,background:t===taxa?(vip?"#B8860B30":GRN+"25"):"transparent",color:t===taxa?(vip?"#B8860B":GRN):vip?"#B8860B":MUTED,border:t===taxa?`1px solid ${vip?"#B8860B":GRN}40`:`1px solid ${vip?"#B8860B40":BD}`,cursor:"pointer"}}>{t}%{vip&&<span style={{fontSize:8,marginLeft:2,fontWeight:700}}>VIP</span>}</button>
                   ))}
                 </div>
               </div>
@@ -2970,7 +4948,7 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
             </button>
         )}
         {(()=>{
-          const telSim=String(clienteSel?.TELEFONE_WPP||clienteSel?.TELEFONE||"").replace(/\D/g,"");
+          const telSim=String(ctx?.TELEFONE_WPP||ctx?.TELEFONE||clienteSel?.TELEFONE_WPP||clienteSel?.TELEFONE||"").replace(/\D/g,"");
           if(!telSim)return null;
           const msg=[
             'Perfeito, calculei aqui para ficar uma parcela saudável para o seu orçamento:',
@@ -3189,17 +5167,17 @@ function InteligenciaView({ clientes, contratos, padrinhos, empregadores }) {
     <div style={{padding:"24px 28px",maxWidth:1100,margin:"0 auto"}}>
       <div style={{marginBottom:24}}>
         <h1 style={{fontSize:22,fontWeight:900,color:TEXT,margin:"0 0 4px",letterSpacing:"-0.02em"}}>Inteligência</h1>
-        <p style={{fontSize:13,color:MUTED,margin:0}}>Análise estratégica da operação de crédito</p>
+        <p style={{fontSize:13,color:MUTED,margin:0}}>Análise estratégica da operação de crédito · dados históricos completos desde o início</p>
       </div>
 
       {/* KPIs */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(155px,1fr))",gap:12,marginBottom:28}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:28}}>
         <KpiBox label="Lucro Total" value={fmtR(kpis.lucro)} sub="juros recebidos" cor={GRN}/>
         <KpiBox label="Prejuízo Total" value={fmtR(kpis.prejuizo)} sub="capital perdido" cor={kpis.prejuizo>0?RED:MUTED}/>
-        <KpiBox label="LTV Líquido" value={fmtR(kpis.ltv)} sub="lucro − prejuízo" cor={kpis.ltv>=0?GRN:RED}/>
-        <KpiBox label="ROI Geral" value={kpis.roi.toFixed(1)+"%"} sub="sobre capital total" cor={kpis.roi>=10?GRN:kpis.roi>=0?YEL:RED}/>
+        <KpiBox label="LTV — Valor Gerado" value={fmtR(kpis.ltv)} sub="lucro total menos prejuízo" cor={kpis.ltv>=0?GRN:RED}/>
+        <KpiBox label="ROI — Retorno s/ Capital" value={kpis.roi.toFixed(1)+"%"} sub="retorno sobre capital emprestado" cor={kpis.roi>=10?GRN:kpis.roi>=0?YEL:RED}/>
         <KpiBox label="Inadimplentes" value={kpis.inadim} sub={`de ${kpis.nCli} clientes`} cor={kpis.inadim>0?ORG:GRN}/>
-        <KpiBox label="Com Prejuízo" value={kpis.comPreju} sub="clientes c/ perda" cor={kpis.comPreju>0?RED:GRN}/>
+        <KpiBox label="Com Prejuízo" value={kpis.comPreju} sub="clientes c/ perda declarada" cor={kpis.comPreju>0?RED:GRN}/>
       </div>
 
       {/* Top/Bottom Clientes */}
@@ -3300,6 +5278,185 @@ function InteligenciaView({ clientes, contratos, padrinhos, empregadores }) {
   );
 }
 
+// ─── TEMPLATES RÉGUA MODAL ───────────────────────────────────────
+function TemplatesReguaModal({onFechar}) {
+  const LABELS = {
+    "CONFIRMACAO":"Confirmação de pagamento (automática)",
+    "D-5":"5 dias antes do vencimento","D-1":"1 dia antes do vencimento","D0":"Dia do vencimento",
+    "D+1":"1 dia após o vencimento","D+3":"3 dias após o vencimento","D+7":"7 dias após o vencimento",
+    "PROMESSA_D-1":"Promessa — 1 dia antes","PROMESSA_D0":"Promessa — dia da promessa","PROMESSA_D+1":"Promessa — 1 dia após",
+  };
+  const ORDEM_CONF = ["CONFIRMACAO"];
+  const ORDEM_REGUA = ["D-5","D-1","D0","D+1","D+3","D+7","PROMESSA_D-1","PROMESSA_D0","PROMESSA_D+1"];
+  const ORDEM = [...ORDEM_CONF, ...ORDEM_REGUA];
+  const VARS_CONF = [
+    {v:"{NOME}",d:"Primeiro nome"},{v:"{NUM_PARCELA}",d:"Número da parcela"},
+    {v:"{TOTAL_PARCELAS}",d:"Total de parcelas"},{v:"{VALOR_PAGO}",d:"Valor pago"},
+    {v:"{PARCELAS_RESTANTES}",d:"Parcelas ainda abertas"},{v:"{PROXIMO_VENCIMENTO}",d:"Data do próximo vencimento"},
+  ];
+  const VARS_REGUA = [
+    {v:"{NOME}",d:"Primeiro nome do cliente"},{v:"{VALOR_PARCELA}",d:"Valor da parcela"},
+    {v:"{NUM_PARCELA}",d:"Número da parcela"},{v:"{TOTAL_PARCELAS}",d:"Total de parcelas"},
+    {v:"{DATA_VENCIMENTO}",d:"Data de vencimento"},{v:"{VALOR_COMBINADO}",d:"Valor prometido (promessas)"},
+    {v:"{DATA_PROMESSA}",d:"Data da promessa (promessas)"},
+  ];
+  const [templates, setTemplates] = useState({});
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const [showVars, setShowVars] = useState(false);
+  useEffect(()=>{
+    postAction({action:"buscarTemplatesRegua"}).then(r=>{
+      if(r.ok&&r.templates) setTemplates(r.templates);
+      setCarregando(false);
+    }).catch(e=>{setErro("Erro ao carregar: "+e.message);setCarregando(false);});
+  },[]);
+  const salvar=async()=>{
+    setSalvando(true);setErro("");
+    try{const r=await postAction({action:"salvarTemplateRegua",templates});if(r.ok)onFechar();else setErro(r.erro||"Erro ao salvar");}
+    catch(e){setErro(e.message);}
+    finally{setSalvando(false);}
+  };
+  const IcoGear=<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>;
+  return(
+    <div className="modal-overlay-anim" style={{position:"fixed",inset:0,zIndex:600,background:"rgba(15,23,42,0.6)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onFechar}>
+      <div className="modal-box-anim" style={{width:"100%",maxWidth:620,maxHeight:"90vh",background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.35)",display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
+        <div style={{background:GRN,padding:"16px 20px",borderRadius:"16px 16px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,color:"#fff"}}>
+            <div style={{background:"rgba(255,255,255,0.2)",padding:8,borderRadius:8,display:"flex"}}>{IcoGear}</div>
+            <div><div style={{fontWeight:800,fontSize:15}}>Templates de Mensagem</div><div style={{fontSize:11,opacity:0.8}}>Régua de cobrança WhatsApp</div></div>
+          </div>
+          <button onClick={onFechar} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+        </div>
+        <div style={{overflowY:"auto",flex:1,padding:20,display:"flex",flexDirection:"column",gap:16}}>
+          {carregando
+            ?<div style={{textAlign:"center",padding:40,color:MUTED}}>Carregando templates...</div>
+            :<>
+              {/* Confirmação de pagamento */}
+              <div style={{background:GRN+"10",border:`1px solid ${GRN}30`,borderRadius:12,padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={GRN} strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                <span style={{fontSize:12,color:GRN,fontWeight:700}}>Confirmação automática de pagamento</span>
+                <span style={{fontSize:11,color:MUTED}}>— disparada ao registrar qualquer pagamento</span>
+              </div>
+              <div style={{background:BLU+"12",border:`1px solid ${BLU}30`,borderRadius:12,padding:12}}>
+                <button onClick={()=>setShowVars(v=>!v)} style={{background:"none",border:"none",cursor:"pointer",width:"100%",textAlign:"left",display:"flex",alignItems:"center",justifyContent:"space-between",color:BLU,fontWeight:700,fontSize:12,padding:0}}>
+                  <span>Variáveis disponíveis — confirmação</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{transform:showVars?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s"}}><polyline points="6,9 12,15 18,9"/></svg>
+                </button>
+                {showVars&&<div style={{marginTop:10,display:"flex",flexWrap:"wrap",gap:10}}>
+                  {VARS_CONF.map(v=><div key={v.v+"-c"} style={{display:"flex",flexDirection:"column",gap:2}}>
+                    <code style={{background:BLU+"20",color:BLU,padding:"2px 8px",borderRadius:6,fontSize:12,fontWeight:700,fontFamily:"monospace"}}>{v.v}</code>
+                    <span style={{fontSize:10,color:MUTED}}>{v.d}</span>
+                  </div>)}
+                </div>}
+              </div>
+              {ORDEM_CONF.map(key=>(
+                <div key={key}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                    <span style={{display:"inline-block",padding:"2px 10px",borderRadius:20,background:GRN+"18",color:GRN,fontSize:11,fontWeight:700,border:`1px solid ${GRN}30`}}>{key}</span>
+                    <span style={{fontSize:12,color:MUTED}}>{LABELS[key]}</span>
+                  </div>
+                  <textarea value={templates[key]||""} onChange={e=>setTemplates(prev=>({...prev,[key]:e.target.value}))} rows={6} style={{...IS(),resize:"vertical",fontFamily:"inherit",lineHeight:1.5,fontSize:13}}/>
+                </div>
+              ))}
+              {/* Separador régua */}
+              <div style={{display:"flex",alignItems:"center",gap:10,margin:"4px 0"}}>
+                <div style={{flex:1,height:1,background:BD}}/>
+                <span style={{fontSize:11,color:MUTED,fontWeight:600,whiteSpace:"nowrap"}}>Régua de cobrança</span>
+                <div style={{flex:1,height:1,background:BD}}/>
+              </div>
+              <div style={{background:BLU+"12",border:`1px solid ${BLU}30`,borderRadius:12,padding:12}}>
+                <div style={{color:BLU,fontWeight:700,fontSize:12,marginBottom:showVars?10:0,cursor:"pointer"}} onClick={()=>setShowVars(v=>!v)}>
+                  Variáveis disponíveis — régua
+                </div>
+                {showVars&&<div style={{display:"flex",flexWrap:"wrap",gap:10}}>
+                  {VARS_REGUA.map(v=><div key={v.v+"-r"} style={{display:"flex",flexDirection:"column",gap:2}}>
+                    <code style={{background:BLU+"20",color:BLU,padding:"2px 8px",borderRadius:6,fontSize:12,fontWeight:700,fontFamily:"monospace"}}>{v.v}</code>
+                    <span style={{fontSize:10,color:MUTED}}>{v.d}</span>
+                  </div>)}
+                </div>}
+              </div>
+              {ORDEM_REGUA.map(key=>(
+                <div key={key}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                    <span style={{display:"inline-block",padding:"2px 10px",borderRadius:20,background:GRN+"18",color:GRN,fontSize:11,fontWeight:700,border:`1px solid ${GRN}30`}}>{key}</span>
+                    <span style={{fontSize:12,color:MUTED}}>{LABELS[key]}</span>
+                  </div>
+                  <textarea value={templates[key]||""} onChange={e=>setTemplates(prev=>({...prev,[key]:e.target.value}))} rows={5} style={{...IS(),resize:"vertical",fontFamily:"inherit",lineHeight:1.5,fontSize:13}}/>
+                </div>
+              ))}
+              {erro&&<div style={{background:RED+"15",border:`1px solid ${RED}30`,borderRadius:10,padding:"10px 14px",color:RED,fontSize:13}}>{erro}</div>}
+            </>
+          }
+        </div>
+        <div style={{padding:"14px 20px",borderTop:`1px solid ${BD}`,display:"flex",gap:10,justifyContent:"flex-end",flexShrink:0}}>
+          <button onClick={onFechar} style={{padding:"10px 20px",borderRadius:10,border:`1px solid ${BD}`,background:"transparent",color:MUTED,cursor:"pointer",fontSize:14,fontWeight:600}}>Cancelar</button>
+          <button onClick={salvar} disabled={salvando||carregando} style={{padding:"10px 24px",borderRadius:10,background:salvando||carregando?MUTED:GRN,color:"#fff",border:"none",cursor:salvando||carregando?"not-allowed":"pointer",fontSize:14,fontWeight:700,display:"flex",alignItems:"center",gap:8}}>
+            {salvando?<><IcoSpinner color="#fff"/> Salvando...</>:"Salvar Templates"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── UNDO TOAST ─────────────────────────────────────────────────
+function UndoToast({undo, onDismiss, onReverter}) {
+  const [secs, setSecs] = React.useState(undo.segundosRestantes || 900);
+  const [confirmando, setConfirmando] = React.useState(false);
+  const [motivo, setMotivo] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const [erro, setErro] = React.useState(null);
+  React.useEffect(()=>{
+    if(secs<=0){onDismiss();return;}
+    const t=setTimeout(()=>setSecs(s=>s-1),1000);
+    return()=>clearTimeout(t);
+  },[secs]);
+  const mm=String(Math.floor(secs/60)).padStart(2,"0");
+  const ss=String(secs%60).padStart(2,"0");
+  const label = _UNDO_TIPO_LABEL[undo.tipo] || undo.tipo;
+  const handleReverter = async()=>{
+    setLoading(true); setErro(null);
+    const res = await onReverter(motivo);
+    setLoading(false);
+    if(!res?.ok) setErro(res?.resultado?.erro || "Erro ao reverter");
+  };
+  const BG="#0A2017", CARD="#112A1A", ACCENT="#A8E040", TEXT="#E8F0E9", MUTED="#8BA68F";
+  if(confirmando) return (
+    <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,width:340,background:CARD,borderRadius:16,padding:"20px 22px",boxShadow:"0 8px 32px rgba(0,0,0,.6)",border:"1px solid #1E3A28",fontFamily:"Helvetica,Arial,sans-serif"}}>
+      <div style={{fontSize:13,fontWeight:700,color:ACCENT,marginBottom:6}}>Confirmar reversão</div>
+      <div style={{fontSize:12,color:TEXT,marginBottom:10}}>Operação: <b>{label}</b><br/>Contrato: <b>{undo.idContrato}</b></div>
+      <div style={{fontSize:11,color:MUTED,marginBottom:6}}>Motivo (opcional):</div>
+      <input value={motivo} onChange={e=>setMotivo(e.target.value)} placeholder="Ex: erro de digitação"
+        style={{width:"100%",background:"#0A2017",border:"1px solid #1E3A28",borderRadius:8,padding:"6px 10px",color:TEXT,fontSize:12,marginBottom:10,boxSizing:"border-box"}} />
+      {erro && <div style={{fontSize:11,color:"#FF6B6B",marginBottom:8}}>{erro}</div>}
+      <div style={{display:"flex",gap:8}}>
+        <button onClick={()=>{setConfirmando(false);setErro(null);}} disabled={loading}
+          style={{flex:1,padding:"8px 0",borderRadius:8,border:"1px solid #1E3A28",background:"transparent",color:MUTED,fontSize:12,cursor:"pointer"}}>Cancelar</button>
+        <button onClick={handleReverter} disabled={loading}
+          style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",background:ACCENT,color:BG,fontSize:12,fontWeight:700,cursor:"pointer"}}>{loading?"Revertendo...":"Confirmar reversão"}</button>
+      </div>
+    </div>
+  );
+  return (
+    <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,width:320,background:CARD,borderRadius:14,padding:"16px 18px",boxShadow:"0 8px 32px rgba(0,0,0,.6)",border:"1px solid #1E3A28",fontFamily:"Helvetica,Arial,sans-serif"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+        <div>
+          <div style={{fontSize:11,color:MUTED,marginBottom:2}}>Operação registrada</div>
+          <div style={{fontSize:13,fontWeight:700,color:TEXT}}>{label}</div>
+          <div style={{fontSize:11,color:MUTED}}>Contrato {undo.idContrato} · {undo.nomeCliente}</div>
+        </div>
+        <button onClick={onDismiss} style={{background:"none",border:"none",color:MUTED,fontSize:16,cursor:"pointer",padding:"0 0 0 8px",lineHeight:1}}>×</button>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{fontSize:11,color:secs<60?"#FF6B6B":MUTED}}>Expira em {mm}:{ss}</span>
+        <button onClick={()=>setConfirmando(true)}
+          style={{padding:"6px 16px",borderRadius:8,border:"none",background:ACCENT,color:BG,fontSize:12,fontWeight:700,cursor:"pointer"}}>Reverter</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── APP ─────────────────────────────────────────────────────────
 function App() {
   const mob = useIsMobile();
@@ -3309,13 +5466,20 @@ function App() {
   const [loading, setLoading] = useState(()=>!localStorage.getItem("fp_data_v2"));
   const [sidebarOpen, setSidebarOpen] = useState(()=>window.innerWidth>768);
   const [selCli, setSelCli] = useState(null);
-  const [baixaModal, setBaixaModal] = useState(null);
-  const [acordoModal, setAcordoModal] = useState(null);
+  const [encerramentoModal, setEncerramentoModal] = useState(null);
   const [quitacaoModal, setQuitacaoModal] = useState(null);
   const [recuperacaoModal, setRecuperacaoModal] = useState(null);
   const [perdaAcoesModal, setPerdaAcoesModal] = useState(null);
+  const [acordoAssistModal, setAcordoAssistModal] = useState(null);
+  const [abatimentoAssistModal, setAbatimentoAssistModal] = useState(null);
+  const [ajuizarModal, setAjuizarModal] = useState(null);
+  const [acordoJudicialModal, setAcordoJudicialModal] = useState(null);
+  const [quitacaoJudicialModal, setQuitacaoJudicialModal] = useState(null);
+  const [arquivarProcessoModal, setArquivarProcessoModal] = useState(null);
+  const [renegociacaoModal, setRenegociacaoModal] = useState(null);
   const [cobModal, setCobModal] = useState(null);
   const [contratoSel, setContratoSel] = useState(null);
+  const [carteiraDetalheModal, setCarteiraDetalheModal] = useState(null);
   const [filtroCtr, setFiltroCtr] = useState("");
   const [filtroStatusCtr, setFiltroStatusCtr] = useState("todos");
   const [simVal, setSimVal] = useState(5000);
@@ -3324,14 +5488,19 @@ function App() {
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [filtroBusca, setFiltroBusca] = useState("");
   const [filtroPerdas, setFiltroPerdas] = useState("todos");
-  const [finDe, setFinDe] = useState(null);
-  const [finAte, setFinAte] = useState(null);
+  const [finDe, setFinDe] = useState(()=>parseDate(mesAtualRange().ini));
+  const [finAte, setFinAte] = useState(()=>parseDate(mesAtualRange().fim));
   const [finCalOpen, setFinCalOpen] = useState(false);
   const [dashCalOpen, setDashCalOpen] = useState(false);
   const [dashCalPos, setDashCalPos] = useState({top:0,right:0});
   const [finCalPos,  setFinCalPos]  = useState({top:0,right:0});
   const dashCalBtnRef = useRef(null);
   const finCalBtnRef  = useRef(null);
+  const [ctrDe, setCtrDe] = useState(null);
+  const [ctrAte, setCtrAte] = useState(null);
+  const [ctrCalOpen, setCtrCalOpen] = useState(false);
+  const [ctrCalPos, setCtrCalPos] = useState({top:0,right:0});
+  const ctrCalBtnRef = useRef(null);
   const [pagamentoHoje, setPagamentoHoje] = useState(null);
   const [pagModo, setPagModo] = useState("pagamento");
   const [dashPeriodo, setDashPeriodo] = useState(()=>mesAtualRange());
@@ -3342,12 +5511,28 @@ function App() {
   const [novoContratoIni, setNovoContratoIni] = useState(null);
   const [novaPromessa, setNovaPromessa] = useState(false);
   const [filtroPromessa, setFiltroPromessa] = useState("todos");
+  const [filtroRegua, setFiltroRegua] = useState("todos");
+  const [modalTemplatesRegua, setModalTemplatesRegua] = useState(false);
+  const [disparandoRegua, setDisparandoRegua] = useState(false);
   const [chartPeriodo, setChartPeriodo] = useState("Max");
+  const [gestaoExpandido, setGestaoExpandido] = useState(null);
   const [dashFiltroPreset, setDashFiltroPreset] = useState("Este mês");
   const [selCliAba, setSelCliAba] = useState("perfil");
   const [privacy, setPrivacy] = useState(false);
+  const [undoAtivo, setUndoAtivo] = useState(null);
   const [darkMode, setDarkMode] = useState(()=>{const d=isDarkHour();applyTheme(d);return d;});
   const toggleDark=()=>{const next=!darkMode;applyTheme(next);setDarkMode(next);};
+  useEffect(()=>{ _registrarUndoAtivo = (d)=>setUndoAtivo(d); return()=>{ _registrarUndoAtivo=null; }; },[]);
+  const [_progPct,_setProgPct]=useState(-1);
+  useEffect(()=>{_progSetFn=_setProgPct;return()=>{_progSetFn=null;};},[]);
+  const handleReverterUndo = async(motivo)=>{
+    if(!undoAtivo) return;
+    try {
+      const res = await postAction({action:"reverterOperacao", idUndo:undoAtivo.idUndo, motivo:motivo||""});
+      if(res.ok){ setUndoAtivo(null); carregar(); }
+      return res;
+    } catch(e){ return {ok:false,error:String(e)}; }
+  };
   useEffect(()=>{
     const ref={tid:null};
     function schedule(){
@@ -3366,33 +5551,62 @@ function App() {
 
   const [ultimaAt, setUltimaAt] = useState(null);
   const _fetching = useRef(false);
+  const _abortCtrl = useRef(null);
   const CACHE_KEY = "fp_data_v2";
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
   const carregar=(force=false)=>{
     if(!force&&_fetching.current)return Promise.resolve();
+    if(_abortCtrl.current)_abortCtrl.current.abort();
     _fetching.current=true;
-    return fetch(API_URL).then(r=>r.json()).then(d=>{
+    const ctrl=new AbortController();
+    _abortCtrl.current=ctrl;
+    return fetch(API_URL,{signal:ctrl.signal}).then(r=>r.json()).then(d=>{
       setRaw(d);
-      try{localStorage.setItem(CACHE_KEY,JSON.stringify(d));}catch(e){}
+      try{localStorage.setItem(CACHE_KEY,JSON.stringify({data:d,ts:Date.now()}));}catch(e){}
       setLoading(false);
       setUltimaAt(new Date());
       _fetching.current=false;
-    }).catch(()=>{setLoading(false);_fetching.current=false;});
+      _abortCtrl.current=null;
+    }).catch(e=>{
+      if(e.name!=="AbortError")setLoading(false);
+      _fetching.current=false;
+    });
   };
+
   useEffect(()=>{
+    let fresh=false;
     const cached=localStorage.getItem(CACHE_KEY);
-    if(cached){try{setRaw(JSON.parse(cached));setLoading(false);}catch(e){}}
-    carregar();
+    if(cached){
+      try{
+        const entry=JSON.parse(cached);
+        const d=entry?.data??entry; // suporta formato antigo (dados diretos) e novo ({data,ts})
+        const ts=entry?.ts??0;
+        setRaw(d);setLoading(false);
+        fresh=Date.now()-ts<CACHE_TTL;
+      }catch(e){}
+    }
+    if(!fresh)carregar();
   },[]);
-  useEffect(()=>{const id=setInterval(()=>carregar(),120000);return()=>clearInterval(id);},[]);
+  useEffect(()=>()=>{if(_abortCtrl.current)_abortCtrl.current.abort();},[]);
+  useEffect(()=>{
+    const tick=()=>{if(document.visibilityState==="visible")carregar();};
+    const id=setInterval(tick,120000);
+    document.addEventListener("visibilitychange",tick);
+    return()=>{clearInterval(id);document.removeEventListener("visibilitychange",tick);};
+  },[]);
 
   const clientes  = useMemo(()=>raw?.CLIENTES  || raw?.clientes  || [], [raw]);
   const contratos = useMemo(()=>raw?.CONTRATOS || raw?.contratos || [], [raw]);
   const parcelas  = useMemo(()=>raw?.PARCELAS  || raw?.parcelas  || [], [raw]);
   const pagamentos= useMemo(()=>raw?.PAGAMENTOS|| raw?.pagamentos|| [], [raw]);
   const promessas    = useMemo(()=>raw?.PROMESSAS    || [], [raw]);
+  const eventos      = useMemo(()=>raw?.EVENTOS      || [], [raw]);
+  const mensagens    = useMemo(()=>raw?.MENSAGENS    || [], [raw]);
   const acordos      = useMemo(()=>raw?.ACORDOS      || [], [raw]);
   const padrinhos    = useMemo(()=>raw?.PADRINHOS    || [], [raw]);
   const empregadores = useMemo(()=>raw?.EMPREGADORES || [], [raw]);
+  const quitacoes    = useMemo(()=>raw?.QUITACOES    || [], [raw]);
   const cliMap = useMemo(()=>new Map((clientes||[]).map(c=>[String(c.ID_CLIENTE),c])), [clientes]);
 
   const promessasFiltradas = useMemo(()=>{
@@ -3413,7 +5627,7 @@ function App() {
     if(!sc&&!faixa)return null;
     const cor=bloq?RED:sc>=75?GRN:sc>=45?YEL:RED;
     return<span style={{display:"inline-flex",alignItems:"center",gap:3,background:cor+"18",color:cor,fontSize:10,fontWeight:800,padding:"1px 7px",borderRadius:20,border:`1px solid ${cor}35`,verticalAlign:"middle"}}>
-      {sc}{faixa&&` · ${faixa}`}{bloq&&" · BLOQ"}
+      {sc}{faixa&&` · ${faixa}`}
     </span>;
   };
 
@@ -3427,10 +5641,11 @@ function App() {
     (parcelas||[]).forEach(p=>{
       const id=String(p.ID_CONTRATO||"").trim();
       if(!id)return;
-      if(!m[id])m[id]={diasAtraso:0,qtdAtrasadas:0,saldoAberto:0};
+      if(!m[id])m[id]={diasAtraso:0,qtdAtrasadas:0,saldoAberto:0,principalAberto:0};
       const st=String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase();
       if(!_ST_TERMINAL.has(st)){
         m[id].saldoAberto+=parseFloat(p.VALOR_PARCELA||0);
+        m[id].principalAberto+=parseFloat(p.VALOR_PRINCIPAL||0);
         const dv=parseDate(p.DATA_VENCIMENTO);
         if(dv){dv.setHours(0,0,0,0);const d=Math.round((hoje-dv)/86400000);if(d>0){m[id].qtdAtrasadas++;m[id].diasAtraso=Math.max(m[id].diasAtraso,d);}}
       }
@@ -3440,12 +5655,16 @@ function App() {
 
   const contratosFiltrados=useMemo(()=>{
     const b=filtroCtr.toLowerCase();
+    const ini=ctrDe?new Date(ctrDe):null;if(ini)ini.setHours(0,0,0,0);
+    const fim=ctrAte?new Date(ctrAte):(ctrDe?new Date(ctrDe):null);if(fim)fim.setHours(23,59,59,999);
     return (contratos||[]).filter(c=>{
       const m=String(c.ID_CONTRATO||"").toLowerCase().includes(b)||String(c.NOME_CLIENTE||"").toLowerCase().includes(b)||String(c.ID_CLIENTE||"").toLowerCase().includes(b);
       const s=filtroStatusCtr==="todos"||String(c.STATUS_CONTRATO||"")===filtroStatusCtr;
-      return m&&s;
+      const d=parseDate(c.DATA_EMPRESTIMO);
+      const inP=!ini?true:!d?false:(()=>{const dc=new Date(d.getTime());dc.setHours(0,0,0,0);return dc>=ini&&(!fim||dc<=fim);})();
+      return m&&s&&inP;
     }).sort((a,b)=>String(a.ID_CONTRATO||"").localeCompare(String(b.ID_CONTRATO||""),"pt-BR",{numeric:true}));
-  },[contratos,filtroCtr,filtroStatusCtr]);
+  },[contratos,filtroCtr,filtroStatusCtr,ctrDe,ctrAte]);
 
   const periodoDash=useMemo(()=>{
     const ini=parseDate(dashPeriodo.ini);
@@ -3473,23 +5692,25 @@ function App() {
   const handlePreset=(p)=>{setDashFiltroPreset(p);if(p==="Este mês"){resetPeriodoMesAtual();}else{const hj=new Date();const dias=p==="30 dias"?30:90;const ini=new Date(hj);ini.setDate(ini.getDate()-dias);const r={ini:dateInputStr(ini),fim:dateInputStr(hj)};setDashPeriodo(r);setDashDe(parseDate(r.ini));setDashAte(parseDate(r.fim));}};
 
   const M=useMemo(()=>{
-    const ST_ATIVOS=["ativo","ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente"];
-    const ativos=(contratos||[]).filter(c=>ST_ATIVOS.includes(String(c.STATUS_CONTRATO||"").toLowerCase()));
-    const vAtivos=ativos.reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
-    const statusPago=p=>["pago","paga","quitado","quitada","baixado","baixada"].includes(String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase());
+    const ativos=(contratos||[]).filter(c=>_ST_ATIVOS.has(String(c.STATUS_CONTRATO||"").toLowerCase()));
+    const vAtivos=ativos.reduce((s,c)=>s+(perdaInfoMap[String(c.ID_CONTRATO||"")]?.principalAberto||0),0);
+    const statusPago=p=>["pago","quitacao_antecipada"].includes(String(p.STATUS||"").toLowerCase());
     const parcelasPeriodo=(parcelas||[]).filter(p=>noPeriodoDash(p.DATA_VENCIMENTO));
     const pagamentosPeriodo=(pagamentos||[]).filter(p=>noPeriodoDash(p.DATA_PAGAMENTO));
     const parcelasAbertas=(parcelasPeriodo||[]).filter(p=>!statusPago(p));
     const parcelasPagas=(parcelasPeriodo||[]).filter(p=>statusPago(p));
-    const vAtrasoTotal=parcelasAbertas.filter(p=>String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase()==="atrasado").reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
+    const _baseM=new Date();_baseM.setHours(0,0,0,0);
+    const vAtrasoTotal=parcelasAbertas.filter(p=>{if(String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase()!=="atrasado")return false;if(p.DATA_ACORDO){const _da=parseDate(p.DATA_ACORDO);if(_da){_da.setHours(0,0,0,0);if(_da.getTime()>=_baseM.getTime())return false;}}return true;}).reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
     const taxaInad=vAtivos>0?(vAtrasoTotal/vAtivos*100):0;
-    const receitaTotal=(pagamentosPeriodo||[]).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
-    const receitaExtra=(pagamentosPeriodo||[]).reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0);
-    const lucro=(pagamentosPeriodo||[]).reduce((s,pag)=>{
+    const pagsPeriodoSemAbat=(pagamentosPeriodo||[]).filter(p=>p.TIPO_PAGAMENTO!=="abatimento_acordo_assistido");
+    const receitaTotal=pagsPeriodoSemAbat.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+    const receitaExtra=(pagamentosPeriodo||[]).reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0)+parseFloat(p.FEE_PRORROGACAO||0),0);
+    const lucro=pagsPeriodoSemAbat.reduce((s,pag)=>{
       const parc=(parcelas||[]).find(p=>String(p.ID_PARCELA)===String(pag.ID_PARCELA));
       const jurosBase=parc?parseFloat(parc.VALOR_JUROS||0)-parseFloat(parc.DESCONTO_APLICADO||0):0;
-      return s+jurosBase+parseFloat(pag.RECEITA_EXTRA_ATRASO||0);
+      return s+jurosBase+parseFloat(pag.RECEITA_EXTRA_ATRASO||0)+parseFloat(pag.FEE_PRORROGACAO||0);
     },0);
+    const capitalRecuperadoAssistido=(pagamentosPeriodo||[]).filter(p=>p.TIPO_PAGAMENTO==="abatimento_acordo_assistido").reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
     const qtyProrrogadas=(parcelasPeriodo||[]).filter(p=>p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros").length;
     const pagNormais=(pagamentosPeriodo||[]).filter(p=>p.TIPO_PAGAMENTO==="pagamento_normal").length;
     const pagAtraso=(pagamentosPeriodo||[]).filter(p=>p.TIPO_PAGAMENTO==="pagamento_com_atraso").length;
@@ -3498,8 +5719,8 @@ function App() {
     const totalRecebidoGeral=(pagamentos||[]).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
     const principalLiberadoGeral=(contratos||[]).reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
     const caixaAtual=totalRecebidoGeral-principalLiberadoGeral;
-    return{vAtivos,vAtrasoTotal,taxaInad,lucroTotal:receitaExtra,receitaTotal,receitaExtra,lucro,qtyProrrogadas,pagNormais,pagAtraso,pagJuros,totalCobrancas:(parcelasPeriodo||[]).length,parcelasPagas:parcelasPagas.length,parcelasPendentes:parcelasAbertas.length,vPendente,contratosAtivos:ativos.length,caixaAtual,pagamentosPeriodo:pagamentosPeriodo.length};
-  },[contratos,parcelas,pagamentos,periodoDash]);
+    return{vAtivos,vAtrasoTotal,taxaInad,receitaTotal,receitaExtra,lucro,capitalRecuperadoAssistido,qtyProrrogadas,pagNormais,pagAtraso,pagJuros,totalCobrancas:(parcelasPeriodo||[]).length,parcelasPagas:parcelasPagas.length,parcelasPendentes:parcelasAbertas.length,vPendente,contratosAtivos:ativos.length,caixaAtual,pagamentosPeriodo:pagamentosPeriodo.length};
+  },[contratos,parcelas,pagamentos,periodoDash,perdaInfoMap]);
 
   const chartData=useMemo(()=>{
     const n=chartPeriodo==="3M"?3:chartPeriodo==="6M"?6:chartPeriodo==="1A"?12:24;
@@ -3508,7 +5729,7 @@ function App() {
       const dt=new Date(hoje.getFullYear(),hoje.getMonth()-(n-1-i),1);
       const ini=new Date(dt.getFullYear(),dt.getMonth(),1,0,0,0);
       const fim=new Date(dt.getFullYear(),dt.getMonth()+1,0,23,59,59);
-      const total=(pagamentos||[]).filter(p=>{const dp=parseDate(p.DATA_PAGAMENTO);return dp&&dp>=ini&&dp<=fim;}).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+      const total=(pagamentos||[]).filter(p=>{const dp=parseDate(p.DATA_PAGAMENTO);return dp&&dp>=ini&&dp<=fim&&p.TIPO_PAGAMENTO!=="abatimento_acordo_assistido";}).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
       return{name:dt.toLocaleDateString("pt-BR",{month:"short"}).replace(".",""),value:total};
     });
   },[pagamentos,chartPeriodo]);
@@ -3545,10 +5766,10 @@ function App() {
   },[parcelas,contratos,clientes]);
   const totalParcelasAtrasadas=useMemo(()=>parcelasAtrasadas.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0),[parcelasAtrasadas]);
 
-  const mensal=useMemo(()=>["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map((mes,i)=>{
-    const pMes=(pagamentos||[]).filter(p=>{const d=parseDate(p.DATA_PAGAMENTO);return d&&d.getMonth()===i;});
+  const mensal=useMemo(()=>{const anoAtual=new Date().getFullYear();return["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].map((mes,i)=>{
+    const pMes=(pagamentos||[]).filter(p=>{const d=parseDate(p.DATA_PAGAMENTO);return d&&d.getFullYear()===anoAtual&&d.getMonth()===i&&p.TIPO_PAGAMENTO!=="abatimento_acordo_assistido";});
     return{m:mes,v:pMes.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0),extra:pMes.reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0)};
-  }),[pagamentos]);
+  });},[pagamentos]);
 
   // ── cobItems: inclui parcelasAtrasadas de cada cliente ──────────
   const cobItems=useMemo(()=>{
@@ -3587,14 +5808,101 @@ function App() {
     const baixados=todos.filter(c=>c.STATUS_CONTRATO==="baixado_como_prejuizo");
     const emRisco=todos.filter(c=>["em_cobranca","pre_prejuizo"].includes(c.STATUS_CONTRATO));
     const emRec=todos.filter(c=>["em_recuperacao","recuperado_parcialmente"].includes(c.STATUS_CONTRATO));
-    const capitalEmRisco=emRisco.reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
+    const capitalEmRisco=emRisco.reduce((s,c)=>s+(perdaInfoMap[String(c.ID_CONTRATO||"")]?.principalAberto||0),0);
     const qtdEmRisco=emRisco.length;
     const capitalBaixado=baixados.reduce((s,c)=>s+parseFloat(c.PREJUIZO_CAPITAL||0),0);
     const recuperadoAposBaixa=[...baixados,...emRec].reduce((s,c)=>s+parseFloat(c.VALOR_RECUPERADO_APOS_BAIXA||0),0);
     const prejuizoReal=capitalBaixado-recuperadoAposBaixa;
     const txRecuperacao=capitalBaixado>0?(recuperadoAposBaixa/capitalBaixado*100):0;
-    return{capitalEmRisco,qtdEmRisco,capitalBaixado,recuperadoAposBaixa,prejuizoReal,txRecuperacao};
-  },[contratos]);
+    const jud=todos.filter(c=>["em_processo_judicial","encerrado_judicialmente"].includes(c.STATUS_CONTRATO));
+    const qtdJudicial=jud.length;
+    const valorExecutadoJudicial=jud.reduce((s,c)=>s+parseFloat(c.VALOR_EXECUTADO||c.VALOR_TOTAL||c.VALOR_PRINCIPAL||0),0);
+    const recuperadoJudicialPrincipal=jud.reduce((s,c)=>s+parseFloat(c.VALOR_RECUPERADO_JUDICIAL_PRINCIPAL||0),0);
+    const recuperadoJudicialLucro=jud.reduce((s,c)=>s+parseFloat(c.VALOR_RECUPERADO_JUDICIAL_LUCRO||0),0);
+    const recuperadoJudicialTotal=recuperadoJudicialPrincipal+recuperadoJudicialLucro;
+    const indiceRecuperacaoJudicial=valorExecutadoJudicial>0?(recuperadoJudicialTotal/valorExecutadoJudicial*100):0;
+    return{capitalEmRisco,qtdEmRisco,capitalBaixado,recuperadoAposBaixa,prejuizoReal,txRecuperacao,
+      qtdJudicial,valorExecutadoJudicial,recuperadoJudicialPrincipal,recuperadoJudicialLucro,recuperadoJudicialTotal,indiceRecuperacaoJudicial};
+  },[contratos,perdaInfoMap]);
+
+  const carteira=useMemo(()=>{
+    const todos=contratos||[];
+    const EXCL=new Set(["quitado","cancelado","encerrado_sem_recuperacao","recuperado_integralmente","em_processo_judicial","encerrado_judicialmente"]);
+    const cCirc=todos.filter(c=>["ativo_em_dia","ativo_em_atraso","renegociado"].includes(c.STATUS_CONTRATO));
+    const cRisco=todos.filter(c=>["em_cobranca","pre_prejuizo"].includes(c.STATUS_CONTRATO));
+    const cAssist=todos.filter(c=>c.STATUS_CONTRATO==="acordo_assistido");
+    const cBaixados=todos.filter(c=>c.STATUS_CONTRATO==="baixado_como_prejuizo");
+    const cJudicial=todos.filter(c=>c.STATUS_CONTRATO==="em_processo_judicial");
+    const capitalCirculacao=cCirc.reduce((s,c)=>s+(perdaInfoMap[String(c.ID_CONTRATO||"")]?.principalAberto||0),0);
+    const capitalEmRisco=cRisco.reduce((s,c)=>s+(perdaInfoMap[String(c.ID_CONTRATO||"")]?.principalAberto||0),0);
+    const capitalAssistido=cAssist.reduce((s,c)=>s+(perdaInfoMap[String(c.ID_CONTRATO||"")]?.principalAberto||0),0);
+    const capitalBaixado=cBaixados.reduce((s,c)=>s+parseFloat(c.PREJUIZO_CAPITAL||0),0);
+    const recuperado=cBaixados.reduce((s,c)=>s+parseFloat(c.VALOR_RECUPERADO_APOS_BAIXA||0),0);
+    const capitalPerdidoLiquido=Math.max(0,capitalBaixado-recuperado);
+    const capitalJudicial=cJudicial.reduce((s,c)=>s+parseFloat(c.PREJUIZO_CAPITAL||c.VALOR_EXECUTADO||0),0);
+    const capitalTotal=capitalCirculacao+capitalEmRisco+capitalAssistido+capitalJudicial;
+    const abertos=todos.filter(c=>!EXCL.has(c.STATUS_CONTRATO)&&c.STATUS_CONTRATO!=="baixado_como_prejuizo");
+    const dist=[0,0,0,0,0];
+    abertos.forEach(c=>{
+      const info=perdaInfoMap[String(c.ID_CONTRATO)]||{};
+      const d=info.diasAtraso||0;
+      if(d<=0)dist[0]++;
+      else if(d<=30)dist[1]++;
+      else if(d<=60)dist[2]++;
+      else if(d<=120)dist[3]++;
+      else dist[4]++;
+    });
+    // PDD Gerencial v1.0 — Jun/2026
+    const pddPct=d=>d<=0?0:d<=30?0:d<=60?0.10:d<=90?0.35:d<=120?0.60:d<=180?0.85:1.00;
+    const pddFaixas=[
+      {label:"Em dia",      lo:0,  hi:0,   pct:0.00,qtd:0,saldo:0,pdd:0},
+      {label:"1–30 dias",   lo:1,  hi:30,  pct:0.00,qtd:0,saldo:0,pdd:0},
+      {label:"31–60 dias",  lo:31, hi:60,  pct:0.10,qtd:0,saldo:0,pdd:0},
+      {label:"61–90 dias",  lo:61, hi:90,  pct:0.35,qtd:0,saldo:0,pdd:0},
+      {label:"91–120 dias", lo:91, hi:120, pct:0.60,qtd:0,saldo:0,pdd:0},
+      {label:"121–180 dias",lo:121,hi:180, pct:0.85,qtd:0,saldo:0,pdd:0},
+      {label:"181+ dias",   lo:181,hi:9999,pct:1.00,qtd:0,saldo:0,pdd:0},
+    ];
+    let saldoDevedor=0,principalTotal=0,totalPDD=0;
+    abertos.forEach(c=>{
+      const info=perdaInfoMap[String(c.ID_CONTRATO)]||{};
+      const d=info.diasAtraso||0;
+      const saldo=info.saldoAberto||0;
+      const princ=info.principalAberto||0;
+      saldoDevedor+=saldo;
+      principalTotal+=princ;
+      const pct=pddPct(d);
+      const pdd=princ*pct;
+      totalPDD+=pdd;
+      const f=pddFaixas.find(fx=>d>=fx.lo&&d<=fx.hi);
+      if(f){f.qtd++;f.saldo+=princ;f.pdd+=pdd;}
+    });
+    const carteiraAjustada=saldoDevedor-totalPDD;
+    const perdaHistoricaLiq=capitalPerdidoLiquido;
+    const coberturaPDD=perdaHistoricaLiq>0?totalPDD/perdaHistoricaLiq:0;
+    return{capitalCirculacao,capitalEmRisco,capitalAssistido,capitalJudicial,capitalPerdidoLiquido,capitalTotal,dist,totalAbertos:abertos.length,qtdCirc:cCirc.length,qtdRisco:cRisco.length,qtdAssist:cAssist.length,qtdJudicial:cJudicial.length,saldoDevedor,principalTotal,totalPDD,carteiraAjustada,coberturaPDD,pddFaixas};
+  },[contratos,perdaInfoMap]);
+
+  const resultado12m=useMemo(()=>{
+    const hoje=new Date();
+    const ha12m=new Date(hoje);ha12m.setFullYear(ha12m.getFullYear()-1);
+    let receitaContratual=0,receitaAtraso=0,receitaBruta=0;
+    (pagamentos||[]).forEach(pag=>{
+      if(pag.TIPO_PAGAMENTO==="abatimento_acordo_assistido")return;
+      const d=parseDate(pag.DATA_PAGAMENTO);
+      if(!d||d<ha12m)return;
+      receitaBruta+=parseFloat(pag.VALOR_PAGO||0);
+      receitaAtraso+=parseFloat(pag.RECEITA_EXTRA_ATRASO||0);
+    });
+    (parcelas||[]).forEach(p=>{
+      const st=String(p.STATUS||"").toLowerCase();
+      if(!["pago","quitacao_antecipada"].includes(st))return;
+      const d=parseDate(p.DATA_PAGAMENTO);
+      if(!d||d<ha12m)return;
+      receitaContratual+=Math.max(0,parseFloat(p.VALOR_JUROS||0)-parseFloat(p.DESCONTO_APLICADO||0));
+    });
+    return{receitaContratual,receitaAtraso,receitaBruta};
+  },[pagamentos,parcelas]);
 
   const pagsFiltrados=useMemo(()=>{
     const sorted=[...(pagamentos||[])].sort((a,b)=>{const d=toNum(b.DATA_PAGAMENTO)-toNum(a.DATA_PAGAMENTO);if(d!==0)return d;return String(b.ID_PAGAMENTO||"").localeCompare(String(a.ID_PAGAMENTO||""),"pt-BR",{numeric:true});});
@@ -3609,11 +5917,17 @@ function App() {
     });
   },[pagamentos,finDe,finAte]);
 
-  const totaisFin=useMemo(()=>({
-    total:pagsFiltrados.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0),
-    extra:pagsFiltrados.reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0),
-    count:pagsFiltrados.length,
-  }),[pagsFiltrados]);
+  const totaisFin=useMemo(()=>{
+    const semAbat=pagsFiltrados.filter(p=>p.TIPO_PAGAMENTO!=="abatimento_acordo_assistido");
+    const abatAmt=pagsFiltrados.filter(p=>p.TIPO_PAGAMENTO==="abatimento_acordo_assistido").reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+    return{
+      total:pagsFiltrados.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0),
+      receita:semAbat.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0),
+      abatimentos:abatAmt,
+      extra:pagsFiltrados.reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0)+parseFloat(p.FEE_PRORROGACAO||0),0),
+      count:pagsFiltrados.length,
+    };
+  },[pagsFiltrados]);
 
   const finKpis=useMemo(()=>{
     const pags=pagsFiltrados;
@@ -3625,47 +5939,60 @@ function App() {
       return d>=ini&&d<=fim;
     };
     const parcsP=finDe?(parcelas||[]).filter(p=>inPeriod(p)):(parcelas||[]);
-    const receitaTotal=pags.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
-    const receitaExtra=pags.reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0),0);
-    const lucro=pags.reduce((s,pag)=>{
-      const parc=(parcelas||[]).find(p=>String(p.ID_PARCELA)===String(pag.ID_PARCELA));
-      const jurosEfetivos=parc?parseFloat(parc.VALOR_JUROS||0)-parseFloat(parc.DESCONTO_APLICADO||0):0;
-      return s+jurosEfetivos+parseFloat(pag.RECEITA_EXTRA_ATRASO||0);
-    },0);
+    const pagsSemAbat=pags.filter(p=>p.TIPO_PAGAMENTO!=="abatimento_acordo_assistido");
+    const receitaTotal=pagsSemAbat.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+    const receitaExtra=pags.reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0)+parseFloat(p.FEE_PRORROGACAO||0),0);
+    const lucro=(parcelas||[]).filter(p=>{
+      const st=String(p.STATUS||"").toLowerCase();
+      if(!["pago","quitacao_antecipada"].includes(st))return false;
+      const d=parseDate(p.DATA_PAGAMENTO);if(!d)return false;
+      if(!ini||!fim)return true;
+      const dc=new Date(d.getTime());dc.setHours(0,0,0,0);
+      return dc>=ini&&dc<=fim;
+    }).reduce((s,p)=>s+Math.max(0,parseFloat(p.VALOR_JUROS||0)-parseFloat(p.DESCONTO_APLICADO||0))+parseFloat(p.DIFERENCA_PAGA||0),0);
+    const capitalRecuperadoAssistido=pags.filter(p=>p.TIPO_PAGAMENTO==="abatimento_acordo_assistido").reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
     const qtyProrrogadas=parcsP.filter(p=>p.ORIGEM_PARCELA==="gerada_por_pagamento_de_juros").length;
     const pagNormais=pags.filter(p=>p.TIPO_PAGAMENTO==="pagamento_normal").length;
     const pagAtraso=pags.filter(p=>p.TIPO_PAGAMENTO==="pagamento_com_atraso").length;
     const pagJuros=pags.filter(p=>p.TIPO_PAGAMENTO==="somente_juros").length;
-    return{receitaTotal,receitaExtra,lucro,qtyProrrogadas,pagNormais,pagAtraso,pagJuros};
+    return{receitaTotal,receitaExtra,lucro,capitalRecuperadoAssistido,qtyProrrogadas,pagNormais,pagAtraso,pagJuros};
   },[pagsFiltrados,parcelas,finDe,finAte]);
 
   function dStrFin(d){return d?d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}):""}
   const labelPeriodo=finDe&&finAte?`${dStrFin(finDe)} → ${dStrFin(finAte)}`:finDe?`A partir de ${dStrFin(finDe)}`:"Selecionar período";
+  const labelPeriodoCtr=ctrDe&&ctrAte?`${dStrFin(ctrDe)} → ${dStrFin(ctrAte)}`:ctrDe?`A partir de ${dStrFin(ctrDe)}`:"Selecionar período";
 
   function exportarPDFFinanceiro(){
     try{
       const doc=new jsPDF({unit:'mm',format:'a4'});
       const W=210,pd=16,CW=W-2*pd;
-      const NAV=[11,61,46],G=[11,61,46],B=[27,138,143],O=[255,119,0],R=[214,69,69],P=[34,29,154];
+      const NAV=[7,36,27],G=[11,61,46],SIG=[31,184,119],B=[23,108,112],O=[255,119,0],R=[192,50,47],P=[34,29,154];
       const DK=[18,24,21],MUT=[110,121,117],BDC=[221,227,224],LGR=[247,249,248],WH=[255,255,255];
-      const tLBL={pagamento_normal:"Normal",normal:"Normal",pagamento_com_atraso:"Com Atraso",com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação",pagamento_antecipado:"Antecipado",antecipado:"Antecipado",quitacao_antecipada:"Quitação Antecip."};
-      const tCOR={pagamento_normal:G,normal:G,pagamento_com_atraso:O,com_atraso:O,somente_juros:R,recuperacao_apos_baixa:P,pagamento_antecipado:B,antecipado:B,quitacao_antecipada:G};
+      const tLBL={pagamento_normal:"Normal",normal:"Normal",pagamento_com_atraso:"Com Atraso",com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação",pagamento_antecipado:"Antecipado",antecipado:"Antecipado",quitacao_antecipada:"Quitação Antecip.",abatimento_acordo_assistido:"Recup. Capital",acordo_com_perda:"Acordo",recuperacao_judicial:"Recuperação Judicial"};
+      const tCOR={pagamento_normal:G,normal:G,pagamento_com_atraso:O,com_atraso:O,somente_juros:R,recuperacao_apos_baixa:P,pagamento_antecipado:B,antecipado:B,quitacao_antecipada:G,abatimento_acordo_assistido:B,acordo_com_perda:O,recuperacao_judicial:R};
       const fR=v=>parseFloat(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
       const periodo=finDe?labelPeriodo:"Todos os pagamentos";
       const now=new Date();
       const geradoEm=now.toLocaleDateString('pt-BR')+' às '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
       const total=pagsFiltrados.length;
 
-      // Mapa de parcelas para O(1) lookup
+      // Mapa de parcelas para O(1) lookup (usado por linha no PDF)
       const parcMap=new Map((parcelas||[]).map(p=>[String(p.ID_PARCELA),p]));
       const getParcela=p=>parcMap.get(String(p.ID_PARCELA));
 
-      // Totais de principal e juros
-      const totalPrincipal=pagsFiltrados.reduce((s,p)=>s+parseFloat(getParcela(p)?.VALOR_PRINCIPAL||0),0);
-      const totalJuros=pagsFiltrados.reduce((s,p)=>{
-        const parc=getParcela(p);
-        return s+Math.max(0,parseFloat(parc?.VALOR_JUROS||0)-parseFloat(parc?.DESCONTO_APLICADO||0));
-      },0);
+      // Totais de principal e juros calculados de PARCELAS diretamente
+      const _pIni=finDe?new Date(finDe):null;if(_pIni)_pIni.setHours(0,0,0,0);
+      const _pFim=finAte?new Date(finAte):(finDe?new Date(finDe):null);if(_pFim)_pFim.setHours(23,59,59,999);
+      const _parcsP=(parcelas||[]).filter(p=>{
+        const st=String(p.STATUS||"").toLowerCase();
+        if(!["pago","quitacao_antecipada"].includes(st))return false;
+        const d=parseDate(p.DATA_PAGAMENTO);if(!d)return false;
+        if(!_pIni||!_pFim)return true;
+        const dc=new Date(d.getTime());dc.setHours(0,0,0,0);
+        return dc>=_pIni&&dc<=_pFim;
+      });
+      const totalPrincipal=_parcsP.reduce((s,p)=>s+parseFloat(p.VALOR_PRINCIPAL||0),0);
+      const totalJuros=_parcsP.reduce((s,p)=>s+Math.max(0,parseFloat(p.VALOR_JUROS||0)-parseFloat(p.DESCONTO_APLICADO||0)),0);
 
       const grupos=[
         {label:'Normal',tipos:['pagamento_normal','normal'],c:G},
@@ -3673,16 +6000,16 @@ function App() {
         {label:'Somente Juros',tipos:['somente_juros'],c:R},
         {label:'Antecipado',tipos:['pagamento_antecipado','antecipado','quitacao_antecipada'],c:B},
         {label:'Recuperação',tipos:['recuperacao_apos_baixa'],c:P},
+        {label:'Recup. Capital',tipos:['abatimento_acordo_assistido'],c:B},
       ].map(g=>({...g,count:pagsFiltrados.filter(p=>g.tipos.includes(p.TIPO_PAGAMENTO)).length})).filter(g=>g.count>0);
 
       // ─── CABEÇALHO ───
       // Header escuro com logo brand
-      const SG=[31,184,119],DST=[7,36,27];
       doc.setFillColor(...NAV);doc.rect(0,0,W,44,'F');
-      // Logo mark
-      doc.setFillColor(...SG);doc.roundedRect(pd,11,9,9,2,2,'F');
+      // Logo mark (dark mode: SIG + branco + g-700)
+      doc.setFillColor(31,184,119);doc.roundedRect(pd,11,9,9,2,2,'F');
       doc.setFillColor(255,255,255);doc.roundedRect(pd+6,17,9,9,2,2,'F');
-      doc.setFillColor(...DST);doc.roundedRect(pd+6,17,3.5,3.5,0.8,0.8,'F');
+      doc.setFillColor(14,92,68);doc.roundedRect(pd+6,17,3.5,3.5,0.8,0.8,'F');
       // Brand name
       doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(...WH);doc.text('BORGES ASSESSORIA',pd+17,17);
       doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(135,223,182);doc.text('RELATÓRIO FINANCEIRO',pd+17,23);
@@ -3700,7 +6027,7 @@ function App() {
 
       // ─── KPI CARDS ───
       const cardW=(CW-8)/3;
-      [{label:'RECEITA TOTAL',val:fR(finKpis.receitaTotal),sub:`${total} pagamentos`,c:B},
+      [{label:'RECEITA TOTAL',val:fR(finKpis.receitaTotal),sub:`${total} pagamentos`,c:SIG},
        {label:'LUCRO DO PERÍODO',val:fR(finKpis.lucro),sub:'Juros contratuais + extra atraso',c:G},
        {label:'RECEITA EXTRA ATRASO',val:fR(finKpis.receitaExtra),sub:'Multas e juros por atraso',c:O},
       ].forEach((card,i)=>{
@@ -3807,7 +6134,7 @@ function App() {
         doc.setFont('helvetica',vJuros>0?'bold':'normal');doc.setFontSize(7);doc.setTextColor(...(vJuros>0?B:MUT));
         doc.text(vJuros>0?fR(vJuros):'—',tcols[4].x+tcols[4].w-2,y+5,{align:'right'});
         // VLR PAGO
-        doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...B);
+        doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...G);
         doc.text(fR(p.VALOR_PAGO),tcols[5].x+tcols[5].w-2,y+5,{align:'right'});
         // EXTRA
         doc.setFont('helvetica',ex>0?'bold':'normal');doc.setFontSize(7);doc.setTextColor(...(ex>0?O:MUT));
@@ -3836,8 +6163,164 @@ function App() {
     }catch(e){console.error('PDF error:',e);alert('Erro ao gerar PDF: '+e.message);}
   }
 
+  function exportarPDFContratos(){
+    try{
+      const doc=new jsPDF({unit:'mm',format:'a4'});
+      const W=210,pd=16,CW=W-2*pd;
+      const NAV=[7,36,27],G=[11,61,46],SIG=[31,184,119],B=[23,108,112],O=[255,119,0],R=[192,50,47];
+      const DK=[18,24,21],MUT=[110,121,117],BDC=[221,227,224],LGR=[247,249,248],WH=[255,255,255];
+      const fR=v=>parseFloat(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+      const fmtCPF=v=>{const s=String(v||'').replace(/\D/g,'').padStart(11,'0');return`${s.slice(0,3)}.${s.slice(3,6)}.${s.slice(6,9)}-${s.slice(9)}`;};
+      const fmtCEP=v=>{const s=String(v||'').replace(/\D/g,'');return s.length>=7?`${s.slice(0,5)}-${s.slice(5,8)}`:v||'—';};
+      const buildEnd=cl=>{const p=[];if(cl.RUA)p.push(cl.RUA);if(cl.NUMERO)p.push(`, ${cl.NUMERO}`);if(cl.COMPLEMENTO)p.push(` (${cl.COMPLEMENTO})`);if(cl.SETOR)p.push(` - ${cl.SETOR}`);if(cl.CIDADE_ESTADO)p.push(` - ${cl.CIDADE_ESTADO}`);return p.join('')||'—';};
+      const drawField=(lbl,val,x,fy,w,bold=false)=>{
+        doc.setFont('helvetica','bold');doc.setFontSize(5.5);doc.setTextColor(...MUT);doc.text(lbl,x,fy);
+        doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(8);doc.setTextColor(...DK);
+        doc.text(doc.splitTextToSize(String(val||'—'),w-2)[0],x,fy+4.5);
+      };
+      const STATUS_LABEL_PDF={ativo:'ATIVO',ativo_em_dia:'EM DIA',ativo_em_atraso:'EM ATRASO',em_cobranca:'EM COBRANÇA',pre_prejuizo:'PRÉ-PREJUÍZO',baixado_como_prejuizo:'BAIXADO',em_recuperacao:'EM RECUPERAÇÃO',recuperado_parcialmente:'REC. PARCIAL',recuperado_integralmente:'RECUPERADO',quitado:'QUITADO',cancelado:'CANCELADO',renegociado:'RENEGOCIADO',acordo_assistido:'ACORDO ASSIST.',em_processo_judicial:'JUDICIAL'};
+      const STATUS_COR_PDF={ativo:G,ativo_em_dia:G,ativo_em_atraso:O,em_cobranca:O,pre_prejuizo:R,baixado_como_prejuizo:R,em_recuperacao:B,recuperado_parcialmente:B,recuperado_integralmente:G,quitado:G,cancelado:MUT,renegociado:B,acordo_assistido:B,em_processo_judicial:R};
+
+      const periodo=ctrDe?labelPeriodoCtr:"Todos os contratos";
+      const now=new Date();
+      const geradoEm=now.toLocaleDateString('pt-BR')+' às '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      const total=contratosFiltrados.length;
+      const totalValor=contratosFiltrados.reduce((s,c)=>s+parseFloat(c.VALOR_TOTAL||c.VALOR_PRINCIPAL||0),0);
+      const totalAtivos=contratosFiltrados.filter(c=>_ST_ATIVOS.has(String(c.STATUS_CONTRATO||"").toLowerCase())).length;
+      const cliMap=new Map((clientes||[]).map(c=>[String(c.ID_CLIENTE),c]));
+
+      // ─── CABEÇALHO ───
+      doc.setFillColor(...NAV);doc.rect(0,0,W,44,'F');
+      doc.setFillColor(31,184,119);doc.roundedRect(pd,11,9,9,2,2,'F');
+      doc.setFillColor(255,255,255);doc.roundedRect(pd+6,17,9,9,2,2,'F');
+      doc.setFillColor(14,92,68);doc.roundedRect(pd+6,17,3.5,3.5,0.8,0.8,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(...WH);doc.text('BORGES ASSESSORIA',pd+17,17);
+      doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(135,223,182);doc.text('RELATÓRIO DE CONTRATOS',pd+17,23);
+      ['borgesassessoriafinanceira@gmail.com','(62) 98487-7843'].forEach((l,i)=>{
+        doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(135,223,182);doc.text(l,W-pd,14+i*5,{align:'right'});
+      });
+      doc.setFillColor(14,92,68);doc.roundedRect(W-pd-70,29,70,10,2,2,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...WH);
+      doc.text(doc.splitTextToSize(periodo,66)[0],W-pd-35,35,{align:'center'});
+      doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(135,223,182);doc.text(`Gerado em: ${geradoEm}`,pd,36);
+
+      let y=54;
+
+      // ─── KPI RESUMO ───
+      const kpiW=(CW-6)/3;
+      [{label:'TOTAL CONTRATOS',val:String(total),sub:'no período filtrado',c:DK},
+       {label:'VOLUME TOTAL',val:fR(totalValor),sub:'soma dos valores dos contratos',c:G},
+       {label:'CONTRATOS ATIVOS',val:String(totalAtivos),sub:'status ativo / em dia',c:SIG},
+      ].forEach((card,i)=>{
+        const cx=pd+i*(kpiW+3);
+        doc.setFillColor(...LGR);doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.roundedRect(cx,y,kpiW,24,3,3,'FD');
+        doc.setFillColor(...card.c);doc.roundedRect(cx,y,3,24,1.5,1.5,'F');
+        doc.setFont('helvetica','bold');doc.setFontSize(6);doc.setTextColor(...MUT);doc.text(card.label,cx+7,y+8);
+        doc.setFont('helvetica','bold');doc.setFontSize(i===0||i===2?14:10);doc.setTextColor(...card.c);doc.text(card.val,cx+7,y+17);
+        doc.setFont('helvetica','normal');doc.setFontSize(6);doc.setTextColor(...MUT);doc.text(card.sub,cx+7,y+22);
+      });
+      y+=32;
+
+      // Título seção
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...DK);doc.text('DADOS DOS CONTRATOS',pd,y);
+      doc.setDrawColor(...BDC);doc.setLineWidth(0.4);doc.line(pd,y+2,W-pd,y+2);
+      y+=8;
+
+      if(total===0){
+        doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(...MUT);
+        doc.text('Nenhum contrato encontrado no período selecionado.',W/2,y+20,{align:'center'});
+      }
+
+      // ─── CARD POR CONTRATO ───
+      // Layout: header(9) + nome(8) + [cpf|rg](8) + [email|tel](8) + [cep|parcelas](8) + endereço(8) = 49mm + padding
+      const CARD_H=51,HALF=CW/2;
+      contratosFiltrados.forEach(c=>{
+        if(y+CARD_H>284){doc.addPage();y=16;}
+        const cl=cliMap.get(String(c.ID_CLIENTE))||{};
+        const stC=STATUS_COR_PDF[c.STATUS_CONTRATO]||MUT;
+        const stL=STATUS_LABEL_PDF[c.STATUS_CONTRATO]||c.STATUS_CONTRATO||'—';
+        const valTotal=parseFloat(c.VALOR_TOTAL||c.VALOR_PRINCIPAL||0);
+
+        // Card border
+        doc.setFillColor(...WH);doc.setDrawColor(...BDC);doc.setLineWidth(0.3);
+        doc.roundedRect(pd,y,CW,CARD_H,2.5,2.5,'FD');
+
+        // Header bar
+        doc.setFillColor(...NAV);doc.roundedRect(pd,y,CW,9,2.5,2.5,'F');
+        doc.rect(pd,y+4,CW,5,'F');
+
+        // ID contrato
+        doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(...WH);
+        doc.text(String(c.ID_CONTRATO||'—'),pd+4,y+6.3);
+
+        // Status pill
+        const pillW=30;
+        doc.setFillColor(...stC);doc.roundedRect(pd+30,y+1.5,pillW,6,1.5,1.5,'F');
+        doc.setFont('helvetica','bold');doc.setFontSize(5.8);doc.setTextColor(...WH);
+        doc.text(stL,pd+30+pillW/2,y+5.5,{align:'center'});
+
+        // Data
+        doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(135,223,182);
+        doc.text(c.DATA_EMPRESTIMO?fmtDt(parseDate(c.DATA_EMPRESTIMO)):'—',pd+68,y+6.3);
+
+        // Valor total (destaque direita)
+        doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(168,224,63);
+        doc.text(fR(valTotal),pd+CW-4,y+6.3,{align:'right'});
+
+        // Separador vertical ao centro do body
+        doc.setDrawColor(...BDC);doc.setLineWidth(0.2);
+        doc.line(pd+HALF,y+9,pd+HALF,y+CARD_H-1);
+
+        // Separadores horizontais entre linhas
+        [9+8,9+16,9+24,9+32].forEach(off=>{
+          doc.setDrawColor(...BDC);doc.setLineWidth(0.1);
+          doc.line(pd+1,y+off,pd+CW-1,y+off);
+        });
+
+        const BY=y+11; // body start
+        const RH=8;    // row height
+
+        // Linha 1: Nome completo (full width)
+        drawField('NOME COMPLETO',cl.NOME||cl.NOME_CLIENTE||c.NOME_CLIENTE||'—',pd+4,BY,CW-8,true);
+
+        // Linha 2: CPF | RG
+        drawField('CPF',cl.CPF?fmtCPF(cl.CPF):'—',pd+4,BY+RH,HALF-6);
+        drawField('RG',cl.RG||'—',pd+HALF+4,BY+RH,HALF-8);
+
+        // Linha 3: Email | Telefone
+        drawField('E-MAIL',cl.EMAIL||'—',pd+4,BY+RH*2,HALF-6);
+        drawField('TELEFONE',(cl.TELEFONE_WPP||cl.TELEFONE)?fmtTel(cl.TELEFONE_WPP||cl.TELEFONE):'—',pd+HALF+4,BY+RH*2,HALF-8);
+
+        // Linha 4: CEP | Parcelamento
+        drawField('CEP',cl.CEP?fmtCEP(cl.CEP):'—',pd+4,BY+RH*3,HALF-6);
+        drawField('PARCELAMENTO',`${c.NUM_PARCELAS||'—'}x de ${fR(c.VALOR_PARCELA)}`,pd+HALF+4,BY+RH*3,HALF-8);
+
+        // Linha 5: Endereço (full width)
+        drawField('ENDEREÇO COMPLETO',buildEnd(cl),pd+4,BY+RH*4,CW-8);
+
+        y+=CARD_H+4;
+      });
+
+      // ─── RODAPÉ ───
+      const nPg=doc.internal.getNumberOfPages();
+      for(let pg=1;pg<=nPg;pg++){
+        doc.setPage(pg);
+        doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.line(pd,287,W-pd,287);
+        doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MUT);
+        doc.text('Borges Assessoria · Crédito Privado',pd,291);
+        doc.text(`Página ${pg} de ${nPg}`,W-pd,291,{align:'right'});
+      }
+      const blob=doc.output('blob');const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      const suf=ctrDe?dStrFin(ctrDe).replace(/\//g,'-'):'completo';
+      a.href=url;a.download=`relatorio_contratos_${suf}.pdf`;
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),3000);
+    }catch(e){console.error('PDF error:',e);alert('Erro ao gerar PDF: '+e.message);}
+  }
+
   const aguardando=useMemo(()=>(clientes||[]).filter(c=>c.STATUS_CLIENTE==="aguardando_conferencia"),[clientes]);
-  const promessasAtivas=useMemo(()=>(promessas||[]).filter(p=>!["cumprida","cancelada","vencida"].includes(String(p.STATUS_PROMESSA||"").toLowerCase())).length,[promessas]);
+  const promessasAtivas=useMemo(()=>(promessas||[]).filter(p=>String(p.STATUS_PROMESSA||"").toUpperCase()==="PENDENTE").length,[promessas]);
 
   const abrirConferencia=(c)=>{
     setSelCliAba("editar");
@@ -3851,17 +6334,17 @@ function App() {
     return(
       <div onClick={()=>setTab(id)} title={!sidebarOpen?label:undefined}
         className="nav-link-item"
-        style={{display:"flex",alignItems:"center",justifyContent:sidebarOpen?"flex-start":"center",gap:sidebarOpen?10:0,padding:sidebarOpen?"9px 12px":"9px 0",borderRadius:10,cursor:"pointer",background:active?"rgba(31,184,119,0.16)":"transparent",marginBottom:1}}
+        style={{display:"flex",alignItems:"center",justifyContent:sidebarOpen?"flex-start":"center",gap:sidebarOpen?10:0,padding:sidebarOpen?"9px 12px":"9px 0",borderRadius:10,cursor:"pointer",background:active?"rgba(168,224,63,0.14)":"transparent",marginBottom:1}}
         onMouseEnter={e=>!active&&(e.currentTarget.style.background="rgba(255,255,255,0.06)")}
         onMouseLeave={e=>!active&&(e.currentTarget.style.background="transparent")}
       >
         {sidebarOpen&&active
-          ? <div style={{width:8,height:8,borderRadius:"50%",background:"#46CB92",flexShrink:0,border:"2px solid #46CB92"}}/>
-          : <span style={{display:"flex",flexShrink:0,color:active?"#87DFB6":"rgba(255,255,255,0.62)"}}>{ico}</span>
+          ? <div style={{width:8,height:8,borderRadius:"50%",background:"#A8E03F",flexShrink:0,border:"2px solid #46CB92"}}/>
+          : <span style={{display:"flex",flexShrink:0,color:active?"#A8E03F":"rgba(255,255,255,0.62)"}}>{ico}</span>
         }
-        {sidebarOpen&&<span style={{fontSize:13,fontWeight:active?700:400,color:active?"#87DFB6":"rgba(255,255,255,0.62)",flex:1,whiteSpace:"nowrap"}}>{label}</span>}
+        {sidebarOpen&&<span style={{fontSize:13,fontWeight:active?700:400,color:active?"#A8E03F":"rgba(255,255,255,0.62)",flex:1,whiteSpace:"nowrap"}}>{label}</span>}
         {sidebarOpen&&badge>0&&(
-          <span style={{fontSize:10,fontWeight:800,background:badgeRed?"rgba(239,37,59,0.20)":"rgba(70,203,146,0.20)",color:badgeRed?"#ef253b":"#46CB92",padding:"1px 8px",borderRadius:99,minWidth:20,textAlign:"center",flexShrink:0}}>
+          <span style={{fontSize:10,fontWeight:800,background:badgeRed?"rgba(239,37,59,0.20)":"rgba(168,224,63,0.15)",color:badgeRed?"#ef253b":"#A8E03F",padding:"1px 8px",borderRadius:99,minWidth:20,textAlign:"center",flexShrink:0}}>
             {badgeRed?badge:`${badge} novos`}
           </span>
         )}
@@ -3880,6 +6363,7 @@ function App() {
     @keyframes spin{to{transform:rotate(360deg)}}
     @keyframes fadeUp{from{opacity:0;transform:scale(0.93) translateY(14px)}to{opacity:1;transform:scale(1) translateY(0)}}
     @keyframes staggerUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes slideInRight{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}
 
     button{transition:transform 200ms cubic-bezier(0.34,1.56,0.64,1),background 120ms ease,color 150ms ease,border-color 150ms ease,box-shadow 200ms ease;outline:none;font-family:inherit}
     button:active:not(:disabled){transform:scale(0.97)!important;transition-duration:60ms!important}
@@ -3947,9 +6431,11 @@ function App() {
   return(
     <div style={{display:"flex",height:"100vh",background:BG,color:TEXT,fontFamily:"'Inter', sans-serif",position:"relative"}}>
       <style>{_globalStyles}</style>
+      <ProgressBar pct={_progPct}/>
 
       {finCalOpen&&<div onClick={()=>setFinCalOpen(false)} style={{position:"fixed",inset:0,zIndex:199,background:"transparent"}}/>}
       {dashCalOpen&&<div onClick={()=>setDashCalOpen(false)} style={{position:"fixed",inset:0,zIndex:199,background:"transparent"}}/>}
+      {ctrCalOpen&&<div onClick={()=>setCtrCalOpen(false)} style={{position:"fixed",inset:0,zIndex:199,background:"transparent"}}/>}
 
       {dashCalOpen&&(
         <div style={{position:"fixed",top:dashCalPos.top,right:dashCalPos.right,zIndex:300}} onClick={e=>e.stopPropagation()}>
@@ -3959,6 +6445,11 @@ function App() {
       {finCalOpen&&(
         <div style={{position:"fixed",top:finCalPos.top,right:finCalPos.right,zIndex:300}} onClick={e=>e.stopPropagation()}>
           <CalendarioRange de={finDe} ate={finAte} onSelecionar={(d,a)=>{setFinDe(d);setFinAte(a);if(a)setFinCalOpen(false);}} onLimpar={()=>{setFinDe(null);setFinAte(null);setFinCalOpen(false);}}/>
+        </div>
+      )}
+      {ctrCalOpen&&(
+        <div style={{position:"fixed",top:ctrCalPos.top,right:ctrCalPos.right,zIndex:300}} onClick={e=>e.stopPropagation()}>
+          <CalendarioRange de={ctrDe} ate={ctrAte} onSelecionar={(d,a)=>{setCtrDe(d);setCtrAte(a);if(a)setCtrCalOpen(false);}} onLimpar={()=>{setCtrDe(null);setCtrAte(null);setCtrCalOpen(false);}}/>
         </div>
       )}
 
@@ -3972,7 +6463,7 @@ function App() {
         <div style={{padding:sidebarOpen?"18px 16px":"16px 0",display:"flex",alignItems:"center",justifyContent:sidebarOpen?"flex-start":"center",gap:12,borderBottom:"1px solid rgba(255,255,255,0.08)",minHeight:72,flexShrink:0}}>
           <svg width="34" height="34" viewBox="0 0 68 68" style={{flexShrink:0}} aria-hidden="true">
             <rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/>
-            <rect x="25" y="25" width="40" height="40" rx="9" fill="#fff"/>
+            <rect x="25" y="25" width="40" height="40" rx="9" fill="#FFFFFF"/>
             <path d="M25 25 H43 V43 H25 Z" fill="#0E5C44"/>
           </svg>
           {sidebarOpen&&<div>
@@ -3985,11 +6476,14 @@ function App() {
           <Nav id="dashboard"  label="Dashboard"        ico={IcoDash}/>
           <Nav id="clientes"   label="Clientes"         ico={IcoCli}   badge={aguardando.length}/>
           <Nav id="contratos"  label="Contratos"        ico={IcoCtr}/>
+          <Nav id="gestao"     label="Gestão"           ico={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>}/>
           <NavSection label="Operação"/>
           <Nav id="cobranca"   label="Cobrança"         ico={IcoBell}  badge={parcelasAtrasadas.length} badgeRed/>
           <Nav id="financeiro" label="Financeiro"       ico={IcoTrendUp}/>
+          <Nav id="carteira"   label="Carteira"         ico={IcoCart}/>
           <Nav id="perdas"     label="Perdas & Recup."  ico={IcoLoss}/>
           <Nav id="promessas"  label="Promessas"        ico={IcoProm}  badge={promessasAtivas} badgeRed/>
+          <Nav id="regua"      label="Régua WPP"        ico={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><polyline points="9 10 12 13 15 10"/></svg>}/>
           <NavSection label="Ferramentas"/>
           <Nav id="simulador"    label="Simulador"        ico={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h1v6H9"/><path d="M14 15h-2v-2h2"/><path d="M14 9h-2v2h2"/></svg>}/>
           <Nav id="inteligencia" label="Inteligência"    ico={IcoIntel}/>
@@ -4025,12 +6519,12 @@ function App() {
               ? <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <svg width="24" height="24" viewBox="0 0 68 68" aria-hidden="true">
                     <rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/>
-                    <rect x="25" y="25" width="40" height="40" rx="9" fill={darkMode?"#fff":"#0B3D2E"}/>
+                    <rect x="25" y="25" width="40" height="40" rx="9" fill={darkMode?"#FFFFFF":"#0B3D2E"}/>
                     <path d="M25 25 H43 V43 H25 Z" fill={darkMode?"#0E5C44":"#07241B"}/>
                   </svg>
                   <span style={{fontWeight:700,fontSize:15,letterSpacing:"-0.02em",color:TEXT}}>Borges</span>
                 </div>
-              : <h2 style={{fontSize:18,fontWeight:700,margin:0}}>{{dashboard:"Dashboard",clientes:"Clientes",contratos:"Contratos",cobranca:"Cobrança",financeiro:"Financeiro",perdas:"Perdas & Recuperação",promessas:"Promessas",simulador:"Simulador",inteligencia:"Inteligência"}[tab]||tab}</h2>
+              : <h2 style={{fontSize:18,fontWeight:700,margin:0}}>{{dashboard:"Dashboard",clientes:"Clientes",contratos:"Contratos",gestao:"Gestão",cobranca:"Cobrança",financeiro:"Financeiro",carteira:"Carteira de Crédito",perdas:"Perdas & Recuperação",promessas:"Promessas",regua:"Régua WPP",simulador:"Simulador",inteligencia:"Inteligência"}[tab]||tab}</h2>
             }
           </div>
           <div style={{display:"flex",alignItems:"center",gap:mob?8:12}}>
@@ -4057,12 +6551,11 @@ function App() {
               const p=(nome||"").trim().split(/\s+/);
               return p.length>=2?(p[0][0]+p[p.length-1][0]).toUpperCase():(p[0]||"?")[0].toUpperCase();
             };
-            const promAbertas=(promessas||[]).filter(p=>!["cumprida","cancelada"].includes(String(p.STATUS_PROMESSA||"").toLowerCase())).sort((a,b)=>toNum(parseDate(a.DATA_PREVISTA_PAGAMENTO))-toNum(parseDate(b.DATA_PREVISTA_PAGAMENTO))).slice(0,4);
+            const promAbertas=(promessas||[]).filter(p=>["PENDENTE","QUEBRADA"].includes(String(p.STATUS_PROMESSA||"").toUpperCase())).sort((a,b)=>toNum(parseDate(a.DATA_PREVISTA_PAGAMENTO))-toNum(parseDate(b.DATA_PREVISTA_PAGAMENTO))).slice(0,4);
             const pagRecentes=[...(pagamentos||[])].sort((a,b)=>toNum(parseDate(b.DATA_PAGAMENTO))-toNum(parseDate(a.DATA_PAGAMENTO))).slice(0,6);
             const taxaMedia=(()=>{const at=(contratos||[]).filter(c=>["ativo","ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo"].includes(String(c.STATUS_CONTRATO||"").toLowerCase()));if(!at.length)return 0;return at.reduce((s,c)=>s+parseFloat(c.TAXA_JUROS_MENSAL||0),0)/at.length*100;})();
             const hj30=new Date();hj30.setHours(0,0,0,0);const em30=new Date(hj30);em30.setDate(em30.getDate()+30);
-            const _stTerm=new Set(["pago","quitacao_antecipada","baixado_como_prejuizo","cancelado","renegociado","paga","quitado","quitada","baixado","baixada"]);
-            const aReceber30=(parcelas||[]).filter(p=>{const v=parseDate(p.DATA_VENCIMENTO);return v&&v>=hj30&&v<=em30&&!_stTerm.has(String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase());});
+            const aReceber30=(parcelas||[]).filter(p=>{const v=parseDate(p.DATA_VENCIMENTO);return v&&v>=hj30&&v<=em30&&!_ST_TERMINAL.has(String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase());});
             const vAReceber30=aReceber30.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
             const clientesAtraso=new Set(parcelasAtrasadas.map(p=>p.ID_CLIENTE)).size;
             const horaAtual=new Date().getHours();
@@ -4114,7 +6607,7 @@ function App() {
                   </div>
                   <div className="flex gap-2 items-center flex-wrap justify-end">
                     <button className="btn-forest" onClick={()=>setDashNovoModal(true)} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:CARD,color:TEXT,border:`1.5px solid ${BD}`,borderRadius:12,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{IcoCtr} + Novo Contrato</button>
-                    <button className="btn-lime" onClick={()=>setDashRegModal(true)} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:ACC,color:"#163300",border:"none",borderRadius:12,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✓ Registrar Pagamento</button>
+                    <button className="btn-lime" onClick={()=>setDashRegModal(true)} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:ACC,color:"#07241B",border:"none",borderRadius:12,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✓ Registrar Pagamento</button>
                   </div>
                 </div>
               </div>
@@ -4122,16 +6615,16 @@ function App() {
               {/* 5 KPI CARDS */}
               <div className="dash-kpi-row" style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(5,1fr)",gap:mob?10:14}}>
                 {[
-                  {l:"Carteira Total",     v:fmtR(M.vAtivos),           sub:`${M.contratosAtivos} contratos ativos`,   vc:TEXT, icBg:GRN+"18", ic:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={GRN} strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>, bd:`1px solid ${BD}`, accent:GRN},
-                  {l:"A Receber (30d)",    v:fmtR(vAReceber30),          sub:`${aReceber30.length} parcelas previstas`, vc:TEXT, icBg:GRN+"14", ic:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={GRN} strokeWidth="2"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/></svg>, bd:`1px solid ${BD}`, accent:GRN},
-                  {l:labelKpiRecebido,    v:fmtR(M.receitaTotal),       sub:`${M.pagamentosPeriodo} pagamentos`,       vc:GRN, icBg:GRN+"14", ic:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={GRN} strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="9,12 11,14 15,10"/></svg>, bd:`1px solid ${GRN}18`, accent:GRN, delta:deltaRecebido},
-                  {l:"Em Atraso",          v:fmtR(totalParcelasAtrasadas),sub:`${parcelasAtrasadas.length} parcelas`,  vc:RED, icBg:RED+"18", ic:<span style={{color:RED}}>{IcoWarnTri}</span>, bd:`1px solid ${RED}20`, accent:RED, badge:clientesAtraso>0?`${clientesAtraso} cliente${clientesAtraso>1?"s":""}`:null},
-                  {l:"Capital Disponível", v:fmtR(M.caixaAtual),          sub:"Caixa líquido",                          vc:GRN, icBg:GRN+"14", ic:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={GRN} strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>, bd:`1px solid ${GRN}14`, accent:GRN},
+                  {l:"Carteira Total",     v:fmtR(M.vAtivos),           sub:`${M.contratosAtivos} contratos ativos`,   vc:TEXT, icBg:GRN+"18", ic:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={GRN} strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>, bd:`1px solid ${BD}`, accent:GRN, tip:"Soma do VALOR_PRINCIPAL dos contratos em aberto (ativos, em atraso, em cobrança). É o capital que está efetivamente emprestado agora."},
+                  {l:"A Receber (30d)",    v:fmtR(vAReceber30),          sub:`${aReceber30.length} parcelas previstas`, vc:TEXT, icBg:GRN+"14", ic:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={GRN} strokeWidth="2"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/></svg>, bd:`1px solid ${BD}`, accent:GRN, tip:"Valor total das parcelas com vencimento nos próximos 30 dias que ainda não foram pagas. É a previsão de caixa de entrada no curto prazo."},
+                  {l:labelKpiRecebido,    v:fmtR(M.receitaTotal),       sub:`${M.pagamentosPeriodo} pagamentos`,       vc:GRN, icBg:GRN+"14", ic:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={GRN} strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="9,12 11,14 15,10"/></svg>, bd:`1px solid ${GRN}18`, accent:GRN, delta:deltaRecebido, tip:"Soma de todos os valores recebidos no período selecionado (inclui principal + juros + mora). Muda conforme o filtro Este mês / 30 dias / 90 dias."},
+                  {l:"Em Atraso",          v:fmtR(totalParcelasAtrasadas),sub:`${parcelasAtrasadas.length} parcelas`,  vc:RED, icBg:RED+"18", ic:<span style={{color:RED}}>{IcoWarnTri}</span>, bd:`1px solid ${RED}20`, accent:RED, badge:clientesAtraso>0?`${clientesAtraso} cliente${clientesAtraso>1?"s":""}`:null, tip:"Valor das parcelas que passaram do vencimento e não foram pagas. Exclui contratos encerrados e parcelas com acordo futuro ativo."},
+                  {l:"Capital Disponível", v:fmtR(M.caixaAtual),          sub:"Caixa líquido",                          vc:GRN, icBg:GRN+"14", ic:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={GRN} strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>, bd:`1px solid ${GRN}14`, accent:GRN, tip:"Total já recebido de todos os clientes (histórico) menos o total de principal emprestado (histórico). Representa o caixa líquido gerado pelo negócio desde o início."},
                 ].map((k)=>(
                   <div key={k.l} className="kpi-card-item" style={{background:CARD,padding:mob?"12px 12px":"18px 18px",borderRadius:16,border:k.bd||`1px solid ${BD}`,boxShadow:SHD,display:"flex",flexDirection:"column",gap:0,position:"relative",overflow:"hidden"}}>
                     <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:12}}>
-                      <div style={{fontSize:10,fontWeight:600,color:MUTED,textTransform:"uppercase",letterSpacing:"0.08em",lineHeight:1.3}}>{k.l}</div>
-                      <div style={{width:30,height:30,borderRadius:8,background:k.icBg,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{k.ic}</div>
+                      <div style={{fontSize:10,fontWeight:600,color:MUTED,textTransform:"uppercase",letterSpacing:"0.08em",lineHeight:1.3,display:"flex",alignItems:"center",flex:1,minWidth:0}}>{k.l}{k.tip&&<InfoTooltip text={k.tip}/>}</div>
+                      <div style={{width:30,height:30,borderRadius:8,background:k.icBg,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginLeft:6}}>{k.ic}</div>
                     </div>
                     <div style={{fontSize:mob?18:22,fontWeight:800,letterSpacing:"0.02em",lineHeight:1.1,color:k.vc}}>{priv(k.v)}</div>
                     <div style={{display:"flex",alignItems:"center",gap:6,marginTop:5,flexWrap:"wrap"}}>
@@ -4145,17 +6638,17 @@ function App() {
               </div>
 
               {/* HERO BANNER */}
-              <div className="rounded-[20px] overflow-hidden hero-banner-dash dash-hero" style={{background:"linear-gradient(145deg,#A8E03F 0%,#1FB877 22%,#0E5C44 50%,#07241B 100%)",padding:mob?"20px 18px":"28px 32px",boxShadow:"0 8px 32px rgba(0,0,0,0.25)"}}>
+              <div className="rounded-[20px] overflow-hidden hero-banner-dash dash-hero" style={{background:CARD,padding:mob?"20px 18px":"28px 32px",border:`1px solid ${BD}`,boxShadow:SHD}}>
                 <div className={`flex ${mob?"flex-col":"flex-row"} ${mob?"mb-5":"mb-6"}`} style={{gap:mob?0:0}}>
                   {[
                     {l:"Carteira Total (Capital Emprestado)",v:fmtR(M.vAtivos),sub:`${M.contratosAtivos} contratos ativos`},
                     {l:"Taxa Média de Retorno",v:`${taxaMedia.toFixed(1)}% a.m.`,sub:"Sobre contratos ativos"},
                     {l:"Taxa de Adimplência",v:M.vAtivos>0?(M.taxaInad===0&&parcelasAtrasadas.length>0?"100%*":fmtP(100-M.taxaInad)):"—",sub:M.taxaInad===0&&parcelasAtrasadas.length>0?`*sem venctos no período · ${parcelasAtrasadas.length} parc. em atraso global`:`${parcelasAtrasadas.length} parc. em atraso de ${M.totalCobrancas} no período`},
                   ].map((s,i)=>(
-                    <div key={s.l} style={{flex:1,padding:mob?"0 0 16px 0":i===0?"0 32px 0 0":`0 32px`,borderBottom:mob&&i<2?"1px solid rgba(255,255,255,0.12)":"none",borderRight:!mob&&i<2?"1px solid rgba(255,255,255,0.12)":"none",marginBottom:mob&&i<2?16:0}}>
-                      <div className="text-[10px] font-bold uppercase tracking-[0.1em] mb-2" style={{color:"rgba(255,255,255,0.5)"}}>{s.l}</div>
-                      <div className="text-white font-black leading-none" style={{fontSize:mob?22:26,letterSpacing:"0.5px"}}>{priv(s.v)}</div>
-                      <div className="text-[11px] font-medium mt-1.5" style={{color:"rgba(255,255,255,0.45)"}}>{s.sub}</div>
+                    <div key={s.l} style={{flex:1,padding:mob?"0 0 16px 0":i===0?"0 32px 0 0":`0 32px`,borderBottom:mob&&i<2?`1px solid ${BD}`:"none",borderRight:!mob&&i<2?`1px solid ${BD}`:"none",marginBottom:mob&&i<2?16:0}}>
+                      <div className="text-[10px] font-bold uppercase tracking-[0.1em] mb-2" style={{color:MUTED}}>{s.l}</div>
+                      <div className="font-black leading-none" style={{fontSize:mob?22:26,letterSpacing:"0.5px",color:TEXT}}>{priv(s.v)}</div>
+                      <div className="text-[11px] font-medium mt-1.5" style={{color:MUTED}}>{s.sub}</div>
                     </div>
                   ))}
                 </div>
@@ -4218,6 +6711,58 @@ function App() {
                   </div>
                   )}
 
+                  {/* ACORDO ASSISTIDO */}
+                  {(()=>{const aa=(contratos||[]).filter(c=>c.STATUS_CONTRATO==="acordo_assistido");if(!aa.length)return null;const totalAbat=aa.reduce((s,c)=>s+parseFloat(c.VALOR_ABATIDO_ASSISTIDO||0),0);return(
+                  <div className="side-panel-dash dash-panel" style={{background:CARD,borderRadius:16,border:`1px solid ${BLU}30`,boxShadow:SHD,overflow:"hidden"}}>
+                    <div style={{padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${BD}`}}>
+                      <div style={{display:"flex",alignItems:"center",gap:7,color:BLU,fontSize:13,fontWeight:700}}>{IcoHandshake} Acordo Assistido</div>
+                      <button onClick={()=>setTab("perdas")} style={{fontSize:12,color:GRN,background:"none",border:"none",cursor:"pointer",fontWeight:600,fontFamily:"inherit"}}>Ver perdas →</button>
+                    </div>
+                    <div style={{maxHeight:200,overflowY:"auto"}}>
+                      {aa.map((c,i)=>(
+                        <div key={c.ID_CONTRATO||i} className="panel-list-item" onClick={()=>setContratoSel(c)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",borderBottom:i<aa.length-1?`1px solid ${BD}`:"none",cursor:"pointer"}}>
+                          <div style={{width:34,height:34,borderRadius:"50%",background:BLU+"18",color:BLU,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,flexShrink:0}}>{_ini(c.NOME_CLIENTE)}</div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:600,color:TEXT,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.NOME_CLIENTE}</div>
+                            <div style={{fontSize:11,color:MUTED,marginTop:1}}>{c.ID_CONTRATO}{c.MOTIVO_ACORDO_ASSISTIDO?` · ${c.MOTIVO_ACORDO_ASSISTIDO}`:""}</div>
+                          </div>
+                          <div style={{textAlign:"right",flexShrink:0}}>
+                            <div style={{fontSize:13,fontWeight:700,color:BLU}}>{fmtR(parseFloat(c.VALOR_ABATIDO_ASSISTIDO||0))}</div>
+                            <div style={{fontSize:11,color:MUTED,marginTop:1}}>abatido</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {totalAbat>0&&<div style={{padding:"8px 16px",borderTop:`1px solid ${BD}`,fontSize:11,color:MUTED,fontWeight:600}}>Total abatido: {fmtR(totalAbat)}</div>}
+                  </div>
+                  );})()}
+
+                  {/* JUDICIALIZADOS */}
+                  {(()=>{const jj=(contratos||[]).filter(c=>c.STATUS_CONTRATO==="em_processo_judicial");if(!jj.length)return null;const totalExec=jj.reduce((s,c)=>s+parseFloat(c.VALOR_EXECUTADO||c.VALOR_TOTAL||c.VALOR_PRINCIPAL||0),0);const totalRecup=jj.reduce((s,c)=>s+parseFloat(c.VALOR_RECUPERADO_JUDICIAL_PRINCIPAL||0)+parseFloat(c.VALOR_RECUPERADO_JUDICIAL_LUCRO||0),0);return(
+                  <div className="side-panel-dash dash-panel" style={{background:CARD,borderRadius:16,border:`1px solid ${RED}30`,boxShadow:SHD,overflow:"hidden"}}>
+                    <div style={{padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${BD}`}}>
+                      <div style={{display:"flex",alignItems:"center",gap:7,color:RED,fontSize:13,fontWeight:700}}>{IcoJur} Em Processo Judicial</div>
+                      <button onClick={()=>setTab("perdas")} style={{fontSize:12,color:GRN,background:"none",border:"none",cursor:"pointer",fontWeight:600,fontFamily:"inherit"}}>Ver perdas →</button>
+                    </div>
+                    <div style={{maxHeight:200,overflowY:"auto"}}>
+                      {jj.map((c,i)=>(
+                        <div key={c.ID_CONTRATO||i} className="panel-list-item" onClick={()=>setContratoSel(c)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",borderBottom:i<jj.length-1?`1px solid ${BD}`:"none",cursor:"pointer"}}>
+                          <div style={{width:34,height:34,borderRadius:"50%",background:RED+"18",color:RED,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,flexShrink:0}}>{_ini(c.NOME_CLIENTE)}</div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:600,color:TEXT,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.NOME_CLIENTE}</div>
+                            <div style={{fontSize:11,color:MUTED,marginTop:1}}>{c.ID_CONTRATO}{c.NUMERO_PROCESSO?` · ${c.NUMERO_PROCESSO}`:""}</div>
+                          </div>
+                          <div style={{textAlign:"right",flexShrink:0}}>
+                            <div style={{fontSize:13,fontWeight:700,color:RED}}>{fmtR(parseFloat(c.VALOR_EXECUTADO||c.VALOR_TOTAL||c.VALOR_PRINCIPAL||0))}</div>
+                            <div style={{fontSize:11,color:MUTED,marginTop:1}}>executado</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {totalExec>0&&<div style={{padding:"8px 16px",borderTop:`1px solid ${BD}`,fontSize:11,color:MUTED,fontWeight:600,display:"flex",justifyContent:"space-between"}}><span>Total executado: {fmtR(totalExec)}</span>{totalRecup>0&&<span style={{color:GRN}}>Recuperado: {fmtR(totalRecup)}</span>}</div>}
+                  </div>
+                  );})()}
+
                   {/* PROMESSAS */}
                   {promAbertas.length>0&&(
                   <div className="side-panel-dash dash-panel" style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:SHD,overflow:"hidden"}}>
@@ -4278,7 +6823,7 @@ function App() {
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:16,flexWrap:"wrap"}}>
                 <div>
                   <div style={{fontSize:mob?18:22,fontWeight:800,color:TEXT,letterSpacing:"-0.3px"}}>Clientes</div>
-                  <div style={{fontSize:11,color:MUTED,marginTop:4}}>{filtrados.length} cliente{filtrados.length!==1?"s":""} · {(clientes||[]).filter(c=>c.STATUS_CLIENTE==="ativo").length} ativos</div>
+                  <div style={{fontSize:11,color:MUTED,marginTop:4}}>{filtrados.length} cliente{filtrados.length!==1?"s":""} · {filtrados.filter(c=>c.STATUS_CLIENTE==="ativo").length} ativos</div>
                 </div>
               </div>
               <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,overflow:"hidden",boxShadow:SHD}}>
@@ -4313,7 +6858,17 @@ function App() {
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:16,flexWrap:"wrap"}}>
                 <div>
                   <div style={{fontSize:mob?18:22,fontWeight:800,color:TEXT,letterSpacing:"-0.3px"}}>Contratos</div>
-                  <div style={{fontSize:11,color:MUTED,marginTop:4}}>{contratosFiltrados.length} contrato{contratosFiltrados.length!==1?"s":""} · {(contratos||[]).filter(c=>["ativo","ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente"].includes(c.STATUS_CONTRATO)).length} ativos</div>
+                  <div style={{fontSize:11,color:MUTED,marginTop:4}}>{contratosFiltrados.length} contrato{contratosFiltrados.length!==1?"s":""} · {contratosFiltrados.filter(c=>_ST_ATIVOS.has(String(c.STATUS_CONTRATO||"").toLowerCase())).length} ativos{ctrDe?` · ${labelPeriodoCtr}`:""}</div>
+                </div>
+                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                  {ctrDe&&<button className="btn-ghost-anim" onClick={()=>{setCtrDe(null);setCtrAte(null);}} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,fontSize:12,cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:5}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Limpar</button>}
+                  <button className="btn-ghost-anim" onClick={exportarPDFContratos} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:9,border:`1px solid ${GRN}40`,background:GRN+"08",color:GRN,fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    PDF
+                  </button>
+                  <button ref={ctrCalBtnRef} className="btn-ghost-anim" onClick={()=>{if(ctrCalBtnRef.current){const r=ctrCalBtnRef.current.getBoundingClientRect();setCtrCalPos({top:r.bottom+8,right:window.innerWidth-r.right});}setCtrCalOpen(o=>!o);}} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:9,border:`1px solid ${ctrDe?ORG+"40":BD}`,background:ctrDe?ORG+"08":CARD,color:ctrDe?ORG:MUTED,fontSize:12,fontWeight:ctrDe?700:400,cursor:"pointer"}}>
+                    {IcoCal} {ctrDe?labelPeriodoCtr:"Filtrar por período"}
+                  </button>
                 </div>
               </div>
               <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,overflow:"hidden",boxShadow:SHD}}>
@@ -4334,6 +6889,7 @@ function App() {
                     <option value="quitado">Quitado</option>
                     <option value="cancelado">Cancelado</option>
                     <option value="renegociado">Renegociado</option>
+                    <option value="em_processo_judicial">Em Processo Judicial</option>
                   </select>
                 </div>
                 <div style={{fontSize:13,color:MUTED,textAlign:mob?"right":"inherit"}}><strong>{contratosFiltrados.length}</strong> contrato{contratosFiltrados.length===1?"":"s"}</div>
@@ -4344,7 +6900,7 @@ function App() {
                   <tr style={{background:GRN+"10",fontSize:11,color:GRN,fontWeight:700,textTransform:"uppercase"}}>
                     <th style={{padding:"10px 18px"}}>Contrato</th>
                     <th>Status</th>
-                    {!mob&&<th>Empréstimo</th>}
+                    {!mob&&<th>Data</th>}
                     <th>Principal</th>
                     {!mob&&<th>Parcelas</th>}
                     {!mob&&<th>Taxa</th>}
@@ -4390,13 +6946,13 @@ function App() {
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:16,flexWrap:"wrap"}}>
                 <div>
                   <div style={{fontSize:mob?18:22,fontWeight:800,color:TEXT,letterSpacing:"-0.3px"}}>Cobrança</div>
-                  <div style={{fontSize:11,color:MUTED,marginTop:4}}>{cobItems.length} cliente{cobItems.length!==1?"s":""} com parcelas em atraso</div>
+                  <div style={{fontSize:11,color:MUTED,marginTop:4}}>{cobItems.length} cliente{cobItems.length!==1?"s":""} com parcelas em atraso · {parcelasAtrasadas.length} parcela{parcelasAtrasadas.length!==1?"s":""} no total</div>
                 </div>
               </div>
             <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,overflow:"hidden",boxShadow:SHD}}>
               <div style={{padding:mob?12:16,borderBottom:`1px solid ${BD}`,background:RED+"05",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <h3 style={{margin:0,fontSize:15,fontWeight:700,color:RED}}>Fila de Cobrança</h3>
-                {!mob&&<span style={{fontSize:12,color:MUTED}}>Clique em uma linha para registrar pagamento</span>}
+                {!mob&&<span style={{fontSize:12,color:MUTED,display:"flex",alignItems:"center",gap:5}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Clique em um cliente para registrar pagamento</span>}
                 {mob&&<Badge c={RED}>{cobItems.length}</Badge>}
               </div>
               {mob
@@ -4472,7 +7028,7 @@ function App() {
               <div className="fin-filter" style={{background:BG,borderRadius:16,border:`1px solid ${BD}`,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
                 <div>
                   <div style={{fontSize:13,fontWeight:700,color:TEXT}}>Período</div>
-                  <div style={{fontSize:11,color:MUTED,marginTop:2}}>{finDe?labelPeriodo:"Todos os pagamentos"}</div>
+                  <div style={{fontSize:11,color:MUTED,marginTop:2}}>{finDe?"Pagamentos filtrados por período":"Todos os pagamentos registrados"}</div>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   {finDe&&<button className="btn-ghost-anim" onClick={()=>{setFinDe(null);setFinAte(null);}} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,fontSize:12,cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:5}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Limpar</button>}
@@ -4486,15 +7042,11 @@ function App() {
                 </div>
               </div>
 
-              <div className="fin-lucro" style={{background:`linear-gradient(135deg, ${CARD} 60%, ${GRN}09 100%)`,borderRadius:16,padding:"22px 28px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,border:`1px solid ${GRN}30`,boxShadow:SHD,position:"relative",overflow:"hidden"}}>
+              <div className="fin-lucro" style={{background:CARD,borderRadius:16,padding:"22px 28px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,border:`1px solid ${GRN}30`,boxShadow:SHD,position:"relative",overflow:"hidden"}}>
                 <div>
                   <p style={{color:MUTED,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.7px",margin:"0 0 6px"}}>Lucro do Período</p>
                   <p style={{color:GRN,fontSize:32,fontWeight:800,margin:"0 0 4px",letterSpacing:"-0.5px"}}>{priv(fmtR(finKpis.lucro))}</p>
                   <p style={{color:MUTED,fontSize:11,margin:0}}>Juros recebidos + receita extra por atraso</p>
-                </div>
-                <div style={{background:BG,border:`1px solid ${BD}`,borderRadius:10,padding:"10px 16px",textAlign:"right",flexShrink:0}}>
-                  <div style={{color:MUTED,fontSize:10,textTransform:"uppercase",letterSpacing:"0.5px",fontWeight:600,marginBottom:4}}>Receita Total</div>
-                  <div style={{fontWeight:800,color:TEXT,fontSize:18}}>{priv(fmtR(finKpis.receitaTotal))}</div>
                 </div>
               </div>
 
@@ -4504,9 +7056,10 @@ function App() {
                 {[
                   {icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,label:"Receita Total",      val:fmtR(finKpis.receitaTotal),  c:GRN},
                   {icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>,label:"Receita Extra Atraso",val:fmtR(finKpis.receitaExtra), c:ORG},
+                  ...(finKpis.capitalRecuperadoAssistido>0?[{icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.42 4.58a5.4 5.4 0 0 0-7.65 0l-.77.78-.77-.78a5.4 5.4 0 0 0-7.65 0C1.46 6.7 1.33 10.28 4 13l8 8 8-8c2.67-2.72 2.54-6.3.42-8.42z"/></svg>,label:"Capital Recuperado (Acordo Assistido)",val:fmtR(finKpis.capitalRecuperadoAssistido),c:BLU}]:[]),
                   {icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>,label:"Parcelas Prorrogadas",val:finKpis.qtyProrrogadas,     c:PUR},
                 ].map(k=>(
-                  <div key={k.label} className="kpi-card-item" style={{background:`linear-gradient(to bottom, ${k.c}07 0%, ${CARD} 40%)`,borderRadius:16,padding:18,border:`1px solid ${BD}`,boxShadow:SHD,position:"relative",overflow:"hidden"}}>
+                  <div key={k.label} className="kpi-card-item" style={{background:CARD,borderRadius:16,padding:18,border:`1px solid ${BD}`,boxShadow:SHD,position:"relative",overflow:"hidden"}}>
                     <p style={{color:MUTED,fontSize:11,margin:"0 0 8px",display:"flex",alignItems:"center",gap:6}}>{k.icon} {k.label}</p>
                     <p style={{fontSize:20,fontWeight:800,color:k.c,margin:0}}>{priv(k.val)}</p>
                     <div style={{position:"absolute",bottom:0,left:0,right:0,height:4,background:k.c,borderRadius:"0 0 14px 14px",opacity:0.7}}/>
@@ -4520,7 +7073,7 @@ function App() {
                   {icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,label:"Com Atraso",          val:finKpis.pagAtraso,           c:YEL},
                   {icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22,7 13.5,15.5 8.5,10.5 2,17"/><polyline points="16,7 22,7 22,13"/></svg>,label:"Somente Juros",       val:finKpis.pagJuros,            c:RED},
                 ].map(k=>(
-                  <div key={k.label} className="kpi-card-item" style={{background:`linear-gradient(to bottom, ${k.c}07 0%, ${CARD} 40%)`,borderRadius:16,padding:18,border:`1px solid ${BD}`,boxShadow:SHD,position:"relative",overflow:"hidden"}}>
+                  <div key={k.label} className="kpi-card-item" style={{background:CARD,borderRadius:16,padding:18,border:`1px solid ${BD}`,boxShadow:SHD,position:"relative",overflow:"hidden"}}>
                     <p style={{color:MUTED,fontSize:11,margin:"0 0 8px",display:"flex",alignItems:"center",gap:6}}>{k.icon} {k.label}</p>
                     <p style={{fontSize:20,fontWeight:800,color:k.c,margin:0}}>{priv(k.val)}</p>
                     <div style={{position:"absolute",bottom:0,left:0,right:0,height:4,background:k.c,borderRadius:"0 0 14px 14px",opacity:0.7}}/>
@@ -4553,7 +7106,7 @@ function App() {
                 </div>
                 {finDe&&(
                   <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"repeat(3,1fr)",gap:0,borderBottom:`1px solid ${BD}`}}>
-                    {[{l:"Total Recebido",v:fmtR(totaisFin.total),c:GRN},{l:"Receita Extra",v:fmtR(totaisFin.extra),c:ORG},{l:"Nº Pagamentos",v:totaisFin.count,c:GRN}].map((k,i)=>(
+                    {[{l:"Receita",v:fmtR(totaisFin.receita),c:GRN},{l:"Receita Extra Atraso",v:fmtR(totaisFin.extra),c:ORG},{l:"Nº Pagamentos",v:totaisFin.count,c:GRN},...(totaisFin.abatimentos>0?[{l:"Capital Recuperado",v:fmtR(totaisFin.abatimentos),c:BLU}]:[])].map((k,i)=>(
                       <div key={k.l} style={{padding:"10px 18px",background:BG,borderRight:i<2?`1px solid ${BD}`:"none"}}>
                         <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:2}}>{k.l}</div>
                         <div style={{fontSize:16,fontWeight:800,color:k.c}}>{priv(k.v)}</div>
@@ -4567,9 +7120,9 @@ function App() {
                     {pagsFiltrados.length===0
                       ?<tr><td colSpan={6}><div style={{padding:"40px 18px",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:10}}><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={BD} strokeWidth="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg><div style={{fontSize:13,color:MUTED,fontWeight:600}}>Nenhum pagamento encontrado</div><div style={{fontSize:11,color:MUTED}}>Tente ajustar o período ou registre um pagamento.</div></div></td></tr>
                       :pagsFiltrados.map((p,i)=>{
-                        const tCor={pagamento_normal:GRN,normal:GRN,pagamento_com_atraso:YEL,com_atraso:YEL,somente_juros:RED,recuperacao_apos_baixa:PUR}[p.TIPO_PAGAMENTO]||MUTED;
-                        const tLabel={pagamento_normal:"Normal",normal:"Normal",pagamento_com_atraso:"Com Atraso",com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação",pagamento_antecipado:"Antecipado",antecipado:"Antecipado"}[p.TIPO_PAGAMENTO]||p.TIPO_PAGAMENTO||"—";
-                        const extra=parseFloat(p.RECEITA_EXTRA_ATRASO||0);
+                        const tCor={pagamento_normal:GRN,normal:GRN,pagamento_com_atraso:YEL,com_atraso:YEL,somente_juros:RED,recuperacao_apos_baixa:PUR,abatimento_acordo_assistido:BLU}[p.TIPO_PAGAMENTO]||MUTED;
+                        const tLabel={pagamento_normal:"Normal",normal:"Normal",pagamento_com_atraso:"Com Atraso",com_atraso:"Com Atraso",somente_juros:"Somente Juros",recuperacao_apos_baixa:"Recuperação",pagamento_antecipado:"Antecipado",antecipado:"Antecipado",abatimento_acordo_assistido:"Recup. Capital"}[p.TIPO_PAGAMENTO]||p.TIPO_PAGAMENTO||"—";
+                        const extra=parseFloat(p.RECEITA_EXTRA_ATRASO||0)+parseFloat(p.FEE_PRORROGACAO||0);
                         return(
                           <tr key={i} onClick={()=>setSelPagDetalhe(p)} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:"transparent",cursor:"pointer"}}>
                             <td style={{padding:"11px 18px",color:MUTED,whiteSpace:"nowrap"}}>{fmtDt(parseDate(p.DATA_PAGAMENTO))}</td>
@@ -4577,7 +7130,7 @@ function App() {
                             <td><Badge c={tCor}>{tLabel}</Badge></td>
                             <td style={{color:MUTED}}>{fmtR(p.VALOR_ORIGINAL_PARCELA||p.VALOR_PARCELA)}</td>
                             <td style={{fontWeight:700,color:GRN}}>{fmtR(p.VALOR_PAGO)}</td>
-                            <td style={{color:extra>0?ORG:MUTED,fontWeight:extra>0?700:400}}>{extra>0?`+${fmtR(extra)}`:"—"}</td>
+                            <td style={{color:extra>=0.01?ORG:MUTED,fontWeight:extra>=0.01?700:400}}>{extra>=0.01?`+${fmtR(extra)}`:"—"}</td>
                           </tr>
                         );
                     })}
@@ -4585,6 +7138,321 @@ function App() {
                 </table>
               </div>
             </div>
+            </div>
+          )}
+
+          {/* CARTEIRA */}
+          {tab==="carteira"&&(
+            <div className="flex flex-col gap-5" style={{animation:"fadeUp 400ms cubic-bezier(0.16,1,0.3,1) both"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:16,flexWrap:"wrap"}}>
+                <div>
+                  <div style={{fontSize:mob?18:22,fontWeight:800,color:TEXT,letterSpacing:"-0.3px"}}>Carteira de Crédito</div>
+                  <div style={{fontSize:11,color:MUTED,marginTop:4}}>{carteira.totalAbertos} contrato{carteira.totalAbertos!==1?"s":""} em aberto · {fmtR(carteira.capitalTotal)} em circulação</div>
+                </div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:24}}>
+
+                {/* 4 KPI CARDS — clicáveis */}
+                {(()=>{
+                  const abrirDetalhe=(label,cor,filtroStatus,getValor)=>{
+                    const items=(contratos||[])
+                      .filter(c=>filtroStatus.includes(String(c.STATUS_CONTRATO||"")))
+                      .map(c=>({contrato:c,valor:getValor(c)}))
+                      .filter(i=>i.valor>0.005)
+                      .sort((a,b)=>b.valor-a.valor);
+                    setCarteiraDetalheModal({label,cor,items});
+                  };
+                  const getPrinc=c=>perdaInfoMap[String(c.ID_CONTRATO||"")]?.principalAberto||0;
+                  const getPrejCap=c=>parseFloat(c.PREJUIZO_CAPITAL||c.VALOR_EXECUTADO||0);
+                  const cards=[
+                    {l:"Capital em Circulação",v:fmtR(carteira.capitalCirculacao),c:GRN,sub:`${carteira.qtdCirc} contrato${carteira.qtdCirc!==1?"s":""} ativos`,onClick:()=>abrirDetalhe("Capital em Circulação",GRN,["ativo_em_dia","ativo_em_atraso","renegociado"],getPrinc)},
+                    {l:"Capital em Risco",v:fmtR(carteira.capitalEmRisco),c:ORG,sub:`${carteira.qtdRisco} contrato${carteira.qtdRisco!==1?"s":""} (cobrança + pré-prejuízo)`,onClick:()=>abrirDetalhe("Capital em Risco",ORG,["em_cobranca","pre_prejuizo"],getPrinc)},
+                    {l:"Capital Assistido",v:fmtR(carteira.capitalAssistido),c:BLU,sub:`${carteira.qtdAssist} contrato${carteira.qtdAssist!==1?"s":""} em acordo assistido`,onClick:()=>abrirDetalhe("Capital Assistido",BLU,["acordo_assistido"],getPrinc)},
+                    {l:"Capital em Judicial",v:fmtR(carteira.capitalJudicial),c:RED,sub:`${carteira.qtdJudicial} contrato${carteira.qtdJudicial!==1?"s":""} em processo judicial`,onClick:()=>abrirDetalhe("Capital em Judicial",RED,["em_processo_judicial"],getPrejCap)},
+                    {l:"Perdido Líquido",v:fmtR(carteira.capitalPerdidoLiquido),c:carteira.capitalPerdidoLiquido>0?RED:MUTED,sub:"capital baixado sem recuperação",onClick:()=>abrirDetalhe("Perdido Líquido",RED,["baixado_como_prejuizo"],c=>Math.max(0,parseFloat(c.PREJUIZO_CAPITAL||0)-parseFloat(c.VALOR_RECUPERADO_APOS_BAIXA||0)))},
+                  ];
+                  return(
+                    <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(5,1fr)",gap:14}}>
+                      {cards.map(k=>(
+                        <div key={k.l} onClick={k.onClick} style={{background:CARD,padding:16,borderRadius:16,border:`1px solid ${BD}`,boxShadow:SHD,position:"relative",overflow:"hidden",cursor:"pointer",transition:"transform 180ms cubic-bezier(0.34,1.56,0.64,1),box-shadow 180ms ease"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.13)";}} onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow=SHD;}}>
+                          <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:4}}>{k.l}</div>
+                          <div style={{fontSize:mob?17:20,fontWeight:800,color:k.c}}>{k.v}</div>
+                          {k.sub&&<div style={{fontSize:10,color:MUTED,marginTop:3}}>{k.sub}</div>}
+                          <div style={{fontSize:9,color:k.c,marginTop:5,fontWeight:600,opacity:0.7}}>ver contratos →</div>
+                          <div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:k.c,borderRadius:"0 0 14px 14px",opacity:0.6}}/>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* DISTRIBUIÇÃO POR FAIXA DE ATRASO */}
+                <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,overflow:"hidden",boxShadow:SHD}}>
+                  <div style={{padding:"14px 18px",borderBottom:`1px solid ${BD}`,background:BG+"50"}}>
+                    <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Distribuição por Faixa de Atraso</h3>
+                    <div style={{fontSize:11,color:MUTED,marginTop:3}}>{carteira.totalAbertos} contratos em aberto</div>
+                  </div>
+                  <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+                    {[
+                      {label:"Em dia",qtd:carteira.dist[0],cor:GRN},
+                      {label:"1–30 dias",qtd:carteira.dist[1],cor:YEL},
+                      {label:"31–60 dias",qtd:carteira.dist[2],cor:ORG},
+                      {label:"61–120 dias",qtd:carteira.dist[3],cor:RED},
+                      {label:">120 dias",qtd:carteira.dist[4],cor:"#A60000"},
+                    ].map(f=>{
+                      const pct=carteira.totalAbertos>0?(f.qtd/carteira.totalAbertos*100):0;
+                      return(
+                        <div key={f.label} style={{display:"grid",gridTemplateColumns:"110px 1fr 80px",alignItems:"center",gap:12}}>
+                          <div style={{fontSize:12,fontWeight:600,color:f.cor}}>{f.label}</div>
+                          <div style={{height:10,background:BD,borderRadius:10,overflow:"hidden"}}>
+                            <div style={{height:"100%",width:`${pct}%`,background:f.cor,borderRadius:10,transition:"width 0.5s ease"}}/>
+                          </div>
+                          <div style={{fontSize:12,fontWeight:700,color:TEXT,textAlign:"right"}}>
+                            {f.qtd} <span style={{fontWeight:400,color:MUTED,fontSize:11}}>({pct.toFixed(0)}%)</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* PDD GERENCIAL V1.0 */}
+                <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,overflow:"hidden",boxShadow:SHD}}>
+                  <div style={{padding:"14px 18px",borderBottom:`1px solid ${BD}`,background:BG+"50",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+                    <div>
+                      <h3 style={{margin:0,fontSize:15,fontWeight:700}}>PDD Gerencial</h3>
+                      <div style={{fontSize:11,color:MUTED,marginTop:3}}>Provisão para Devedores Duvidosos · v1.0 · Jun/2026</div>
+                    </div>
+                    <div style={{fontSize:11,color:MUTED,textAlign:"right"}}>Base: 216 contratos · 7 perdas · 1,42% perda histórica</div>
+                  </div>
+                  <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:16}}>
+                    <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:12}}>
+                      {[
+                        {l:"Saldo Devedor",v:fmtR(carteira.saldoDevedor),c:TEXT,sub:"parcelas em aberto"},
+                        {l:"PDD",v:fmtR(carteira.totalPDD),c:ORG,sub:`${carteira.saldoDevedor>0?(carteira.totalPDD/carteira.saldoDevedor*100).toFixed(1):0}% do saldo`},
+                        {l:"Carteira Ajustada",v:fmtR(carteira.carteiraAjustada),c:GRN,sub:"saldo devedor − PDD"},
+                        {l:"Cobertura PDD",v:`${carteira.coberturaPDD.toFixed(1)}×`,c:carteira.coberturaPDD>=2?GRN:carteira.coberturaPDD>=1?YEL:RED,sub:"vs perda histórica líquida (R$ 7.275)"},
+                      ].map(k=>(
+                        <div key={k.l} style={{background:BG,padding:14,borderRadius:12,border:`1px solid ${BD}`}}>
+                          <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:4}}>{k.l}</div>
+                          <div style={{fontSize:mob?15:18,fontWeight:800,color:k.c}}>{k.v}</div>
+                          {k.sub&&<div style={{fontSize:10,color:MUTED,marginTop:3}}>{k.sub}</div>}
+                        </div>
+                      ))}
+                    </div>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                      <thead>
+                        <tr style={{background:ORG+"15"}}>
+                          {["Faixa","Contratos","Principal","% PDD","Provisão"].map(h=>(
+                            <th key={h} style={{padding:"8px 12px",textAlign:h==="Faixa"?"left":"right",color:ORG,fontWeight:700,fontSize:11,textTransform:"uppercase"}}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {carteira.pddFaixas.map((f,i)=>(
+                          <tr key={f.label} style={{borderBottom:`1px solid ${BD}`,background:i%2===0?"transparent":BG+"40"}}>
+                            <td style={{padding:"8px 12px",fontWeight:600,color:f.pct===0?MUTED:f.pct<=0.35?YEL:f.pct<1?ORG:RED}}>{f.label}</td>
+                            <td style={{padding:"8px 12px",textAlign:"right",color:MUTED}}>{f.qtd}</td>
+                            <td style={{padding:"8px 12px",textAlign:"right"}}>{fmtR(f.saldo)}</td>
+                            <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:f.pct===0?MUTED:f.pct<=0.35?YEL:f.pct<1?ORG:RED}}>{(f.pct*100).toFixed(0)}%</td>
+                            <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:f.pdd>0?RED:MUTED}}>{fmtR(f.pdd)}</td>
+                          </tr>
+                        ))}
+                        <tr style={{background:ORG+"20",fontWeight:800}}>
+                          <td style={{padding:"8px 12px",color:ORG}}>Total</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",color:ORG}}>{carteira.totalAbertos}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",color:ORG}}>{fmtR(carteira.principalTotal)}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",color:ORG}}>{carteira.principalTotal>0?(carteira.totalPDD/carteira.principalTotal*100).toFixed(1)+"%":"–"}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",color:ORG}}>{fmtR(carteira.totalPDD)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:BG,borderRadius:10,border:`1px solid ${BD}`,flexWrap:"wrap",gap:8}}>
+                      <div style={{fontSize:11,color:MUTED}}><span style={{fontWeight:700,color:TEXT}}>PDD Gerencial v1.0</span> · Base: Jun/2026 · 216 contratos analisados · 1,42% perda histórica líquida</div>
+                      <div style={{fontSize:11,color:YEL,fontWeight:600}}>Próxima revisão: 50 contratos encerrados ou Dez/2026</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* RESULTADO AJUSTADO AO RISCO */}
+                {(()=>{
+                  const recTotal=resultado12m.receitaContratual+resultado12m.receitaAtraso;
+                  const pdd=carteira.totalPDD;
+                  const resultAjust=recTotal-pdd;
+                  const cap=carteira.capitalTotal||1;
+                  const roiBruto=recTotal/cap*100;
+                  const roiAjust=resultAjust/cap*100;
+                  const margemAjust=recTotal>0?resultAjust/recTotal*100:0;
+                  const dre=[
+                    {l:"Receita Contratual (juros)",  v:resultado12m.receitaContratual, sinal:"+", c:GRN},
+                    {l:"Receita de Atraso (multas)",  v:resultado12m.receitaAtraso,     sinal:"+", c:YEL},
+                    {l:"PDD — Provisão Atual",        v:-pdd,                            sinal:"−", c:RED},
+                  ];
+                  return(
+                    <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,overflow:"hidden",boxShadow:SHD}}>
+                      <div style={{padding:"14px 18px",borderBottom:`1px solid ${BD}`,background:BG+"50",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+                        <div>
+                          <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Resultado Ajustado ao Risco</h3>
+                          <div style={{fontSize:11,color:MUTED,marginTop:3}}>Receita dos últimos 12 meses · PDD deduzida como custo</div>
+                        </div>
+                        <div style={{display:"flex",gap:16}}>
+                          {[
+                            {l:"ROI Bruto",   v:roiBruto.toFixed(1)+"%",  c:roiBruto>=15?GRN:roiBruto>=5?YEL:RED},
+                            {l:"ROI Ajustado",v:roiAjust.toFixed(1)+"%",  c:roiAjust>=12?GRN:roiAjust>=0?YEL:RED},
+                            {l:"Margem",      v:margemAjust.toFixed(1)+"%",c:margemAjust>=80?GRN:margemAjust>=50?YEL:RED},
+                          ].map(k=>(
+                            <div key={k.l} style={{textAlign:"center"}}>
+                              <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase"}}>{k.l}</div>
+                              <div style={{fontSize:17,fontWeight:800,color:k.c}}>{k.v}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div style={{padding:"16px 20px"}}>
+                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                          <tbody>
+                            {dre.map((row,i)=>(
+                              <tr key={row.l} style={{borderBottom:`1px solid ${BD}`}}>
+                                <td style={{padding:"10px 12px",color:MUTED,fontWeight:500}}>{row.sinal}</td>
+                                <td style={{padding:"10px 4px",fontWeight:600}}>{row.l}</td>
+                                <td style={{padding:"10px 12px",textAlign:"right",fontWeight:700,color:row.c}}>{fmtR(Math.abs(row.v))}</td>
+                              </tr>
+                            ))}
+                            <tr style={{background:resultAjust>=0?GRN+"15":RED+"15"}}>
+                              <td style={{padding:"12px 12px",fontWeight:800,color:resultAjust>=0?GRN:RED}}>=</td>
+                              <td style={{padding:"12px 4px",fontWeight:800,color:resultAjust>=0?GRN:RED}}>Resultado Operacional Ajustado</td>
+                              <td style={{padding:"12px 12px",textAlign:"right",fontSize:16,fontWeight:800,color:resultAjust>=0?GRN:RED}}>{fmtR(resultAjust)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                        <div style={{marginTop:12,padding:"10px 14px",background:BG,borderRadius:10,border:`1px solid ${BD}`,fontSize:11,color:MUTED}}>
+                          Capital em circulação: <strong style={{color:TEXT}}>{fmtR(cap)}</strong> · ROI = Resultado Ajustado ÷ Capital × 100 · PDD deduzida integralmente no período como custo de risco
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* PAINEL DE INADIMPLÊNCIA */}
+                {(()=>{
+                  const qtdAtrasoTotal=carteira.dist[1]+carteira.dist[2]+carteira.dist[3]+carteira.dist[4];
+                  const qtdInadReal=carteira.dist[2]+carteira.dist[3]+carteira.dist[4];
+                  const tot=carteira.totalAbertos||1;
+                  const txBruta=qtdAtrasoTotal/tot*100;
+                  const txRealQtd=qtdInadReal/tot*100;
+                  // Inadimplência por valor (padrão BCB): principal remanescente 31d+ / principal total ativo
+                  const principalInad31d=(contratos||[]).filter(c=>(perdaInfoMap[String(c.ID_CONTRATO||"")]?.diasAtraso||0)>=31).reduce((s,c)=>s+(perdaInfoMap[String(c.ID_CONTRATO||"")]?.principalAberto||0),0);
+                  const txRealValor=carteira.principalTotal>0?principalInad31d/carteira.principalTotal*100:0;
+                  const txCapital=carteira.capitalTotal>0?carteira.capitalEmRisco/carteira.capitalTotal*100:0;
+                  const principalOriginado=(contratos||[]).reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
+                  const txPerdaHist=principalOriginado>0?perdas.prejuizoReal/principalOriginado*100:0;
+                  const statusLabel=(v,bom,warn)=>v<bom?"Bom":v<warn?"Atenção":"Crítico";
+                  const corValor=txRealValor<15?GRN:txRealValor<20?YEL:RED;
+                  const corCap=txCapital<15?GRN:txCapital<25?YEL:RED;
+                  const corPerda=txPerdaHist<2?GRN:txPerdaHist<5?YEL:RED;
+                  const indicadores=[
+                    {
+                      l:"Inadimplência Real (por valor)",
+                      desc:"Padrão BCB · principal remanescente com 31d+ de atraso / principal total ativo",
+                      v:txRealValor.toFixed(1)+"%",
+                      detalhe:`${fmtR(principalInad31d)} de ${fmtR(carteira.principalTotal)}`,
+                      ref:"< 20%",
+                      status:statusLabel(txRealValor,15,20),
+                      c:corValor,
+                      freq:"Mensal",
+                      destaque:true,
+                    },
+                    {
+                      l:"Inadimplência por Contratos",
+                      desc:"Qtd. de contratos com 31d+ de atraso / total de contratos ativos",
+                      v:txRealQtd.toFixed(1)+"%",
+                      detalhe:`${qtdInadReal} de ${carteira.totalAbertos} contratos`,
+                      ref:"< 20%",
+                      status:statusLabel(txRealQtd,15,20),
+                      c:txRealQtd<15?GRN:txRealQtd<20?YEL:RED,
+                      freq:"Mensal",
+                    },
+                    {
+                      l:"Taxa de Atraso Bruta",
+                      desc:"Qualquer contrato com ao menos uma parcela vencida",
+                      v:txBruta.toFixed(1)+"%",
+                      detalhe:`${qtdAtrasoTotal} de ${carteira.totalAbertos} contratos`,
+                      ref:"—",
+                      status:"Monitor",
+                      c:MUTED,
+                      freq:"Semanal",
+                    },
+                    {
+                      l:"Capital em Risco Formal",
+                      desc:"Principal de contratos em cobrança ativa + pré-prejuízo / capital total",
+                      v:txCapital.toFixed(1)+"%",
+                      detalhe:`${fmtR(carteira.capitalEmRisco)} de ${fmtR(carteira.capitalTotal)}`,
+                      ref:"< 25%",
+                      status:statusLabel(txCapital,15,25),
+                      c:corCap,
+                      freq:"Mensal",
+                    },
+                    {
+                      l:"Perda Histórica",
+                      desc:"Capital efetivamente perdido (baixado - recuperado) / total originado desde o início",
+                      v:txPerdaHist.toFixed(2)+"%",
+                      detalhe:`${fmtR(perdas.prejuizoReal)} de ${fmtR(principalOriginado)} originados`,
+                      ref:"< 5%",
+                      status:statusLabel(txPerdaHist,2,5),
+                      c:corPerda,
+                      freq:"Trimestral",
+                    },
+                  ];
+                  return(
+                    <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,overflow:"hidden",boxShadow:SHD}}>
+                      <div style={{padding:"14px 18px",borderBottom:`1px solid ${BD}`,background:BG+"50",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+                        <div>
+                          <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Painel de Inadimplência</h3>
+                          <div style={{fontSize:11,color:MUTED,marginTop:3}}>Indicadores calculados ao vivo · use para conferência mensal</div>
+                        </div>
+                        <div style={{fontSize:11,color:corValor,fontWeight:700,background:corValor+"15",padding:"4px 10px",borderRadius:20}}>
+                          KPI principal: {txRealValor.toFixed(1)}% inadimplência por valor
+                        </div>
+                      </div>
+                      <div style={{overflowX:"auto"}}>
+                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                          <thead>
+                            <tr style={{background:BG+"80"}}>
+                              {["Indicador","Seu valor","Detalhamento","Referência","Status","Frequência"].map(h=>(
+                                <th key={h} style={{padding:"9px 14px",textAlign:h==="Seu valor"||h==="Referência"?"center":"left",fontSize:10,fontWeight:700,color:MUTED,textTransform:"uppercase",letterSpacing:"0.4px",whiteSpace:"nowrap"}}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {indicadores.map((ind,i)=>(
+                              <tr key={ind.l} style={{borderBottom:`1px solid ${BD}`,background:ind.destaque?ind.c+"08":"transparent"}}>
+                                <td style={{padding:"12px 14px"}}>
+                                  <div style={{fontWeight:ind.destaque?700:600,color:TEXT,fontSize:ind.destaque?14:13}}>{ind.l}{ind.destaque&&<span style={{marginLeft:6,fontSize:9,background:ind.c+"22",color:ind.c,padding:"1px 6px",borderRadius:10,fontWeight:700,verticalAlign:"middle"}}>PRINCIPAL</span>}</div>
+                                  <div style={{fontSize:10,color:MUTED,marginTop:2}}>{ind.desc}</div>
+                                </td>
+                                <td style={{padding:"12px 14px",textAlign:"center"}}>
+                                  <div style={{fontSize:ind.destaque?18:15,fontWeight:800,color:ind.c}}>{ind.v}</div>
+                                </td>
+                                <td style={{padding:"12px 14px",fontSize:11,color:MUTED}}>{ind.detalhe}</td>
+                                <td style={{padding:"12px 14px",textAlign:"center",fontWeight:600,color:MUTED,fontSize:12}}>{ind.ref}</td>
+                                <td style={{padding:"12px 14px",textAlign:"center"}}>
+                                  <span style={{fontSize:11,fontWeight:700,color:ind.c,background:ind.c+"18",padding:"3px 10px",borderRadius:20}}>{ind.status}</span>
+                                </td>
+                                <td style={{padding:"12px 14px",fontSize:11,color:MUTED}}>{ind.freq}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div style={{padding:"10px 14px",background:BG,borderTop:`1px solid ${BD}`,display:"flex",flexWrap:"wrap",gap:16,fontSize:11,color:MUTED}}>
+                        <span><strong style={{color:YEL}}>Alerta</strong>: Inadimplência Real &gt; 20% ou Capital em Risco &gt; 25%</span>
+                        <span><strong style={{color:RED}}>Crítico</strong>: Inadimplência Real &gt; 25% ou Perda Histórica &gt; 5% → revisar critérios de concessão</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+              </div>
             </div>
           )}
 
@@ -4603,7 +7471,7 @@ function App() {
                   {l:"Capital em Risco",v:fmtR(perdas.capitalEmRisco),c:ORG,sub:`${perdas.qtdEmRisco} contrato${perdas.qtdEmRisco!==1?"s":""} (cobrança + pré-prejuízo)`},
                   {l:"Capital Baixado",v:fmtR(perdas.capitalBaixado),c:RED,sub:"prejuízo declarado"},
                   {l:"Recuperado",v:fmtR(perdas.recuperadoAposBaixa),c:PUR,sub:"pós-baixa"},
-                  {l:"Prejuízo Real",v:fmtR(perdas.prejuizoReal),c:RED,sub:"baixado − recuperado"},
+                  {l:"Prejuízo Real",v:fmtR(perdas.prejuizoReal),c:RED,sub:"capital perdido sem recuperação"},
                   {l:"Taxa Recuperação",v:fmtP(perdas.txRecuperacao),c:perdas.txRecuperacao>0?GRN:MUTED,sub:"sobre capital baixado"},
                 ].map(k=>(
                   <div key={k.l} style={{background:CARD,padding:16,borderRadius:16,border:`1px solid ${BD}`,boxShadow:SHD,position:"relative",overflow:"hidden"}}>
@@ -4614,10 +7482,27 @@ function App() {
                   </div>
                 ))}
               </div>
+              {perdas.qtdJudicial>0&&(
+              <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:14}}>
+                {[
+                  {l:"Contratos em Judicial",v:String(perdas.qtdJudicial),c:RED,sub:"em processo ou encerrado judicialmente"},
+                  {l:"Valor Executado",v:fmtR(perdas.valorExecutadoJudicial),c:RED,sub:"total pleiteado nas ações"},
+                  {l:"Recuperado Judicial",v:fmtR(perdas.recuperadoJudicialTotal),c:GRN,sub:`principal ${fmtR(perdas.recuperadoJudicialPrincipal)} · lucro ${fmtR(perdas.recuperadoJudicialLucro)}`},
+                  {l:"Índice de Recuperação",v:fmtP(perdas.indiceRecuperacaoJudicial),c:perdas.indiceRecuperacaoJudicial>0?GRN:MUTED,sub:"recuperado ÷ valor executado"},
+                ].map(k=>(
+                  <div key={k.l} style={{background:CARD,padding:16,borderRadius:16,border:`1px solid ${RED}30`,boxShadow:SHD,position:"relative",overflow:"hidden"}}>
+                    <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:4}}>{k.l}</div>
+                    <div style={{fontSize:18,fontWeight:800,color:k.c}}>{k.v}</div>
+                    {k.sub&&<div style={{fontSize:10,color:MUTED,marginTop:3}}>{k.sub}</div>}
+                    <div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:k.c,borderRadius:"0 0 14px 14px",opacity:0.6}}/>
+                  </div>
+                ))}
+              </div>
+              )}
               <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,overflow:"hidden",boxShadow:SHD}}>
                 <div style={{padding:16,borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:BG+"50"}}>
                   <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Contratos com Perda</h3>
-                  <select value={filtroPerdas} onChange={e=>setFiltroPerdas(e.target.value)} style={{...IS(),width:220}}><option value="todos">Todos</option><option value="em_cobranca">Em Cobrança</option><option value="pre_prejuizo">Pré-Prejuízo</option><option value="baixado_como_prejuizo">Baixado (Prejuízo)</option><option value="em_recuperacao">Em Recuperação</option><option value="recuperado_parcialmente">Recuperado Parcialmente</option><option value="encerrado_sem_recuperacao">Encerrado s/ Recuperação</option></select>
+                  <select value={filtroPerdas} onChange={e=>setFiltroPerdas(e.target.value)} style={{...IS(),width:220}}><option value="todos">Todos</option><option value="acordo_assistido">Acordo Assistido</option><option value="em_processo_judicial">Em Processo Judicial</option><option value="encerrado_judicialmente">Encerrado Judicialmente</option><option value="em_cobranca">Em Cobrança</option><option value="pre_prejuizo">Pré-Prejuízo</option><option value="baixado_como_prejuizo">Baixado (Prejuízo)</option><option value="em_recuperacao">Em Recuperação</option><option value="recuperado_parcialmente">Recuperado Parcialmente</option><option value="encerrado_sem_recuperacao">Encerrado s/ Recuperação</option></select>
                 </div>
                 <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left",minWidth:520}}>
                   <thead><tr style={{background:GRN+"10",fontSize:11,color:GRN,fontWeight:700,textTransform:"uppercase"}}>
@@ -4635,7 +7520,7 @@ function App() {
                     const qtd=info.qtdAtrasadas||0;
                     const saldo=info.saldoAberto||0;
                     return(
-                    <tr key={c.ID_CONTRATO} onClick={()=>setPerdaAcoesModal(c)} style={{borderBottom:`1px solid ${BD}`,fontSize:13,cursor:"pointer",transition:"background 0.1s"}} onMouseEnter={e=>e.currentTarget.style.background=BG} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                    <tr key={c.ID_CONTRATO} onClick={()=>setContratoSel(c)} style={{borderBottom:`1px solid ${BD}`,fontSize:13,cursor:"pointer",transition:"background 0.1s"}} onMouseEnter={e=>e.currentTarget.style.background=BG} onMouseLeave={e=>e.currentTarget.style.background=""}>
                       <td style={{padding:"13px 18px"}}><div style={{fontWeight:700}}>{c.ID_CONTRATO}</div><div style={{fontSize:11,color:MUTED}}>{c.NOME_CLIENTE}</div></td>
                       <td><Badge c={STATUS_COR[c.STATUS_CONTRATO]||MUTED}>{STATUS_LABEL[c.STATUS_CONTRATO]||c.STATUS_CONTRATO}</Badge></td>
                       <td>{fmtR(c.VALOR_PRINCIPAL)}</td>
@@ -4687,7 +7572,7 @@ function App() {
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:16,flexWrap:"wrap"}}>
                 <div>
                   <div style={{fontSize:mob?18:22,fontWeight:800,color:TEXT,letterSpacing:"-0.3px"}}>Promessas</div>
-                  <div style={{fontSize:11,color:MUTED,marginTop:4}}>{promessas.filter(p=>p.STATUS_PROMESSA==="PENDENTE").length} pendente{promessas.filter(p=>p.STATUS_PROMESSA==="PENDENTE").length!==1?"s":""} · {promessas.length} total</div>
+                  <div style={{fontSize:11,color:MUTED,marginTop:4}}>{promessas.length} promessa{promessas.length!==1?"s":""} registrada{promessas.length!==1?"s":""}</div>
                 </div>
               </div>
             <div style={{display:"flex",flexDirection:"column",gap:24}}>
@@ -4713,7 +7598,7 @@ function App() {
                       </button>
                     ))}
                   </div>
-                  <button onClick={()=>setNovaPromessa(true)} style={{padding:"8px 16px",borderRadius:12,border:"none",background:ACC,color:"#163300",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Nova Promessa</button>
+                  <button onClick={()=>setNovaPromessa(true)} style={{padding:"8px 16px",borderRadius:12,border:"none",background:ACC,color:"#07241B",cursor:"pointer",fontSize:13,fontWeight:700}}>+ Nova Promessa</button>
                 </div>
                 {promessasFiltradas.length===0
                   ?<div style={{padding:"32px 18px",textAlign:"center",color:MUTED,fontSize:13}}>Nenhuma promessa encontrada.</div>
@@ -4775,6 +7660,278 @@ function App() {
           )}
 
           {/* SIMULADOR */}
+          {tab==="gestao"&&(()=>{
+            const todosContratos=contratos||[];
+            const totalContratos=todosContratos.length;
+            const contratosAtivosG=todosContratos.filter(c=>_ST_ATIVOS.has(String(c.STATUS_CONTRATO||"").toLowerCase()));
+            const vAtivosG=contratosAtivosG.reduce((s,c)=>s+(perdaInfoMap[String(c.ID_CONTRATO||"")]?.principalAberto||0),0);
+            const ticketMedio=contratosAtivosG.length?vAtivosG/contratosAtivosG.length:0;
+            const todasParcelas=parcelas||[];
+            const mediaParcelas=contratosAtivosG.length?contratosAtivosG.reduce((s,c)=>s+parseInt(c.NUM_PARCELAS||0),0)/contratosAtivosG.length:0;
+            const todosPagamentos=pagamentos||[];
+            const jurosRecebidosTotal=todosPagamentos.reduce((s,pag)=>{const parc=todasParcelas.find(p=>String(p.ID_PARCELA)===String(pag.ID_PARCELA));const j=parc?Math.max(0,parseFloat(parc.VALOR_JUROS||0)-parseFloat(parc.DESCONTO_APLICADO||0)):0;return s+j+parseFloat(pag.RECEITA_EXTRA_ATRASO||0)+parseFloat(pag.FEE_PRORROGACAO||0);},0);
+            const principalEmprestadoTotal=todosContratos.reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
+            const parcNaoPagas=todasParcelas.filter(p=>!_ST_TERMINAL.has(String(p.STATUS||"").toLowerCase()));
+            const jurosProjetados=parcNaoPagas.reduce((s,p)=>s+Math.max(0,parseFloat(p.VALOR_JUROS||0)-parseFloat(p.DESCONTO_APLICADO||0)),0);
+            const margemPct=principalEmprestadoTotal>0?(jurosRecebidosTotal/principalEmprestadoTotal*100):0;
+            const valorAtrasoG=parcelasAtrasadas.reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
+            const taxaInadPct=vAtivosG>0?(valorAtrasoG/vAtivosG*100):0;
+            const contratosComAtrasoIds=new Set(parcelasAtrasadas.map(p=>String(p.ID_CONTRATO)));
+            const valorContratosEmAtraso=contratosAtivosG.filter(c=>contratosComAtrasoIds.has(String(c.ID_CONTRATO))).reduce((s,c)=>s+(perdaInfoMap[String(c.ID_CONTRATO||"")]?.principalAberto||0),0);
+            const taxaInadValorPct=vAtivosG>0?(valorContratosEmAtraso/vAtivosG*100):0;
+            const contratosPerda=todosContratos.filter(c=>String(c.STATUS_CONTRATO||"").toLowerCase()==="baixado_como_prejuizo");
+            const valorBaixadoBruto=contratosPerda.reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
+            const contratosPerdaIds=new Set(contratosPerda.map(c=>String(c.ID_CONTRATO)));
+            const parcPerdaIds=new Set(todasParcelas.filter(p=>contratosPerdaIds.has(String(p.ID_CONTRATO))).map(p=>String(p.ID_PARCELA)));
+            const recuperadoDosPrejuizos=todosPagamentos.filter(pg=>parcPerdaIds.has(String(pg.ID_PARCELA))).reduce((s,pg)=>s+parseFloat(pg.VALOR_PAGO||0),0);
+            const valorBaixadoLiquido=Math.max(0,valorBaixadoBruto-recuperadoDosPrejuizos);
+            const taxaBaixaValorPct=principalEmprestadoTotal>0?(valorBaixadoLiquido/principalEmprestadoTotal*100):0;
+            const todosClientes=clientes||[];
+            const clientesComContratoAtivo=new Set(contratosAtivosG.map(c=>String(c.ID_CLIENTE))).size;
+            const clientesEmAtrasoG=new Set(parcelasAtrasadas.map(p=>String(p.ID_CLIENTE))).size;
+            const clientesRecorrentes=todosClientes.filter(c=>todosContratos.filter(ct=>String(ct.ID_CLIENTE)===String(c.ID_CLIENTE)).length>=2);
+            const clientesComContrato=todosClientes.filter(c=>todosContratos.some(ct=>String(ct.ID_CLIENTE)===String(c.ID_CLIENTE)));
+            const taxaRecorrencia=clientesComContrato.length>0?(clientesRecorrentes.length/clientesComContrato.length*100):0;
+            const top5=todosClientes.map(c=>{const vol=todosContratos.filter(ct=>String(ct.ID_CLIENTE)===String(c.ID_CLIENTE)).reduce((s,ct)=>s+parseFloat(ct.VALOR_PRINCIPAL||0),0);const qtd=todosContratos.filter(ct=>String(ct.ID_CLIENTE)===String(c.ID_CLIENTE)).length;return{...c,vol,qtd};}).sort((a,b)=>b.vol-a.vol).slice(0,5);
+            const contratosPorMes=Array.from({length:12},(_,i)=>{const hoje=new Date();const dt=new Date(hoje.getFullYear(),hoje.getMonth()-(11-i),1);const ini=new Date(dt.getFullYear(),dt.getMonth(),1,0,0,0);const fim=new Date(dt.getFullYear(),dt.getMonth()+1,0,23,59,59);const cs=todosContratos.filter(c=>{const d=parseDate(c.DATA_EMPRESTIMO);return d&&d>=ini&&d<=fim;});return{name:dt.toLocaleDateString("pt-BR",{month:"short"}).replace(".",""),qtd:cs.length,vol:cs.reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0)};});
+            const taxaMedia=(()=>{if(!contratosAtivosG.length)return 0;return contratosAtivosG.reduce((s,c)=>s+parseFloat(c.TAXA_JUROS_MENSAL||0),0)/contratosAtivosG.length*100;})();
+            const jurosPorMes=Array.from({length:12},(_,i)=>{const hoje=new Date();const dt=new Date(hoje.getFullYear(),hoje.getMonth()-(11-i),1);const ini=new Date(dt.getFullYear(),dt.getMonth(),1,0,0,0);const fim=new Date(dt.getFullYear(),dt.getMonth()+1,0,23,59,59);const pags=todosPagamentos.filter(p=>{const d=parseDate(p.DATA_PAGAMENTO);return d&&d>=ini&&d<=fim;});const v=pags.reduce((s,pag)=>{const parc=todasParcelas.find(p=>String(p.ID_PARCELA)===String(pag.ID_PARCELA));const j=parc?Math.max(0,parseFloat(parc.VALOR_JUROS||0)-parseFloat(parc.DESCONTO_APLICADO||0)):0;return s+j+parseFloat(pag.RECEITA_EXTRA_ATRASO||0)+parseFloat(pag.FEE_PRORROGACAO||0);},0);return{name:dt.toLocaleDateString("pt-BR",{month:"short"}).replace(".",""),value:v};});
+            const atrasoPorMes=Array.from({length:12},(_,i)=>{const hoje=new Date();const dt=new Date(hoje.getFullYear(),hoje.getMonth()-(11-i),1);const ini=new Date(dt.getFullYear(),dt.getMonth(),1,0,0,0);const fim=new Date(dt.getFullYear(),dt.getMonth()+1,0,23,59,59);const vencidas=todasParcelas.filter(p=>{const dv=parseDate(p.DATA_VENCIMENTO);return dv&&dv>=ini&&dv<=fim;});const atrasadas=vencidas.filter(p=>todosPagamentos.some(pg=>String(pg.ID_PARCELA)===String(p.ID_PARCELA)&&pg.TIPO_PAGAMENTO==="pagamento_com_atraso")||String(p.STATUS||"").toLowerCase()==="atrasado").length;const pct=vencidas.length>0?parseFloat((atrasadas/vencidas.length*100).toFixed(1)):0;return{name:dt.toLocaleDateString("pt-BR",{month:"short"}).replace(".",""),pct,atrasadas,total:vencidas.length};});
+            const GestaoChart=({data,dataKey,label,isMoney,color})=>(<ResponsiveContainer width="100%" height={180}><BarChart data={data} barSize={16}><CartesianGrid strokeDasharray="3 3" stroke={BD} vertical={false}/><XAxis dataKey="name" tick={{fill:MUTED,fontSize:11}} axisLine={false} tickLine={false}/><YAxis allowDecimals={false} tick={{fill:MUTED,fontSize:11}} axisLine={false} tickLine={false} width={isMoney?60:28} tickFormatter={v=>isMoney?(v>=1000?"R$"+(v/1000).toFixed(0)+"k":"R$"+v.toFixed(0)):v}/><Tooltip contentStyle={{background:CARD,border:`1px solid ${BD}`,borderRadius:10,boxShadow:SHD,fontSize:12}} labelStyle={{color:TEXT,fontWeight:700}} formatter={v=>[isMoney?fmtR(v):v+(dataKey==="pct"?"%":""),label]}/><Bar dataKey={dataKey} fill={color||SIG} radius={[4,4,0,0]}/></BarChart></ResponsiveContainer>);
+            const GestaoChartPanel=({chartKey,title,sub,children})=>gestaoExpandido===chartKey?(<div style={{background:CARD,borderRadius:14,border:`1px solid ${SIG}40`,borderTop:`3px solid ${SIG}`,padding:"16px 20px",animation:"fadeUp 200ms ease both"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}><div><div style={{fontWeight:700,fontSize:13,color:TEXT}}>{title}</div><div style={{fontSize:11,color:MUTED,marginTop:2}}>{sub}</div></div><button onClick={()=>setGestaoExpandido(null)} style={{background:"transparent",border:"none",color:MUTED,cursor:"pointer",fontSize:20,lineHeight:1,padding:"0 2px",display:"flex",alignItems:"center"}}>×</button></div>{children}</div>):null;
+            return(
+            <div style={{display:"flex",flexDirection:"column",gap:24,animation:"fadeUp 400ms cubic-bezier(0.16,1,0.3,1) both"}}>
+              <div>
+                <div style={{fontSize:mob?20:26,fontWeight:800,color:TEXT,letterSpacing:"-0.5px",lineHeight:1.1}}>Visão Estratégica</div>
+                <div style={{fontSize:12,color:MUTED,marginTop:4}}>Saúde e crescimento do negócio — dados históricos completos</div>
+              </div>
+
+              {/* CARTEIRA */}
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:12}}>Carteira & Volume</div>
+                <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(4,1fr)",gap:mob?10:14}}>
+                  {[
+                    {l:"Contratos Ativos",      v:String(contratosAtivosG.length), sub:`de ${totalContratos} total histórico`,vc:TEXT, chartKey:"contratos_ativos", tip:"Contratos com status ativo, em atraso, em cobrança, pré-prejuízo, renegociado, em recuperação ou recuperado parcialmente. Exclui quitados, cancelados e baixados como prejuízo."},
+                    {l:"Capital em Circulação", v:fmtR(vAtivosG),                   sub:"Principal ativo",                    vc:GRN,  chartKey:"capital_circulacao", tip:"Soma do VALOR_PRINCIPAL dos contratos ativos. É o dinheiro efetivamente emprestado agora, sem contar os juros."},
+                    {l:"Ticket Médio",          v:fmtR(ticketMedio),                sub:"Por contrato ativo",                 vc:TEXT, tip:"Capital em circulação dividido pela quantidade de contratos ativos. Mostra o valor médio de cada empréstimo em vigor."},
+                    {l:"Média de Parcelas",     v:mediaParcelas.toFixed(1)+"x",     sub:"Por contrato ativo",                 vc:TEXT, tip:"Média do prazo original (em meses) dos contratos ativos, com base no campo NUM_PARCELAS de cada contrato. Não conta parcelas extras geradas por pagamentos de juros."},
+                  ].map(k=>{const isExp=k.chartKey&&gestaoExpandido===k.chartKey;return(
+                    <div key={k.l} onClick={k.chartKey?()=>setGestaoExpandido(gestaoExpandido===k.chartKey?null:k.chartKey):undefined} style={{background:CARD,padding:mob?"12px 14px":"16px 18px",borderRadius:14,border:`1px solid ${isExp?SIG+"60":BD}`,boxShadow:SHD,cursor:k.chartKey?"pointer":"default",position:"relative",overflow:"hidden",transition:"border-color 0.15s"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                        <div style={{fontSize:10,fontWeight:700,color:isExp?SIG:MUTED,textTransform:"uppercase",letterSpacing:"0.08em",display:"flex",alignItems:"center"}}>{k.l}{k.tip&&<InfoTooltip text={k.tip}/>}</div>
+                        {k.chartKey&&<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={isExp?SIG:MUTED} strokeWidth="2.5" style={{flexShrink:0,marginLeft:4}}><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>}
+                      </div>
+                      <div style={{fontSize:mob?18:22,fontWeight:800,color:k.vc,lineHeight:1.1}}>{priv(k.v)}</div>
+                      <div style={{fontSize:11,color:MUTED,marginTop:5}}>{k.sub}</div>
+                      {isExp&&<div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:SIG,borderRadius:"0 0 13px 13px"}}/>}
+                    </div>
+                  );})}
+                </div>
+                <GestaoChartPanel chartKey="contratos_ativos" title="Novos contratos por mês" sub="Quantidade de contratos criados em cada mês — últimos 12 meses">
+                  <GestaoChart data={contratosPorMes} dataKey="qtd" label="contratos" isMoney={false}/>
+                </GestaoChartPanel>
+                <GestaoChartPanel chartKey="capital_circulacao" title="Capital liberado por mês" sub="Soma do principal dos contratos criados em cada mês — últimos 12 meses">
+                  <GestaoChart data={contratosPorMes} dataKey="vol" label="liberado" isMoney={true}/>
+                </GestaoChartPanel>
+              </div>
+
+              {/* RESULTADO FINANCEIRO */}
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:12}}>Resultado Financeiro</div>
+                <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(4,1fr)",gap:mob?10:14}}>
+                  {[
+                    {l:"Total Emprestado",  v:fmtR(principalEmprestadoTotal), sub:"Principal histórico acumulado",             vc:TEXT, tip:"Soma do VALOR_PRINCIPAL de todos os contratos já criados no sistema (ativos + encerrados + baixados). É o volume total de crédito concedido desde o início."},
+                    {l:"Juros Recebidos",   v:fmtR(jurosRecebidosTotal),       sub:"Acumulado histórico",                      vc:OK,  chartKey:"juros_recebidos", tip:"Soma de todos os juros efetivamente recebidos: juros da parcela (menos desconto aplicado) + mora por atraso (RECEITA_EXTRA_ATRASO). Representa a receita real gerada pelo negócio."},
+                    {l:"Juros Projetados",  v:fmtR(jurosProjetados),           sub:"Carteira ativa — a receber",               vc:BLU, tip:"Soma dos juros das parcelas que ainda não foram pagas (status não-terminal). É a receita futura estimada da carteira ativa — o que ainda está por entrar."},
+                    {l:"Margem Acumulada",  v:margemPct.toFixed(1)+"%",        sub:`Taxa média ativa: ${taxaMedia.toFixed(1)}% a.m.`, vc:OK, tip:"Juros Recebidos ÷ Total Emprestado × 100. Mostra quanto do capital emprestado voltou como juros. Ex: 42% significa que a cada R$100 emprestados, R$42 vieram de juros. A taxa média ativa é a média mensal dos contratos com parcelas em aberto."},
+                  ].map(k=>{const isExp=k.chartKey&&gestaoExpandido===k.chartKey;return(
+                    <div key={k.l} onClick={k.chartKey?()=>setGestaoExpandido(gestaoExpandido===k.chartKey?null:k.chartKey):undefined} style={{background:CARD,padding:mob?"12px 14px":"16px 18px",borderRadius:14,border:`1px solid ${isExp?SIG+"60":BD}`,boxShadow:SHD,cursor:k.chartKey?"pointer":"default",position:"relative",overflow:"hidden",transition:"border-color 0.15s"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                        <div style={{fontSize:10,fontWeight:700,color:isExp?SIG:MUTED,textTransform:"uppercase",letterSpacing:"0.08em",display:"flex",alignItems:"center"}}>{k.l}{k.tip&&<InfoTooltip text={k.tip}/>}</div>
+                        {k.chartKey&&<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={isExp?SIG:MUTED} strokeWidth="2.5" style={{flexShrink:0,marginLeft:4}}><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>}
+                      </div>
+                      <div style={{fontSize:mob?18:22,fontWeight:800,color:k.vc,lineHeight:1.1}}>{priv(k.v)}</div>
+                      <div style={{fontSize:11,color:MUTED,marginTop:5}}>{k.sub}</div>
+                      {isExp&&<div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:SIG,borderRadius:"0 0 13px 13px"}}/>}
+                    </div>
+                  );})}
+                </div>
+                <GestaoChartPanel chartKey="juros_recebidos" title="Juros recebidos por mês" sub="Soma de juros base + mora de todos os pagamentos em cada mês — últimos 12 meses">
+                  <GestaoChart data={jurosPorMes} dataKey="value" label="juros recebidos" isMoney={true} color={OK}/>
+                </GestaoChartPanel>
+              </div>
+
+              {/* INADIMPLÊNCIA */}
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:12}}>Inadimplência & Riscos</div>
+                <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(4,1fr)",gap:mob?10:14}}>
+                  {[
+                    {l:"Carteira em Atraso",      v:taxaInadPct.toFixed(1)+"%", sub:`${fmtR(valorAtrasoG)} de ${fmtR(vAtivosG)} em circulação`, vc:taxaInadPct>15?RED:taxaInadPct>5?YEL:OK, chartKey:"carteira_atraso", tip:"Valor das parcelas em atraso ÷ Capital em Circulação × 100. Ex: 12.4% significa que R$33.264 dos R$267.269 emprestados estão em atraso. Abaixo de 5% = saudável, 5–15% = atenção, acima de 15% = crítico."},
+                    {l:"Taxa de Inadimplência",   v:taxaInadValorPct.toFixed(1)+"%", sub:`${fmtR(valorContratosEmAtraso)} de ${fmtR(vAtivosG)} em circulação`, vc:taxaInadValorPct>20?RED:taxaInadValorPct>10?YEL:OK, tip:"Soma do VALOR_PRINCIPAL dos contratos com parcelas em atraso ÷ Capital em Circulação × 100. Mede que fração do capital emprestado está associada a clientes inadimplentes. Diferente de 'Carteira em Atraso' (que usa valor das parcelas vencidas): aqui o numerador é o principal do contrato inteiro."},
+                    {l:"Clientes em Atraso",      v:String(clientesEmAtrasoG), sub:`de ${clientesComContratoAtivo} com contrato ativo`, vc:clientesEmAtrasoG>0?RED:OK, tip:"Quantidade de clientes distintos com ao menos uma parcela vencida e não paga. O denominador é o total de clientes com contratos ativos (não todos os clientes cadastrados)."},
+                    {l:"Taxa de Baixa (Prejuízo)",v:taxaBaixaValorPct.toFixed(1)+"%", sub:recuperadoDosPrejuizos>0?`${fmtR(valorBaixadoLiquido)} líquido · recuperado ${fmtR(recuperadoDosPrejuizos)}`:`${fmtR(valorBaixadoLiquido)} de ${fmtR(principalEmprestadoTotal)} histórico`, vc:taxaBaixaValorPct>10?RED:taxaBaixaValorPct>3?YEL:OK, tip:"Prejuízo líquido ÷ Total emprestado histórico × 100. Prejuízo líquido = VALOR_PRINCIPAL dos contratos baixados − pagamentos já recebidos nesses contratos (recuperações judiciais ou acordos). Atualiza automaticamente ao registrar qualquer pagamento em contrato baixado."},
+                  ].map(k=>{const isExp=k.chartKey&&gestaoExpandido===k.chartKey;return(
+                    <div key={k.l} onClick={k.chartKey?()=>setGestaoExpandido(gestaoExpandido===k.chartKey?null:k.chartKey):undefined} style={{background:CARD,padding:mob?"12px 14px":"16px 18px",borderRadius:14,border:`1px solid ${isExp?RED+"60":BD}`,boxShadow:SHD,cursor:k.chartKey?"pointer":"default",position:"relative",overflow:"hidden",transition:"border-color 0.15s"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                        <div style={{fontSize:10,fontWeight:700,color:isExp?RED:MUTED,textTransform:"uppercase",letterSpacing:"0.08em",display:"flex",alignItems:"center"}}>{k.l}{k.tip&&<InfoTooltip text={k.tip}/>}</div>
+                        {k.chartKey&&<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={isExp?RED:MUTED} strokeWidth="2.5" style={{flexShrink:0,marginLeft:4}}><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>}
+                      </div>
+                      <div style={{fontSize:mob?22:28,fontWeight:800,color:k.vc,lineHeight:1.1}}>{priv(k.v)}</div>
+                      <div style={{fontSize:11,color:MUTED,marginTop:5}}>{k.sub}</div>
+                      {isExp&&<div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:RED,borderRadius:"0 0 13px 13px"}}/>}
+                    </div>
+                  );})}
+                </div>
+                <GestaoChartPanel chartKey="carteira_atraso" title="Taxa de inadimplência por mês" sub="% de parcelas vencidas em cada mês que foram pagas com atraso ou ainda estão em atraso — últimos 12 meses">
+                  <GestaoChart data={atrasoPorMes} dataKey="pct" label="inadimplência" isMoney={false} color={RED}/>
+                </GestaoChartPanel>
+              </div>
+
+              {/* GRÁFICO + BASE DE CLIENTES */}
+              <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"2fr 1fr",gap:16,alignItems:"start"}}>
+                <div style={{background:CARD,borderRadius:16,padding:mob?"16px":"22px",border:`1px solid ${BD}`,boxShadow:SHD}}>
+                  <div style={{marginBottom:20}}>
+                    <div style={{fontSize:13,fontWeight:700,color:TEXT}}>Novos contratos por mês</div>
+                    <div style={{fontSize:11,color:MUTED,marginTop:2}}>Últimos 12 meses — quantidade de novos contratos</div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={contratosPorMes} barSize={18}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={BD} vertical={false}/>
+                      <XAxis dataKey="name" tick={{fill:MUTED,fontSize:11}} axisLine={false} tickLine={false}/>
+                      <YAxis allowDecimals={false} tick={{fill:MUTED,fontSize:11}} axisLine={false} tickLine={false} width={24}/>
+                      <Tooltip content={({active,payload,label})=>{if(!active||!payload||!payload.length)return null;const d=payload[0].payload;return(<div style={{background:CARD,border:`1px solid ${BD}`,borderRadius:10,boxShadow:SHD,padding:"10px 14px",fontSize:12}}><div style={{fontWeight:700,color:TEXT,marginBottom:6}}>{label}</div><div style={{color:TEXT}}>{d.qtd} contrato{d.qtd!==1?"s":""}</div><div style={{color:SIG,fontWeight:600,marginTop:3}}>{fmtR(d.vol)}</div></div>);}}/>
+                      <Bar dataKey="qtd" fill={SIG} radius={[4,4,0,0]}/>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div style={{background:CARD,borderRadius:16,padding:mob?"16px":"22px",border:`1px solid ${BD}`,boxShadow:SHD}}>
+                  <div style={{fontSize:13,fontWeight:700,color:TEXT,marginBottom:16}}>Base de Clientes</div>
+                  {[
+                    {l:"Clientes ativos",      v:clientesComContratoAtivo},
+                    {l:"Total cadastrado",     v:todosClientes.length},
+                    {l:"Com 2+ contratos",     v:clientesRecorrentes.length},
+                    {l:"Taxa de recorrência",  v:taxaRecorrencia.toFixed(1)+"%"},
+                  ].map((r,i)=>(
+                    <div key={r.l} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:i<3?`1px solid ${BD}`:"none"}}>
+                      <span style={{fontSize:12,color:MUTED}}>{r.l}</span>
+                      <span style={{fontSize:14,fontWeight:700,color:TEXT}}>{priv(String(r.v))}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* TOP 5 CLIENTES */}
+              <div style={{background:CARD,borderRadius:16,padding:mob?"16px":"22px",border:`1px solid ${BD}`,boxShadow:SHD}}>
+                <div style={{fontSize:13,fontWeight:700,color:TEXT,marginBottom:16}}>Top 5 clientes — volume histórico total</div>
+                {top5.length===0
+                  ? <div style={{fontSize:13,color:MUTED,padding:"20px 0",textAlign:"center"}}>Sem dados</div>
+                  : top5.map((c,i)=>(
+                    <div key={c.ID_CLIENTE} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 0",borderBottom:i<4?`1px solid ${BD}`:"none"}}>
+                      <div style={{width:28,height:28,borderRadius:"50%",background:i===0?ACC:GRN+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:i===0?"#07241B":GRN,flexShrink:0}}>{i+1}</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:TEXT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.NOME||c.NOME_CLIENTE||"—"}</div>
+                        <div style={{fontSize:11,color:MUTED}}>{c.qtd} contrato{c.qtd!==1?"s":""}</div>
+                      </div>
+                      <div style={{fontSize:14,fontWeight:700,color:GRN,flexShrink:0}}>{priv(fmtR(c.vol))}</div>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+            );
+          })()}
+
+          {tab==="regua"&&(()=>{
+            const hoje=new Date();hoje.setHours(0,0,0,0);
+            const parseMsgDt=s=>{if(!s)return null;const d=new Date(s);return isNaN(d)?null:d;};
+            const fmtMsgDt=s=>{const d=parseMsgDt(s);if(!d)return"—";return d.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).replace(",","");};
+            const categG=g=>{const s=String(g||"").toUpperCase();if(s==="CONFIRMACAO_PAGAMENTO")return{cat:"Confirmação",cor:GRN};if(s.startsWith("PROMESSA"))return{cat:"Promessa",cor:"#A855F7"};if(s==="D0")return{cat:"Vencimento",cor:YEL};if(s==="D-5"||s==="D-1")return{cat:"Pré-cobrança",cor:BLU};if(s.startsWith("D+"))return{cat:"Em atraso",cor:RED};return{cat:"Erro",cor:RED};};
+            const isErr=m=>String(m.STATUS_ENVIO||"").startsWith("ERRO");
+            const msgsOrd=[...mensagens].sort((a,b)=>{const da=parseMsgDt(a.DATA_ENVIO),db=parseMsgDt(b.DATA_ENVIO);return (db||0)-(da||0);});
+            const enviadas=msgsOrd.filter(m=>!isErr(m));
+            const erros=msgsOrd.filter(m=>isErr(m));
+            const hoje2=msgsOrd.filter(m=>{const d=parseMsgDt(m.DATA_ENVIO);if(!d)return false;const dd=new Date(d);dd.setHours(0,0,0,0);return dd.getTime()===hoje.getTime();});
+            const filtros=[{v:"todos",l:"Todos",c:GRN},{v:"precobranca",l:"Pré-cobrança",c:BLU},{v:"vencimento",l:"Vencimento",c:YEL},{v:"atraso",l:"Em atraso",c:RED},{v:"promessa",l:"Promessa",c:"#A855F7"},{v:"confirmacao",l:"Confirmação",c:GRN},{v:"erro",l:"Erros",c:RED}];
+            const msgsFilt=msgsOrd.filter(m=>{if(filtroRegua==="todos")return true;if(filtroRegua==="erro")return isErr(m);const cat=categG(m.GATILHO).cat;if(filtroRegua==="precobranca")return cat==="Pré-cobrança";if(filtroRegua==="vencimento")return cat==="Vencimento";if(filtroRegua==="atraso")return cat==="Em atraso";if(filtroRegua==="promessa")return cat==="Promessa";if(filtroRegua==="confirmacao")return cat==="Confirmação";return true;});
+            return(
+              <div className="flex flex-col gap-5" style={{animation:"fadeUp 400ms cubic-bezier(0.16,1,0.3,1) both"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",flexWrap:"wrap",gap:12}}>
+                  <div>
+                    <div style={{fontSize:mob?18:22,fontWeight:800,color:TEXT,letterSpacing:"-0.3px"}}>Régua de Cobrança WPP</div>
+                    <div style={{fontSize:11,color:MUTED,marginTop:4}}>Logs de envio automático via WhatsApp</div>
+                  </div>
+                  <button disabled={disparandoRegua} onClick={async()=>{if(!window.confirm("Disparar a régua agora? Mensagens WhatsApp reais serão enviadas."))return;setDisparandoRegua(true);try{const res=await postAction({action:"dispararReguaCobranca"});if(res?.ok){alert(`Régua concluída!\nEnviadas: ${res.enviados} | Erros: ${res.erros}`);carregar();}else if(res?.erro){alert("Erro GAS: "+res.erro);}}catch(e){alert("Régua disparada. Verifique os logs na tabela em 1–2 minutos.");carregar();}finally{setDisparandoRegua(false);}}} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 16px",borderRadius:10,border:`1px solid ${GRN}40`,background:disparandoRegua?CARD:GRN+"10",color:disparandoRegua?MUTED:GRN,cursor:disparandoRegua?"not-allowed":"pointer",fontSize:13,fontWeight:600,whiteSpace:"nowrap",opacity:disparandoRegua?0.7:1}}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    {disparandoRegua?"Enviando...":"Disparar Régua"}
+                  </button>
+                  <button onClick={()=>setModalTemplatesRegua(true)} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 16px",borderRadius:10,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontSize:13,fontWeight:600,whiteSpace:"nowrap"}}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                    Templates
+                  </button>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+                  {[
+                    {l:"Enviadas hoje",v:hoje2.filter(m=>!isErr(m)).length,c:GRN,sub:"mensagens"},
+                    {l:"Total enviadas",v:enviadas.length,c:BLU,sub:"histórico completo"},
+                    {l:"Erros",v:erros.length,c:erros.length>0?RED:GRN,sub:"falhas de envio"},
+                  ].map(k=>(
+                    <div key={k.l} style={{background:CARD,padding:18,borderRadius:16,border:`1px solid ${BD}`,boxShadow:SHD,position:"relative",overflow:"hidden"}}>
+                      <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:4}}>{k.l}</div>
+                      <div style={{fontSize:26,fontWeight:900,color:k.c}}>{k.v}</div>
+                      <div style={{fontSize:11,color:MUTED,marginTop:2}}>{k.sub}</div>
+                      <div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:k.c,borderRadius:"0 0 14px 14px",opacity:0.6}}/>
+                    </div>
+                  ))}
+                </div>
+                <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,overflow:"hidden",boxShadow:SHD}}>
+                  <div style={{padding:16,borderBottom:`1px solid ${BD}`,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                    {filtros.map(f=>(
+                      <button key={f.v} onClick={()=>setFiltroRegua(f.v)} style={{padding:"6px 12px",borderRadius:9,border:`1px solid ${filtroRegua===f.v?f.c+"40":BD}`,background:filtroRegua===f.v?f.c+"10":CARD,color:filtroRegua===f.v?f.c:MUTED,cursor:"pointer",fontSize:12,fontWeight:filtroRegua===f.v?700:500}}>
+                        {f.l}
+                      </button>
+                    ))}
+                    <span style={{marginLeft:"auto",fontSize:11,color:MUTED}}>{msgsFilt.length} registro{msgsFilt.length!==1?"s":""}</span>
+                  </div>
+                  {msgsFilt.length===0
+                    ?<div style={{padding:"40px 18px",textAlign:"center",color:MUTED,fontSize:13}}>Nenhum registro encontrado. A régua ainda não disparou ou não há logs para este filtro.</div>
+                    :<div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left",minWidth:560}}>
+                      <thead><tr style={{background:GRN+"10",fontSize:11,color:GRN,fontWeight:700,textTransform:"uppercase"}}>
+                        <th style={{padding:"10px 18px"}}>Tipo</th>
+                        <th>Cliente</th>
+                        <th>Contrato</th>
+                        <th>Status</th>
+                        <th style={{padding:"10px 18px"}}>Envio</th>
+                      </tr></thead>
+                      <tbody>{msgsFilt.slice(0,200).map((m,i)=>{
+                        const {cat,cor}=categG(m.GATILHO);
+                        const err=isErr(m);
+                        const stLbl=err?(m.STATUS_ENVIO==="ERRO_SEM_PIX"?"Sem PIX":"Erro envio"):"Enviada";
+                        const stCor=err?RED:GRN;
+                        const cli=cliMap.get(String(m.ID_CLIENTE||""));
+                        const nomeCli=cli?cli.NOME:String(m.ID_CLIENTE||"—");
+                        return(
+                          <tr key={m.ID_MENSAGEM||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:BG}}>
+                            <td style={{padding:"12px 18px"}}>
+                              <div style={{fontWeight:700,color:cor}}>{cat}</div>
+                              <div style={{fontSize:11,color:MUTED,marginTop:2}}>{String(m.GATILHO||"")}</div>
+                            </td>
+                            <td><div style={{fontWeight:600}}>{nomeCli}</div><div style={{fontSize:11,color:MUTED}}>ID {m.ID_CLIENTE}</div></td>
+                            <td style={{color:MUTED,fontWeight:600,fontSize:12}}>{m.ID_CONTRATO||"—"}{m.ID_PARCELA?<div style={{fontSize:10,color:MUTED}}>Parcela {m.ID_PARCELA}</div>:null}</td>
+                            <td><span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 10px",borderRadius:20,background:stCor+"15",color:stCor,fontSize:11,fontWeight:700,border:`1px solid ${stCor}30`}}>
+                              {!err&&<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>}
+                              {stLbl}
+                            </span></td>
+                            <td style={{padding:"12px 18px",color:MUTED,fontSize:12,whiteSpace:"nowrap"}}>{fmtMsgDt(m.DATA_ENVIO)}</td>
+                          </tr>
+                        );
+                      })}</tbody>
+                    </table></div>
+                  }
+                </div>
+              </div>
+            );
+          })()}
+
           {tab==="simulador"&&(
             <SimuladorContrato simInicial={simInicial} onClear={()=>setSimInicial(null)} onAbrirContrato={(dados)=>{setNovoContratoIni(dados);setDashNovoModal(true);}} clientes={clientes||[]} contratos={contratos||[]}/>
           )}
@@ -4788,15 +7945,60 @@ function App() {
       {/* ── MODAIS ── */}
       {novaPromessa&&<NovaPromessaModal contratos={contratos||[]} clientes={clientes||[]} onConfirmar={()=>{setNovaPromessa(false);carregar();}} onFechar={()=>setNovaPromessa(false)}/>}
       {selPagDetalhe&&<PagamentoDetalheModal pag={selPagDetalhe} parcelas={parcelas||[]} contratos={contratos||[]} clientes={clientes||[]} onFechar={()=>setSelPagDetalhe(null)} onReabrir={()=>{setSelPagDetalhe(null);carregar();}}/>}
-      {selCli&&<ClienteModal cliente={selCli} contratos={contratos||[]} parcelas={parcelas||[]} clientes={clientes||[]} abaInicial={selCliAba} onFechar={()=>{setSelCli(null);setSelCliAba("perfil");}} onAtualizar={()=>{setSelCli(null);setSelCliAba("perfil");carregar();}} onNovoContrato={(c)=>{setSelCli(null);setSelCliAba("perfil");setNovoContratoIni(c);setDashNovoModal(true);}} onVerContrato={(c)=>{setSelCli(null);setSelCliAba("perfil");setContratoSel(c);}} onSimular={(dados)=>{setSelCli(null);setSelCliAba("perfil");setSimInicial(dados);setTab("simulador");}}/>}
-      {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} parcelas={parcelas||[]} contratos={contratos||[]} clientes={clientes||[]} initialModo={pagModo} onConfirmar={async()=>{setPagamentoHoje(null);setPagModo("pagamento");await carregar();}} onFechar={()=>{setPagamentoHoje(null);setPagModo("pagamento");}}/>}
-      {dashRegModal&&<div className="modal-overlay-anim" style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.55)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setDashRegModal(false)}><div className="modal-box-anim" style={{width:"100%",maxWidth:420,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.35)",minWidth:0}} onClick={e=>e.stopPropagation()}><div style={{background:GRN,padding:"16px 20px",borderRadius:"16px 16px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10,color:"#fff"}}><div style={{background:"rgba(255,255,255,0.2)",padding:8,borderRadius:8,display:"flex"}}>{IcoPag}</div><span style={{fontWeight:800,fontSize:15}}>Registrar Pagamento</span></div><button className="modal-close-btn" onClick={()=>setDashRegModal(false)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div><div style={{padding:20}}><PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} clientes={clientes||[]} onSucesso={async()=>{setDashRegModal(false);await carregar();}} onSelecionarParcela={p=>{setDashRegModal(false);setPagamentoHoje(p);}}/></div></div></div>}
-      {dashNovoModal&&<div className="modal-overlay-anim" style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.55)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>{setDashNovoModal(false);setNovoContratoIni(null);}}><div className="modal-box-anim" style={{width:"100%",maxWidth:420,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.35)",minWidth:0}} onClick={e=>e.stopPropagation()}><div style={{background:GRN,padding:"16px 20px",borderRadius:"16px 16px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10,color:"#fff"}}><div style={{background:"rgba(255,255,255,0.2)",padding:8,borderRadius:8,display:"flex"}}>{IcoCtr}</div><span style={{fontWeight:800,fontSize:15}}>Novo Contrato</span></div><button className="modal-close-btn" onClick={()=>{setDashNovoModal(false);setNovoContratoIni(null);}} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div><div style={{padding:20}}><NovoContrato contratos={contratos||[]} clientes={clientes||[]} clienteInicial={novoContratoIni} onSucesso={()=>{setDashNovoModal(false);setNovoContratoIni(null);carregar(true);}}/></div></div></div>}
-      {perdaAcoesModal&&<PerdaAcoesModal contrato={perdaAcoesModal} parcelas={parcelas||[]} onBaixar={()=>{setBaixaModal(perdaAcoesModal);setPerdaAcoesModal(null);}} onAcordo={()=>{setAcordoModal(perdaAcoesModal);setPerdaAcoesModal(null);}} onRecuperar={()=>{setRecuperacaoModal(perdaAcoesModal);setPerdaAcoesModal(null);}} onFechar={()=>setPerdaAcoesModal(null)}/>}
-      {baixaModal&&<BaixaModal contrato={baixaModal} parcelas={parcelas||[]} onConfirmar={()=>{setBaixaModal(null);carregar();}} onFechar={()=>setBaixaModal(null)}/>}
-      {acordoModal&&<ModalAcordoPerda contrato={acordoModal} parcelas={parcelas||[]} onConfirmar={()=>{setAcordoModal(null);carregar();}} onFechar={()=>setAcordoModal(null)}/>}
-      {quitacaoModal&&<QuitacaoAntecipadaModal contrato={quitacaoModal} parcelas={parcelas||[]} onConfirmar={()=>{setQuitacaoModal(null);carregar();}} onFechar={()=>setQuitacaoModal(null)}/>}
+      {selCli&&<ClienteModal cliente={selCli} contratos={contratos||[]} parcelas={parcelas||[]} clientes={clientes||[]} abaInicial={selCliAba} onFechar={()=>{setSelCli(null);setSelCliAba("perfil");}} onAtualizar={()=>{setSelCli(null);setSelCliAba("perfil");}} onOptimisticUpdate={(campos,idCliente)=>{setRaw(prev=>{if(!prev)return prev;return{...prev,CLIENTES:(prev.CLIENTES||[]).map(c=>String(c.ID_CLIENTE)===String(idCliente)?{...c,...campos}:c)};});carregar();}} onNovoContrato={(c)=>{setSelCli(null);setSelCliAba("perfil");setNovoContratoIni(c);setDashNovoModal(true);}} onVerContrato={(c)=>{setSelCliAba("contratos");setContratoSel(c);}} onSimular={(dados)=>{setSelCli(null);setSelCliAba("perfil");setSimInicial(dados);setTab("simulador");}}/>}
+      {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} parcelas={parcelas||[]} contratos={contratos||[]} clientes={clientes||[]} initialModo={pagModo} onConfirmar={()=>{const p=pagamentoHoje;setPagamentoHoje(null);setPagModo("pagamento");if(p)setRaw(prev=>{if(!prev)return prev;return{...prev,PARCELAS:(prev.PARCELAS||[]).map(par=>String(par.ID_PARCELA)===String(p.ID_PARCELA)?{...par,STATUS:"pago"}:par)};});carregar();}} onFechar={()=>{setPagamentoHoje(null);setPagModo("pagamento");}}/>}
+      {dashRegModal&&<div className="modal-overlay-anim" style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.55)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setDashRegModal(false)}><div className="modal-box-anim" style={{width:"100%",maxWidth:420,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.35)",minWidth:0}} onClick={e=>e.stopPropagation()}><div style={{background:GRN,padding:"16px 20px",borderRadius:"16px 16px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10,color:"#fff"}}><div style={{background:"rgba(255,255,255,0.2)",padding:8,borderRadius:8,display:"flex"}}>{IcoPag}</div><span style={{fontWeight:800,fontSize:15}}>Registrar Pagamento</span></div><button className="modal-close-btn" onClick={()=>setDashRegModal(false)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div><div style={{padding:20}}><PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} clientes={clientes||[]} onSucesso={async()=>{setDashRegModal(false);await carregar();}} onSelecionarParcela={p=>{setDashRegModal(false);setPagamentoHoje(p);}}/></div></div></div>}
+      {dashNovoModal&&<div className="modal-overlay-anim" style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.55)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>{setDashNovoModal(false);setNovoContratoIni(null);}}><div className="modal-box-anim" style={{width:"100%",maxWidth:420,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.35)",minWidth:0}} onClick={e=>e.stopPropagation()}><div style={{background:GRN,padding:"16px 20px",borderRadius:"16px 16px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10,color:"#fff"}}><div style={{background:"rgba(255,255,255,0.2)",padding:8,borderRadius:8,display:"flex"}}>{IcoCtr}</div><span style={{fontWeight:800,fontSize:15}}>Novo Contrato</span></div><button className="modal-close-btn" onClick={()=>{setDashNovoModal(false);setNovoContratoIni(null);}} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div><div style={{padding:20}}><NovoContrato contratos={contratos||[]} clientes={clientes||[]} clienteInicial={novoContratoIni} onSucesso={()=>{setDashNovoModal(false);setNovoContratoIni(null);carregar(true);}}/></div></div></div>}
+      {modalTemplatesRegua&&<TemplatesReguaModal onFechar={()=>setModalTemplatesRegua(false)}/>}
+      {perdaAcoesModal&&<PerdaAcoesModal contrato={perdaAcoesModal} parcelas={parcelas||[]} clientes={clientes||[]} onEncerrar={()=>{setEncerramentoModal(perdaAcoesModal);setPerdaAcoesModal(null);}} onRecuperar={()=>{setRecuperacaoModal(perdaAcoesModal);setPerdaAcoesModal(null);}} onAcordoAssistido={()=>{setAcordoAssistModal(perdaAcoesModal);setPerdaAcoesModal(null);}} onAbatimento={()=>{setAbatimentoAssistModal(perdaAcoesModal);setPerdaAcoesModal(null);}} onSairAcordo={()=>{carregar();setPerdaAcoesModal(null);}} onFechar={()=>setPerdaAcoesModal(null)}/>}
+      {encerramentoModal&&<EncerrarContratoModal contrato={encerramentoModal} parcelas={parcelas||[]} onConfirmar={()=>{setEncerramentoModal(null);carregar();}} onFechar={()=>setEncerramentoModal(null)}/>}
+      {quitacaoModal&&<QuitacaoAntecipadaModal contrato={quitacaoModal} parcelas={parcelas||[]} clientes={clientes||[]} quitacoes={quitacoes||[]} onConfirmar={()=>{setQuitacaoModal(null);carregar();}} onVerContrato={(c)=>{setQuitacaoModal(null);setContratoSel(c);carregar();}} onFechar={()=>setQuitacaoModal(null)}/>}
       {recuperacaoModal&&<RecuperacaoModal contrato={recuperacaoModal} onConfirmar={()=>{setRecuperacaoModal(null);carregar();}} onFechar={()=>setRecuperacaoModal(null)}/>}
+      {acordoAssistModal&&<AcordoAssistidoModal contrato={acordoAssistModal} onConfirmar={()=>{setAcordoAssistModal(null);carregar();}} onFechar={()=>setAcordoAssistModal(null)}/>}
+      {abatimentoAssistModal&&<AbatimentoAssistidoModal contrato={abatimentoAssistModal} parcelas={parcelas||[]} onConfirmar={()=>{setAbatimentoAssistModal(null);carregar();}} onFechar={()=>setAbatimentoAssistModal(null)}/>}
+      {ajuizarModal&&<AjuizarModal contrato={ajuizarModal} onSucesso={()=>carregar()} onFechar={()=>setAjuizarModal(null)}/>}
+      {acordoJudicialModal&&<AcordoJudicialModal contrato={acordoJudicialModal} onSucesso={()=>carregar()} onFechar={()=>setAcordoJudicialModal(null)}/>}
+      {quitacaoJudicialModal&&<QuitacaoJudicialModal contrato={quitacaoJudicialModal} onSucesso={()=>carregar()} onFechar={()=>setQuitacaoJudicialModal(null)}/>}
+      {arquivarProcessoModal&&<ArquivarProcessoModal contrato={arquivarProcessoModal} onSucesso={()=>carregar()} onFechar={()=>setArquivarProcessoModal(null)}/>}
+      {renegociacaoModal&&<RenegociacaoModal contrato={renegociacaoModal} parcelas={parcelas||[]} clientes={clientes||[]} onConfirmar={()=>{setRenegociacaoModal(null);carregar();}} onFechar={()=>setRenegociacaoModal(null)}/>}
+
+      {/* ── DRAWER DETALHE DE CAPITAL (CARTEIRA) ── */}
+      {carteiraDetalheModal&&(
+        <div style={{position:"fixed",inset:0,zIndex:380,background:"rgba(0,0,0,0.35)"}} onClick={()=>setCarteiraDetalheModal(null)}>
+          <div onClick={e=>e.stopPropagation()} style={{position:"absolute",right:0,top:0,bottom:0,width:mob?"100%":460,background:CARD,boxShadow:"-8px 0 40px rgba(0,0,0,0.18)",display:"flex",flexDirection:"column",animation:"slideInRight 0.22s cubic-bezier(0.16,1,0.3,1)"}}>
+            <div style={{padding:"20px 24px",borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexShrink:0}}>
+              <div>
+                <div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>{carteiraDetalheModal.label}</div>
+                <div style={{fontSize:24,fontWeight:800,color:carteiraDetalheModal.cor,letterSpacing:"-0.5px"}}>{fmtR(carteiraDetalheModal.items.reduce((s,i)=>s+i.valor,0))}</div>
+                <div style={{fontSize:11,color:MUTED,marginTop:3}}>{carteiraDetalheModal.items.length} contrato{carteiraDetalheModal.items.length!==1?"s":""} · clique para abrir</div>
+              </div>
+              <button onClick={()=>setCarteiraDetalheModal(null)} style={{background:"none",border:"none",cursor:"pointer",color:MUTED,fontSize:18,lineHeight:1,padding:4,borderRadius:6,marginTop:-2}}>✕</button>
+            </div>
+            <div style={{flex:1,overflowY:"auto"}}>
+              {carteiraDetalheModal.items.length===0&&(
+                <div style={{padding:40,textAlign:"center",color:MUTED,fontSize:13}}>Nenhum contrato encontrado.</div>
+              )}
+              {carteiraDetalheModal.items.map((item,i)=>{
+                const c=item.contrato;
+                const cor=carteiraDetalheModal.cor;
+                return(
+                  <div key={c.ID_CONTRATO||i} onClick={()=>{setCarteiraDetalheModal(null);setContratoSel(c);}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 24px",borderBottom:`1px solid ${BD}`,cursor:"pointer",transition:"background 100ms"}} onMouseEnter={e=>e.currentTarget.style.background=BG+"80"} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:13,color:TEXT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.NOME_CLIENTE}</div>
+                      <div style={{fontSize:11,color:MUTED,marginTop:2,display:"flex",alignItems:"center",gap:6}}>
+                        <span>{c.ID_CONTRATO}</span>
+                        <span style={{width:3,height:3,borderRadius:"50%",background:MUTED,display:"inline-block"}}/>
+                        <span style={{color:STATUS_COR[c.STATUS_CONTRATO]||MUTED,fontWeight:600}}>{STATUS_LABEL[c.STATUS_CONTRATO]||c.STATUS_CONTRATO}</span>
+                      </div>
+                    </div>
+                    <div style={{fontWeight:800,fontSize:14,color:cor,marginLeft:16,flexShrink:0}}>{fmtR(item.valor)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── MODAL CONTRATO ── */}
       {contratoSel&&(
@@ -4805,21 +8007,42 @@ function App() {
           parcelas={parcelas||[]}
           pagamentos={pagamentos||[]}
           clientes={clientes||[]}
+          eventos={eventos||[]}
           onRegistrarPagamento={p=>{setContratoSel(null);setPagamentoHoje(p);setPagModo("pagamento");}}
           onReagendar={p=>{setContratoSel(null);setPagamentoHoje(p);setPagModo("reagendar");}}
-          onBaixar={c=>{setContratoSel(null);setBaixaModal(c);}}
+          onBaixar={c=>{setContratoSel(null);setEncerramentoModal(c);}}
           onQuitacaoAntecipada={c=>{setContratoSel(null);setQuitacaoModal(c);}}
           onAlterarVencimento={()=>carregar(true)}
+          onExcluir={()=>{const idC=String(contratoSel?.ID_CONTRATO||"");setContratoSel(null);if(idC)setRaw(prev=>{if(!prev)return prev;return{...prev,CONTRATOS:(prev.CONTRATOS||[]).filter(c=>String(c.ID_CONTRATO)!==idC),PARCELAS:(prev.PARCELAS||[]).filter(p=>String(p.ID_CONTRATO)!==idC)};});carregar();}}
+          onAcordoAssistido={c=>{setContratoSel(null);setAcordoAssistModal(c);}}
+          onAbatimento={c=>{setContratoSel(null);setAbatimentoAssistModal(c);}}
+          onAjuizar={c=>{setContratoSel(null);setAjuizarModal(c);}}
+          onRenegociar={c=>{setContratoSel(null);setRenegociacaoModal(c);}}
+          onRecuperar={c=>{setContratoSel(null);setRecuperacaoModal(c);}}
+          onAcordoJudicial={c=>{setContratoSel(null);setAcordoJudicialModal(c);}}
+          onQuitacaoJudicial={c=>{setContratoSel(null);setQuitacaoJudicialModal(c);}}
+          onArquivarProcesso={c=>{setContratoSel(null);setArquivarProcessoModal(c);}}
+          onVoltarCliente={selCli?()=>setContratoSel(null):undefined}
           onComprovante={(c,ps,cli)=>{
-            const _pagas=[...ps].filter(p=>["pago","quitacao_antecipada"].includes(statusEfetivo(p))).sort((a,b)=>parseInt(b.NUM_PARCELA||0)-parseInt(a.NUM_PARCELA||0));
-            const _ult=_pagas[0];
             const _cliObj=(clientes||[]).find(cl=>String(cl.ID_CLIENTE)===String(c.ID_CLIENTE));
             const _tel=normTel(_cliObj?.TELEFONE_WPP||_cliObj?.TELEFONE||"");
+            const _allTerminal=ps.length>0&&ps.every(p=>_ST_TERMINAL.has(String(p.STATUS||"").toLowerCase()));
+            const _needsQuitacao=_allTerminal&&(c.STATUS_CONTRATO==="renegociado"||ps.some(p=>["pago","quitacao_antecipada"].includes(String(p.STATUS||"").toLowerCase())));
+            if(_needsQuitacao){
+              const _pagsCont=(pagamentos||[]).filter(p=>String(p.ID_CONTRATO)===String(c.ID_CONTRATO)&&p.TIPO_PAGAMENTO!=="abatimento_acordo_assistido");
+              const _totalPagPags=_pagsCont.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+              const _ultPagDate=_pagsCont.reduce((latest,p)=>{const d=parseDate(p.DATA_PAGAMENTO);return d&&(!latest||d>latest)?d:latest;},null);
+              gerarComprovante(c,ps,_cliObj,_totalPagPags,_ultPagDate);
+              if(_tel)setTimeout(()=>window.open(`https://wa.me/55${_tel}`,"_blank"),700);
+              return;
+            }
+            const _pagas=[...ps].filter(p=>["pago","quitacao_antecipada"].includes(statusEfetivo(p))).sort((a,b)=>parseInt(b.NUM_PARCELA||0)-parseInt(a.NUM_PARCELA||0));
+            const _ult=_pagas[0];
             if(_ult){
               const _tLbl={pagamento_normal:"Normal",normal:"Normal",pagamento_com_atraso:"Com Atraso",com_atraso:"Com Atraso",somente_juros:"Somente Juros",quitacao_antecipada:"Quitação Antecipada",pagamento_antecipado:"Antecipado",antecipado:"Antecipado"}[_ult.TIPO_PAGAMENTO]||"Pagamento";
               gerarEEnviarComprovante(_ult,parseFloat(_ult.VALOR_PAGO||0),_ult.DATA_PAGAMENTO,_tLbl,parcelas,contratos,clientes,{wpp:true});
             }else{
-              gerarComprovante(c,ps,cli);
+              gerarComprovante(c,ps,_cliObj);
               if(_tel) setTimeout(()=>window.open(`https://wa.me/55${_tel}`,"_blank"),700);
             }
           }}
@@ -4843,6 +8066,8 @@ function App() {
 
       {/* BOTTOM NAV — apenas mobile */}
       {mob&&<BottomNav tab={tab} setTab={t=>{setTab(t);setSidebarOpen(false);}}/>}
+
+      {undoAtivo && <UndoToast undo={undoAtivo} onDismiss={()=>setUndoAtivo(null)} onReverter={handleReverterUndo} />}
     </div>
   );
 }

@@ -1,15 +1,35 @@
 import { getEfiToken, efiRequest } from "./efi-auth.js";
 
-// Penalidades cobradas pela Efí Bank após o vencimento.
-// Configurar via Vercel env vars para mudar sem deploy.
-// Sincronizar com aba CONFIGURACOES quando ela for adicionada ao doGet.
-const EFI_MULTA_PCT    = process.env.EFI_MULTA_PCT    || "10.00"; // % multa por atraso
-const EFI_JUROS_DIARIO = process.env.EFI_JUROS_DIARIO || "0.03";  // % juros por dia pós-vencimento
+const EFI_MULTA_PCT    = process.env.EFI_MULTA_PCT    || "2.00";
+const EFI_JUROS_DIARIO = process.env.EFI_JUROS_DIARIO || "0.03";
 
-// txid format: "FOP" + contractNum padded 16 + "P" + parcelaNum padded 6 = 26 chars
-function buildTxid(idContrato, numParcela) {
+// Statuses that mean a cobv is permanently closed — cannot be reused
+const EFI_TERMINAL = new Set(["CONCLUIDA", "REMOVIDA_PELO_USUARIO_RECEBEDOR", "REMOVIDA_PELO_PSP"]);
+
+// Normal: "FOP"  + contractNum padded 16 + "P" + parcelaNum padded 6 = 26 chars
+// SJ:     "FOPSJ" + contractNum padded 14 + "P" + parcelaNum padded 6 = 26 chars
+function buildTxid(idContrato, numParcela, isSJ) {
   const num = parseInt(String(idContrato).replace(/\D/g, "")) || 0;
+  if (isSJ) {
+    return "FOPSJ" + String(num).padStart(14, "0") + "P" + String(numParcela).padStart(6, "0");
+  }
   return "FOP" + String(num).padStart(16, "0") + "P" + String(numParcela).padStart(6, "0");
+}
+
+// Tenta criar ou atualizar cobv. Retorna { txid, pixCopiaECola, location } ou null se terminal.
+async function upsertCobv(txid, payload, token) {
+  const r = await efiRequest("PUT", `/v2/cobv/${txid}`, payload, token);
+  if (r.status === 201 || r.status === 200) {
+    return { txid, pixCopiaECola: r.data.pixCopiaECola || null, location: r.data.location || null };
+  }
+  // PUT falhou — consulta status atual da cobv
+  const get = await efiRequest("GET", `/v2/cobv/${txid}`, null, token);
+  if (get.status === 200) {
+    if (EFI_TERMINAL.has(get.data.status)) return null; // cobv paga/removida — precisa de novo TXID
+    // ATIVA ou outro estado recuperável
+    return { txid, pixCopiaECola: get.data.pixCopiaECola || null, location: get.data.location || null };
+  }
+  return null;
 }
 
 export default async function handler(req, res) {
@@ -19,7 +39,7 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ erro: "Metodo nao permitido" });
 
-  const { idContrato, parcelas, cliente } = req.body;
+  const { idContrato, parcelas, cliente, isSJ } = req.body;
   if (!idContrato || !parcelas?.length || !cliente) {
     return res.status(400).json({ erro: "Dados incompletos" });
   }
@@ -30,33 +50,48 @@ export default async function handler(req, res) {
 
     const results = await Promise.all(
       parcelas.map(async (p) => {
-        const txid = buildTxid(idContrato, p.numParcela);
+        const txidBase = buildTxid(idContrato, p.numParcela, isSJ);
         const dt = new Date(p.dataVencimento);
-        const dataVenc = dt.toISOString().split("T")[0];
+        const dataVencRaw = dt.toISOString().split("T")[0];
+        const nowBR = new Date(Date.now() - 3 * 60 * 60 * 1000);
+        const todayBR = nowBR.toISOString().slice(0, 10);
+        const dataVenc = dataVencRaw < todayBR ? todayBR : dataVencRaw;
 
         const payload = {
-          calendario: { dataDeVencimento: dataVenc, validadeAposVencimento: 30 },
+          calendario: { dataDeVencimento: dataVenc, validadeAposVencimento: isSJ ? 7 : 30 },
           ...(cpf.length === 11 ? { devedor: { cpf, nome: String(cliente.nome || "") } } : {}),
           valor: {
             original: parseFloat(p.valorParcela).toFixed(2),
-            multa: { modalidade: 2, valorPerc: EFI_MULTA_PCT },
-            juros: { modalidade: 2, valorPerc: EFI_JUROS_DIARIO },
+            ...(isSJ ? {} : {
+              multa: { modalidade: 2, valorPerc: EFI_MULTA_PCT },
+              juros: { modalidade: 2, valorPerc: EFI_JUROS_DIARIO },
+            }),
           },
           chave: process.env.EFI_PIX_KEY,
-          solicitacaoPagador: `Parcela ${p.numParcela} de ${p.totalParcelas} - ${idContrato}`,
+          solicitacaoPagador: isSJ
+            ? `Somente Juros - Parcela ${p.numParcela} de ${p.totalParcelas} - ${idContrato}`
+            : `Parcela ${p.numParcela} de ${p.totalParcelas} - ${idContrato}`,
         };
 
-        const r = await efiRequest("PUT", `/v2/cobv/${txid}`, payload, token);
-        const ok = r.status === 201 || r.status === 200;
+        // Tenta TXID base → R1 → R2 até encontrar um slot disponível
+        let result = await upsertCobv(txidBase, payload, token);
+        if (!result) result = await upsertCobv(txidBase + "R1", payload, token);
+        if (!result) result = await upsertCobv(txidBase + "R2", payload, token);
+
+        if (result) {
+          return {
+            numParcela: p.numParcela, idParcela: p.idParcela,
+            txid: result.txid, ok: true,
+            pixCopiaECola: result.pixCopiaECola,
+            location: result.location, erro: null,
+          };
+        }
 
         return {
-          numParcela: p.numParcela,
-          idParcela: p.idParcela,
-          txid,
-          ok,
-          pixCopiaECola: r.data.pixCopiaECola || null,
-          location: r.data.location || null,
-          erro: !ok ? JSON.stringify(r.data) : null,
+          numParcela: p.numParcela, idParcela: p.idParcela,
+          txid: txidBase, ok: false,
+          pixCopiaECola: null, location: null,
+          erro: "cobv_concluida_sem_alternativa",
         };
       })
     );
