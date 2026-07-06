@@ -177,7 +177,7 @@ Autenticação: cookie `fp_session` = HMAC-SHA256 da senha. Sessão dura 30 dias
 |---|---|
 | Dashboard | KPIs financeiros, gráfico mensal, lista de atrasos, promessas, card de Acordo Assistido |
 | Clientes | Lista completa + ClienteModal (perfil, edição com PERFIL_COBRANCA, contratos, histórico) |
-| Contratos | Lista de contratos + ContratoModal (parcelas, timeline, ações incluindo Acordo Assistido e Recuperação Judicial) |
+| Contratos | Lista de contratos + ContratoModal (parcelas com dias de atraso por linha, timeline com dias de atraso por pagamento, ações incluindo Acordo Assistido e Recuperação Judicial) |
 | Cobrança | Fila de parcelas vencidas (exclui acordo_assistido, em_processo_judicial e status terminais) |
 | Financeiro | KPIs do período + tabela de pagamentos (inclui Capital Recuperado Assistido) + PDF |
 | Perdas & Recuperação | Contratos baixados, acordos, recuperações, Acordo Assistido e Recuperação Judicial (KPIs de valor executado/recuperado/índice de recuperação) |

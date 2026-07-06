@@ -683,7 +683,7 @@ _gerarEEnviarCertificado(idContrato, idCliente, nomeCliente, datPagamento)  // g
 |---|---|
 | Dashboard | KPIs, Em Atraso, últimos pagamentos |
 | Clientes | Lista + ClienteModal (perfil/editar/contratos/todos os dados) |
-| Contratos | Lista + ContratoModal (parcelas/pagamentos) |
+| Contratos | Lista + ContratoModal (parcelas com dias de atraso/pagamentos) |
 | Cobrança | Parcelas vencidas agrupadas por cliente |
 | Financeiro | Histórico de pagamentos filtrado por período |
 | Carteira | Carteira de crédito: KPIs, distribuição por faixa de atraso, PDD Gerencial v1.0, Resultado Ajustado ao Risco |

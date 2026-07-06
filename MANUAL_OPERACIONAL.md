@@ -318,7 +318,7 @@ Uma linha por parcela de cada contrato.
 | DATA_ACORDO | Data do acordo/promessa (quando reagendada) |
 | VALOR_RECEBIDO | Valor líquido recebido |
 | DESCONTO_APLICADO | Desconto concedido nos juros |
-| DIAS_ATRASO | Dias de atraso no pagamento |
+| DIAS_ATRASO | Dias de atraso no pagamento (gravado pelo backend em `registrarPagamentoAPI` no momento do pagamento). Exibido no `ContratoModal` (aba Parcelas e Linha do Tempo); para parcela ainda pendente e vencida, a UI calcula o valor ao vivo (hoje − vencimento) em vez de ler este campo, já que ele só existe após o pagamento |
 | DIAS_ANTECIPACAO | Dias de antecipação |
 | OBSERVACOES | Texto livre |
 | PIX_TXID | ID da cobrança na Efí Bank |
@@ -908,7 +908,7 @@ Sistema web acessado via navegador (Vercel). Autenticação por senha com sessã
 |---|---|
 | **Dashboard** | KPIs financeiros (capital emprestado, recebido, a receber, em atraso), gráfico mensal, lista de atrasos, promessas pendentes, card de Acordo Assistido |
 | **Clientes** | Lista completa de clientes com busca, filtros e score. ClienteModal: perfil completo, edição (inclui PERFIL_COBRANCA), lista de contratos, histórico |
-| **Contratos** | Lista de contratos com filtros por status. ContratoModal: tabela de parcelas, timeline, ações (pagamento, quitação, acordo assistido, abatimento, retornar, baixar) |
+| **Contratos** | Lista de contratos com filtros por status. ContratoModal: tabela de parcelas (com dias de atraso por parcela), timeline (com dias de atraso por pagamento em atraso), ações (pagamento, quitação, acordo assistido, abatimento, retornar, baixar) |
 | **Cobrança** | Fila de parcelas vencidas agrupadas por cliente (exclui acordo_assistido e status terminais) |
 | **Financeiro** | KPIs do período + tabela de pagamentos (inclui linha Capital Recuperado Assistido quando houver) + exportação PDF |
 | **Perdas & Recuperação** | Contratos baixados, acordos, recuperações, Acordo Assistido. Filtro inclui `acordo_assistido` |
