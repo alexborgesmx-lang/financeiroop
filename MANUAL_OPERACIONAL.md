@@ -715,6 +715,22 @@ Soma de VALOR_JUROS das parcelas abertas — indica o lucro potencial se o clien
 **Expiração automática (180 dias):**
 - Se o contrato ficar 180+ dias sem nenhum abatimento (ou desde a data de entrada, se nunca houve abatimento), o trigger das 7h move automaticamente para `pre_prejuizo` e registra evento `ACORDO_ASSISTIDO_EXPIRADO`.
 
+### 5.9 Renegociação Estrutural (Renegociar Contrato)
+
+Diferente do Acordo com Perda (5.6, que encerra o contrato), a Renegociação **mantém o contrato ativo** com um carnê novo — usada quando o cliente não consegue mais pagar o valor original mas quer continuar pagando parcelado.
+
+**Ação:** Alex clica em "Renegociar contrato" no ContratoModal (`podeRenegociar`: contrato com parcelas em aberto e status `ativo_em_atraso`, `em_cobranca`, `pre_prejuizo` ou `acordo_assistido`).
+
+**GAS (`renegociarContrato`):**
+1. Fecha as parcelas em aberto do contrato como `renegociado` (status terminal de parcela — histórico preservado, nunca apagado).
+2. Cria novas parcelas continuando a numeração existente (`ORIGEM_PARCELA = "renegociada"`), com valor/quantidade/1º vencimento definidos por Alex. Total renegociado nunca pode ficar abaixo do capital ainda em aberto; desconto só é permitido nos juros, nunca no principal.
+3. `STATUS_CONTRATO` volta para `ativo_em_dia` e `DATA_RENEGOCIACAO` é gravada.
+4. Score é recalculado (penalização por renegociação ativa).
+
+**Limite:** no máximo 1 renegociação por contrato — bloqueada se já existir qualquer parcela com `ORIGEM_PARCELA = "renegociada"` (`jaRenegociado` no frontend, validação equivalente no GAS).
+
+**Reincidência (2026-07-05):** como o contrato volta para `ativo_em_dia`, se o cliente não pagar a nova parcela ele reentra no ciclo normal de atraso (`ativo_em_atraso`). Como essa já é uma 2ª chance não cumprida, a opção "Ajuizar contrato" fica disponível assim que o contrato renegociado volta a `ativo_em_atraso`, sem esperar os 30 dias que um contrato de 1ª vez levaria até virar `em_cobranca`. Ver `docs/ai-memory/02-AI-CREDIT-RULES.md` (seção Renegociação).
+
 ---
 
 ## 6. Inadimplência e Cobrança

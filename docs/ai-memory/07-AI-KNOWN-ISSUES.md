@@ -604,6 +604,24 @@ Aberto
 
 ---
 
+## 2026-07-05 — Ajuizar sumia após renegociação quando cliente voltava a atrasar
+
+### Problema
+`podeAjuizar` no `ContratoModal` (`src/main.jsx`) só liberava o botão "Ajuizar contrato" para `STATUS_CONTRATO` em `em_cobranca`/`pre_prejuizo`/`baixado_como_prejuizo`. Um contrato renegociado (`renegociarContrato`) volta para `ativo_em_dia`, e se o cliente não pagasse a nova parcela ele reentrava no ciclo normal de atraso (`ativo_em_atraso`) — mesmo tratamento de um atraso de 1ª vez, exigindo esperar 30 dias até virar `em_cobranca` para poder ajuizar de novo.
+
+### Impacto
+Reincidência pós-renegociação (situação já agravada — 2ª chance dada e não cumprida) ficava presa no fluxo de cobrança comum por até 30 dias sem opção de ajuizamento, mesmo sendo o cenário onde a ação judicial é mais indicada.
+
+### Solução
+`podeAjuizar` passou a considerar também `jaRenegociado (parcela com ORIGEM_PARCELA="renegociada") && STATUS_CONTRATO==="ativo_em_atraso"`. Só mudança de visibilidade de botão no frontend — `ajuizarContrato` no GAS nunca validou status, então nenhuma alteração de backend foi necessária. Ver regra em `02-AI-CREDIT-RULES.md` (seção Renegociação) e `MANUAL_OPERACIONAL.md` (5.9).
+
+**Limitação conhecida:** cobre só reincidência pós-**renegociação estrutural**. Reincidência pós-**Acordo Assistido** (cliente sai do acordo via `sairDoAcordoAssistido` e atrasa de novo) não é detectada por essa regra — `sairDoAcordoAssistido` limpa `DATA_ENTRADA_ACORDO_ASSISTIDO` e não existe hoje nenhum campo persistente equivalente ao `ORIGEM_PARCELA="renegociada"` para marcar "já passou por Acordo Assistido antes". Se for necessário no futuro, precisa de um sinal novo (ex: flag em CONTRATOS ou evento em EVENTOS consultado no frontend).
+
+### Status
+Resolvido (2026-07-05) para o caso de renegociação — caso de Acordo Assistido em aberto.
+
+---
+
 ## Débitos Técnicos
 
 - `src/main.jsx` com ~6000+ linhas — candidato a modularização futura (Fase 3).

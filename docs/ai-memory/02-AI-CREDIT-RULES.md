@@ -60,6 +60,8 @@ Toda renegociação deve:
 
 Nenhuma renegociação pode apagar dados históricos.
 
+**Ajuizamento imediato em reincidência (2026-07-05):** um contrato que já foi renegociado (`ORIGEM_PARCELA = "renegociada"` em alguma parcela) e volta a atrasar (`STATUS_CONTRATO = "ativo_em_atraso"`) libera a opção "Ajuizar contrato" imediatamente — não espera os 30 dias do ciclo normal (`em_cobranca`). Racional: reincidência pós-renegociação já é uma situação agravada (2ª chance dada e não cumprida), não deve seguir o mesmo tratamento de um atraso comum de 1ª vez. Implementado só na visibilidade do botão (`podeAjuizar` em `ContratoModal`, `src/main.jsx`) — a action `ajuizarContrato` no GAS nunca validou status, então nenhuma mudança de backend foi necessária. Cobre hoje somente a reincidência pós-**renegociação estrutural** (Renegociar Contrato); reincidência pós-**Acordo Assistido** não está coberta por essa regra — ver limitação em `07-AI-KNOWN-ISSUES.md`.
+
 ---
 
 ## Recuperação
