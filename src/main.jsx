@@ -3572,8 +3572,9 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
   const podeArquivarProcesso = isJudicial;
   const podeAcordoAssistido = ["ativo_em_atraso","em_cobranca","pre_prejuizo"].includes(contrato.STATUS_CONTRATO);
   const jaRenegociado = ps.some(p=>String(p.ORIGEM_PARCELA||"").toLowerCase()==="renegociada");
+  const jaTeveAcordoAssistido = (eventos||[]).some(e=>String(e.ID_CONTRATO||"").trim()===String(contrato.ID_CONTRATO).trim() && String(e.TIPO_EVENTO||"")==="ACORDO_ASSISTIDO_ENTRADA");
   const podeAjuizar = ["em_cobranca","pre_prejuizo","baixado_como_prejuizo"].includes(contrato.STATUS_CONTRATO)
-    || (jaRenegociado && contrato.STATUS_CONTRATO==="ativo_em_atraso");
+    || ((jaRenegociado || jaTeveAcordoAssistido) && contrato.STATUS_CONTRATO==="ativo_em_atraso");
   const stLoss = ["baixado_como_prejuizo","em_recuperacao","recuperado_parcialmente","recuperado_integralmente","encerrado_sem_recuperacao","em_processo_judicial","encerrado_judicialmente"].includes(contrato.STATUS_CONTRATO);
   const saldoDevedor = stLoss
     ? parseFloat(contrato.PREJUIZO_CAPITAL||0)
