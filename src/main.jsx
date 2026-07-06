@@ -3700,12 +3700,14 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
       detalhe:`Nova data: ${fmtDt(parseDate(p.DATA_ACORDO))}`,
       cor:ORG
     }));
+    const diasAtrasoPorParcela = new Map(ps.map(p=>[String(p.ID_PARCELA),parseInt(p.DIAS_ATRASO||0)]));
     pags.forEach(p=>{
       const extra=parseFloat(p.RECEITA_EXTRA_ATRASO||p.DIFERENCA_RECEBIDA||0)+parseFloat(p.FEE_PRORROGACAO||0);
+      const diasAtraso=diasAtrasoPorParcela.get(String(p.ID_PARCELA))||0;
       ev.push({
         data:parseDate(p.DATA_PAGAMENTO),tipo:"pagamento",
         titulo:tipoPagLabel[p.TIPO_PAGAMENTO]||"Pagamento",
-        detalhe:fmtR(p.VALOR_PAGO)+(extra>0?` +${fmtR(extra)} extra`:""),
+        detalhe:fmtR(p.VALOR_PAGO)+(extra>0?` +${fmtR(extra)} extra`:"")+(diasAtraso>0?` • ${diasAtraso}d de atraso`:""),
         cor:tipoPagCor[p.TIPO_PAGAMENTO]||GRN
       });
     });
@@ -3984,13 +3986,17 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
                     const sitCor=isSubstituida?MUTED:(stCor[st]||MUTED);
                     const sitLbl=isSubstituida?"Substituída":(stLabel[st]||_ST_LABEL[st]||st);
                     const ativa=!_ST_TERMINAL.has(st);
+                    const diasAtraso=st==="atrasado"
+                      ?Math.max(1,Math.round((new Date()-parseDate(p.DATA_VENCIMENTO))/86400000))
+                      :(foiPago&&parseInt(p.DIAS_ATRASO||0)>0?parseInt(p.DIAS_ATRASO):0);
+                    const diasAtrasoCor=st==="atrasado"?RED:YEL;
                     return(
                       <tr key={p.ID_PARCELA||i} style={{borderBottom:`1px solid ${BD}`,fontSize:12,background:i%2===0?CARD:BG,opacity:isSubstituida?0.5:1}}>
                         <td style={{padding:"9px 14px",color:MUTED,fontWeight:600}}>{p.NUM_PARCELA}{isUltima(p,ps)&&<span style={{fontSize:8,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 4px",borderRadius:99,marginLeft:4}}>ult.</span>}</td>
                         <td style={{fontWeight:600,color:isSubstituida?MUTED:TEXT,fontSize:11}}>
                           {p.DATA_ACORDO?<span style={{color:ORG}}>{fmtDt(p.DATA_ACORDO)}<span style={{fontSize:8,fontWeight:800,background:ORG+"18",padding:"1px 4px",borderRadius:99,marginLeft:3}}>acordo</span></span>:fmtDt(p.DATA_VENCIMENTO)}
                         </td>
-                        <td><Badge c={sitCor}>{sitLbl}</Badge>{isNovaParcela&&<span style={{fontSize:9,color:PUR,background:PUR+"18",padding:"1px 5px",borderRadius:99,fontWeight:800,marginLeft:4}}>↺ nova</span>}</td>
+                        <td><Badge c={sitCor}>{sitLbl}</Badge>{isNovaParcela&&<span style={{fontSize:9,color:PUR,background:PUR+"18",padding:"1px 5px",borderRadius:99,fontWeight:800,marginLeft:4}}>↺ nova</span>}{diasAtraso>0&&<div style={{fontSize:9,color:diasAtrasoCor,fontWeight:700,marginTop:2}}>{diasAtraso}d atraso</div>}</td>
                         <td style={{textAlign:"right",padding:"9px 14px",fontWeight:700,color:isSubstituida?MUTED:(foiPago?GRN:TEXT),textDecoration:isSubstituida?"line-through":"none"}}>{foiPago&&!isSubstituida?fmtR(p.VALOR_PAGO):fmtR(p.VALOR_PARCELA)}</td>
                         <td style={{padding:"6px 8px"}}>
                           {ativa&&<div style={{display:"flex",gap:3}}>
