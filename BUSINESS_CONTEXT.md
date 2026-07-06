@@ -84,6 +84,9 @@ Para clientes que perderam renda temporariamente mas mantêm boa comunicação:
 - Alex pode retornar o contrato à cobrança normal ou baixar como prejuízo
 - Se 180 dias sem nenhum abatimento: sistema move automaticamente para `pre_prejuizo`
 
+### 2.8 Ajuizamento em reincidência (2026-07-05/06)
+Um contrato que já foi renegociado ou já passou por Acordo Assistido e volta a atrasar (`ativo_em_atraso`) libera a opção "Ajuizar contrato" imediatamente — sem esperar os 30 dias normais até `em_cobranca`. Reincidência pós-renegociação/acordo já é uma 2ª chance não cumprida, tratada como situação agravada.
+
 ---
 
 ## 3. Stack tecnológico

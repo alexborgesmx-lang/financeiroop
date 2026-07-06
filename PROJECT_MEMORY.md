@@ -242,6 +242,13 @@ Atualização automática às 7h pelo trigger do GAS.
 - **Motivo:** Regra de negócio explícita do usuário — cliente que já foi ajuizado nunca mais pode contratar, independente do desfecho.
 - **Status:** Implementado
 
+### 2026-07-05/06 — Ajuizamento imediato em reincidência pós-renegociação/Acordo Assistido
+
+- **Decisão:** `podeAjuizar` (`ContratoModal`, `src/main.jsx`) passou a liberar "Ajuizar contrato" também quando `STATUS_CONTRATO === "ativo_em_atraso"` **e** o contrato já foi renegociado (`ORIGEM_PARCELA="renegociada"` em alguma parcela) **ou** já passou por Acordo Assistido (evento `ACORDO_ASSISTIDO_ENTRADA` em EVENTOS) — sem esperar os 30 dias normais até `em_cobranca`.
+- **Motivo:** Antes, um contrato renegociado ou que saiu de Acordo Assistido e voltava a atrasar era tratado como um atraso comum de 1ª vez. Isso já é uma 2ª chance dada e não cumprida — situação mais grave, que deveria permitir ação judicial mais cedo.
+- **Detalhe técnico:** só mudança de visibilidade de botão no frontend — `ajuizarContrato` no GAS nunca validou status. A detecção do Acordo Assistido usa EVENTOS (não campos em CONTRATOS) porque `sairDoAcordoAssistido` apaga `DATA_ENTRADA_ACORDO_ASSISTIDO`/`MOTIVO_ACORDO_ASSISTIDO`/`OBSERVACAO_ACORDO_ASSISTIDO` ao retornar à cobrança normal.
+- **Status:** Implementado
+
 ---
 
 ## HISTÓRICO DE EVOLUÇÃO

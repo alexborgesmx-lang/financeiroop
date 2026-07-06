@@ -1042,6 +1042,7 @@ Todas as ações passam por `POST /api/action → GAS doPost()` com o campo `act
 | `sairDoAcordoAssistido` | `sairDoAcordoAssistido()` | Retorna à cobrança normal ou baixa |
 | `registrarRecuperacao` | `registrarRecuperacaoAposBaixa()` | Recuperação pós-baixa |
 | `registrarAcordoPerda` | `registrarAcordoComPerda()` | Acordo com desconto/perda |
+| `renegociarContrato` | `renegociarContrato()` | Renegociação estrutural: fecha parcelas abertas (`renegociado`), cria parcelas novas (`ORIGEM_PARCELA="renegociada"`), volta `STATUS_CONTRATO` para `ativo_em_dia`. Máx. 1x por contrato |
 | `registrarPromessa` | `registrarPromessa()` | Registra promessa de pagamento |
 | `alterarVencimento` | `alterarVencimentoContrato()` | Altera data de vencimento |
 | `excluirContrato` | `excluirContrato()` | Exclusão física (apenas sem pagamentos) |
@@ -1050,7 +1051,7 @@ Todas as ações passam por `POST /api/action → GAS doPost()` com o campo `act
 | `calcularScore` | `calcularScore()` | Recalcula score de um cliente |
 | `pagamentoAutomatico` | `pagamentoAutomatico()` | Pagamento via webhook Efí Bank |
 | `gerarZapSign` | `gerarDocZapSign()` | Exporta PDF + envia para ZapSign |
-| `ajuizarContrato` | `ajuizarContrato()` | Ajuíza contrato — entra em `em_processo_judicial` |
+| `ajuizarContrato` | `ajuizarContrato()` | Ajuíza contrato — entra em `em_processo_judicial`. Botão liberado (`podeAjuizar`) em `em_cobranca`/`pre_prejuizo`/`baixado_como_prejuizo`, ou em `ativo_em_atraso` se o contrato já foi renegociado ou já passou por Acordo Assistido *(reincidência, 2026-07-05/06)* |
 | `atualizarDadosJuridicos` | `atualizarDadosJuridicos()` | Edita dados do processo (`_JURI_COLS`) |
 | `adicionarMovimentacaoJuridica` | `adicionarMovimentacaoJuridica()` | Registra movimentação no histórico judicial |
 | `registrarAcordoJudicial` *(2026-07-04)* | `registrarAcordoJudicial()` | Acordo judicial parcelado ou à vista |
