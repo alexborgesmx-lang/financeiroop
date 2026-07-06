@@ -615,10 +615,10 @@ Reincidência pós-renegociação (situação já agravada — 2ª chance dada e
 ### Solução
 `podeAjuizar` passou a considerar também `jaRenegociado (parcela com ORIGEM_PARCELA="renegociada") && STATUS_CONTRATO==="ativo_em_atraso"`. Só mudança de visibilidade de botão no frontend — `ajuizarContrato` no GAS nunca validou status, então nenhuma alteração de backend foi necessária. Ver regra em `02-AI-CREDIT-RULES.md` (seção Renegociação) e `MANUAL_OPERACIONAL.md` (5.9).
 
-**Limitação conhecida:** cobre só reincidência pós-**renegociação estrutural**. Reincidência pós-**Acordo Assistido** (cliente sai do acordo via `sairDoAcordoAssistido` e atrasa de novo) não é detectada por essa regra — `sairDoAcordoAssistido` limpa `DATA_ENTRADA_ACORDO_ASSISTIDO` e não existe hoje nenhum campo persistente equivalente ao `ORIGEM_PARCELA="renegociada"` para marcar "já passou por Acordo Assistido antes". Se for necessário no futuro, precisa de um sinal novo (ex: flag em CONTRATOS ou evento em EVENTOS consultado no frontend).
+**Atualização (2026-07-06):** limitação do Acordo Assistido resolvida. Como `sairDoAcordoAssistido` limpa `DATA_ENTRADA_ACORDO_ASSISTIDO`/`MOTIVO_ACORDO_ASSISTIDO`/`OBSERVACAO_ACORDO_ASSISTIDO` em CONTRATOS ao voltar à cobrança normal, não sobra nenhum campo em CONTRATOS para detectar reincidência — a detecção usa o evento `ACORDO_ASSISTIDO_ENTRADA` em EVENTOS (nunca apagado), via `jaTeveAcordoAssistido = eventos.some(e => e.ID_CONTRATO===contrato.ID_CONTRATO && e.TIPO_EVENTO==="ACORDO_ASSISTIDO_ENTRADA")`. `podeAjuizar` agora é `[...] || ((jaRenegociado || jaTeveAcordoAssistido) && STATUS_CONTRATO==="ativo_em_atraso")`. Validado com casos mock (node) reproduzindo os 5 cenários relevantes — não havia contrato em produção no estado exato (histórico de Acordo Assistido + `ativo_em_atraso` atual) para testar via UI sem alterar dado real de cliente.
 
 ### Status
-Resolvido (2026-07-05) para o caso de renegociação — caso de Acordo Assistido em aberto.
+Resolvido (2026-07-05 renegociação, 2026-07-06 Acordo Assistido).
 
 ---
 

@@ -707,6 +707,7 @@ Soma de VALOR_JUROS das parcelas abertas — indica o lucro potencial se o clien
 - Alex clica em "Retornar" → GAS executa `sairDoAcordoAssistido(destino="normal")`.
 - Status do contrato é recalculado pelos dias de atraso reais.
 - Score volta a ser calculado.
+- **Reincidência (2026-07-06):** se o contrato voltar a atrasar depois disso (`ativo_em_atraso`), a opção "Ajuizar contrato" fica disponível imediatamente, sem esperar os 30 dias até `em_cobranca` — mesma regra e mesmo racional da reincidência pós-renegociação (5.9). Como `sairDoAcordoAssistido` apaga `DATA_ENTRADA_ACORDO_ASSISTIDO`/`MOTIVO_ACORDO_ASSISTIDO`/`OBSERVACAO_ACORDO_ASSISTIDO`, a detecção é feita pelo evento `ACORDO_ASSISTIDO_ENTRADA` em EVENTOS (nunca apagado), não por um campo em CONTRATOS.
 
 **Encaminhamento para Baixa:**
 - Alex clica em "Baixar" → BaixaModal → `baixarContratoPrejuizo`.
@@ -729,7 +730,7 @@ Diferente do Acordo com Perda (5.6, que encerra o contrato), a Renegociação **
 
 **Limite:** no máximo 1 renegociação por contrato — bloqueada se já existir qualquer parcela com `ORIGEM_PARCELA = "renegociada"` (`jaRenegociado` no frontend, validação equivalente no GAS).
 
-**Reincidência (2026-07-05):** como o contrato volta para `ativo_em_dia`, se o cliente não pagar a nova parcela ele reentra no ciclo normal de atraso (`ativo_em_atraso`). Como essa já é uma 2ª chance não cumprida, a opção "Ajuizar contrato" fica disponível assim que o contrato renegociado volta a `ativo_em_atraso`, sem esperar os 30 dias que um contrato de 1ª vez levaria até virar `em_cobranca`. Ver `docs/ai-memory/02-AI-CREDIT-RULES.md` (seção Renegociação).
+**Reincidência (2026-07-05, estendido para Acordo Assistido em 2026-07-06):** como o contrato volta para `ativo_em_dia`, se o cliente não pagar a nova parcela ele reentra no ciclo normal de atraso (`ativo_em_atraso`). Como essa já é uma 2ª chance não cumprida, a opção "Ajuizar contrato" fica disponível assim que o contrato renegociado volta a `ativo_em_atraso`, sem esperar os 30 dias que um contrato de 1ª vez levaria até virar `em_cobranca`. A mesma regra vale para um contrato que já passou por Acordo Assistido (5.8) e volta a atrasar depois de retornar à cobrança normal. Ver `docs/ai-memory/02-AI-CREDIT-RULES.md` (seção Renegociação).
 
 ---
 
