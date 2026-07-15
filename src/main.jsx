@@ -842,102 +842,16 @@ function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,c
       if(opts.wpp){const tel=telefone?`55${telefone}`:'';const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);const wppUrl=tel?`https://wa.me/${tel}`:(isMobile?'https://wa.me':'https://web.whatsapp.com');setTimeout(()=>window.open(wppUrl,'_blank'),700);}
       return;
     }
-    const doc=new jsPDF({unit:'mm',format:'a4'});
-    const W=210,pd=20;
-    const {G,GL,DK,MT,BDC,LMK}=_PDF_CLR;
-    const G3=[135,223,182],G7=[14,92,68],GI=[230,248,239],SEP=[236,239,238],LGR=[247,249,248];
-
-    // ─── HEADER (dark verde-900) ────────────────────────────────────
-    doc.setFillColor(...LMK);doc.rect(0,0,W,26,'F');
-    doc.setFillColor(31,184,119);doc.roundedRect(pd,8,11,11,2.5,2.5,'F');
-    doc.setFillColor(255,255,255);doc.roundedRect(pd+7,12,11,11,2.5,2.5,'F');
-    doc.setFillColor(14,92,68);doc.roundedRect(pd+7,12,4,4,1,1,'F');
-    doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(255,255,255);
-    doc.text('BORGES ASSESSORIA',pd+22,14);
-    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...G3);
-    doc.text(isQuitado?'Comprovante de Quitação':'Comprovante de Pagamento',pd+22,20);
-    ['CNPJ 63.124.205/0001-07','borgesassessoriafinanceira@gmail.com'].forEach((l,i)=>{
-      doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(...G3);
-      doc.text(l,W-pd,14+i*6,{align:'right'});
+    const totalPagasCount=pagas.length+(jaEstavaPaga?0:1);
+    abrirComprovanteQuitacao({
+      nome, cpf:String(cliente?.CPF||'—'), contrato:String(parcela.ID_CONTRATO),
+      idCliente:String(parcela.ID_CLIENTE||cliente?.ID_CLIENTE||''),
+      valorPrincipal:fR(valorOriginal), totalPago:fR(totalJaPago),
+      parcelasLabel:`${totalPagasCount} de ${totalParcEfetivo} pagas`,
+      periodoInicio:fmtMesAno(hist[0]?.DATA_VENCIMENTO), periodoFim:fmtMesAno(dataPago),
+      dataQuitacao:fD(dataPago), dataQuitacaoISO:apiDateStr(dataPago),
+      autenticacaoFallback:`QT·${String(parcela.ID_CONTRATO).slice(-4)}·${now.getFullYear()}·BORGES`,
     });
-
-    let y=42;
-
-    // ─── CHECK CIRCLE + VALOR ──────────────────────────────────────
-    doc.setFillColor(...GI);doc.circle(W/2,y,9,'F');
-    doc.setDrawColor(21,160,106);doc.setLineWidth(1.6);
-    doc.line(W/2-3.5,y,W/2-0.5,y+3.5);doc.line(W/2-0.5,y+3.5,W/2+5,y-3);
-    y+=15;
-    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...MT);
-    doc.text(isQuitado?'Contrato quitado integralmente':'Pagamento confirmado',W/2,y,{align:'center'});
-    y+=7;
-    doc.setFont('helvetica','bold');doc.setFontSize(22);doc.setTextColor(...DK);
-    doc.text(isQuitado?fR(totalJaPago):fR(parseFloat(valorPago||0)),W/2,y,{align:'center'});
-    y+=8;
-    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...G7);
-    doc.text(isQuitado?`${pagas.length+(jaEstavaPaga?0:1)} parcelas quitadas`:`Parcela ${pNum} de ${totalParcEfetivo}`,W/2,y,{align:'center'});
-    y+=14;
-
-    // ─── DATA ROWS ─────────────────────────────────────────────────
-    const dataRows=isQuitado?[
-      ['Cliente',nome],
-      ['CPF',String(cliente?.CPF||'—')],
-      ['Contrato',String(parcela.ID_CONTRATO)],
-      ['Parcelas pagas',`${pagas.length+(jaEstavaPaga?0:1)} de ${totalParcEfetivo}`],
-      ['Valor total pago',fR(totalJaPago)],
-      ['Última parcela',fD(dataPago)],
-      ['Saldo remanescente','R$ 0,00'],
-    ]:[
-      ['Cliente',nome],
-      ['CPF',String(cliente?.CPF||'—')],
-      ['Contrato',String(parcela.ID_CONTRATO)],
-      ['Forma de pagamento',String(tipoLabel||'—')],
-      ['Pago em',fD(dataPago)],
-      ['Vencimento original',fD(parcela.DATA_VENCIMENTO)],
-      ['Saldo devedor após',fR(saldo)],
-      ['ID da transação',String(parcela.ID_PARCELA||'—')],
-    ];
-    dataRows.forEach(([k,v],i)=>{
-      const ry=y+i*10;
-      doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...MT);doc.text(k,pd,ry);
-      doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...DK);doc.text(String(v),W-pd,ry,{align:'right'});
-      if(i<dataRows.length-1){doc.setDrawColor(...SEP);doc.setLineWidth(0.2);doc.line(pd,ry+3,W-pd,ry+3);}
-    });
-    y+=dataRows.length*10+8;
-
-    // ─── AVISO SOMENTE JUROS ───────────────────────────────────────
-    if(isSomenteJuros){
-      doc.setFillColor(254,243,199);doc.roundedRect(pd,y,W-2*pd,14,2,2,'F');
-      doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(146,64,14);doc.text('CONTRATO ATUALIZADO',pd+4,y+5.5);
-      doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(120,53,15);
-      const aviso=`Original: ${originalParc} parcelas. Adicionadas ${totalAdded} por somente juros (principal rolado). Total atual: ${totalParcEfetivo} parcelas.`;
-      const avisoL=doc.splitTextToSize(aviso,W-2*pd-8);doc.text(avisoL,pd+4,y+10);
-      y+=avisoL.length*4+18;
-    }
-
-    // ─── HISTÓRICO DE PARCELAS ─────────────────────────────────────
-    const histRows=isQuitado
-      ?(()=>{const h=[...pagas];if(!jaEstavaPaga)h.push({...parcela,VALOR_PAGO:valorPago,DATA_PAGAMENTO:dataPago,TIPO_PAGAMENTO:tipoLabelToKey[tipoLabel]||'pagamento_normal'});return h.sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));})()
-      :[{NUM_PARCELA:parcela.NUM_PARCELA,DATA_VENCIMENTO:parcela.DATA_VENCIMENTO,VALOR_PARCELA:parcela.VALOR_PARCELA,DATA_PAGAMENTO:dataPago,VALOR_PAGO:valorPago,TIPO_PAGAMENTO:tipoLabelToKey[tipoLabel]||'pagamento_normal'}];
-    y=_renderHistParcelas(doc,histRows,W,pd,y,GL,DK,BDC,fD,fR,isQuitado?'HISTÓRICO DE PARCELAS':'DETALHE DA PARCELA PAGA');
-
-    // ─── FOOTER ────────────────────────────────────────────────────
-    y+=6;
-    doc.setFillColor(...LGR);doc.rect(0,y,W,30,'F');
-    doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.line(pd,y,W-pd,y);
-    y+=7;
-    const qt=isQuitado?'"Declaramos que todos os pagamentos foram recebidos, confirmando a quitação integral da dívida."':'"Declaramos que o pagamento acima foi recebido e registrado em nosso controle interno."';
-    doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(...MT);
-    const qtL=doc.splitTextToSize(qt,W-2*pd);doc.text(qtL,W/2,y,{align:'center'});y+=qtL.length*5+3;
-    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MT);
-    doc.text('Borges Assessoria · CNPJ 63.124.205/0001-07 · borgesassessoriafinanceira@gmail.com',W/2,y,{align:'center'});y+=4;
-    const authTs=`${ts.slice(0,4)}·${ts.slice(4,8)}·BORGES·${String(parcela.ID_PARCELA||'').slice(-4).toUpperCase()||ts.slice(8,12)}`;
-    doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...DK);
-    doc.text(`Autenticação: ${authTs}`,W/2,y,{align:'center'});y+=4;
-    doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(...MT);
-    doc.text('Documento gerado eletronicamente. Não constitui documento fiscal.',W/2,y,{align:'center'});
-    const blob=doc.output('blob');const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');a.href=url;a.download=nomeArq;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),3000);
     if(opts.wpp){const tel=telefone?`55${telefone}`:'';const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);const wppUrl=tel?`https://wa.me/${tel}`:(isMobile?'https://wa.me':'https://web.whatsapp.com');setTimeout(()=>window.open(wppUrl,'_blank'),700);}
   }catch(e){console.error('Comprovante error:',e);alert('Erro ao gerar comprovante: '+e.message);}
 }
