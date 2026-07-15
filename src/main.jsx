@@ -22,6 +22,34 @@ function applyTheme(dark){const t=dark?DARK:LIGHT;BG=t.BG;CARD=t.CARD;BD=t.BD;TE
 function isDarkHour(){const h=new Date().getHours();return h>=18||h<6;}
 
 const fmtR  = v => "R$ " + Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+function parseValorColado(texto){
+  let s=String(texto||"").trim();
+  if(!s)return null;
+  const neg=s.replace(/[^\d.,-]/g,"").trim().startsWith("-");
+  s=s.replace(/[^\d.,]/g,"");
+  if(!s)return null;
+  const hasComma=s.includes(",");
+  const hasDot=s.includes(".");
+  if(hasComma&&hasDot){
+    s=s.replace(/\./g,"").replace(",",".");
+  }else if(hasComma&&!hasDot){
+    s=s.replace(",",".");
+  }else if(hasDot&&!hasComma){
+    const partes=s.split(".");
+    if(partes.length>2)s=partes.join("");
+    else if(partes[1]&&partes[1].length===3)s=partes.join("");
+  }
+  const n=parseFloat(s);
+  if(isNaN(n))return null;
+  return neg?-n:n;
+}
+function pasteMoeda(e,setter){
+  const texto=e.clipboardData?.getData("text")||"";
+  const n=parseValorColado(texto);
+  if(n===null)return;
+  e.preventDefault();
+  setter(String(n));
+}
 const fmtP  = v => Number(v||0).toFixed(1) + "%";
 const fmtDt = v => { if(!v) return "—"; const d = v instanceof Date ? v : new Date(v); return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR"); };
 const fmtTel = v => { const s = String(v||'').replace(/\D/g,''); if(s.length===11) return `(${s.slice(0,2)}) ${s.slice(2,7)}-${s.slice(7)}`; if(s.length===10) return `(${s.slice(0,2)}) ${s.slice(2,6)}-${s.slice(6)}`; return v ? String(v) : '—'; };
