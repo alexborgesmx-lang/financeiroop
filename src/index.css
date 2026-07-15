@@ -1,12 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --font-sans: 'Helvetica Neue', Helvetica, Arial, 'Segoe UI', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-serif: 'Newsreader', Georgia, 'Times New Roman', serif;
 
   --color-background:           var(--background);
   --color-foreground:           var(--foreground);
@@ -33,7 +35,7 @@
   --radius-xl: calc(var(--radius) * 1.4);
 }
 
-/* ── Borges Assessoria — Light mode ── */
+/* ── Borges Assessoria v3 — Light mode ── */
 :root {
   /* Verde Borges — escala completa */
   --g-100: #E6F8EF;
@@ -48,46 +50,66 @@
   --lima:  #A8E03F;
   --lima-ink: #07241B;
 
-  /* Neutros (subtom verde) */
-  --n-0:   #FFFFFF;
-  --n-50:  #F6F8F7;
-  --n-100: #ECEFEE;
-  --n-200: #DDE3E0;
-  --n-300: #C4CCC8;
-  --n-400: #9AA5A0;
-  --n-500: #6E7975;
-  --n-600: #4E5854;
-  --n-700: #353D3A;
-  --n-800: #1F2624;
-  --n-900: #121815;
-  --n-950: #0A0F0D;
+  /* Neutros (subtom ivory) */
+  --n-0:   #FFFDF9;
+  --n-50:  #F7F5EF;
+  --n-100: #F0EDE4;
+  --n-200: #E2DDD1;
+  --n-300: #C7C0B2;
+  --n-400: #9B9384;
+  --n-500: #7C756B;
+  --n-600: #57514A;
+  --n-700: #3A352E;
+  --n-800: #24201A;
+  --n-900: #1A1712;
+  --n-950: #0F0D0A;
 
-  /* Semânticas */
-  --success: #15A06A;
-  --warning: #E0A030;
-  --error:   #D64545;
-  --info:    #1B8A8F;
+  /* Semânticas — texto (fundos-tint em --*-bg abaixo) */
+  --success: #15805A;
+  --warning: #9A6510;
+  --error:   #C0322F;
+  --info:    #166C70;
+  --success-bg: #E5F2EA;
+  --warning-bg: #F8EFD9;
+  --error-bg:   #F9E7E4;
+  --info-bg:    #E2EFEF;
 
   /* Papéis */
-  --background:            #F7F9F8;
-  --foreground:            #121815;
-  --card:                  #FFFFFF;
-  --card-foreground:       #121815;
-  --popover:               #FFFFFF;
-  --popover-foreground:    #121815;
+  --background:            #F7F5EF;
+  --foreground:            #1A1712;
+  --card:                  #FFFDF9;
+  --card-foreground:       #1A1712;
+  --popover:               #FFFDF9;
+  --popover-foreground:    #1A1712;
   --primary:               #0B3D2E;
-  --primary-foreground:    #FFFFFF;
-  --secondary:             #ECEFEE;
-  --secondary-foreground:  #121815;
-  --muted:                 #ECEFEE;
-  --muted-foreground:      #6E7975;
+  --primary-foreground:    #EAF6EF;
+  --secondary:             #F0EDE4;
+  --secondary-foreground:  #1A1712;
+  --muted:                 #F0EDE4;
+  --muted-foreground:      #57514A;
   --accent:                #A8E03F;
   --accent-foreground:     #07241B;
-  --destructive:           #D64545;
-  --border:                #DDE3E0;
-  --input:                 #DDE3E0;
+  --destructive:           #C0322F;
+  --border:                #E2DDD1;
+  --input:                 #E2DDD1;
   --ring:                  #A8E03F;
   --radius: 0.5rem;
+
+  /* Rede Borges v3 — tokens diretos (espelham as LIGHT/DARK do main.jsx) */
+  --surface-2:    #F0EDE4;
+  --ink-soft:     #57514A;
+  --ink-faint:    #7C756B;
+  --brand:        #0B3D2E;
+  --brand-2:      #0E5C44;
+  --signal:       #127A57;
+  --signal-viz:   #1FB877;
+  --action:       #A8E03F;
+  --action-ink:   #07241B;
+  --on-brand:      #EAF6EF;
+  --on-brand-soft: #8FE3C0;
+  --line-soft:    #EEEAE0;
+  --shadow:    0 1px 2px rgba(40,30,15,.05), 0 8px 22px rgba(40,30,15,.06);
+  --shadow-lg: 0 20px 52px rgba(11,61,46,.14), 0 6px 16px rgba(11,61,46,.08);
 
   --sidebar:                  #07241B;
   --sidebar-foreground:       #ECEFEE;
@@ -101,26 +123,51 @@
 
 /* ── Dark mode ── */
 .dark {
-  --background:            #0A0F0D;
-  --foreground:            #ECEFEE;
-  --card:                  #121815;
-  --card-foreground:       #ECEFEE;
-  --popover:               #121815;
-  --popover-foreground:    #ECEFEE;
-  --primary:               #A8E03F;
-  --primary-foreground:    #07241B;
-  --secondary:             #1F2624;
-  --secondary-foreground:  #ECEFEE;
-  --muted:                 #1F2624;
-  --muted-foreground:      #6E7975;
+  --success: #5AD09B;
+  --warning: #E3A93A;
+  --error:   #F0716E;
+  --info:    #5FC2C6;
+  --success-bg: #103023;
+  --warning-bg: #332911;
+  --error-bg:   #331714;
+  --info-bg:    #102b2c;
+
+  --background:            #06231A;
+  --foreground:            #EFF3EC;
+  --card:                  #0B3227;
+  --card-foreground:       #EFF3EC;
+  --popover:               #0B3227;
+  --popover-foreground:    #EFF3EC;
+  --primary:               #5AD09B;
+  --primary-foreground:    #06231A;
+  --secondary:             #123B2E;
+  --secondary-foreground:  #EFF3EC;
+  --muted:                 #123B2E;
+  --muted-foreground:      #AEBAB0;
   --accent:                #A8E03F;
   --accent-foreground:     #07241B;
-  --destructive:           #D64545;
-  --border:                #1F2624;
-  --input:                 #1F2624;
+  --destructive:           #F0716E;
+  --border:                #1B4234;
+  --input:                 #1B4234;
   --ring:                  #A8E03F;
 
-  --sidebar:                  #0A0F0D;
+  /* Rede Borges v3 — tokens diretos */
+  --surface-2:    #123B2E;
+  --ink-soft:     #AEBAB0;
+  --ink-faint:    #7F8C82;
+  --brand:        #5AD09B;
+  --brand-2:      #46CB92;
+  --signal:       #43D69C;
+  --signal-viz:   #1FB877;
+  --action:       #A8E03F;
+  --action-ink:   #07241B;
+  --on-brand:      #06231A;
+  --on-brand-soft: #0B3D2E;
+  --line-soft:    #153328;
+  --shadow:    0 4px 12px rgba(0,0,0,0.20), 0 2px 4px rgba(0,0,0,0.10);
+  --shadow-lg: 0 24px 60px rgba(0,0,0,0.40), 0 8px 20px rgba(0,0,0,0.20);
+
+  --sidebar:                  #06231A;
   --sidebar-foreground:       #ECEFEE;
   --sidebar-primary:          #A8E03F;
   --sidebar-primary-foreground: #07241B;
@@ -135,7 +182,6 @@
     @apply border-border outline-ring/50;
     animation: none !important;
     transition: none !important;
-    box-shadow: none !important;
   }
   body {
     @apply bg-background text-foreground;
@@ -145,6 +191,24 @@
   th, .uppercase, [style*="textTransform: uppercase"], [style*="text-transform: uppercase"] {
     letter-spacing: 0.06em;
   }
+}
+
+/* ── Rede Borges v3 — utilitários de tipografia ─────────────────── */
+.serif {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.num {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 /* ── Mobile ─────────────────────────────────────────────────────── */

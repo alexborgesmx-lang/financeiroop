@@ -1,100 +1,127 @@
-# Borges Assessoria — Design System
+# Borges Assessoria — Design System v3 (Rede Borges)
 
 > **Referência canônica única.** Todo código de UI deve seguir este documento.
-> Derivado do **Manual de Identidade Visual da Borges Assessoria** (verde institucional + hierarquia de três verdes) e da estrutura/UX de referência (Wise · Stripe · Mercury).
+> Derivado do handoff **Rede Borges v3** (`Borges Assessoria/design_handoff_rede_borges/`) — paleta ivory/verde-floresta, serifa Newsreader para peças de destaque, elemento de assinatura "Linha de Confiança" — portado para os tokens já existentes do app (mesmos nomes de variável, valores atualizados) em 2026-07-15.
 > **Lima canônica do sistema: `#A8E03F`** — fonte única; substitui `#A8E040` e `#9fe870` em todos os contextos.
-> **Marca:** Borges Assessoria — *infraestrutura de crédito privado.*
+> **Marca:** Borges Assessoria — *rede privada de crédito baseada em confiança.*
 
 ---
 
 ## 1. Paleta Canônica — Variáveis JavaScript
 
 > Hierarquia de marca (três verdes, cada um com um papel inviolável):
-> **Verde Borges `#0B3D2E`** = institucional · **Verde-sinal `#1FB877`** = dados/sucesso · **Verde-limão `#A8E03F`** = ação (CTA).
+> **Verde Borges `#0B3D2E`** = institucional (`GRN`) · **Verde-sinal `#127A57`** = dados/texto (`SIG`) · **Verde-limão `#A8E03F`** = ação/CTA (`ACC`).
+> ⚠️ **No escuro, `GRN` deixa de ser lima e vira verde-menta (`#5AD09B`)** — antes disso, `GRN` e `ACC` eram idênticos no dark (bug latente, corrigido em 2026-07-15). Qualquer texto sobre fundo `GRN` sólido usa `ONBRAND`/`ONBRANDSOFT` — nunca branco fixo.
 
 ```javascript
 // src/main.jsx — declaração no topo do arquivo
-let BG, CARD, BD, TEXT, MUTED, GRN, SIG, OK, RED, BLU, YEL, PUR, ORG, ACC, SHD;
+let BG, CARD, CARD2, BD, LINESOFT, TEXT, MUTED, FAINT,
+    GRN, GRN2, SIG, SIGVIZ, OK, RED, BLU, YEL, PUR, ORG,
+    ACC, ACCINK, ONBRAND, ONBRANDSOFT, SHD, SHDLG;
 
 const LIGHT = {
-  BG:   "#f7f9f8",   // off-white institucional (subtom verde)
-  CARD: "#ffffff",
-  BD:   "#dde3e0",   // bordas e divisores (neutro n-200)
-  TEXT: "#121815",   // texto principal (quase-preto, n-900)
-  MUTED:"#6e7975",   // texto secundário, labels, ícones inativos (n-500)
-  GRN:  "#0b3d2e",   // Verde Borges — institucional, ações positivas, "em dia" (texto escuro sobre claro)
-  SIG:  "#1fb877",   // Verde-sinal — dados/gráficos, progresso, acentos positivos grandes
-  OK:   "#15a06a",   // Verde-OK — SIG aplicado a texto pequeno (delta positivo, WCAG)
-  RED:  "#c0322f",   // Alert Red — erros, atrasos (legível como texto no claro)
-  BLU:  "#176c70",   // Deep Teal — informação, links (NÃO é azul bancário)
-  YEL:  "#a9761a",   // Amber — avisos (WCAG-compliant, NÃO usar gold #ffd300 no light)
-  PUR:  "#221d9a",   // Violet — status especiais, renegociação
-  ORG:  "#ff7700",   // Warm Orange — atraso/alerta (acento funcional, fora da marca)
-  ACC:  "#A8E03F",   // Verde-limão — exclusivo para CTAs primários
-  SHD:  "rgba(7,36,27,0.06) 0px 2px 8px,rgba(7,36,27,0.04) 0px 1px 2px"
+  BG:   "#F7F5EF",   // ivory quente — fundo de página
+  CARD: "#FFFDF9",   // surface — cards, modais, tabelas
+  CARD2:"#F0EDE4",   // surface-2 — zebra de tabela, insets
+  BD:   "#E2DDD1",   // bordas e divisores
+  LINESOFT:"#EEEAE0",// divisores sutis
+  TEXT: "#1A1712",   // ink — texto principal (15.6:1 AAA)
+  MUTED:"#57514A",   // ink-soft — texto secundário (7.1:1 AAA)
+  FAINT:"#7C756B",   // ink-faint — labels, captions (4.6:1 AA)
+  GRN:  "#0B3D2E",   // brand — institucional, "em dia", tab ativa
+  GRN2: "#0E5C44",   // brand-2 — faixas, hovers
+  SIG:  "#127A57",   // signal — texto de dado/progresso (4.7:1 AA)
+  SIGVIZ:"#1FB877",  // signal-viz — preenchimento de gráfico ≥24px (igual nos 2 temas)
+  OK:   "#15805A",   // success — confirmações, delta positivo
+  RED:  "#C0322F",   // error — erros, atrasos, destrutivo (5.1:1 AA)
+  BLU:  "#166C70",   // info — informação, links (5.3:1 AA)
+  YEL:  "#9A6510",   // warning — avisos, pendente (4.8:1 AA)
+  PUR:  "#221d9a",   // Violet — status especiais (fora do sistema v3, mantido)
+  ORG:  "#ff7700",   // Warm Orange — acento funcional (fora do sistema v3, mantido)
+  ACC:  "#A8E03F",   // action — exclusivo para CTAs primários
+  ACCINK:"#07241B",  // action-ink — texto sobre ACC, fixo nos 2 temas
+  ONBRAND:"#EAF6EF",     // texto sobre fundo GRN sólido
+  ONBRANDSOFT:"#8FE3C0", // texto secundário sobre fundo GRN sólido
+  SHD:  "0 1px 2px rgba(40,30,15,.05),0 8px 22px rgba(40,30,15,.06)",   // cards
+  SHDLG:"0 20px 52px rgba(11,61,46,.14),0 6px 16px rgba(11,61,46,.08)" // modais / hero
 };
 
 const DARK = {
-  BG:   "#0a0f0d",   // preto com tint verde sutil (n-950)
-  CARD: "#141a14",   // surface — cards e modais
-  BD:   "#1f2624",   // bordas e divisores (n-800)
-  TEXT: "#ecefee",   // texto principal (quase-branco, n-100)
-  MUTED:"#6e7975",   // texto secundário (n-500)
-  GRN:  "#A8E03F",   // Lima — sucesso/positivo (lima é "dinheiro" no dark)
-  SIG:  "#1fb877",   // Verde-sinal — dados/gráficos, progresso
-  OK:   "#46cb92",   // Verde-OK — delta positivo em texto pequeno no dark
-  RED:  "#ef253b",   // Rich Red — erros, atrasos
-  BLU:  "#5ab4d4",   // Teal claro — informação
-  YEL:  "#ffd300",   // Gold Yellow — avisos no dark
-  PUR:  "#7b74e6",   // Violet — status especiais
-  ORG:  "#ff7700",   // Warm Orange — atraso/alerta
-  ACC:  "#A8E03F",   // Verde-limão — exclusivo para CTAs primários
-  SHD:  "rgba(0,0,0,0.22) 0px 2px 8px,rgba(0,0,0,0.12) 0px 1px 2px"
+  BG:   "#06231A",
+  CARD: "#0B3227",
+  CARD2:"#123B2E",
+  BD:   "#1B4234",
+  LINESOFT:"#153328",
+  TEXT: "#EFF3EC",
+  MUTED:"#AEBAB0",
+  FAINT:"#7F8C82",
+  GRN:  "#5AD09B",   // ⚠️ menta clara — NÃO é mais igual a ACC no dark
+  GRN2: "#46CB92",
+  SIG:  "#43D69C",
+  SIGVIZ:"#1FB877",  // igual ao light
+  OK:   "#5AD09B",
+  RED:  "#F0716E",
+  BLU:  "#5FC2C6",
+  YEL:  "#E3A93A",
+  PUR:  "#7b74e6",
+  ORG:  "#ff7700",
+  ACC:  "#A8E03F",   // igual ao light
+  ACCINK:"#07241B",  // igual ao light
+  ONBRAND:"#06231A",     // ink escuro — GRN no dark é claro, texto precisa ser escuro
+  ONBRANDSOFT:"#0B3D2E",
+  SHD:  "0 4px 12px rgba(0,0,0,0.20),0 2px 4px rgba(0,0,0,0.10)",
+  SHDLG:"0 24px 60px rgba(0,0,0,0.40),0 8px 20px rgba(0,0,0,0.20)"
 };
 ```
 
 ### Escalas de referência (tokens da marca)
 
 ```
-/* Verdes */            /* Neutros (subtom verde) */
-g-100 #E6F8EF           n-0   #FFFFFF
-g-200 #C2EFD8           n-50  #F6F8F7
-g-300 #87DFB6           n-100 #ECEFEE
-g-400 #46CB92           n-200 #DDE3E0
-g-500 #1FB877  (SIG)    n-300 #C4CCC8
-g-600 #11805E           n-400 #9AA5A0
-g-700 #0E5C44           n-500 #6E7975  (MUTED)
-g-800 #0B3D2E  (GRN)    n-600 #4E5854
-g-900 #07241B           n-700 #353D3A
-                        n-800 #1F2624  (BD dark)
-lima  #A8E03F  (ACC)    n-900 #121815  (TEXT light)
-                        n-950 #0A0F0D  (BG dark)
+/* Verdes */            /* Neutros (subtom ivory) */
+g-100 #E6F8EF           n-0   #FFFDF9
+g-200 #C2EFD8           n-50  #F7F5EF
+g-300 #87DFB6           n-100 #F0EDE4
+g-400 #46CB92           n-200 #E2DDD1
+g-500 #1FB877 (SIGVIZ)  n-300 #C7C0B2
+g-600 #11805E           n-400 #9B9384
+g-700 #0E5C44 (GRN2)    n-500 #7C756B (FAINT)
+g-800 #0B3D2E (GRN)     n-600 #57514A (MUTED)
+g-900 #07241B (ACCINK)  n-700 #3A352E
+                        n-800 #24201A
+lima  #A8E03F (ACC)     n-900 #1A1712 (TEXT light)
 ```
 
-> **Texto sobre `ACC` (lima) é sempre `#07241B`** (verde-900) — contraste fixo, nunca branco.
+> **Texto sobre `ACC` (lima) é sempre `ACCINK` (`#07241B`)** — contraste fixo, nunca branco, nos dois temas.
+> **Texto sobre `GRN` sólido é sempre `ONBRAND`/`ONBRANDSOFT`** — nunca branco fixo (crítico no dark, onde `GRN` é claro).
 
 ---
 
 ## 2. Semântica de Cores — NUNCA desviar
 
-| Variável | Nome | Uso correto | Nunca usar para |
+| Variável | Papel v3 | Uso correto | Nunca usar para |
 |---|---|---|---|
-| `GRN` | Verde Borges (light) / Lima (dark) | Institucional, ações positivas, "em dia", tab ativa | Status de alerta, atraso |
-| `SIG` | Verde-sinal (`#1FB877`) | Linhas de gráfico, preenchimento de progresso, acentos positivos grandes | Texto pequeno (baixo contraste — usar `OK`) |
-| `OK` | Verde-OK | Delta positivo em texto pequeno (▲ 8,3%), confirmações | Áreas grandes / fundos |
-| `RED` | Alert Red | Erros, atrasos, ações destrutivas, "em atraso" | CTAs normais, informação |
-| `BLU` | Deep Teal | Informação, links, badges informativos | Valores monetários · azul bancário |
-| `YEL` | Amber / Gold | Avisos moderados, pendente, atenção | Não usar `#ffd300` no light — falha WCAG |
-| `ORG` | Warm Orange | Atraso/alerta, cobrança, reagendamento | Botões de ação primários |
-| `PUR` | Violet | Status especiais, renegociação, recuperação | — |
-| `ACC` | Verde-limão (`#A8E03F`) | **Exclusivo** para CTAs primários (sempre pill `borderRadius:9999`) | Texto sobre fundo claro — usar `#07241B` no texto |
-| `MUTED` | Gray | Labels, textos secundários, ícones inativos | Informação importante |
+| `GRN` | `--brand` | Institucional, "em dia", tab ativa, hero/KPI do dia | Status de alerta, atraso |
+| `GRN2` | `--brand-2` | Faixas, hovers sobre elementos de marca | Texto de corpo |
+| `SIG` | `--signal` (texto) | Texto de dado/progresso, valores de destaque pequenos | Preenchimento de área/gráfico ≥24px (usar `SIGVIZ`) |
+| `SIGVIZ` | `--signal-viz` | Preenchimento de barra/gráfico ≥24px | Texto pequeno |
+| `OK` | `--success` | Delta positivo em texto pequeno (▲ 8,3%), confirmações | Áreas grandes / fundos |
+| `RED` | `--error` | Erros, atrasos, ações destrutivas, "em atraso" | CTAs normais, informação |
+| `BLU` | `--info` | Informação, links, badges informativos | Valores monetários |
+| `YEL` | `--warning` | Avisos moderados, pendente, atenção | — |
+| `ORG` | fora do v3 | Atraso/alerta, cobrança, reagendamento (mantido do sistema anterior) | Botões de ação primários |
+| `PUR` | fora do v3 | Status especiais, renegociação, recuperação (mantido do sistema anterior) | — |
+| `ACC` | `--action` | **Exclusivo** para CTAs primários (sempre pill `borderRadius:9999`) | Texto sobre fundo claro — usar `ACCINK` no texto |
+| `CARD` | `--surface` | Cards, modais, tabelas | — |
+| `CARD2` | `--surface-2` | Zebra de tabela, insets | Card principal |
+| `MUTED` | `--ink-soft` | Texto secundário, subtítulos | Labels muito pequenos (usar `FAINT`) |
+| `FAINT` | `--ink-faint` | Labels uppercase, captions, header de tabela | Texto de leitura corrida |
+| `ONBRAND`/`ONBRANDSOFT` | `--on-brand`/`--on-brand-soft` | Texto sobre fundo `GRN` sólido | Texto sobre `CARD`/`BG` |
 
 **Cores de serviços externos (hardcoded — não usar variável):**
 - `#25D366` — WhatsApp verde
 - `#6C3FC5` — ZapSign roxo
 - `#B8860B` — Carnê PIX âmbar
-- `"#07241B"` — Texto em fundo ACC (verde-900, contraste fixo, sempre)
+- `ACCINK` (`#07241B`) — Texto em fundo `ACC`, contraste fixo, sempre
 
 ---
 
@@ -154,22 +181,24 @@ lima  #A8E03F  (ACC)    n-900 #121815  (TEXT light)
 
 ### Famílias tipográficas
 
-> Uma única neo-grotesca para tudo — inclusive números. O monoespaçado fica **só** para rótulos técnicos e códigos.
+> Neo-grotesca para UI e números; serifa **só** em peças de destaque; monoespaçado **só** para rótulos técnicos e códigos.
 
 ```javascript
 const FONT = {
-  sans: `"Helvetica Neue", Helvetica, Arial, "Segoe UI", sans-serif`,  // UI, texto e NÚMEROS
-  mono: `"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace`, // rótulos técnicos, códigos
+  sans:  `"Helvetica Neue", Helvetica, Arial, "Segoe UI", sans-serif`,  // UI, texto e NÚMEROS
+  serif: `"Newsreader", Georgia, "Times New Roman", serif`,            // títulos de destaque, certificados, documentos
+  mono:  `"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace`, // rótulos técnicos, códigos
 };
 ```
 
 | Papel | Família | Observação |
 |---|---|---|
 | Interface e texto | `FONT.sans` | Pesos 400 / 600 / 700 / 800 |
-| **Números financeiros** | `FONT.sans` + `fontVariantNumeric:"tabular-nums"` | Peso **700–900**. **NUNCA monoespaçado** — usar Helvetica tabular |
-| Rótulos uppercase / códigos | `FONT.mono` | PIX, HEX, IDs de transação, autenticação, labels `LS()` técnicas |
+| **Números financeiros** | `FONT.sans` + `fontVariantNumeric:"tabular-nums"` | Peso **700–900**. **NUNCA monoespaçado nem serifa** — usar Helvetica tabular (classe utilitária `.num` em `index.css`) |
+| Títulos de destaque, certificados, documentos | `FONT.serif` (Newsreader) | Peso 400/500/600, uso pontual — não é a fonte de UI (classe `.serif`) |
+| Rótulos uppercase / códigos | `FONT.mono` | PIX, HEX, IDs de transação, autenticação, labels `LS()` técnicas (classe `.mono`) |
 
-> **Regra de números:** todo valor monetário, taxa, data ou contador usa `FONT.sans` com `tabular-nums` para alinhar colunas. O monoespaçado nunca é usado em valor financeiro — apenas em código/ID.
+> **Regra de números:** todo valor monetário, taxa, data ou contador usa `FONT.sans` com `tabular-nums` para alinhar colunas. O monoespaçado e a serifa nunca são usados em valor financeiro — mono é só código/ID, serifa é só título de destaque.
 
 ### Tipografia
 
@@ -177,11 +206,14 @@ const FONT = {
 |---|---|---|---|
 | Body padrão | 14px | 400 | `TEXT` |
 | Labels de campo via `LS()` | 11px uppercase | 700 | `MUTED` |
-| Tabela `thead` | 11px uppercase | 700 | `GRN` + bg `GRN+"10"` |
+| Tabela `thead` (inline style, ad hoc — maioria das telas) | 11px uppercase | 700 | `GRN` + bg `GRN+"10"` |
+| Tabela `thead` (componente `<Table>` de `components/ui/`, v3) | 11px uppercase, mono | 600 | `FAINT` + bg `CARD2` |
 | Título de modal | 16–18px | 800 | `TEXT` |
 | Subtítulo de modal | 12px | 400 | `MUTED` |
 | Valor monetário destaque | 20–30px | 900 (tabular) | contextual |
 | Badge de status | 10px | 700 | variável de cor |
+
+> As duas convenções de tabela coexistem por ora — `<Table>` (v3, `FAINT`/`CARD2`) é o padrão para telas novas; as tabelas inline existentes (`GRN`/`GRN+"10"`) não são retrofitadas nesta fase.
 
 ### Espaçamento
 
@@ -210,25 +242,42 @@ const FONT = {
 
 ### Sombras
 
+Par de dois níveis (v3) — nunca um terceiro nível intermediário:
+
 | Elemento | Valor |
 |---|---|
-| Cards e modais | `SHD` (variável de tema) |
+| Cards | `SHD` (variável de tema — sutil) |
+| Modais, hero/KPI do dia | `SHDLG` (variável de tema — mais profunda) |
 | Overlay de modal | `rgba(0,0,0,0.55)` |
 | Sidebar mobile | `0 0 40px rgba(0,0,0,0.18)` |
 | Sidebar desktop | `2px 0 12px rgba(7,36,27,0.07)` |
+
+> `src/index.css` — o reset global (`* { animation:none; transition:none }`) **não** zera `box-shadow`; corrigido em 2026-07-15 (zerava `SHD`/`SHDLG` mesmo com o inline style aplicado).
+
+### Linha de Confiança
+
+Elemento de assinatura da marca — nós ligados por um fio (a rede de indicações que sustenta a marca). É a marca *sem o logo*. Sempre fina, arejada, legível — nunca um ornamento denso.
+
+```jsx
+<LinhaConfianca w={188} h={20} n={6} sw={1.5} color="rgba(168,224,63,0.4)"/>
+```
+
+Componente local em `main.jsx` (perto do bloco de ícones), porta a lógica de `brand-v3.js`: `n` nós ao longo de uma senoide, ligados por um path cubic-bezier, cor via `currentColor`/prop `color`. Uso atual: cabeçalho da sidebar. Uso futuro (Fase 2): rodapé dos documentos (Comprovante, Extrato, Certificado), divisor de seção.
 
 ---
 
 ## 5. Sistema de Tema — Dark/Light
 
 ```javascript
-applyTheme(dark)   // atualiza todas as variáveis + toggle class 'dark' no <html>
+applyTheme(dark)   // atualiza todas as variáveis + toggle class 'dark'/data-theme no <html>
 IS()               // inline style padrão para inputs (usa cores do tema atual)
 LS()               // inline style padrão para labels (usa cores do tema atual)
 
 // Dark mode: ativa às 18h, desativa às 6h — automático por setTimeout
 // Toggle manual é session-only (sem localStorage)
 ```
+
+> **Regra crítica do dark mode:** `GRN` (`--brand`) no escuro é claro (verde-menta `#5AD09B`), não escuro. Qualquer texto/ícone posicionado sobre um fundo `GRN` sólido usa `ONBRAND`/`ONBRANDSOFT` — **nunca `"#fff"`/`"#FFF"` hardcoded**. Isso já causou headers de modal ilegíveis no dark antes da correção de 2026-07-15 (headers de "Registrar Pagamento", "Novo Contrato", "Contrato criado" etc.) — ao criar um novo header/banner com fundo `GRN`, sempre usar `ONBRAND` para o texto.
 
 ---
 
