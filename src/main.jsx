@@ -530,6 +530,109 @@ function _renderHistParcelas(doc,rows,W,pd,y,GL,DK,BDC,fD,fR,title='HISTÓRICO D
 }
 
 
+// ─── LINHA DE CONFIANÇA (SVG string) — pra documentos HTML fora do React ──
+function _linhaConfiancaSVG(w,h,n,sw,amp,color){
+  const midY=h/2,pts=[];
+  for(let i=0;i<n;i++) pts.push([16+i*((w-32)/(n-1)), midY+Math.sin(i*1.1)*(h*amp)]);
+  let d=`M ${pts[0][0]} ${pts[0][1]}`;
+  for(let j=1;j<n;j++){const px=pts[j-1],cx=pts[j],mx=(px[0]+cx[0])/2;d+=` C ${mx} ${px[1]} ${mx} ${cx[1]} ${cx[0]} ${cx[1]}`;}
+  const nodes=pts.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="${i===Math.floor(n/2)?5:3.4}" fill="currentColor"/>`).join("");
+  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" style="color:${color};display:block" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round"/>${nodes}</svg>`;
+}
+
+// ─── COMPROVANTE DE PAGAMENTO v3 — HTML+print (Rede Borges) ───────────────
+function _comprovantePagamentoHTML(d){
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comprovante ${d.contrato} - ${d.parcelaLabel}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --bg:#F7F5EF; --surface:#FFFDF9; --surface-2:#F0EDE4; --line:#E2DDD1; --line-soft:#EEEAE0;
+  --ink:#1A1712; --ink-soft:#57514A; --ink-faint:#7C756B;
+  --brand:#0B3D2E; --on-brand:#EAF6EF; --on-brand-soft:#8FE3C0;
+  --signal:#127A57; --success:#15805A; --success-bg:#E5F2EA;
+  --r-xl:20px; --shadow-lg:0 20px 52px rgba(11,61,46,.14),0 6px 16px rgba(11,61,46,.08);
+  --sans:"Helvetica Neue",Helvetica,Arial,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);display:flex;flex-direction:column;align-items:center;padding:40px 16px;gap:20px;min-height:100vh;-webkit-font-smoothing:antialiased;}
+.num{font-variant-numeric:tabular-nums;font-weight:700;letter-spacing:-0.02em;}
+.mono{font-family:var(--mono);letter-spacing:-0.01em;}
+.toolbar{display:flex;gap:10px;}
+.btn{border:none;border-radius:999px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--sans);}
+.btn-p{background:#A8E03F;color:#07241B;}
+.doc{width:452px;max-width:100%;background:var(--surface);border-radius:var(--r-xl);overflow:hidden;box-shadow:var(--shadow-lg);border:1px solid var(--line);}
+.hdr{background:var(--brand);color:var(--on-brand);padding:22px 28px 20px;position:relative;overflow:hidden;}
+.hdr .thread{position:absolute;top:8px;left:0;width:100%;height:40px;opacity:.30;}
+.hdr .brand{display:flex;align-items:center;gap:12px;position:relative;}
+.hdr b{font-size:15px;letter-spacing:-.01em;font-weight:700;}
+.hdr .sub{font-family:var(--mono);font-size:10px;color:var(--on-brand-soft);letter-spacing:.08em;text-transform:uppercase;margin-top:2px;}
+.body{padding:32px 28px 26px;}
+.check{width:64px;height:64px;border-radius:50%;background:var(--success-bg);display:grid;place-items:center;margin:0 auto;}
+.amount{text-align:center;margin-top:14px;}
+.amount .lbl{font-size:14px;color:var(--ink-faint);}
+.amount .big{font-size:44px;margin-top:2px;color:var(--ink);}
+.amount .par{font-size:13px;color:var(--signal);font-weight:700;margin-top:3px;}
+.rows{margin-top:26px;}
+.row{display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--line-soft);font-size:14px;}
+.row:last-child{border-bottom:none;}
+.row .k{color:var(--ink-faint);}
+.row .v{font-weight:500;text-align:right;color:var(--ink);}
+.foot{background:var(--surface-2);padding:18px 28px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-faint);line-height:1.65;}
+.foot b{color:var(--ink-soft);font-weight:600;}
+@media print{
+  body{padding:0;background:#fff;} .toolbar{display:none!important;} .doc{box-shadow:none;border-radius:0;width:100%;border:none;}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  @page{margin:14mm;}
+}
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn btn-p" onclick="window.print()">Salvar / imprimir PDF</button>
+  </div>
+  <div class="doc">
+    <div class="hdr">
+      ${_linhaConfiancaSVG(452,40,9,1.6,0.22,"var(--on-brand-soft)")}
+      <div class="brand">
+        <svg width="32" height="32" viewBox="0 0 68 68"><rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#fff"/><path d="M25 25 H43 V43 H25 Z" fill="#0E5C44"/></svg>
+        <div><b>Borges Assessoria</b><div class="sub">Comprovante de pagamento</div></div>
+      </div>
+    </div>
+    <div class="body">
+      <div class="check">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M4 12.5 L9.5 18 L20 6.5" stroke="var(--success)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="amount">
+        <div class="lbl">Pagamento confirmado</div>
+        <div class="big num">${d.valorPago}</div>
+        <div class="par num">${d.parcelaLabel}</div>
+      </div>
+      <div class="rows">
+        <div class="row"><span class="k">Cliente</span><span class="v">${d.nome}</span></div>
+        <div class="row"><span class="k">CPF</span><span class="v num">${d.cpf}</span></div>
+        <div class="row"><span class="k">Contrato</span><span class="v mono">${d.contrato}</span></div>
+        <div class="row"><span class="k">Forma de pagamento</span><span class="v">${d.formaPagamento}</span></div>
+        <div class="row"><span class="k">Pago em</span><span class="v num">${d.pagoEm}</span></div>
+        <div class="row"><span class="k">Vencimento original</span><span class="v num">${d.vencimentoOriginal}</span></div>
+        <div class="row"><span class="k">Saldo devedor após</span><span class="v num">${d.saldoDevedor}</span></div>
+        <div class="row"><span class="k">ID da transação</span><span class="v mono" style="font-size:12px;">${d.idTransacao}</span></div>
+      </div>
+    </div>
+    <div class="foot">
+      <b>Borges Assessoria Financeira</b> · CNPJ 63.124.205/0001-07 · borgesassessoriafinanceira@gmail.com · (62) 98487-7843<br>
+      Documento gerado eletronicamente. Autenticação <span class="mono">${d.autenticacao}</span>. Este comprovante atesta o recebimento do valor e não constitui documento fiscal.
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
 // ─── HELPER: GERAR E ENVIAR COMPROVANTE PDF VIA WHATSAPP ─────────
 function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes,opts={}){
   try{
