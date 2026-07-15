@@ -2495,7 +2495,7 @@ function RenegociacaoModal({contrato, parcelas, clientes, onConfirmar, onFechar}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
               <div>
                 <label style={LS()}>Valor por parcela (R$)</label>
-                <input type="number" value={novaValorParcela} onChange={e=>setNovaValorParcela(e.target.value)} placeholder="0,00" min="0" step="0.01" style={IS()}/>
+                <input type="number" value={novaValorParcela} onChange={e=>setNovaValorParcela(e.target.value)} onPaste={e=>pasteMoeda(e,setNovaValorParcela)} placeholder="0,00" min="0" step="0.01" style={IS()}/>
               </div>
               <div>
                 <label style={LS()}>Quantidade de parcelas</label>
