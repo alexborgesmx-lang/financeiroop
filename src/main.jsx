@@ -780,7 +780,7 @@ async function abrirComprovanteQuitacao(dados){
       autenticacao=certRes.codigo;
       qrUrl=`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(certRes.link)}`;
     }
-  }catch(e){ /* documento abre sem QR — ver spec, comportamento esperado */ }
+  }catch(e){ console.error('garantirCertificadoQuitacao falhou, documento abre sem QR:',e); }
   win.document.open();
   win.document.write(_comprovanteQuitacaoHTML({
     nome:dados.nome, cpf:dados.cpf, contrato:dados.contrato,
