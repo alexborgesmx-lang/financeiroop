@@ -1364,6 +1364,7 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
                     type="number"
                     value={valor}
                     onChange={e => setValor(e.target.value)}
+                    onPaste={e => { if (tipo === "personalizado" || tipo === "com_atraso") pasteMoeda(e, setValor); }}
                     style={{...IS(), fontSize:20, fontWeight:800, textAlign:"center", height:52}}
                     readOnly={tipo !== "personalizado" && tipo !== "com_atraso"}
                     onFocus={() => setTipo("personalizado")}
@@ -1384,6 +1385,7 @@ function CobrancaModal({ cliente, parcelasCliente, todasParcelas, contratos, onS
                       type="number"
                       value={desconto || ""}
                       onChange={e => changeDesconto(e.target.value)}
+                      onPaste={e => pasteMoeda(e, changeDesconto)}
                       placeholder="0,00"
                       min="0"
                       max={parseFloat(parcelaSel.VALOR_JUROS||0)}
