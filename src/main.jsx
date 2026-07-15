@@ -24,6 +24,8 @@ function applyTheme(dark){const t=dark?DARK:LIGHT;BG=t.BG;CARD=t.CARD;CARD2=t.CA
 function isDarkHour(){const h=new Date().getHours();return h>=18||h<6;}
 
 const fmtR  = v => "R$ " + Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+const _MESES_ABREV=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const fmtMesAno = d => { const dt = d instanceof Date ? d : parseDate(d); return dt && !isNaN(dt) ? `${_MESES_ABREV[dt.getMonth()]}/${dt.getFullYear()}` : '—'; };
 function parseValorColado(texto){
   let s=String(texto||"").trim();
   if(!s)return null;
@@ -642,6 +644,124 @@ function abrirComprovantePagamento(dados){
   win.document.write(_comprovantePagamentoHTML(dados));
   win.document.close();
   return win;
+}
+
+// ─── COMPROVANTE DE QUITAÇÃO v3 — HTML+print (Rede Borges) ────────────────
+function _comprovanteQuitacaoHTML(d){
+  const authBlock = d.qrUrl
+    ? `<img src="${d.qrUrl}" width="78" height="78" alt="QR de verificação" style="border-radius:8px;border:1px solid var(--line);"/><div class="mono">Autenticação<br><b>${d.autenticacao}</b><br>Verifique em ${d.certLink||''}</div>`
+    : `<div class="mono">Autenticação<br><b>${d.autenticacao}</b></div>`;
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comprovante de Quitação - ${d.contrato}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,500;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --bg:#F7F5EF; --surface:#FFFDF9; --surface-2:#F0EDE4; --line:#E2DDD1; --line-soft:#EEEAE0;
+  --ink:#1A1712; --ink-soft:#57514A; --ink-faint:#7C756B;
+  --brand:#0B3D2E; --on-brand:#EAF6EF; --on-brand-soft:#8FE3C0;
+  --signal:#127A57;
+  --r-lg:16px; --shadow-lg:0 20px 52px rgba(11,61,46,.14),0 6px 16px rgba(11,61,46,.08);
+  --sans:"Helvetica Neue",Helvetica,Arial,"Segoe UI",sans-serif;
+  --serif:"Newsreader",Georgia,"Times New Roman",serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);display:flex;flex-direction:column;align-items:center;padding:34px 16px;gap:18px;-webkit-font-smoothing:antialiased;}
+.num{font-variant-numeric:tabular-nums;font-weight:700;letter-spacing:-0.02em;}
+.mono{font-family:var(--mono);letter-spacing:-0.01em;font-size:10px;color:var(--ink-faint);line-height:1.6;}
+.mono b{color:var(--ink);font-weight:600;}
+.serif{font-family:var(--serif);font-style:italic;}
+.toolbar{display:flex;gap:10px;}
+.btn{border:none;border-radius:999px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--sans);}
+.btn-p{background:#A8E03F;color:#07241B;}
+.sheet{width:794px;max-width:100%;min-height:1080px;background:var(--surface);box-shadow:var(--shadow-lg);border:1px solid var(--line);padding:0 0 56px;position:relative;display:flex;flex-direction:column;overflow:hidden;}
+.band{background:var(--brand);color:var(--on-brand);padding:34px 60px 30px;position:relative;overflow:hidden;}
+.band .thread{position:absolute;top:10px;left:0;width:100%;height:52px;opacity:.26;}
+.band .top{display:flex;justify-content:space-between;align-items:flex-start;position:relative;}
+.band .id{display:flex;align-items:center;gap:14px;}
+.band .id .nm{font-size:20px;font-weight:700;letter-spacing:-.02em;}
+.band .id .ds{font-family:var(--mono);font-size:11px;color:var(--on-brand-soft);}
+.band .co{text-align:right;font-size:10.5px;color:var(--on-brand-soft);line-height:1.7;}
+.inner{padding:0 60px;flex:1;display:flex;flex-direction:column;}
+.stamp{position:absolute;top:196px;right:60px;width:150px;height:150px;border:3px solid var(--signal);color:var(--signal);border-radius:50%;display:grid;place-items:center;text-align:center;transform:rotate(-11deg);opacity:.94;}
+.stamp b{font-size:17px;letter-spacing:.04em;line-height:1.1;}
+.kick{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--signal);text-transform:uppercase;margin-top:50px;}
+h1{font-size:38px;margin-top:12px;letter-spacing:-.02em;max-width:74%;color:var(--ink);}
+.decl{font-size:15px;line-height:1.75;color:var(--ink-soft);margin-top:26px;max-width:64ch;}
+.decl strong{color:var(--ink);}
+.decl .ok{color:var(--signal);font-weight:700;}
+.facts{margin-top:30px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-lg);padding:8px 24px;}
+.row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line-soft);font-size:15px;}
+.row:last-child{border-bottom:none;}
+.row .k{color:var(--ink-faint);}
+.row .v{font-weight:600;text-align:right;color:var(--ink);}
+.invite{margin-top:26px;border:1px dashed var(--line);border-radius:var(--r-lg);padding:20px 24px;text-align:center;background:var(--bg);}
+.invite .q{font-family:var(--serif);font-style:italic;font-size:19px;color:var(--brand);}
+.invite p{font-size:13.5px;color:var(--ink-soft);margin-top:7px;}
+.sign{margin-top:auto;padding-top:44px;display:flex;justify-content:space-between;align-items:flex-end;gap:30px;}
+.sign .auth{display:flex;gap:18px;align-items:center;}
+.sign .who{text-align:center;}
+.sign .who .line{width:230px;border-top:1.5px solid var(--ink);padding-top:8px;}
+.sign .who .nm{font-size:13px;font-weight:600;}
+.sign .who .mono{font-size:10px;color:var(--ink-faint);}
+@media print{
+  body{padding:0;background:#fff;} .toolbar{display:none!important;} .sheet{box-shadow:none;width:100%;min-height:auto;border:none;}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  @page{size:A4;margin:0;}
+}
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn btn-p" onclick="window.print()">Salvar / imprimir PDF</button>
+  </div>
+  <div class="sheet">
+    <div class="band">
+      ${_linhaConfiancaSVG(794,52,12,1.75,0.22,"var(--on-brand-soft)")}
+      <div class="top">
+        <div class="id">
+          <svg width="46" height="46" viewBox="0 0 68 68"><rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#fff"/><path d="M25 25 H43 V43 H25 Z" fill="#0E5C44"/></svg>
+          <div><div class="nm">Borges Assessoria</div><div class="ds">Rede privada de confiança</div></div>
+        </div>
+        <div class="co">Borges Assessoria Financeira<br>CNPJ 63.124.205/0001-07<br>borgesassessoriafinanceira@gmail.com<br>(62) 98487-7843</div>
+      </div>
+    </div>
+    <div class="stamp"><div><b>QUITAÇÃO<br>TOTAL</b><div class="mono" style="font-size:9px;margin-top:4px;">NADA CONSTA</div></div></div>
+    <div class="inner">
+      <div class="kick">Comprovante de quitação de contrato</div>
+      <h1 class="serif">Contrato integralmente quitado</h1>
+      <p class="decl">
+        A <strong>Borges Assessoria</strong> declara, para os devidos fins, que o contrato de crédito abaixo identificado foi <span class="ok">integralmente quitado</span> pelo(a) cliente, nada mais havendo a ser cobrado a título de principal, juros ou encargos relativos a esta operação. Palavra dada, palavra cumprida.
+      </p>
+      <div class="facts">
+        <div class="row"><span class="k">Cliente</span><span class="v">${d.nome} — CPF <span class="num">${d.cpf}</span></span></div>
+        <div class="row"><span class="k">Contrato</span><span class="v mono">${d.contrato}</span></div>
+        <div class="row"><span class="k">Valor principal</span><span class="v num">${d.valorPrincipal}</span></div>
+        <div class="row"><span class="k">Total pago (principal + juros)</span><span class="v num">${d.totalPago}</span></div>
+        <div class="row"><span class="k">Parcelas</span><span class="v num">${d.parcelasLabel}</span></div>
+        <div class="row"><span class="k">Período</span><span class="v num">${d.periodoInicio} — ${d.periodoFim}</span></div>
+        <div class="row"><span class="k">Data da quitação</span><span class="v num">${d.dataQuitacao}</span></div>
+      </div>
+      <div class="invite">
+        <div class="q">"Você faz parte da Rede Borges."</div>
+        <p>Conhece alguém de confiança que merece o mesmo? Sua indicação é o que mantém a rede forte.</p>
+      </div>
+      <div class="sign">
+        <div class="auth">${authBlock}</div>
+        <div class="who">
+          <div class="line"></div>
+          <div class="nm">Borges Assessoria</div>
+          <div class="mono">Assinado digitalmente</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
 }
 
 // ─── HELPER: GERAR E ENVIAR COMPROVANTE PDF VIA WHATSAPP ─────────
