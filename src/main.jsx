@@ -3535,7 +3535,7 @@ function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,
                 <span style={LS()}>Desconto nos Juros (R$)</span>
                 <span style={{fontSize:10,color:MUTED,fontWeight:600}}>máx {fmtR(parseFloat(parcela?.VALOR_JUROS||0))}</span>
               </div>
-              <input type="number" value={desconto||""} onChange={e=>changeDescontoPPM(e.target.value)} placeholder="0,00" min="0" max={parseFloat(parcela?.VALOR_JUROS||0)} style={{...IS(),color:desconto>0?GRN:TEXT}}/>
+              <input type="number" value={desconto||""} onChange={e=>changeDescontoPPM(e.target.value)} onPaste={e=>pasteMoeda(e,changeDescontoPPM)} placeholder="0,00" min="0" max={parseFloat(parcela?.VALOR_JUROS||0)} style={{...IS(),color:desconto>0?GRN:TEXT}}/>
               {desconto>0&&<div style={{marginTop:4,fontSize:11,color:GRN,fontWeight:600}}>Cliente paga {fmtR(parseFloat(parcela?.VALOR_PRINCIPAL||0))} + {fmtR(Math.max(0,parseFloat(parcela?.VALOR_JUROS||0)-desconto))} de juros</div>}
             </div>
           )}
