@@ -479,7 +479,27 @@ buscarCNPJ(cnpj)          // chama /api/utils?t=cnpj (proxy BrasilAPI+ReceitaWS)
 titleCasePT(s)            // title case respeitando preposições PT (de, da, do, dos, das, e...)
 normTel(s)                // normaliza telefone: remove não-dígitos, 10→11 dígitos (add 9)
 fixEmail(s)               // lowercase + corrige @gmail.com.br → @gmail.com
+parseValorColado(texto)   // converte texto colado no formato BR ("2.000,00") para número JS válido; null se não parseável
+pasteMoeda(e, setter)     // onPaste handler — usa parseValorColado e chama setter(String(n)); ver "Campos monetários — colagem BR" abaixo
 ```
+
+### Campos monetários — colagem BR (adicionado 2026-07-15)
+Todo `<input type="number">` que representa **valor em reais** precisa de `onPaste={e=>pasteMoeda(e,<setter>)}` — sem isso, colar um valor no formato BR (ex: `2.000,00` copiado de PDF/comprovante) faz o navegador descartar a vírgula e gerar um valor errado (`2.00000`). Não é automático — **todo campo novo de R$ precisa desse `onPaste` adicionado manualmente**.
+
+```javascript
+// padrão simples (setter direto, ex: useState)
+<input type="number" value={valor} onChange={e=>setValor(e.target.value)} onPaste={e=>pasteMoeda(e,setValor)} .../>
+
+// padrão com state composto (objeto "dados" com set=f=>e=>setDados(...))
+// adicionar ao lado do "set" existente:
+const setF=f=>v=>setDados(p=>({...p,[f]:v}));
+// e usar: onPaste={e=>pasteMoeda(e,setF("campo"))}
+
+// CampoEdit (ClienteModal): passar a prop moeda
+<CampoEdit ... field="RENDA_BRUTA" tipo="number" moeda/>
+```
+
+Campos de percentual (`Taxa Mensal %`) e quantidade (`Nº de Parcelas`) ficam de fora deliberadamente — não é o problema que esse padrão resolve. A exibição do campo com vírgula decimal (ex: `2670,15`) é comportamento nativo do Chrome em pt-BR, não algo implementado por nós; separador de milhar (`1.000`) nunca aparece em `type="number"` nativo, em nenhum idioma — formatação visual completa (`R$ 2.000,00` ao vivo) exigiria trocar o input por um componente de máscara de moeda, avaliado e descartado por ora (ver spec).
 
 ### Constantes de status globais — NUNCA redefinir localmente
 ```javascript

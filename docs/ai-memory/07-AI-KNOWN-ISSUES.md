@@ -622,6 +622,26 @@ Resolvido (2026-07-05 renegociação, 2026-07-06 Acordo Assistido).
 
 ---
 
+## 2026-07-15 — Colagem de valor monetário BR vira valor errado
+
+### Problema
+Todo `<input type="number">` de valor em reais aceitava só ponto como separador decimal e rejeitava vírgula. Ao colar um valor no formato BR copiado de PDF/comprovante (ex: `2.000,00`), o navegador descartava a vírgula e concatenava os dígitos restantes, produzindo `2.00000` em vez de `2000.00`. Reportado por Alex ao colar renda de cliente vinda de um PDF no ClienteModal.
+
+### Impacto
+Qualquer campo de R$ colado (não digitado manualmente) no sistema — Renda do cliente, Principal do contrato, Valor de pagamento, campos do módulo judicial, etc. — podia gravar um valor completamente errado sem nenhum aviso visual óbvio.
+
+### Solução
+Duas funções novas perto de `fmtR` (`parseValorColado`/`pasteMoeda`) interceptam o evento `onPaste` em ~26 campos monetários e convertem o texto colado (milhar=ponto, decimal=vírgula) para um número JS válido antes de setar o state — sem alterar `type`, `onChange` ou a digitação manual. Campos de percentual/quantidade ficam de fora deliberadamente. Detalhes de uso em `CLAUDE.md` (seção "Campos monetários — colagem BR") — **todo campo novo de R$ precisa desse `onPaste` adicionado manualmente**, não é automático.
+
+Confirmado funcionando em produção por Alex em 2026-07-15 (colou "2.670,15", campo mostrou "2670,15" — vírgula decimal é exibição nativa do Chrome em pt-BR, não algo implementado; separador de milhar nunca aparece em `type="number"` nativo).
+
+Spec: `docs/superpowers/specs/2026-07-15-colagem-valores-monetarios-design.md`. Plano: `docs/superpowers/plans/2026-07-15-colagem-valores-monetarios.md`.
+
+### Status
+Resolvido (2026-07-15)
+
+---
+
 ## Débitos Técnicos
 
 - `src/main.jsx` com ~6000+ linhas — candidato a modularização futura (Fase 3).
