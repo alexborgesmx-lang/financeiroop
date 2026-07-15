@@ -1633,7 +1633,7 @@ function EncerrarContratoModal({contrato,parcelas,onConfirmar,onFechar}){
           </div>
           <div style={{marginBottom:18}}>
             <span style={LS()}>Valor recebido no encerramento (R$)</span>
-            <input type="number" value={valorRecebido} onChange={e=>{setValorRecebido(e.target.value);setMsg(null);}} placeholder="0,00 — sem valor = baixa como prejuízo" style={{...IS(),fontSize:18,fontWeight:800,height:52,textAlign:"center"}}/>
+            <input type="number" value={valorRecebido} onChange={e=>{setValorRecebido(e.target.value);setMsg(null);}} onPaste={e=>pasteMoeda(e,v=>{setValorRecebido(v);setMsg(null);})} placeholder="0,00 — sem valor = baixa como prejuízo" style={{...IS(),fontSize:18,fontWeight:800,height:52,textAlign:"center"}}/>
           </div>
           {!isBaixa&&(
             <div style={{background:ORG+"0D",border:`1px solid ${ORG}30`,borderRadius:10,padding:14,marginBottom:16}}>
