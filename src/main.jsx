@@ -4437,7 +4437,7 @@ function NovaPromessaModal({contratos,clientes,onConfirmar,onFechar}){
           )}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
             <div><span style={LS()}>Data Prevista</span><input type="date" value={dataPrevista} onChange={e=>setDataPrevista(e.target.value)} style={IS()}/></div>
-            <div><span style={LS()}>Valor Prometido (R$)</span><input type="number" value={valorPrometido} onChange={e=>setValorPrometido(e.target.value)} placeholder="0.00" style={IS()}/></div>
+            <div><span style={LS()}>Valor Prometido (R$)</span><input type="number" value={valorPrometido} onChange={e=>setValorPrometido(e.target.value)} onPaste={e=>pasteMoeda(e,setValorPrometido)} placeholder="0.00" style={IS()}/></div>
           </div>
           <div><span style={LS()}>Observação</span><input value={observacao} onChange={e=>setObservacao(e.target.value)} placeholder="Opcional" style={IS()}/></div>
           {msg&&<div style={{padding:"10px 14px",borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:13,fontWeight:700,border:`1px solid ${msg.ok?GRN:RED}25`}}>{""}{msg.t}</div>}
