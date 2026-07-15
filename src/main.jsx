@@ -764,6 +764,34 @@ h1{font-size:38px;margin-top:12px;letter-spacing:-.02em;max-width:74%;color:var(
 </html>`;
 }
 
+async function abrirComprovanteQuitacao(dados){
+  const win=window.open("","_blank");
+  if(!win){
+    alert("Pop-up bloqueado — permita pop-ups para este site e clique novamente.");
+    return null;
+  }
+  win.document.write('<!doctype html><html><head><meta charset="UTF-8"><title>Comprovante de Quitação</title></head><body style="font-family:sans-serif;padding:40px;text-align:center;color:#57514A">Gerando comprovante...</body></html>');
+  win.document.close();
+  let qrUrl=null, certLink=null, autenticacao=dados.autenticacaoFallback;
+  try{
+    const certRes=await postAction({action:"garantirCertificadoQuitacao",idContrato:dados.contrato,idCliente:dados.idCliente,datQuitacao:dados.dataQuitacaoISO});
+    if(certRes?.ok){
+      certLink=certRes.link;
+      autenticacao=certRes.codigo;
+      qrUrl=`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(certRes.link)}`;
+    }
+  }catch(e){ /* documento abre sem QR — ver spec, comportamento esperado */ }
+  win.document.open();
+  win.document.write(_comprovanteQuitacaoHTML({
+    nome:dados.nome, cpf:dados.cpf, contrato:dados.contrato,
+    valorPrincipal:dados.valorPrincipal, totalPago:dados.totalPago,
+    parcelasLabel:dados.parcelasLabel, periodoInicio:dados.periodoInicio, periodoFim:dados.periodoFim,
+    dataQuitacao:dados.dataQuitacao, autenticacao, qrUrl, certLink,
+  }));
+  win.document.close();
+  return win;
+}
+
 // ─── HELPER: GERAR E ENVIAR COMPROVANTE PDF VIA WHATSAPP ─────────
 function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes,opts={}){
   try{
