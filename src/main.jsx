@@ -2107,6 +2107,7 @@ function AjuizarModal({contrato, onSucesso, onFechar}){
   const [erro,setErro]=useState("");
   const mob=useIsMobile();
   const set=f=>e=>setDados(p=>({...p,[f]:e.target.value}));
+  const setF=f=>v=>setDados(p=>({...p,[f]:v}));
   const salvar=async()=>{
     if(!dados.NUMERO_PROCESSO.trim()&&!dados.DATA_AJUIZAMENTO){setErro("Número do processo ou data de ajuizamento é obrigatório.");return;}
     setLoading(true);setErro("");
@@ -2129,7 +2130,7 @@ function AjuizarModal({contrato, onSucesso, onFechar}){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             <div style={{gridColumn:"1/-1"}}><span style={LS()}>Nº do Processo (CNJ)</span><input value={dados.NUMERO_PROCESSO} onChange={set("NUMERO_PROCESSO")} placeholder="0000000-00.0000.0.00.0000" style={IS()}/></div>
             <div><span style={LS()}>Data do Ajuizamento</span><input type="date" value={dados.DATA_AJUIZAMENTO} onChange={set("DATA_AJUIZAMENTO")} style={IS()}/></div>
-            <div><span style={LS()}>Valor Executado (R$)</span><input type="number" value={dados.VALOR_EXECUTADO} onChange={set("VALOR_EXECUTADO")} placeholder="0.00" style={IS()}/></div>
+            <div><span style={LS()}>Valor Executado (R$)</span><input type="number" value={dados.VALOR_EXECUTADO} onChange={set("VALOR_EXECUTADO")} onPaste={e=>pasteMoeda(e,setF("VALOR_EXECUTADO"))} placeholder="0.00" style={IS()}/></div>
             <div><span style={LS()}>Vara</span><input value={dados.VARA} onChange={set("VARA")} placeholder="1ª Vara Cível" style={IS()}/></div>
             <div><span style={LS()}>Comarca</span><input value={dados.COMARCA} onChange={set("COMARCA")} placeholder="Cidade" style={IS()}/></div>
             <div style={{gridColumn:"1/-1"}}><span style={LS()}>Status Processual</span>
@@ -2165,6 +2166,7 @@ function AcordoJudicialModal({contrato, onSucesso, onFechar}){
   const [erro,setErro]=useState("");
   const mob=useIsMobile();
   const set=f=>e=>setDados(p=>({...p,[f]:e.target.value}));
+  const setF=f=>v=>setDados(p=>({...p,[f]:v}));
   const ehParcelado=dados.tipo==="PARCELADO";
   const salvar=async()=>{
     if(!dados.valorNegociado||parseFloat(dados.valorNegociado)<=0){setErro("Informe o valor negociado.");return;}
@@ -2194,15 +2196,15 @@ function AcordoJudicialModal({contrato, onSucesso, onFechar}){
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             <div><span style={LS()}>Data do Acordo</span><input type="date" value={dados.data} onChange={set("data")} style={IS()}/></div>
-            <div><span style={LS()}>Valor Original (R$)</span><input type="number" value={dados.valorOriginal} onChange={set("valorOriginal")} style={IS()}/></div>
-            <div><span style={LS()}>Saldo Atualizado (R$)</span><input type="number" value={dados.saldoAtualizado} onChange={set("saldoAtualizado")} style={IS()}/></div>
-            <div><span style={LS()}>Valor Negociado (R$)</span><input type="number" value={dados.valorNegociado} onChange={set("valorNegociado")} style={IS()}/></div>
-            <div><span style={LS()}>Entrada (R$)</span><input type="number" value={dados.entrada} onChange={set("entrada")} placeholder="0.00" style={IS()}/></div>
+            <div><span style={LS()}>Valor Original (R$)</span><input type="number" value={dados.valorOriginal} onChange={set("valorOriginal")} onPaste={e=>pasteMoeda(e,setF("valorOriginal"))} style={IS()}/></div>
+            <div><span style={LS()}>Saldo Atualizado (R$)</span><input type="number" value={dados.saldoAtualizado} onChange={set("saldoAtualizado")} onPaste={e=>pasteMoeda(e,setF("saldoAtualizado"))} style={IS()}/></div>
+            <div><span style={LS()}>Valor Negociado (R$)</span><input type="number" value={dados.valorNegociado} onChange={set("valorNegociado")} onPaste={e=>pasteMoeda(e,setF("valorNegociado"))} style={IS()}/></div>
+            <div><span style={LS()}>Entrada (R$)</span><input type="number" value={dados.entrada} onChange={set("entrada")} onPaste={e=>pasteMoeda(e,setF("entrada"))} placeholder="0.00" style={IS()}/></div>
             {ehParcelado&&<>
               <div><span style={LS()}>Qtd. Parcelas</span><input type="number" value={dados.qtdParcelas} onChange={set("qtdParcelas")} style={IS()}/></div>
               <div><span style={LS()}>Data 1ª Parcela</span><input type="date" value={dados.dataPrimeiraParcela} onChange={set("dataPrimeiraParcela")} style={IS()}/></div>
             </>}
-            <div><span style={LS()}>Honorários (R$)</span><input type="number" value={dados.honorarios} onChange={set("honorarios")} placeholder="0.00" style={IS()}/></div>
+            <div><span style={LS()}>Honorários (R$)</span><input type="number" value={dados.honorarios} onChange={set("honorarios")} onPaste={e=>pasteMoeda(e,setF("honorarios"))} placeholder="0.00" style={IS()}/></div>
             <div><span style={LS()}>Quem Paga Honorários</span>
               <select value={dados.quemPagaHonorarios} onChange={set("quemPagaHonorarios")} style={IS()}>
                 <option value="">Selecione...</option>
@@ -2210,7 +2212,7 @@ function AcordoJudicialModal({contrato, onSucesso, onFechar}){
                 <option value="CREDOR">Credor (custo próprio)</option>
               </select>
             </div>
-            <div><span style={LS()}>Custas (R$)</span><input type="number" value={dados.custas} onChange={set("custas")} placeholder="0.00" style={IS()}/></div>
+            <div><span style={LS()}>Custas (R$)</span><input type="number" value={dados.custas} onChange={set("custas")} onPaste={e=>pasteMoeda(e,setF("custas"))} placeholder="0.00" style={IS()}/></div>
             <div><span style={LS()}>Quem Paga Custas</span>
               <select value={dados.quemPagaCustas} onChange={set("quemPagaCustas")} style={IS()}>
                 <option value="">Selecione...</option>
@@ -2240,6 +2242,7 @@ function QuitacaoJudicialModal({contrato, onSucesso, onFechar}){
   const [erro,setErro]=useState("");
   const mob=useIsMobile();
   const set=f=>e=>setDados(p=>({...p,[f]:e.target.value}));
+  const setF=f=>v=>setDados(p=>({...p,[f]:v}));
   const salvar=async()=>{
     if(!dados.valorRecebido||parseFloat(dados.valorRecebido)<=0){setErro("Informe o valor recebido.");return;}
     setLoading(true);setErro("");
@@ -2260,14 +2263,14 @@ function QuitacaoJudicialModal({contrato, onSucesso, onFechar}){
         <div style={{padding:"18px 22px",display:"flex",flexDirection:"column",gap:12}}>
           <div style={{background:GRN+"08",border:`1px solid ${GRN}30`,borderRadius:8,padding:"10px 12px",fontSize:12,color:GRN,fontWeight:600,display:"flex",alignItems:"center",gap:8}}>{IcoAlert} O contrato será encerrado judicialmente (irreversível). Prejuízo remanescente: {fmtR(parseFloat(contrato?.PREJUIZO_CAPITAL||0))}.</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div style={{gridColumn:"1/-1"}}><span style={LS()}>Valor Recebido (R$)</span><input type="number" value={dados.valorRecebido} onChange={set("valorRecebido")} style={IS()}/></div>
+            <div style={{gridColumn:"1/-1"}}><span style={LS()}>Valor Recebido (R$)</span><input type="number" value={dados.valorRecebido} onChange={set("valorRecebido")} onPaste={e=>pasteMoeda(e,setF("valorRecebido"))} style={IS()}/></div>
             <div><span style={LS()}>Data</span><input type="date" value={dados.data} onChange={set("data")} style={IS()}/></div>
             <div><span style={LS()}>Forma</span>
               <select value={dados.forma} onChange={set("forma")} style={IS()}>
                 <option value="pix">PIX</option><option value="dinheiro">Dinheiro</option><option value="transferencia">Transferência</option>
               </select>
             </div>
-            <div><span style={LS()}>Honorários (R$)</span><input type="number" value={dados.honorarios} onChange={set("honorarios")} placeholder="0.00" style={IS()}/></div>
+            <div><span style={LS()}>Honorários (R$)</span><input type="number" value={dados.honorarios} onChange={set("honorarios")} onPaste={e=>pasteMoeda(e,setF("honorarios"))} placeholder="0.00" style={IS()}/></div>
             <div><span style={LS()}>Quem Paga Honorários</span>
               <select value={dados.quemPagaHonorarios} onChange={set("quemPagaHonorarios")} style={IS()}>
                 <option value="">Selecione...</option>
@@ -2275,7 +2278,7 @@ function QuitacaoJudicialModal({contrato, onSucesso, onFechar}){
                 <option value="CREDOR">Credor (custo próprio)</option>
               </select>
             </div>
-            <div><span style={LS()}>Custas (R$)</span><input type="number" value={dados.custas} onChange={set("custas")} placeholder="0.00" style={IS()}/></div>
+            <div><span style={LS()}>Custas (R$)</span><input type="number" value={dados.custas} onChange={set("custas")} onPaste={e=>pasteMoeda(e,setF("custas"))} placeholder="0.00" style={IS()}/></div>
             <div><span style={LS()}>Quem Paga Custas</span>
               <select value={dados.quemPagaCustas} onChange={set("quemPagaCustas")} style={IS()}>
                 <option value="">Selecione...</option>
