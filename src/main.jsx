@@ -120,6 +120,109 @@ function statusEfetivo(p) {
 }
 const _ST_LABEL = { pago:"Pago", pendente:"Pendente", atrasado:"Atrasado", vence_hoje:"Vence Hoje", baixado_como_prejuizo:"Baixado", cancelado:"Cancelado", quitacao_antecipada:"Quitado", reagendado:"Reagendado" };
 
+// ─── Prioridade de Cobrança (Fase 1 — 100% client-side, nunca persistido) ───
+// Nível de Estratégia é sempre derivado de STATUS_CONTRATO + dias de atraso —
+// nunca um campo gravado à parte (evita repetir bug de status "esquecido"/"revertido" pelo trigger diário).
+function calcPrioridadeCobranca({ contrato, parcelasContrato, eventos, cliente }) {
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const ps = parcelasContrato || [];
+  const pendentes = ps.filter(p => !_ST_TERMINAL.has(String(p.STATUS || p.STATUS_PAGAMENTO || "").toLowerCase()));
+  let diasAtraso = 0;
+  pendentes.forEach(p => {
+    if (statusEfetivo(p) !== "atrasado") return;
+    const dv = parseDate(p.DATA_VENCIMENTO);
+    if (dv) { dv.setHours(0, 0, 0, 0); diasAtraso = Math.max(diasAtraso, Math.round((hoje - dv) / 86400000)); }
+  });
+  const proxima = pendentes.slice().sort((a, b) => toNum(a.DATA_VENCIMENTO) - toNum(b.DATA_VENCIMENTO))[0];
+  const diasAteVenc = proxima ? Math.round((parseDate(proxima.DATA_VENCIMENTO) - hoje) / 86400000) : null;
+
+  const jaRenegociado = ps.some(p => String(p.ORIGEM_PARCELA || "").toLowerCase() === "renegociada");
+  const jaTeveAcordoAssistido = (eventos || []).some(e =>
+    String(e.ID_CONTRATO || "").trim() === String(contrato.ID_CONTRATO).trim() &&
+    String(e.TIPO_EVENTO || "") === "ACORDO_ASSISTIDO_ENTRADA");
+
+  const st = String(contrato.STATUS_CONTRATO || "").toLowerCase();
+
+  // ── Nível de Estratégia (subdivisão fina dos limites que STATUS_CONTRATO já usa) ──
+  let nivel = 0, nivelLabel = "Em Dia";
+  if (st === "em_processo_judicial" || st === "encerrado_judicialmente") { nivel = 7; nivelLabel = "Jurídico"; }
+  else if (st === "acordo_assistido") { nivel = -1; nivelLabel = "Acordo Assistido"; }
+  else if (st === "pre_prejuizo") { nivel = 6; nivelLabel = "Pré-Jurídico"; }
+  else if (st === "em_cobranca") { nivel = 5; nivelLabel = "Recuperação"; }
+  else if (st === "ativo_em_atraso") {
+    if (diasAtraso <= 7) { nivel = 2; nivelLabel = "Atenção"; }
+    else if (diasAtraso <= 15) { nivel = 3; nivelLabel = "Cobrança Ativa"; }
+    else { nivel = 4; nivelLabel = "Cobrança Intensiva"; }
+  } else if (st === "ativo_em_dia" || st === "ativo") {
+    if (diasAteVenc != null && diasAteVenc <= 5) { nivel = 1; nivelLabel = "Preventivo"; }
+    else { nivel = 0; nivelLabel = "Em Dia"; }
+  } else { nivelLabel = STATUS_LABEL[st] || "—"; }
+
+  // ── Score de Prioridade (0-100) — blocos com teto, espelha calcularScore (crédito) ──
+  const valorAberto = pendentes.filter(p => statusEfetivo(p) === "atrasado").reduce((s, p) => s + parseFloat(p.VALOR_PARCELA || 0), 0);
+  const valorContrato = parseFloat(contrato.VALOR_PRINCIPAL || 0);
+  const promessasQuebradas = cliente ? parseInt(cliente.PROMESSAS_QUEBRADAS || 0) : 0;
+
+  const urgencia = diasAtraso <= 0 ? 0 : diasAtraso <= 7 ? 5 : diasAtraso <= 15 ? 10 : diasAtraso <= 30 ? 15 : diasAtraso <= 60 ? 18 : 20;
+  const faixaAberto = valorAberto >= 5000 ? 14 : valorAberto >= 2000 ? 10 : valorAberto >= 800 ? 6 : valorAberto > 0 ? 3 : 0;
+  const faixaContrato = valorContrato >= 10000 ? 6 : valorContrato >= 4000 ? 4 : valorContrato > 0 ? 2 : 0;
+  const valorRisco = Math.min(20, faixaAberto + faixaContrato);
+  const reincidencia = Math.min(30, (jaRenegociado ? 15 : 0) + (jaTeveAcordoAssistido ? 15 : 0) + Math.min(10, promessasQuebradas * 3));
+  const taxaAdimplencia = cliente ? parseFloat(cliente.TAXA_ADIMPLENCIA_REAL ?? cliente.TAXA_ADIMPLENCIA ?? 100) : 100;
+  const atrasoMedio = cliente ? parseFloat(cliente.ATRASO_MEDIO || 0) : 0;
+  const historico = Math.min(15, Math.round((100 - taxaAdimplencia) / 100 * 10) + (atrasoMedio > 15 ? 5 : atrasoMedio > 5 ? 2 : 0));
+  const perfil = String(cliente?.PERFIL_COBRANCA || "").toUpperCase();
+  const perfilPts = perfil === "EVASIVO" ? 10 : perfil === "RESISTENTE" ? 7 : perfil === "NEUTRO" ? 3 : 0;
+  const scoreCredito = cliente ? parseFloat(cliente.SCORE || 0) : 0;
+  const perfilTotal = Math.min(10, perfilPts + (scoreCredito > 0 && scoreCredito < 45 ? 3 : 0));
+  const riscoPerda = st === "pre_prejuizo" ? 5 : st === "em_cobranca" ? 3 : 0;
+
+  let score = urgencia + valorRisco + reincidencia + historico + perfilTotal + riscoPerda;
+  const motivos = [];
+  if (urgencia > 0) motivos.push(`+${urgencia} atraso ${diasAtraso}d`);
+  if (valorRisco > 0) motivos.push(`+${valorRisco} valor em risco`);
+  if (jaRenegociado) motivos.push("+15 já renegociado");
+  if (jaTeveAcordoAssistido) motivos.push("+15 já teve Acordo Assistido");
+  if (promessasQuebradas > 0) motivos.push(`+${Math.min(10, promessasQuebradas * 3)} ${promessasQuebradas} promessa(s) quebrada(s)`);
+  if (historico > 0) motivos.push(`+${historico} histórico`);
+  if (perfilTotal > 0) motivos.push(`+${perfilTotal} perfil`);
+  if (riscoPerda > 0) motivos.push(`+${riscoPerda} risco de perda`);
+
+  let pisoAplicado = false;
+  if ((jaRenegociado || jaTeveAcordoAssistido) && diasAtraso > 0 && score < 81) {
+    score = 81; pisoAplicado = true;
+    motivos.push("piso aplicado: mínimo Forte (reincidência)");
+  }
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  let banda = "Monitorar", corBanda = MUTED;
+  if (score >= 92) { banda = "Crítica"; corBanda = RED; }
+  else if (score >= 81) { banda = "Forte"; corBanda = ORG; }
+  else if (score >= 65) { banda = "Normal"; corBanda = YEL; }
+  else if (score >= 40) { banda = "Acompanhamento"; corBanda = BLU; }
+
+  // ── Próxima Ação Sugerida (texto derivado, sem estado, sem persistência) ──
+  let acao = "Sem ação necessária";
+  if (nivel === 1) acao = "Lembrete preventivo — vencimento próximo";
+  else if (diasAtraso > 0) {
+    if ((jaRenegociado || jaTeveAcordoAssistido) && st === "ativo_em_atraso") acao = "Reincidente em atraso — considerar ajuizamento";
+    else if (nivel >= 6) acao = "Decidir: recuperar, ajuizar ou baixar";
+    else if (nivel === 5) acao = "Avaliar renegociação ou acordo";
+    else if (nivel === 4) acao = "Contato direto — PIX/WhatsApp";
+    else if (nivel === 3) acao = "Cobrança ativa — contato direto";
+    else if (nivel === 2) acao = "Cobrança cordial";
+  }
+
+  return { score, banda, corBanda, motivo: motivos.join(" | ") || "Sem fatores de risco", nivel, nivelLabel, acao, diasAtraso, pisoAplicado, jaRenegociado, jaTeveAcordoAssistido };
+}
+function prioridadeBadge(prio, size = "sm") {
+  if (!prio) return null;
+  const p = size === "md" ? "4px 12px" : "3px 10px", fs = size === "md" ? 11 : 10;
+  return <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: p, borderRadius: 9999, fontSize: fs, fontWeight: 800, background: prio.corBanda + "18", color: prio.corBanda, border: `1px solid ${prio.corBanda}35`, lineHeight: 1.3, whiteSpace: "nowrap" }} title={prio.motivo}>
+    {prio.score} · {prio.banda}
+  </span>;
+}
+
 function apiDateStr(v){
   const dt = parseDate(v);
   if(!dt) return v || "";
@@ -1954,6 +2057,43 @@ function QuitacaoAntecipadaModal({contrato, parcelas, clientes, quitacoes, onCon
   );
 }
 
+function BloquearClienteModal({cliente, onSucesso, onFechar}){
+  const [motivo,setMotivo]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [erro,setErro]=useState("");
+  const mob=useIsMobile();
+  const nome=cliente.NOME||cliente.NOME_CLIENTE||"Cliente";
+  const confirmar=async()=>{
+    if(motivo.trim().length<5){setErro("Descreva o motivo do bloqueio (mínimo 5 caracteres).");return;}
+    setLoading(true);setErro("");
+    try{
+      const res=await postAction({action:"bloquearClienteManual",idCliente:cliente.ID_CLIENTE,motivo:motivo.trim()});
+      if(res.ok){onSucesso&&onSucesso(motivo.trim());onFechar();}
+      else setErro(res.erro||"Erro ao bloquear cliente.");
+    }catch(e){setErro(e.message);}
+    setLoading(false);
+  };
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:mob?0:16}} onClick={onFechar}>
+      <div onClick={e=>e.stopPropagation()} style={{background:CARD,borderRadius:mob?0:16,width:"100%",maxWidth:440,maxHeight:mob?"100dvh":"90vh",overflowY:"auto",boxShadow:"0 30px 90px rgba(0,0,0,0.32)",border:mob?"none":`1px solid ${BD}`}}>
+        <div style={{padding:"18px 22px",borderBottom:`1px solid ${BD}`,display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
+          <div><h2 style={{color:RED,fontSize:18,fontWeight:800,margin:0,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.02em"}}>{IcoLock} Bloquear Cliente</h2><p style={{fontSize:12,color:MUTED,margin:"4px 0 0"}}>{cliente.ID_CLIENTE} · {nome}</p></div>
+          <button onClick={onFechar} style={{background:"transparent",border:"none",color:MUTED,cursor:"pointer",fontSize:18,lineHeight:1,padding:4}}>×</button>
+        </div>
+        <div style={{padding:"18px 22px",display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{background:RED+"08",border:`1px solid ${RED}30`,borderRadius:8,padding:"10px 12px",fontSize:12,color:RED,fontWeight:600,display:"flex",alignItems:"center",gap:8}}>{IcoAlert} Cliente bloqueado não poderá tirar novos contratos. Contratos já ativos continuam normalmente — cobrança e pagamentos não são afetados.</div>
+          <div><span style={LS()}>Motivo do bloqueio</span><textarea value={motivo} onChange={e=>setMotivo(e.target.value)} placeholder="Ex: usou o nome de outra pessoa para tirar um contrato paralelo." rows={4} style={{...IS(),resize:"vertical",fontFamily:"inherit"}}/></div>
+          {erro&&<div style={{padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:600}}>{erro}</div>}
+          <div style={{display:"flex",gap:8,marginTop:4}}>
+            <button onClick={onFechar} disabled={loading} style={{flex:1,padding:"11px",borderRadius:9,border:`1px solid ${BD}`,background:"transparent",color:MUTED,cursor:"pointer",fontWeight:600,fontSize:13}}>Cancelar</button>
+            <button onClick={confirmar} disabled={loading} style={{flex:2,...BTN4(loading)}}>{loading?<><IcoSpinner color="#fff"/> Bloqueando...</>:<>{IcoLock} Confirmar Bloqueio</>}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AjuizarModal({contrato, onSucesso, onFechar}){
   const [dados,setDados]=useState({
     NUMERO_PROCESSO:"",DATA_AJUIZAMENTO:hojeStr(),VARA:"",COMARCA:"",
@@ -2590,19 +2730,6 @@ function CampoEdit({label,field,tipo,opts,edit,setEdit,erros,fixup}){
   );
 }
 
-function ajustarDiaUtil(dateStr, feriadosSet) {
-  if (!dateStr || !feriadosSet?.size) return dateStr;
-  const [y, m, dy] = dateStr.split("-").map(Number);
-  if (!y || !m || !dy) return dateStr;
-  const d = new Date(y, m - 1, dy, 12);
-  for (let i = 0; i < 14; i++) {
-    const dow = d.getDay();
-    const ymd = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-    if (dow !== 0 && dow !== 6 && !feriadosSet.has(ymd)) return ymd;
-    d.setDate(d.getDate() + 1);
-  }
-  return dateStr;
-}
 function calcProxVenc(diaVenc){
   if(!diaVenc)return"";
   const s=String(diaVenc).trim();
@@ -2733,6 +2860,20 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
   });
   const [saving,setSaving]=useState(false);
   const [saveMsg,setSaveMsg]=useState(null);
+  const [bloqModalOpen,setBloqModalOpen]=useState(false);
+  const [desbloqLoading,setDesbloqLoading]=useState(false);
+  const [bloqLocal,setBloqLocal]=useState(null);
+  const isBloqueadoManual=bloqLocal?bloqLocal.blocked:String(cliente.CLIENTE_BLOQUEADO_MANUAL||"").toUpperCase()==="SIM";
+  const motivoBloqueio=bloqLocal?bloqLocal.motivo:cliente.MOTIVO_BLOQUEIO_MANUAL;
+  const dataBloqueio=bloqLocal?bloqLocal.data:cliente.DATA_BLOQUEIO_MANUAL;
+  const desbloquearCliente=async()=>{
+    if(!window.confirm(`Desbloquear ${cliente.NOME||cliente.NOME_CLIENTE||"este cliente"}? Ele voltará a poder tirar novos contratos.`))return;
+    setDesbloqLoading(true);
+    try{
+      const res=await postAction({action:"desbloquearClienteManual",idCliente:cliente.ID_CLIENTE});
+      if(res.ok){setBloqLocal({blocked:false});if(onOptimisticUpdate)onOptimisticUpdate({CLIENTE_BLOQUEADO_MANUAL:""},cliente.ID_CLIENTE);}
+    }finally{setDesbloqLoading(false);}
+  };
   const [cepStatus,setCepStatus]=useState(null);
   const [geoStatus,setGeoStatus]=useState(null);
   const [cnpjStatus,setCnpjStatus]=useState(null);
@@ -2823,16 +2964,19 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
   const nErros=Object.keys(erros).length;
   const mob = useIsMobile();
 
-  return(
+  return(<>
     <div className="modal-overlay-anim" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:mob?0:20}}>
       <div className="modal-box-anim" style={{background:CARD,borderRadius:mob?0:16,width:"100%",maxWidth:mob?undefined:980,height:mob?"100dvh":"86vh",display:"flex",flexDirection:"column",overflow:"hidden",minWidth:0,boxShadow:"0 30px 90px rgba(0,0,0,0.32)",border:mob?"none":`1px solid ${BD}`}}>
         <div style={{padding:mob?"14px 16px":"18px 24px",borderBottom:`1px solid ${BD}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
           <div style={{display:"flex",alignItems:"center",gap:14}}>
             <div style={{width:40,height:40,background:GRN+"18",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",color:GRN,fontSize:16,fontWeight:800,flexShrink:0,border:`1px solid ${GRN}28`}}>{nome[0]||"?"}</div>
-            <div><h2 style={{margin:0,fontSize:mob?16:18,fontWeight:800,letterSpacing:"-0.02em",color:TEXT}}>{nome}</h2><div style={{fontSize:12,color:MUTED,marginTop:2}}>ID {cliente.ID_CLIENTE||"—"} · Score: {score}</div></div>
+            <div><h2 style={{margin:0,fontSize:mob?16:18,fontWeight:800,letterSpacing:"-0.02em",color:TEXT,display:"flex",alignItems:"center",gap:8}}>{nome}{isBloqueadoManual&&<span style={{fontSize:11,fontWeight:700,color:RED,background:RED+"12",padding:"3px 9px",borderRadius:99,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:4}}>{IcoLock} BLOQUEADO</span>}</h2><div style={{fontSize:12,color:MUTED,marginTop:2}}>ID {cliente.ID_CLIENTE||"—"} · Score: {score}</div>{isBloqueadoManual&&motivoBloqueio&&<div style={{fontSize:11,color:RED,marginTop:3,fontWeight:600}}>Motivo: {motivoBloqueio}{dataBloqueio?` · ${fmtDt(dataBloqueio)}`:""}</div>}</div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             {onNovoContrato&&<button onClick={()=>onNovoContrato(cliente)} style={{...BTN1(false),padding:"7px 13px",fontSize:12}}>{IcoCtr} Novo Contrato</button>}
+            {isBloqueadoManual
+              ?<button onClick={desbloquearCliente} disabled={desbloqLoading} style={{padding:"7px 13px",fontSize:12,borderRadius:9999,border:`1px solid ${BD}`,background:"transparent",color:MUTED,cursor:desbloqLoading?"default":"pointer",fontWeight:700,display:"flex",alignItems:"center",gap:6,opacity:desbloqLoading?0.6:1}}>{desbloqLoading?<IcoSpinner color={MUTED}/>:IcoLock} Desbloquear Cliente</button>
+              :<button onClick={()=>setBloqModalOpen(true)} style={{padding:"7px 13px",fontSize:12,borderRadius:9999,border:"none",background:RED,color:"#FFF",cursor:"pointer",fontWeight:700,display:"flex",alignItems:"center",gap:6}}>{IcoLock} Bloquear Cliente</button>}
             <button className="modal-close-btn" onClick={onFechar} style={{background:"transparent",border:"none",width:32,height:32,borderRadius:8,cursor:"pointer",color:MUTED,display:"flex",alignItems:"center",justifyContent:"center"}}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
@@ -3189,7 +3333,8 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
         )}
       </div>
     </div>
-  );
+    {bloqModalOpen&&<BloquearClienteModal cliente={cliente} onFechar={()=>setBloqModalOpen(false)} onSucesso={(motivo)=>{const dataAgora=new Date().toISOString();setBloqLocal({blocked:true,motivo,data:dataAgora});if(onOptimisticUpdate)onOptimisticUpdate({CLIENTE_BLOQUEADO_MANUAL:"SIM",MOTIVO_BLOQUEIO_MANUAL:motivo,DATA_BLOQUEIO_MANUAL:dataAgora},cliente.ID_CLIENTE);}}/>}
+  </>);
 }
 
 function PagamentoDrop({contratos,parcelas,clientes,onSucesso,onSelecionarParcela}){
@@ -3454,14 +3599,16 @@ function NovoContrato({contratos,clientes,onSucesso,clienteInicial}){
   const [cliente,setCliente]=useState(()=>clienteInicial?.ID_CLIENTE?{ID_CLIENTE:clienteInicial.ID_CLIENTE,NOME_CLIENTE:clienteInicial.NOME||clienteInicial.NOME_CLIENTE||""}:null);
   const [principal,setPrincipal]=useState(hasSimData?String(clienteInicial.valor):(_ini?.principal||""));const [nParcelas,setNParcelas]=useState(hasSimData?String(clienteInicial.prazo):(_ini?.nParcelas||""));const [taxa,setTaxa]=useState(hasSimData?String(clienteInicial.taxa):(_ini?.taxa||""));const [dtEmp,setDtEmp]=useState(hojeStr());
   const [dtVenc,setDtVenc]=useState(()=>{const dia=clienteInicial?.DIA_VENCIMENTO_PREFERIDO||(clientes||[]).find(c=>String(c.ID_CLIENTE)===String(clienteInicial?.ID_CLIENTE))?.DIA_VENCIMENTO_PREFERIDO;return dia?calcProxVenc(dia):"";});const [loading,setLoading]=useState(false);const [msg,setMsg]=useState(null);const [contratoOk,setContratoOk]=useState(null);const [docLoading,setDocLoading]=useState(false);const [zapLoading,setZapLoading]=useState(false);const [zapUrl,setZapUrl]=useState("");const [zapErro,setZapErro]=useState("");const [zapWppUrl,setZapWppUrl]=useState("");const [carneLoading,setCarneLoading]=useState(false);const [carneOk,setCarneOk]=useState(false);const [carneErro,setCarneErro]=useState("");const [criandoSteps,setCriandoSteps]=useState(null);const ref=useRef();
-  const [feriados,setFeriados]=useState(new Set());const [feriadosLoaded,setFeriadosLoaded]=useState(false);
-  useEffect(()=>{fetch("/api/utils?t=feriados").then(r=>r.ok?r.json():null).then(d=>{if(d?.datas){setFeriados(new Set(d.datas));setFeriadosLoaded(true);}}).catch(()=>{});},[]);
-  useEffect(()=>{if(!feriadosLoaded||!dtVenc)return;const aj=ajustarDiaUtil(dtVenc,feriados);if(aj!==dtVenc)setDtVenc(aj);},[feriadosLoaded]);
   useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setShowDrop(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
 
   const ST_BLOQ=["ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","renegociado","em_recuperacao","recuperado_parcialmente","em_processo_judicial"];
   const idsJudicializados=useMemo(()=>{const s=new Set();(clientes||[]).forEach(c=>{if(String(c.CLIENTE_JUDICIALIZADO||"").toUpperCase()==="SIM")s.add(String(c.ID_CLIENTE));});return s;},[clientes]);
+  const idsBloqueadosManual=useMemo(()=>{const s=new Set();(clientes||[]).forEach(c=>{if(String(c.CLIENTE_BLOQUEADO_MANUAL||"").toUpperCase()==="SIM")s.add(String(c.ID_CLIENTE));});return s;},[clientes]);
   const idsComAtivo=useMemo(()=>{const s=new Set();(contratos||[]).forEach(c=>{if(ST_BLOQ.includes(c.STATUS_CONTRATO))s.add(String(c.ID_CLIENTE));});return s;},[contratos]);
+  const clienteJudi=cliente?idsJudicializados.has(String(cliente.ID_CLIENTE)):false;
+  const clienteBloqManual=cliente?idsBloqueadosManual.has(String(cliente.ID_CLIENTE)):false;
+  const clienteMotivoBloqueio=clienteBloqManual?String((clientes||[]).find(c=>String(c.ID_CLIENTE)===String(cliente.ID_CLIENTE))?.MOTIVO_BLOQUEIO_MANUAL||""):"";
+  const clienteBloqueadoGate=clienteJudi||clienteBloqManual;
 
   const clis=useMemo(()=>{
     if(busca.length<2)return[];
@@ -3514,26 +3661,29 @@ function NovoContrato({contratos,clientes,onSucesso,clienteInicial}){
             {clis.map(c=>{
               const bloq=idsComAtivo.has(String(c.ID_CLIENTE));
               const judi=idsJudicializados.has(String(c.ID_CLIENTE));
-              const blocked=bloq||judi;
+              const bloqM=idsBloqueadosManual.has(String(c.ID_CLIENTE));
+              const blocked=bloq||judi||bloqM;
               return<div key={c.ID_CLIENTE}
-                onClick={()=>{if(!blocked){setCliente(c);setShowDrop(false);const cliF=(clientes||[]).find(cl=>String(cl.ID_CLIENTE)===String(c.ID_CLIENTE));if(cliF?.DIA_VENCIMENTO_PREFERIDO){const dv=calcProxVenc(cliF.DIA_VENCIMENTO_PREFERIDO);if(dv)setDtVenc(ajustarDiaUtil(dv,feriados));}const pf=prefill(c.ID_CLIENTE);if(pf){setPrincipal(pf.principal);setNParcelas(pf.nParcelas);setTaxa(pf.taxa);}else{setPrincipal("");setNParcelas("");setTaxa("");}}}}
+                onClick={()=>{if(!blocked){setCliente(c);setShowDrop(false);const cliF=(clientes||[]).find(cl=>String(cl.ID_CLIENTE)===String(c.ID_CLIENTE));if(cliF?.DIA_VENCIMENTO_PREFERIDO){const dv=calcProxVenc(cliF.DIA_VENCIMENTO_PREFERIDO);if(dv)setDtVenc(dv);}const pf=prefill(c.ID_CLIENTE);if(pf){setPrincipal(pf.principal);setNParcelas(pf.nParcelas);setTaxa(pf.taxa);}else{setPrincipal("");setNParcelas("");setTaxa("");}}}}
                 style={{padding:"10px 14px",cursor:blocked?"not-allowed":"pointer",fontSize:13,borderBottom:`1px solid ${BG}`,background:blocked?RED+"05":CARD,display:"flex",justifyContent:"space-between",alignItems:"center",opacity:blocked?0.7:1}}
                 onMouseEnter={e=>!blocked&&(e.currentTarget.style.background=BG)}
                 onMouseLeave={e=>e.currentTarget.style.background=blocked?RED+"05":CARD}>
                 <span style={{color:blocked?MUTED:TEXT}}><strong style={{color:blocked?MUTED:TEXT}}>{c.ID_CLIENTE}</strong> — {c.NOME_CLIENTE}</span>
                 {judi&&<span style={{fontSize:11,fontWeight:700,color:RED,background:RED+"12",padding:"2px 8px",borderRadius:99,whiteSpace:"nowrap",marginLeft:8,display:"inline-flex",alignItems:"center",gap:4}}>{IcoJur} judicializado</span>}
-                {!judi&&bloq&&<span style={{fontSize:11,fontWeight:700,color:RED,background:RED+"12",padding:"2px 8px",borderRadius:99,whiteSpace:"nowrap",marginLeft:8,display:"inline-flex",alignItems:"center",gap:4}}>{IcoLock} contrato ativo</span>}
+                {!judi&&bloqM&&<span style={{fontSize:11,fontWeight:700,color:RED,background:RED+"12",padding:"2px 8px",borderRadius:99,whiteSpace:"nowrap",marginLeft:8,display:"inline-flex",alignItems:"center",gap:4}}>{IcoLock} bloqueado</span>}
+                {!judi&&!bloqM&&bloq&&<span style={{fontSize:11,fontWeight:700,color:RED,background:RED+"12",padding:"2px 8px",borderRadius:99,whiteSpace:"nowrap",marginLeft:8,display:"inline-flex",alignItems:"center",gap:4}}>{IcoLock} contrato ativo</span>}
               </div>;
             })}
           </div>}
         </div>
+        {cliente&&clienteBloqueadoGate&&<div style={{background:RED+"08",border:`1px solid ${RED}30`,borderRadius:8,padding:"10px 12px",fontSize:12,color:RED,fontWeight:600,display:"flex",alignItems:"center",gap:8}}>{clienteJudi?IcoJur:IcoLock} {clienteJudi?"Cliente com histórico de ação judicial — bloqueio permanente para novo crédito.":`Cliente bloqueado${clienteMotivoBloqueio?": "+clienteMotivoBloqueio:"."}`}</div>}
         {cliente&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <div><span style={LS()}>Principal</span><input type="number" value={principal} onChange={e=>setPrincipal(e.target.value)} placeholder="0.00" style={IS()}/></div>
           <div><span style={LS()}>Parcelas</span><input type="number" value={nParcelas} onChange={e=>setNParcelas(e.target.value)} placeholder="1" style={IS()}/></div>
           <div><span style={LS()}>Taxa Mensal (%)</span><input type="number" value={taxa} onChange={e=>setTaxa(e.target.value)} placeholder="0.00" style={IS()}/></div>
-          <div><span style={LS()}>1º Vencimento</span><input type="date" value={dtVenc} onChange={e=>setDtVenc(e.target.value)} onBlur={e=>{const aj=ajustarDiaUtil(e.target.value,feriados);if(aj!==e.target.value)setDtVenc(aj);}} style={IS()}/></div>
+          <div><span style={LS()}>1º Vencimento</span><input type="date" value={dtVenc} onChange={e=>setDtVenc(e.target.value)} style={IS()}/></div>
           <div style={{gridColumn:"1/-1"}}><span style={LS()}>Data Empréstimo</span><input type="date" value={dtEmp} onChange={e=>setDtEmp(e.target.value)} style={IS()}/></div>
-          <button onClick={criar} disabled={loading} style={{...BTN1(loading),gridColumn:"1/-1"}}>{loading?<><IcoSpinner color="#07241B"/> Criando...</>:<>{IcoCtr} Gerar Contrato</>}</button>
+          <button onClick={criar} disabled={loading||clienteBloqueadoGate} style={{...BTN1(loading||clienteBloqueadoGate),gridColumn:"1/-1"}}>{loading?<><IcoSpinner color="#07241B"/> Criando...</>:<>{IcoCtr} Gerar Contrato</>}</button>
         </div>}
         {msg&&<div style={{padding:10,borderRadius:8,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED,fontSize:12,textAlign:"center",fontWeight:600}}>{msg.t}</div>}
       </div>
@@ -3645,6 +3795,8 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
   const podeExcluir   = pags.length===0&&!["cancelado","baixado_como_prejuizo","quitado","recuperado_integralmente","recuperado_parcialmente","encerrado_sem_recuperacao","renegociado","acordo_assistido","em_processo_judicial","encerrado_judicialmente"].includes(String(contrato.STATUS_CONTRATO||"").toLowerCase());
   const podeRenegociar = !jaRenegociado && pendentes.length > 0 && ["ativo_em_atraso","em_cobranca","pre_prejuizo","acordo_assistido"].includes(contrato.STATUS_CONTRATO);
   const podeRecuperar = ["baixado_como_prejuizo","em_recuperacao","recuperado_parcialmente"].includes(contrato.STATUS_CONTRATO);
+  const mostrarPrioridadeCob = !["quitado","cancelado","recuperado_integralmente","encerrado_sem_recuperacao","renegociado","baixado_como_prejuizo","acordo_assistido"].includes(String(contrato.STATUS_CONTRATO||"").toLowerCase());
+  const prioridadeCob = mostrarPrioridadeCob ? calcPrioridadeCobranca({contrato,parcelasContrato:ps,eventos,cliente:cli}) : null;
   const excluirContrato=async()=>{
     setDelLoad(true);setDelErr("");
     try{
@@ -3785,7 +3937,12 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
                   </span>
                   {diasAteVenc===0&&<Badge c={YEL}>Vence Hoje</Badge>}
                   {cli?.PERFIL_COBRANCA&&<Badge c={PERFIL_COR[cli.PERFIL_COBRANCA]||MUTED}>{PERFIL_LABEL[cli.PERFIL_COBRANCA]||cli.PERFIL_COBRANCA}</Badge>}
+                  {prioridadeCob&&prioridadeCob.nivel!==0&&prioridadeBadge(prioridadeCob)}
+                  {prioridadeCob&&prioridadeCob.nivel>0&&<Badge c={MUTED}>{prioridadeCob.nivelLabel}</Badge>}
                 </div>
+                {prioridadeCob&&prioridadeCob.nivel>=2&&(
+                  <div style={{fontSize:11,color:MUTED,marginTop:8,fontStyle:"italic"}}>→ {prioridadeCob.acao}</div>
+                )}
               </div>
               <button className="modal-close-btn" onClick={onFechar} style={{background:"transparent",border:"none",width:34,height:34,borderRadius:10,cursor:"pointer",color:MUTED,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -4022,7 +4179,12 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
                       <tr key={p.ID_PARCELA||i} style={{borderBottom:`1px solid ${BD}`,fontSize:12,background:i%2===0?CARD:BG,opacity:isSubstituida?0.5:1}}>
                         <td style={{padding:"9px 14px",color:MUTED,fontWeight:600}}>{p.NUM_PARCELA}{isUltima(p,ps)&&<span style={{fontSize:8,fontWeight:800,color:GRN,background:GRN+"18",padding:"1px 4px",borderRadius:99,marginLeft:4}}>ult.</span>}</td>
                         <td style={{fontWeight:600,color:isSubstituida?MUTED:TEXT,fontSize:11}}>
-                          {p.DATA_ACORDO?<span style={{color:ORG}}>{fmtDt(p.DATA_ACORDO)}<span style={{fontSize:8,fontWeight:800,background:ORG+"18",padding:"1px 4px",borderRadius:99,marginLeft:3}}>acordo</span></span>:fmtDt(p.DATA_VENCIMENTO)}
+                          {p.DATA_ACORDO?(
+                            <div style={{display:"flex",flexDirection:"column",gap:1}}>
+                              <span style={{fontSize:9,color:MUTED,textDecoration:"line-through"}}>{fmtDt(p.DATA_VENCIMENTO)}</span>
+                              <span style={{color:ORG}}>{fmtDt(p.DATA_ACORDO)}<span style={{fontSize:8,fontWeight:800,background:ORG+"18",padding:"1px 4px",borderRadius:99,marginLeft:3}}>acordo</span></span>
+                            </div>
+                          ):fmtDt(p.DATA_VENCIMENTO)}
                         </td>
                         <td><Badge c={sitCor}>{sitLbl}</Badge>{isNovaParcela&&<span style={{fontSize:9,color:PUR,background:PUR+"18",padding:"1px 5px",borderRadius:99,fontWeight:800,marginLeft:4}}>↺ nova</span>}{diasAtraso>0&&<div style={{fontSize:9,color:diasAtrasoCor,fontWeight:700,marginTop:2}}>{diasAtraso}d atraso</div>}</td>
                         <td style={{textAlign:"right",padding:"9px 14px",fontWeight:700,color:isSubstituida?MUTED:(foiPago?GRN:TEXT),textDecoration:isSubstituida?"line-through":"none"}}>{foiPago&&!isSubstituida?fmtR(p.VALOR_PAGO):fmtR(p.VALOR_PARCELA)}</td>
@@ -5513,6 +5675,7 @@ function App() {
   const [arquivarProcessoModal, setArquivarProcessoModal] = useState(null);
   const [renegociacaoModal, setRenegociacaoModal] = useState(null);
   const [cobModal, setCobModal] = useState(null);
+  const [cobFiltro, setCobFiltro] = useState(null); // null | {tipo:"banda",valor} | {tipo:"ajuizamento"}
   const [contratoSel, setContratoSel] = useState(null);
   const [carteiraDetalheModal, setCarteiraDetalheModal] = useState(null);
   const [filtroCtr, setFiltroCtr] = useState("");
@@ -5643,6 +5806,7 @@ function App() {
   const empregadores = useMemo(()=>raw?.EMPREGADORES || [], [raw]);
   const quitacoes    = useMemo(()=>raw?.QUITACOES    || [], [raw]);
   const cliMap = useMemo(()=>new Map((clientes||[]).map(c=>[String(c.ID_CLIENTE),c])), [clientes]);
+  const contratosMap = useMemo(()=>new Map((contratos||[]).map(c=>[String(c.ID_CONTRATO),c])), [contratos]);
 
   const promessasFiltradas = useMemo(()=>{
     const lista=[...promessas].sort((a,b)=>{
@@ -5825,6 +5989,16 @@ function App() {
       const ref=ps[0]||{};
       const nome=c?nomeCliente(c):(ref.NOME_CLIENTE||"Cliente sem nome");
       const telefone=c?telCliente(c):(ref.TELEFONE||ref.TELEFONE_WPP||"—");
+      // Prioridade de Cobrança: calculada por contrato, o cliente herda a do pior contrato dele
+      const contratoIds=[...new Set(ps.map(p=>String(p.ID_CONTRATO)))];
+      let prioridade=null;
+      contratoIds.forEach(cid=>{
+        const ctr=contratosMap.get(cid);
+        if(!ctr)return;
+        const parcelasContrato=(parcelas||[]).filter(p=>String(p.ID_CONTRATO)===cid);
+        const prio=calcPrioridadeCobranca({contrato:ctr,parcelasContrato,eventos,cliente:c});
+        if(!prioridade||prio.score>prioridade.score)prioridade=prio;
+      });
       return{
         ...c,
         ID_CLIENTE:id,
@@ -5832,11 +6006,30 @@ function App() {
         TELEFONE:telefone,
         vAtraso,
         maxAtraso,
-        qtdContratos:[...new Set(ps.map(p=>p.ID_CONTRATO))].length,
+        qtdContratos:contratoIds.length,
         parcelasAtrasadas:psComDias,   // ← parcelas com DIAS_ATRASO calculado
+        prioridade,
       };
-    }).sort((a,b)=>b.maxAtraso-a.maxAtraso);
-  },[clientes,parcelas]);
+    }).sort((a,b)=>(b.prioridade?.score||0)-(a.prioridade?.score||0));
+  },[clientes,parcelas,contratos,eventos,contratosMap,cliMap]);
+
+  const cobKpis=useMemo(()=>{
+    let critica=0,forte=0,normal=0,elegivelAjuizamento=0,valorRisco=0;
+    cobItems.forEach(c=>{
+      valorRisco+=c.vAtraso;
+      const b=c.prioridade?.banda;
+      if(b==="Crítica")critica++;else if(b==="Forte")forte++;else if(b==="Normal")normal++;
+      if(c.prioridade?.jaRenegociado||c.prioridade?.jaTeveAcordoAssistido)elegivelAjuizamento++;
+    });
+    const hoje=new Date();hoje.setHours(0,0,0,0);
+    const promessasHoje=(promessas||[]).filter(p=>{
+      if(String(p.STATUS_PROMESSA||"").toUpperCase()!=="PENDENTE")return false;
+      const d=parseDate(p.DATA_PREVISTA_PAGAMENTO);if(!d)return false;d.setHours(0,0,0,0);
+      return d.getTime()===hoje.getTime();
+    }).length;
+    const promessasQuebradas=(promessas||[]).filter(p=>String(p.STATUS_PROMESSA||"").toUpperCase()==="QUEBRADA").length;
+    return{critica,forte,normal,elegivelAjuizamento,valorRisco,promessasHoje,promessasQuebradas};
+  },[cobItems,promessas]);
 
   const perdas=useMemo(()=>{
     const todos=contratos||[];
@@ -6875,7 +7068,7 @@ function App() {
                 <tbody>{filtrados.map(c=>(
                   <tr key={c.ID_CLIENTE} className="tr-hover" onClick={()=>{setSelCliAba("perfil");setSelCli(c);}} style={{borderBottom:`1px solid ${BD}`,fontSize:13,cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=BG+"80"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <td style={{padding:"13px 18px"}}><div style={{fontWeight:700,display:"flex",alignItems:"center",gap:8}}>{nomeCliente(c)}{scoreBadge(c)}</div><div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"}{mob&&telCliente(c)?" · "+telCliente(c):""}</div></td>
-                    <td><Badge c={c.STATUS_CLIENTE==="ativo"?GRN:YEL}>{(c.STATUS_CLIENTE||"").toUpperCase()}</Badge></td>
+                    <td><Badge c={c.STATUS_CLIENTE==="ativo"?GRN:YEL}>{(c.STATUS_CLIENTE||"").toUpperCase()}</Badge>{String(c.CLIENTE_BLOQUEADO_MANUAL||"").toUpperCase()==="SIM"&&<span style={{marginLeft:6,fontSize:10,fontWeight:700,color:RED,background:RED+"12",padding:"2px 7px",borderRadius:99,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:3}}>{IcoLock} BLOQUEADO</span>}</td>
                     {!mob&&<td style={{color:MUTED}}>{telCliente(c)}</td>}
                     <td style={{padding:"13px 18px",textAlign:"right"}}><span style={{fontSize:12,color:GRN,fontWeight:700}}>Ver →</span></td>
                   </tr>
@@ -6976,7 +7169,15 @@ function App() {
           )}
 
           {/* COBRANÇA ── linha clicável abre CobrancaModal */}
-          {tab==="cobranca"&&(
+          {tab==="cobranca"&&(()=>{
+            const cobItemsFiltrados = !cobFiltro ? cobItems
+              : cobFiltro.tipo==="banda" ? cobItems.filter(c=>c.prioridade?.banda===cobFiltro.valor)
+              : cobFiltro.tipo==="ajuizamento" ? cobItems.filter(c=>c.prioridade?.jaRenegociado||c.prioridade?.jaTeveAcordoAssistido)
+              : cobItems;
+            const toggleFiltro = f => setCobFiltro(cur=>(cur&&cur.tipo===f.tipo&&cur.valor===f.valor)?null:f);
+            const filtroAtivo = k => !!cobFiltro && cobFiltro.tipo===k.filtro?.tipo && cobFiltro.valor===k.filtro?.valor;
+            const filtroLabel = !cobFiltro ? "" : cobFiltro.tipo==="banda" ? cobFiltro.valor : "Elegíveis para Ajuizamento";
+            return(
             <div className="flex flex-col gap-5" style={{animation:"fadeUp 400ms cubic-bezier(0.16,1,0.3,1) both"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:16,flexWrap:"wrap"}}>
                 <div>
@@ -6984,23 +7185,66 @@ function App() {
                   <div style={{fontSize:11,color:MUTED,marginTop:4}}>{cobItems.length} cliente{cobItems.length!==1?"s":""} com parcelas em atraso · {parcelasAtrasadas.length} parcela{parcelasAtrasadas.length!==1?"s":""} no total</div>
                 </div>
               </div>
+
+              {/* KPIs de Prioridade de Cobrança — Fase 1, calculado 100% no navegador */}
+              <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:14}}>
+                {[
+                  {label:"🔥 Crítica",val:cobKpis.critica,c:RED,filtro:{tipo:"banda",valor:"Crítica"}},
+                  {label:"⚠ Forte",val:cobKpis.forte,c:ORG,filtro:{tipo:"banda",valor:"Forte"}},
+                  {label:"🟡 Normal",val:cobKpis.normal,c:YEL,filtro:{tipo:"banda",valor:"Normal"}},
+                  {label:"⚖ Elegíveis p/ ajuizamento",val:cobKpis.elegivelAjuizamento,c:PUR,filtro:{tipo:"ajuizamento"}},
+                ].map(k=>(
+                  <div key={k.label} onClick={()=>toggleFiltro(k.filtro)}
+                    style={{background:CARD,padding:16,borderRadius:16,border:`1px solid ${filtroAtivo(k)?k.c:BD}`,boxShadow:SHD,position:"relative",overflow:"hidden",cursor:"pointer",transition:"transform 180ms cubic-bezier(0.34,1.56,0.64,1),box-shadow 180ms ease"}}
+                    onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.13)";}}
+                    onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow=SHD;}}>
+                    <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:4}}>{k.label}</div>
+                    <div style={{fontSize:mob?17:22,fontWeight:800,color:k.c}}>{k.val}</div>
+                    <div style={{fontSize:9,color:k.c,marginTop:5,fontWeight:600,opacity:0.7}}>{filtroAtivo(k)?"clique p/ limpar filtro":"clique p/ filtrar"}</div>
+                    <div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:k.c,borderRadius:"0 0 14px 14px",opacity:0.6}}/>
+                  </div>
+                ))}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)",gap:14}}>
+                {[
+                  {label:"📅 Promessas hoje",val:cobKpis.promessasHoje,c:BLU},
+                  {label:"❌ Promessas quebradas",val:cobKpis.promessasQuebradas,c:RED},
+                  {label:"💰 Valor total em risco",val:fmtR(cobKpis.valorRisco),c:ORG},
+                ].map(k=>(
+                  <div key={k.label} style={{background:CARD,padding:16,borderRadius:16,border:`1px solid ${BD}`,boxShadow:SHD}}>
+                    <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:4}}>{k.label}</div>
+                    <div style={{fontSize:mob?17:20,fontWeight:800,color:k.c}}>{k.val}</div>
+                  </div>
+                ))}
+              </div>
+
             <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,overflow:"hidden",boxShadow:SHD}}>
-              <div style={{padding:mob?12:16,borderBottom:`1px solid ${BD}`,background:RED+"05",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <h3 style={{margin:0,fontSize:15,fontWeight:700,color:RED}}>Fila de Cobrança</h3>
-                {!mob&&<span style={{fontSize:12,color:MUTED,display:"flex",alignItems:"center",gap:5}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Clique em um cliente para registrar pagamento</span>}
-                {mob&&<Badge c={RED}>{cobItems.length}</Badge>}
+              <div style={{padding:mob?12:16,borderBottom:`1px solid ${BD}`,background:RED+"05",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <h3 style={{margin:0,fontSize:15,fontWeight:700,color:RED}}>Fila de Cobrança{cobFiltro?` · ${filtroLabel}`:""}</h3>
+                  {cobFiltro&&(
+                    <button onClick={()=>setCobFiltro(null)} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:9999,border:`1px solid ${BD}`,background:CARD,color:MUTED,fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      Limpar filtro
+                    </button>
+                  )}
+                </div>
+                {!mob&&<span style={{fontSize:12,color:MUTED,display:"flex",alignItems:"center",gap:5}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Ordenado por Prioridade de Cobrança · clique em um cliente para registrar pagamento</span>}
+                {mob&&<Badge c={RED}>{cobItemsFiltrados.length}</Badge>}
               </div>
               {mob
                 ? <div style={{display:"flex",flexDirection:"column"}}>
-                    {cobItems.map(c=>(
+                    {cobItemsFiltrados.map(c=>(
                       <div key={c.ID_CLIENTE} onClick={()=>setCobModal(c)}
                         style={{padding:"14px 16px",borderBottom:`1px solid ${BD}`,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nomeCliente(c)}{scoreBadge(c)}</div>
-                          <div style={{fontSize:11,color:MUTED,marginTop:3,display:"flex",gap:8,alignItems:"center"}}>
+                          <div style={{fontSize:11,color:MUTED,marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                            {prioridadeBadge(c.prioridade)}
                             <Badge c={c.maxAtraso>60?RED:c.maxAtraso>30?ORG:YEL}>{c.maxAtraso}d</Badge>
                             <span>{c.qtdContratos} contrato{c.qtdContratos>1?"s":""}</span>
                           </div>
+                          {c.prioridade?.acao&&<div style={{fontSize:11,color:MUTED,marginTop:4,fontStyle:"italic"}}>→ {c.prioridade.acao}</div>}
                         </div>
                         <div style={{textAlign:"right",flexShrink:0}}>
                           <div style={{fontSize:15,fontWeight:800,color:RED}}>{fmtR(c.vAtraso)}</div>
@@ -7014,14 +7258,16 @@ function App() {
                       <thead>
                         <tr style={{background:GRN+"10",fontSize:11,color:GRN,fontWeight:700,textTransform:"uppercase"}}>
                           <th style={{padding:"10px 18px"}}>Cliente</th>
-                          <th>Contratos</th>
+                          <th>Prioridade</th>
+                          <th>Nível</th>
                           <th>Atraso Máx</th>
                           <th>Valor</th>
+                          <th>Próxima Ação</th>
                           <th style={{padding:"10px 18px",textAlign:"right"}}>Ação</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {cobItems.map(c=>(
+                        {cobItemsFiltrados.map(c=>(
                           <tr key={c.ID_CLIENTE} onClick={()=>setCobModal(c)}
                             style={{borderBottom:`1px solid ${BD}`,fontSize:13,cursor:"pointer",transition:"background 0.1s"}}
                             onMouseEnter={e=>e.currentTarget.style.background=BG}
@@ -7030,9 +7276,11 @@ function App() {
                               <div style={{fontWeight:700,display:"flex",alignItems:"center",gap:8}}>{nomeCliente(c)}{scoreBadge(c)}</div>
                               <div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"} · {telCliente(c)}</div>
                             </td>
-                            <td style={{fontWeight:600}}>{c.qtdContratos}</td>
+                            <td>{prioridadeBadge(c.prioridade)}</td>
+                            <td style={{fontSize:12,color:MUTED,fontWeight:600}}>{c.prioridade?.nivelLabel||"—"}</td>
                             <td><Badge c={c.maxAtraso>60?RED:c.maxAtraso>30?ORG:YEL}>{c.maxAtraso} dias</Badge></td>
                             <td style={{fontWeight:700,color:RED}}>{fmtR(c.vAtraso)}</td>
+                            <td style={{fontSize:12,color:MUTED,maxWidth:200}}>{c.prioridade?.acao||"—"}</td>
                             <td style={{padding:"13px 18px",textAlign:"right"}}>
                               <button onClick={e=>{e.stopPropagation();setCobModal(c);}} style={{...BTN7(GRN),padding:"5px 12px",fontSize:11,display:"flex",alignItems:"center",gap:4}}>
                                 {IcoPag} Registrar
@@ -7046,7 +7294,8 @@ function App() {
               }
             </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* FINANCEIRO */}
           {tab==="financeiro"&&(
@@ -7729,6 +7978,50 @@ function App() {
             const taxaRecorrencia=clientesComContrato.length>0?(clientesRecorrentes.length/clientesComContrato.length*100):0;
             const top5=todosClientes.map(c=>{const vol=todosContratos.filter(ct=>String(ct.ID_CLIENTE)===String(c.ID_CLIENTE)).reduce((s,ct)=>s+parseFloat(ct.VALOR_PRINCIPAL||0),0);const qtd=todosContratos.filter(ct=>String(ct.ID_CLIENTE)===String(c.ID_CLIENTE)).length;return{...c,vol,qtd};}).sort((a,b)=>b.vol-a.vol).slice(0,5);
             const contratosPorMes=Array.from({length:12},(_,i)=>{const hoje=new Date();const dt=new Date(hoje.getFullYear(),hoje.getMonth()-(11-i),1);const ini=new Date(dt.getFullYear(),dt.getMonth(),1,0,0,0);const fim=new Date(dt.getFullYear(),dt.getMonth()+1,0,23,59,59);const cs=todosContratos.filter(c=>{const d=parseDate(c.DATA_EMPRESTIMO);return d&&d>=ini&&d<=fim;});return{name:dt.toLocaleDateString("pt-BR",{month:"short"}).replace(".",""),qtd:cs.length,vol:cs.reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0)};});
+            // Capital em circulação por mês: saldo de principal ainda em aberto no fechamento de cada mês
+            // (não é volume liberado/originado — é o saldo devedor de principal que ainda não tinha saído de circulação naquela data)
+            const capitalCirculacaoPorMes=Array.from({length:12},(_,i)=>{
+              const hoje=new Date();
+              const dt=new Date(hoje.getFullYear(),hoje.getMonth()-(11-i),1);
+              const fimMes=new Date(dt.getFullYear(),dt.getMonth()+1,0,23,59,59);
+              let total=0;
+              todosContratos.forEach(c=>{
+                const dCriacao=parseDate(c.DATA_EMPRESTIMO);
+                if(!dCriacao||dCriacao>fimMes)return; // contrato ainda não existia no fechamento desse mês
+                // Contrato como um todo pode ter saído da "circulação normal" (foi pra balde judicial/baixado/cancelado) —
+                // mesma lógica de associação de _ST_ATIVOS, mas aplicada no ponto do tempo certo, não só "agora"
+                const stContrato=String(c.STATUS_CONTRATO||"").toLowerCase();
+                let dataSaidaContrato=null;
+                if(stContrato==="em_processo_judicial"||stContrato==="encerrado_judicialmente"){
+                  dataSaidaContrato=parseDate(c.DATA_AJUIZAMENTO)||hoje;
+                } else if(["baixado_como_prejuizo","recuperado_integralmente","encerrado_sem_recuperacao"].includes(stContrato)){
+                  dataSaidaContrato=parseDate(c.DATA_BAIXA_PREJUIZO)||hoje;
+                } else if(stContrato==="cancelado"){
+                  dataSaidaContrato=dCriacao; // sem data de cancelamento rastreada — nunca conta como circulando
+                } else if(stContrato==="quitado"){
+                  // reforço além da checagem por parcela: usa a data do último pagamento do contrato
+                  // (cobre parcelas antigas com DATA_PAGAMENTO ausente por qualidade de dado legado)
+                  const datasPag=todasParcelas.filter(p=>String(p.ID_CONTRATO)===String(c.ID_CONTRATO)).map(p=>parseDate(p.DATA_PAGAMENTO)).filter(Boolean);
+                  dataSaidaContrato=datasPag.length?new Date(Math.max(...datasPag.map(d=>d.getTime()))):hoje;
+                }
+                if(dataSaidaContrato&&dataSaidaContrato<=fimMes)return; // já tinha saído da circulação até esse fechamento
+                todasParcelas.forEach(p=>{
+                  if(String(p.ID_CONTRATO)!==String(c.ID_CONTRATO))return;
+                  const st=String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase();
+                  // status não-terminal (aberta/pendente/atrasada) -> null = ainda circula, conta sempre
+                  // status terminal SEM data rastreável -> nunca deveria "ainda estar circulando" (já foi resolvida,
+                  // só não sabemos exatamente quando); fallback "hoje" garante que sai da contagem do mês atual
+                  // em diante, sem sumir retroativamente dos meses passados (mesmo padrão usado a nível de contrato)
+                  let dataSaida=null;
+                  if(st==="pago"||st==="quitacao_antecipada") dataSaida=parseDate(p.DATA_PAGAMENTO)||hoje;
+                  else if(st==="baixado_como_prejuizo") dataSaida=parseDate(c.DATA_BAIXA_PREJUIZO)||hoje;
+                  else if(st==="renegociado") dataSaida=parseDate(c.DATA_RENEGOCIACAO)||hoje;
+                  else if(st==="cancelado") dataSaida=dCriacao;
+                  if(!dataSaida||dataSaida>fimMes) total+=parseFloat(p.VALOR_PRINCIPAL||0);
+                });
+              });
+              return{name:dt.toLocaleDateString("pt-BR",{month:"short"}).replace(".",""),vol:total};
+            });
             const taxaMedia=(()=>{if(!contratosAtivosG.length)return 0;return contratosAtivosG.reduce((s,c)=>s+parseFloat(c.TAXA_JUROS_MENSAL||0),0)/contratosAtivosG.length*100;})();
             const jurosPorMes=Array.from({length:12},(_,i)=>{const hoje=new Date();const dt=new Date(hoje.getFullYear(),hoje.getMonth()-(11-i),1);const ini=new Date(dt.getFullYear(),dt.getMonth(),1,0,0,0);const fim=new Date(dt.getFullYear(),dt.getMonth()+1,0,23,59,59);const pags=todosPagamentos.filter(p=>{const d=parseDate(p.DATA_PAGAMENTO);return d&&d>=ini&&d<=fim;});const v=pags.reduce((s,pag)=>{const parc=todasParcelas.find(p=>String(p.ID_PARCELA)===String(pag.ID_PARCELA));const j=parc?Math.max(0,parseFloat(parc.VALOR_JUROS||0)-parseFloat(parc.DESCONTO_APLICADO||0)):0;return s+j+parseFloat(pag.RECEITA_EXTRA_ATRASO||0)+parseFloat(pag.FEE_PRORROGACAO||0);},0);return{name:dt.toLocaleDateString("pt-BR",{month:"short"}).replace(".",""),value:v};});
             const atrasoPorMes=Array.from({length:12},(_,i)=>{const hoje=new Date();const dt=new Date(hoje.getFullYear(),hoje.getMonth()-(11-i),1);const ini=new Date(dt.getFullYear(),dt.getMonth(),1,0,0,0);const fim=new Date(dt.getFullYear(),dt.getMonth()+1,0,23,59,59);const vencidas=todasParcelas.filter(p=>{const dv=parseDate(p.DATA_VENCIMENTO);return dv&&dv>=ini&&dv<=fim;});const atrasadas=vencidas.filter(p=>todosPagamentos.some(pg=>String(pg.ID_PARCELA)===String(p.ID_PARCELA)&&pg.TIPO_PAGAMENTO==="pagamento_com_atraso")||String(p.STATUS||"").toLowerCase()==="atrasado").length;const pct=vencidas.length>0?parseFloat((atrasadas/vencidas.length*100).toFixed(1)):0;return{name:dt.toLocaleDateString("pt-BR",{month:"short"}).replace(".",""),pct,atrasadas,total:vencidas.length};});
@@ -7765,8 +8058,8 @@ function App() {
                 <GestaoChartPanel chartKey="contratos_ativos" title="Novos contratos por mês" sub="Quantidade de contratos criados em cada mês — últimos 12 meses">
                   <GestaoChart data={contratosPorMes} dataKey="qtd" label="contratos" isMoney={false}/>
                 </GestaoChartPanel>
-                <GestaoChartPanel chartKey="capital_circulacao" title="Capital liberado por mês" sub="Soma do principal dos contratos criados em cada mês — últimos 12 meses">
-                  <GestaoChart data={contratosPorMes} dataKey="vol" label="liberado" isMoney={true}/>
+                <GestaoChartPanel chartKey="capital_circulacao" title="Capital em circulação por mês" sub="Saldo de principal ainda em aberto no fechamento de cada mês — últimos 12 meses">
+                  <GestaoChart data={capitalCirculacaoPorMes} dataKey="vol" label="em circulação" isMoney={true}/>
                 </GestaoChartPanel>
               </div>
 
