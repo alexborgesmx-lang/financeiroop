@@ -633,6 +633,17 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);disp
 </html>`;
 }
 
+function abrirComprovantePagamento(dados){
+  const win=window.open("","_blank");
+  if(!win){
+    alert("Pop-up bloqueado — permita pop-ups para este site e clique em Salvar novamente.");
+    return null;
+  }
+  win.document.write(_comprovantePagamentoHTML(dados));
+  win.document.close();
+  return win;
+}
+
 // ─── HELPER: GERAR E ENVIAR COMPROVANTE PDF VIA WHATSAPP ─────────
 function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes,opts={}){
   try{
