@@ -719,6 +719,7 @@ function onOpen() {
     .addItem("PIX: Limpar Abertos p/ Regeneração", "limparPixAbertosParaRegeneracao")
     .addItem("PIX: Gerar Todos Contratos", "gerarPixTodosContratos")
     .addItem("PIX: Backfill TXID (sem chamar Efí)", "backfillEfiTxid")
+    .addItem("Régua: Reenviar Confirmações de Pagamento Perdidas (7 dias)", "reenviarConfirmacoesPendentes")
     .addSeparator()
     .addItem("Criar Colunas Empregador CNPJ (rodar 1x)", "_garantirColunasEmpregadorClientes")
     .addItem("Somente Juros: Backfill contador (rodar 1x)", "backfillTotalSomenteJuros")
@@ -956,6 +957,8 @@ function doPost(e) {
     else if (body.action === "pagamentoParcial")       { var rPP=registrarPagamentoParcial(body.idParcela, body.data, body.valor, body.idContrato, body.numParcela); res={ok:true,msg:"Juros registrados. Principal rolado para nova parcela.",idUndo:rPP?rPP.idUndo:null}; }
     else if (body.action === "atualizarCliente")       { atualizarDadosCliente(body.idCliente, body.campos); res={ok:true}; }
     else if (body.action === "ativarCliente")          { atualizarCampoCliente(body.idCliente, "STATUS_CLIENTE", "ativo"); res={ok:true}; }
+    else if (body.action === "bloquearClienteManual")   { bloquearClienteManual(body.idCliente, body.motivo||""); res={ok:true}; }
+    else if (body.action === "desbloquearClienteManual"){ desbloquearClienteManual(body.idCliente); res={ok:true}; }
     else if (body.action === "novoContrato")           { var id=criarContrato(body.dados); var dadosBoleto=buscarDadosBoleto(id,body.dados.idCliente||body.dados.clienteId||""); res={ok:true,idContrato:id,parcelas:dadosBoleto.parcelas,cliente:dadosBoleto.cliente}; }
     else if (body.action === "gerarDoc")               { var dRes=gerarDocContrato(body.idContrato,body.idCliente,body.dados); res={ok:true,docUrl:dRes.docUrl||"",docId:dRes.docId||""}; }
     else if (body.action === "pagamentoAutomatico")    { var rAuto=pagamentoAutomatico(body.contractNum,body.numParcela,body.valor,body.data,body.txid||"",body.isSJ||false); res={ok:true,contratoQuitado:rAuto?rAuto.contratoQuitado:false,duplicata:rAuto?!!rAuto.duplicata:false}; }
@@ -3280,12 +3283,16 @@ function criarContrato(v) {
   if (idCliente) {
     var abaCliChk = ss.getSheetByName(ABAS.CLIENTES);
     var cmCliChk  = buildColMap(abaCliChk);
-    if (cmCliChk["CLIENTE_JUDICIALIZADO"]) {
+    if (cmCliChk["CLIENTE_JUDICIALIZADO"] || cmCliChk["CLIENTE_BLOQUEADO_MANUAL"]) {
       var dadosCliChk = abaCliChk.getDataRange().getValues();
       for (var ck = 1; ck < dadosCliChk.length; ck++) {
         if (String(dadosCliChk[ck][(cmCliChk["ID_CLIENTE"]||1)-1]).trim() === String(idCliente).trim()) {
-          if (String(dadosCliChk[ck][cmCliChk["CLIENTE_JUDICIALIZADO"]-1]||"").toUpperCase() === "SIM") {
+          if (cmCliChk["CLIENTE_JUDICIALIZADO"] && String(dadosCliChk[ck][cmCliChk["CLIENTE_JUDICIALIZADO"]-1]||"").toUpperCase() === "SIM") {
             throw new Error("Cliente com histórico de ação judicial — bloqueio permanente para novo crédito.");
+          }
+          if (cmCliChk["CLIENTE_BLOQUEADO_MANUAL"] && String(dadosCliChk[ck][cmCliChk["CLIENTE_BLOQUEADO_MANUAL"]-1]||"").toUpperCase() === "SIM") {
+            var motivoBloqChk = cmCliChk["MOTIVO_BLOQUEIO_MANUAL"] ? String(dadosCliChk[ck][cmCliChk["MOTIVO_BLOQUEIO_MANUAL"]-1]||"").trim() : "";
+            throw new Error("Cliente bloqueado" + (motivoBloqChk ? ": " + motivoBloqChk : "."));
           }
           break;
         }
@@ -6531,17 +6538,27 @@ function _abaMsg() {
 function _logMensagem(dados) {
   var aba = _abaMsg();
   var id  = proximoIdSeq(aba, "MSG");
-  var r   = aba.getLastRow() + 1;
-  var cm  = buildColMap(aba);
-  setCel(aba, r, cm, "ID_MENSAGEM",  id);
-  setCel(aba, r, cm, "DATA_ENVIO",   new Date(), "dd/mm/yyyy hh:mm");
-  setCel(aba, r, cm, "ID_CLIENTE",   dados.idCliente  || "");
-  setCel(aba, r, cm, "ID_CONTRATO",  dados.idContrato || "");
-  setCel(aba, r, cm, "ID_PARCELA",   dados.idParcela  || "");
-  setCel(aba, r, cm, "TELEFONE",     dados.telefone   || "");
-  setCel(aba, r, cm, "GATILHO",      dados.gatilho    || "");
-  setCel(aba, r, cm, "CONTEUDO",     dados.conteudo   || "");
-  setCel(aba, r, cm, "STATUS_ENVIO", dados.status     || "ENVIADO");
+  // Lock: rotinaDiaria (7h) e o trigger de backup rotinaRegua (8h) podem chamar
+  // enviarReguaCobranca() em execuções concorrentes — sem lock, getLastRow()+1
+  // calculado por duas execuções ao mesmo tempo grava na mesma linha e uma
+  // sobrescreve a outra, perdendo o registro mesmo com a mensagem já enviada.
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var r  = aba.getLastRow() + 1;
+    var cm = buildColMap(aba);
+    setCel(aba, r, cm, "ID_MENSAGEM",  id);
+    setCel(aba, r, cm, "DATA_ENVIO",   new Date(), "dd/mm/yyyy hh:mm");
+    setCel(aba, r, cm, "ID_CLIENTE",   dados.idCliente  || "");
+    setCel(aba, r, cm, "ID_CONTRATO",  dados.idContrato || "");
+    setCel(aba, r, cm, "ID_PARCELA",   dados.idParcela  || "");
+    setCel(aba, r, cm, "TELEFONE",     dados.telefone   || "");
+    setCel(aba, r, cm, "GATILHO",      dados.gatilho    || "");
+    setCel(aba, r, cm, "CONTEUDO",     dados.conteudo   || "");
+    setCel(aba, r, cm, "STATUS_ENVIO", dados.status     || "ENVIADO");
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function _jaEnviouHoje(idCliente) {
@@ -6608,71 +6625,159 @@ function _enviarConfirmacaoPagamento(params) {
     }
   }
 
-  // 2. Busca telefone do cliente
-  var ss     = SpreadsheetApp.getActiveSpreadsheet();
-  var abaCli = ss.getSheetByName(ABAS.CLIENTES);
-  var cmCli  = buildColMap(abaCli);
-  var dCli   = abaCli.getDataRange().getValues();
-  var telefone = "";
-  for (var i = 1; i < dCli.length; i++) {
-    if (String(dCli[i][0]).trim() === String(idCliente).trim()) {
-      telefone = String(dCli[i][(cmCli["TELEFONE_WPP"]||8)-1]||"").replace(/\D/g,"");
-      break;
+  // 2-7. Qualquer exceção aqui (leitura de PARCELAS, template, envio) antes era
+  // engolida por um catch genérico do chamador — pagamento ficava registrado
+  // mas a falha de confirmação era 100% invisível (nem MENSAGENS, nem aba Régua
+  // WPP). Agora sempre grava um registro ERRO_ENVIO com o motivo real.
+  try {
+    // 2. Busca telefone do cliente
+    var ss     = SpreadsheetApp.getActiveSpreadsheet();
+    var abaCli = ss.getSheetByName(ABAS.CLIENTES);
+    var cmCli  = buildColMap(abaCli);
+    var dCli   = abaCli.getDataRange().getValues();
+    var telefone = "";
+    for (var i = 1; i < dCli.length; i++) {
+      if (String(dCli[i][0]).trim() === String(idCliente).trim()) {
+        telefone = String(dCli[i][(cmCli["TELEFONE_WPP"]||8)-1]||"").replace(/\D/g,"");
+        break;
+      }
+    }
+    if (!telefone || telefone.length < 10) {
+      _logMensagem({idCliente:idCliente,idContrato:idContrato,idParcela:idParcela,
+                    telefone:"",gatilho:"CONFIRMACAO_PAGAMENTO",conteudo:"SEM_TELEFONE",status:"ERRO_SEM_TELEFONE"});
+      return;
+    }
+
+    // 3. Calcula parcelas restantes e próximo vencimento (ignora a parcela recém-paga)
+    var abaP   = ss.getSheetByName(ABAS.PARCELAS);
+    var cmP    = buildColMap(abaP);
+    var dP     = abaP.getDataRange().getValues();
+    var ipCont = (cmP["ID_CONTRATO"]    ||2)-1;
+    var ipSt   = (cmP["STATUS"]         ||12)-1;
+    var ipDtV  = (cmP["DATA_VENCIMENTO"]||7)-1;
+    var ipParId= (cmP["ID_PARCELA"]     ||1)-1;
+    var restantes = 0; var proxDate = null;
+    for (var i = 1; i < dP.length; i++) {
+      if (String(dP[i][ipCont]||"").trim() !== String(idContrato).trim()) continue;
+      if (String(dP[i][ipParId]||"").trim() === String(idParcela).trim()) continue;
+      var stP = String(dP[i][ipSt]||"").toLowerCase().trim();
+      if (STATUS_TERMINAL[stP]) continue;
+      restantes++;
+      var dtV = dP[i][ipDtV];
+      if (dtV instanceof Date && (!proxDate || dtV < proxDate)) proxDate = dtV;
+    }
+    var proxVenc = proxDate ? _fmtDataRegua(proxDate) : (restantes === 0 ? "Contrato quitado" : "—");
+
+    // 4. Monta mensagem a partir do template editável
+    var tmpl = _getCfg("TEMPLATE_CONFIRMACAO") ||
+      "Olá, {NOME}.\n\nIdentificamos o pagamento da sua parcela {NUM_PARCELA} de {TOTAL_PARCELAS}.\n\nValor recebido: R$ {VALOR_PAGO}\n\nSeu pagamento foi registrado com sucesso.\n\nParcelas restantes: {PARCELAS_RESTANTES}\n\nPróximo vencimento: {PROXIMO_VENCIMENTO}\n\nAgradecemos pela confiança.\n\nBorges Assessoria";
+    var nome  = String(nomeCliente||"").split(" ")[0];
+    var texto = _buildMsgRegua(tmpl, {
+      NOME:               nome,
+      NUM_PARCELA:        String(numParcela||""),
+      TOTAL_PARCELAS:     String(totalParcelas||""),
+      VALOR_PAGO:         _fmtValorRegua(vlPago),
+      PARCELAS_RESTANTES: String(restantes),
+      PROXIMO_VENCIMENTO: proxVenc
+    });
+
+    // 5. Envia via Evolution GO
+    var ok = _enviarWppRegua(telefone, texto);
+
+    // 6. Log em MENSAGENS
+    _logMensagem({
+      idCliente:idCliente, idContrato:idContrato, idParcela:idParcela,
+      telefone:telefone, gatilho:"CONFIRMACAO_PAGAMENTO",
+      conteudo:texto, status: ok ? "ENVIADO" : "ERRO_ENVIO"
+    });
+
+    // 7. Cancela promessas PENDENTE do contrato
+    try { _cancelarPromessasPorContrato(idContrato); } catch(eP) { Logger.log("CancelProm err: "+eP.message); }
+
+    Logger.log("ConfirmacaoWPP: " + (ok?"OK":"ERRO") + " → " + nome + " (" + telefone + ")");
+  } catch (eFatal) {
+    Logger.log("ConfirmacaoWPP: ERRO FATAL — " + eFatal.message);
+    try {
+      _logMensagem({idCliente:idCliente, idContrato:idContrato, idParcela:idParcela,
+        telefone:"", gatilho:"CONFIRMACAO_PAGAMENTO",
+        conteudo:"ERRO_INTERNO: " + eFatal.message, status:"ERRO_ENVIO"});
+    } catch (eLog2) { Logger.log("ConfirmacaoWPP: log de erro tambem falhou — " + eLog2.message); }
+  }
+}
+
+// Varre PARCELAS pagas nos últimos N dias e reenvia a confirmação de pagamento
+// para as que não têm um MENSAGENS/CONFIRMACAO_PAGAMENTO com STATUS_ENVIO=ENVIADO.
+// Seguro pra rodar mais de uma vez: _enviarConfirmacaoPagamento já bloqueia reenvio
+// duplicado (passo 1, dedup por ID_PARCELA). Cobre casos como falha silenciosa de
+// exceção antes do fix de 2026-07-13.
+function reenviarConfirmacoesPendentes() {
+  var ui = SpreadsheetApp.getUi();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var abaP = ss.getSheetByName(ABAS.PARCELAS);
+  if (!abaP) { ui.alert("Aba PARCELAS não encontrada"); return; }
+
+  var cm = buildColMap(abaP);
+  var dados = abaP.getDataRange().getValues();
+
+  var abaMsg = _abaMsg();
+  var cmMsg  = buildColMap(abaMsg);
+  var dMsg   = abaMsg.getLastRow() >= 2 ? abaMsg.getDataRange().getValues() : [];
+  var jaConfirmadas = {};
+  for (var i = 1; i < dMsg.length; i++) {
+    var gat = String(dMsg[i][(cmMsg["GATILHO"]||7)-1]||"").trim();
+    var st  = String(dMsg[i][(cmMsg["STATUS_ENVIO"]||9)-1]||"").trim();
+    if (gat === "CONFIRMACAO_PAGAMENTO" && st === "ENVIADO") {
+      jaConfirmadas[String(dMsg[i][(cmMsg["ID_PARCELA"]||5)-1]||"").trim()] = true;
     }
   }
-  if (!telefone || telefone.length < 10) {
-    _logMensagem({idCliente:idCliente,idContrato:idContrato,idParcela:idParcela,
-                  telefone:"",gatilho:"CONFIRMACAO_PAGAMENTO",conteudo:"SEM_TELEFONE",status:"ERRO_SEM_TELEFONE"});
-    return;
+
+  var limite = new Date();
+  limite.setDate(limite.getDate() - 7);
+
+  var stCol = cm["STATUS"] || cm["STATUS_PAGAMENTO"];
+  var candidatos = [];
+  for (var i = 1; i < dados.length; i++) {
+    var st = stCol ? String(dados[i][stCol-1]||"").toLowerCase().trim() : "";
+    if (st !== "pago") continue;
+    var idParcela = String(dados[i][(cm["ID_PARCELA"]||1)-1]||"").trim();
+    if (!idParcela || jaConfirmadas[idParcela]) continue;
+    var dtPag = dados[i][(cm["DATA_PAGAMENTO"]||0)-1];
+    if (!(dtPag instanceof Date) || dtPag < limite) continue;
+    candidatos.push({
+      idParcela:  idParcela,
+      idContrato: String(dados[i][(cm["ID_CONTRATO"]  ||2)-1]||"").trim(),
+      idCliente:  String(dados[i][(cm["ID_CLIENTE"]   ||3)-1]||"").trim(),
+      nomeCliente:String(dados[i][(cm["NOME_CLIENTE"] ||4)-1]||"").trim(),
+      numParcela: parseInt(dados[i][(cm["NUM_PARCELA"]||5)-1])||0,
+      vlPago:     parseFloat(dados[i][(cm["VALOR_PAGO"]||0)-1])||0
+    });
   }
 
-  // 3. Calcula parcelas restantes e próximo vencimento (ignora a parcela recém-paga)
-  var abaP   = ss.getSheetByName(ABAS.PARCELAS);
-  var cmP    = buildColMap(abaP);
-  var dP     = abaP.getDataRange().getValues();
-  var ipCont = (cmP["ID_CONTRATO"]    ||2)-1;
-  var ipSt   = (cmP["STATUS"]         ||12)-1;
-  var ipDtV  = (cmP["DATA_VENCIMENTO"]||7)-1;
-  var ipParId= (cmP["ID_PARCELA"]     ||1)-1;
-  var restantes = 0; var proxDate = null;
-  for (var i = 1; i < dP.length; i++) {
-    if (String(dP[i][ipCont]||"").trim() !== String(idContrato).trim()) continue;
-    if (String(dP[i][ipParId]||"").trim() === String(idParcela).trim()) continue;
-    var stP = String(dP[i][ipSt]||"").toLowerCase().trim();
-    if (STATUS_TERMINAL[stP]) continue;
-    restantes++;
-    var dtV = dP[i][ipDtV];
-    if (dtV instanceof Date && (!proxDate || dtV < proxDate)) proxDate = dtV;
+  if (!candidatos.length) { ui.alert("Nenhuma confirmação pendente encontrada nos últimos 7 dias."); return; }
+
+  var totParcMap = {};
+  for (var i = 1; i < dados.length; i++) {
+    var idC = String(dados[i][(cm["ID_CONTRATO"]||2)-1]||"").trim();
+    if (idC) totParcMap[idC] = (totParcMap[idC]||0) + 1;
   }
-  var proxVenc = proxDate ? _fmtDataRegua(proxDate) : (restantes === 0 ? "Contrato quitado" : "—");
 
-  // 4. Monta mensagem a partir do template editável
-  var tmpl = _getCfg("TEMPLATE_CONFIRMACAO") ||
-    "Olá, {NOME}.\n\nIdentificamos o pagamento da sua parcela {NUM_PARCELA} de {TOTAL_PARCELAS}.\n\nValor recebido: R$ {VALOR_PAGO}\n\nSeu pagamento foi registrado com sucesso.\n\nParcelas restantes: {PARCELAS_RESTANTES}\n\nPróximo vencimento: {PROXIMO_VENCIMENTO}\n\nAgradecemos pela confiança.\n\nBorges Assessoria";
-  var nome  = String(nomeCliente||"").split(" ")[0];
-  var texto = _buildMsgRegua(tmpl, {
-    NOME:               nome,
-    NUM_PARCELA:        String(numParcela||""),
-    TOTAL_PARCELAS:     String(totalParcelas||""),
-    VALOR_PAGO:         _fmtValorRegua(vlPago),
-    PARCELAS_RESTANTES: String(restantes),
-    PROXIMO_VENCIMENTO: proxVenc
+  var enviadas = 0, nomes = [];
+  candidatos.forEach(function(c) {
+    try {
+      _enviarConfirmacaoPagamento({
+        idParcela: c.idParcela, idContrato: c.idContrato, idCliente: c.idCliente,
+        nomeCliente: c.nomeCliente, numParcela: c.numParcela,
+        totalParcelas: totParcMap[c.idContrato]||0, vlPago: c.vlPago
+      });
+      enviadas++;
+      nomes.push(c.nomeCliente + " (parcela " + c.numParcela + ")");
+    } catch (e) {
+      Logger.log("reenviarConfirmacoesPendentes: erro em " + c.idParcela + " — " + e.message);
+    }
   });
 
-  // 5. Envia via Evolution GO
-  var ok = _enviarWppRegua(telefone, texto);
-
-  // 6. Log em MENSAGENS
-  _logMensagem({
-    idCliente:idCliente, idContrato:idContrato, idParcela:idParcela,
-    telefone:telefone, gatilho:"CONFIRMACAO_PAGAMENTO",
-    conteudo:texto, status: ok ? "ENVIADO" : "ERRO_ENVIO"
-  });
-
-  // 7. Cancela promessas PENDENTE do contrato
-  try { _cancelarPromessasPorContrato(idContrato); } catch(eP) { Logger.log("CancelProm err: "+eP.message); }
-
-  Logger.log("ConfirmacaoWPP: " + (ok?"OK":"ERRO") + " → " + nome + " (" + telefone + ")");
+  Logger.log("reenviarConfirmacoesPendentes: " + enviadas + "/" + candidatos.length + " reenviadas");
+  ui.alert("Reenvio concluído!\n\n✅ " + enviadas + " confirmação(ões) reenviada(s):\n\n" + nomes.join("\n"));
 }
 
 // ─── CERTIFICADOS DE QUITAÇÃO ──────────────────────────────────────────────
@@ -7313,8 +7418,12 @@ function enviarReguaCobranca(dryRun) {
 
     if (!pix) {
       Logger.log("REGUA: sem PIX para " + ev.idParcela + " (" + ev.gatilho + "), pulando");
-      if (!dryRun) _logMensagem({ idCliente:ev.idCliente, idContrato:ev.idContrato, idParcela:ev.idParcela,
-                     telefone:cli.TELEFONE_WPP, gatilho:ev.gatilho, conteudo:"SEM_PIX", status:"ERRO_SEM_PIX" });
+      if (!dryRun) {
+        try {
+          _logMensagem({ idCliente:ev.idCliente, idContrato:ev.idContrato, idParcela:ev.idParcela,
+                         telefone:cli.TELEFONE_WPP, gatilho:ev.gatilho, conteudo:"SEM_PIX", status:"ERRO_SEM_PIX" });
+        } catch(eLogSemPix) { Logger.log("REGUA: log sem-pix falhou → " + eLogSemPix.message); }
+      }
       erros++;
       continue;
     }
@@ -7342,7 +7451,21 @@ function enviarReguaCobranca(dryRun) {
     if (ok) {
       Utilities.sleep(3000);
       var okPix = _enviarWppRegua(cli.TELEFONE_WPP, pix);
-      if (!okPix) Logger.log("REGUA: [ERRO_PIX] codigo PIX nao enviado → " + cli.NOME);
+      if (!okPix) {
+        // 1 retentativa — falha do 2º envio (código PIX) costuma ser transitória
+        Utilities.sleep(2000);
+        okPix = _enviarWppRegua(cli.TELEFONE_WPP, pix);
+      }
+      if (!okPix) {
+        Logger.log("REGUA: [ERRO_PIX] codigo PIX nao enviado → " + cli.NOME);
+        // Sem isso o status da mensagem 1 (ENVIADO) mascarava a falha da mensagem 2 —
+        // cliente recebia o texto mas nunca o código PIX, e ninguém via o erro.
+        try {
+          _logMensagem({ idCliente:ev.idCliente, idContrato:ev.idContrato, idParcela:ev.idParcela,
+                         telefone:cli.TELEFONE_WPP, gatilho:ev.gatilho, conteudo:"ERRO_PIX_NAO_ENVIADO: "+pix,
+                         status:"ERRO_PIX" });
+        } catch(eLogPix) { Logger.log("REGUA: log erro pix falhou → " + eLogPix.message); }
+      }
     }
     Logger.log("REGUA: [" + (ok?"OK":"ERRO") + "] " + ev.gatilho + " → " + cli.NOME);
 
@@ -7782,6 +7905,91 @@ function ajuizarContrato(idContrato, dados) {
       (campos["NUMERO_PROCESSO"] ? " — Processo " + campos["NUMERO_PROCESSO"] : "") +
       (campos["VARA"] ? " · " + campos["VARA"] : "")
   });
+}
+
+function bloquearClienteManual(idCliente, motivo) {
+  idCliente = String(idCliente || "").trim();
+  motivo    = String(motivo || "").trim();
+  if (!idCliente) throw new Error("ID do cliente é obrigatório");
+  if (motivo.length < 5) throw new Error("Motivo do bloqueio é obrigatório");
+
+  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var abaCli = ss.getSheetByName(ABAS.CLIENTES);
+  if (!abaCli) throw new Error("Aba CLIENTES não encontrada");
+  var cmCli    = buildColMap(abaCli);
+  var dadosCli = abaCli.getDataRange().getValues();
+
+  ["CLIENTE_BLOQUEADO_MANUAL", "MOTIVO_BLOQUEIO_MANUAL", "DATA_BLOQUEIO_MANUAL"].forEach(function(col) {
+    if (!cmCli[col]) {
+      var nc = abaCli.getLastColumn() + 1;
+      abaCli.getRange(1, nc).setValue(col).setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
+      cmCli[col] = nc;
+    }
+  });
+
+  var nomeCliente = "";
+  var rowCliente = -1;
+  for (var ci = 1; ci < dadosCli.length; ci++) {
+    if (String(dadosCli[ci][(cmCli["ID_CLIENTE"]||1)-1]).trim() === idCliente) {
+      rowCliente = ci + 1;
+      nomeCliente = String(dadosCli[ci][(cmCli["NOME_CLIENTE"]||cmCli["NOME"]||2)-1]||"");
+      break;
+    }
+  }
+  if (rowCliente < 0) throw new Error("Cliente não encontrado: " + idCliente);
+
+  setCel(abaCli, rowCliente, cmCli, "CLIENTE_BLOQUEADO_MANUAL", "SIM");
+  setCel(abaCli, rowCliente, cmCli, "MOTIVO_BLOQUEIO_MANUAL", motivo);
+  setCel(abaCli, rowCliente, cmCli, "DATA_BLOQUEIO_MANUAL", new Date());
+  abaCli.getRange(rowCliente, cmCli["DATA_BLOQUEIO_MANUAL"]).setNumberFormat("dd/mm/yyyy");
+
+  registrarEvento({
+    idCliente: idCliente,
+    nomeCliente: nomeCliente,
+    tipoEvento: "BLOQUEIO_MANUAL_CLIENTE",
+    statusAnterior: "",
+    statusNovo: "bloqueado_manual",
+    observacoes: motivo
+  });
+
+  return { ok: true };
+}
+
+function desbloquearClienteManual(idCliente) {
+  idCliente = String(idCliente || "").trim();
+  if (!idCliente) throw new Error("ID do cliente é obrigatório");
+
+  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var abaCli = ss.getSheetByName(ABAS.CLIENTES);
+  if (!abaCli) throw new Error("Aba CLIENTES não encontrada");
+  var cmCli    = buildColMap(abaCli);
+  var dadosCli = abaCli.getDataRange().getValues();
+
+  if (!cmCli["CLIENTE_BLOQUEADO_MANUAL"]) throw new Error("Cliente não está bloqueado");
+
+  var nomeCliente = "";
+  var rowCliente = -1;
+  for (var ci = 1; ci < dadosCli.length; ci++) {
+    if (String(dadosCli[ci][(cmCli["ID_CLIENTE"]||1)-1]).trim() === idCliente) {
+      rowCliente = ci + 1;
+      nomeCliente = String(dadosCli[ci][(cmCli["NOME_CLIENTE"]||cmCli["NOME"]||2)-1]||"");
+      break;
+    }
+  }
+  if (rowCliente < 0) throw new Error("Cliente não encontrado: " + idCliente);
+
+  setCel(abaCli, rowCliente, cmCli, "CLIENTE_BLOQUEADO_MANUAL", "");
+
+  registrarEvento({
+    idCliente: idCliente,
+    nomeCliente: nomeCliente,
+    tipoEvento: "DESBLOQUEIO_MANUAL_CLIENTE",
+    statusAnterior: "bloqueado_manual",
+    statusNovo: "",
+    observacoes: "Bloqueio manual removido"
+  });
+
+  return { ok: true };
 }
 
 function atualizarDadosJuridicos(idContrato, campos) {
