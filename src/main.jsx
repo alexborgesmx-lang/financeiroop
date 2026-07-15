@@ -8,17 +8,19 @@ import { Button } from "./components/ui/button";
 const API_URL  = "/api/sheets";
 const POST_URL = "/api/action";
 
-let BG   = "#F7F9F8", CARD = "#FFFFFF", BD = "#DDE3E0";
-let TEXT = "#121815", MUTED = "#6E7975";
-let GRN  = "#0B3D2E", SIG = "#1FB877", OK = "#15A06A";
-let RED  = "#D64545", BLU = "#1B8A8F";
-let YEL  = "#E0A030", PUR = "#221d9a", ORG = "#ff7700";
-let ACC  = "#A8E03F";
-let SHD  = "0 1px 2px rgba(10,15,13,.06),0 1px 3px rgba(10,15,13,.05)";
+let BG   = "#F7F5EF", CARD = "#FFFDF9", CARD2 = "#F0EDE4", BD = "#E2DDD1", LINESOFT = "#EEEAE0";
+let TEXT = "#1A1712", MUTED = "#57514A", FAINT = "#7C756B";
+let GRN  = "#0B3D2E", GRN2 = "#0E5C44", SIG = "#127A57", SIGVIZ = "#1FB877", OK = "#15805A";
+let RED  = "#C0322F", BLU = "#166C70";
+let YEL  = "#9A6510", PUR = "#221d9a", ORG = "#ff7700";
+let ACC  = "#A8E03F", ACCINK = "#07241B";
+let ONBRAND = "#EAF6EF", ONBRANDSOFT = "#8FE3C0";
+let SHD  = "0 1px 2px rgba(40,30,15,.05),0 8px 22px rgba(40,30,15,.06)";
+let SHDLG = "0 20px 52px rgba(11,61,46,.14),0 6px 16px rgba(11,61,46,.08)";
 const SW = 220;
-const LIGHT={BG:"#F7F9F8",CARD:"#FFFFFF",BD:"#DDE3E0",TEXT:"#121815",MUTED:"#6E7975",GRN:"#0B3D2E",SIG:"#1FB877",OK:"#15A06A",RED:"#D64545",BLU:"#1B8A8F",YEL:"#E0A030",PUR:"#221d9a",ORG:"#ff7700",ACC:"#A8E03F",SHD:"0 1px 2px rgba(10,15,13,.06),0 1px 3px rgba(10,15,13,.05)"};
-const DARK ={BG:"#0A0F0D",CARD:"#121815",BD:"#1F2624",TEXT:"#ECEFEE",MUTED:"#6E7975",GRN:"#A8E03F",SIG:"#1FB877",OK:"#46CB92",RED:"#D64545",BLU:"#1B8A8F",YEL:"#E0A030",PUR:"#7b74e6",ORG:"#ff7700",ACC:"#A8E03F",SHD:"0 4px 12px rgba(0,0,0,0.20),0 2px 4px rgba(0,0,0,0.10)"};
-function applyTheme(dark){const t=dark?DARK:LIGHT;BG=t.BG;CARD=t.CARD;BD=t.BD;TEXT=t.TEXT;MUTED=t.MUTED;GRN=t.GRN;SIG=t.SIG;OK=t.OK;RED=t.RED;BLU=t.BLU;YEL=t.YEL;PUR=t.PUR;ORG=t.ORG;ACC=t.ACC;SHD=t.SHD;document.documentElement.classList.toggle('dark',dark);document.body.classList.add('theme-transitioning');setTimeout(()=>document.body.classList.remove('theme-transitioning'),320);}
+const LIGHT={BG:"#F7F5EF",CARD:"#FFFDF9",CARD2:"#F0EDE4",BD:"#E2DDD1",LINESOFT:"#EEEAE0",TEXT:"#1A1712",MUTED:"#57514A",FAINT:"#7C756B",GRN:"#0B3D2E",GRN2:"#0E5C44",SIG:"#127A57",SIGVIZ:"#1FB877",OK:"#15805A",RED:"#C0322F",BLU:"#166C70",YEL:"#9A6510",PUR:"#221d9a",ORG:"#ff7700",ACC:"#A8E03F",ACCINK:"#07241B",ONBRAND:"#EAF6EF",ONBRANDSOFT:"#8FE3C0",SHD:"0 1px 2px rgba(40,30,15,.05),0 8px 22px rgba(40,30,15,.06)",SHDLG:"0 20px 52px rgba(11,61,46,.14),0 6px 16px rgba(11,61,46,.08)"};
+const DARK ={BG:"#06231A",CARD:"#0B3227",CARD2:"#123B2E",BD:"#1B4234",LINESOFT:"#153328",TEXT:"#EFF3EC",MUTED:"#AEBAB0",FAINT:"#7F8C82",GRN:"#5AD09B",GRN2:"#46CB92",SIG:"#43D69C",SIGVIZ:"#1FB877",OK:"#5AD09B",RED:"#F0716E",BLU:"#5FC2C6",YEL:"#E3A93A",PUR:"#7b74e6",ORG:"#ff7700",ACC:"#A8E03F",ACCINK:"#07241B",ONBRAND:"#06231A",ONBRANDSOFT:"#0B3D2E",SHD:"0 4px 12px rgba(0,0,0,0.20),0 2px 4px rgba(0,0,0,0.10)",SHDLG:"0 24px 60px rgba(0,0,0,0.40),0 8px 20px rgba(0,0,0,0.20)"};
+function applyTheme(dark){const t=dark?DARK:LIGHT;BG=t.BG;CARD=t.CARD;CARD2=t.CARD2;BD=t.BD;LINESOFT=t.LINESOFT;TEXT=t.TEXT;MUTED=t.MUTED;FAINT=t.FAINT;GRN=t.GRN;GRN2=t.GRN2;SIG=t.SIG;SIGVIZ=t.SIGVIZ;OK=t.OK;RED=t.RED;BLU=t.BLU;YEL=t.YEL;PUR=t.PUR;ORG=t.ORG;ACC=t.ACC;ACCINK=t.ACCINK;ONBRAND=t.ONBRAND;ONBRANDSOFT=t.ONBRANDSOFT;SHD=t.SHD;SHDLG=t.SHDLG;document.documentElement.classList.toggle('dark',dark);document.documentElement.setAttribute('data-theme',dark?'dark':'light');document.body.classList.add('theme-transitioning');setTimeout(()=>document.body.classList.remove('theme-transitioning'),320);}
 function isDarkHour(){const h=new Date().getHours();return h>=18||h<6;}
 
 const fmtR  = v => "R$ " + Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -315,6 +317,22 @@ const IcoLock    = <svg width="11" height="11" viewBox="0 0 24 24" fill="none" s
 const IcoCheck   = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20,6 9,17 4,12"/></svg>;
 const IcoHandshake = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.42 4.58a5.4 5.4 0 0 0-7.65 0l-.77.78-.77-.78a5.4 5.4 0 0 0-7.65 0C1.46 6.7 1.33 10.28 4 13l8 8 8-8c2.67-2.72 2.54-6.3.42-8.42z"/></svg>;
 
+function LinhaConfianca({w=420,h=60,n=7,sw=2,amp=0.22,color,style}){
+  const {d,nodes} = useMemo(()=>{
+    const midY=h/2, pts=[];
+    for(let i=0;i<n;i++) pts.push([16+i*((w-32)/(n-1)), midY+Math.sin(i*1.1)*(h*amp)]);
+    let d=`M ${pts[0][0]} ${pts[0][1]}`;
+    for(let j=1;j<n;j++){const px=pts[j-1],cx=pts[j],mx=(px[0]+cx[0])/2;d+=` C ${mx} ${px[1]} ${mx} ${cx[1]} ${cx[0]} ${cx[1]}`;}
+    const nodes=pts.map((p,i)=>({cx:p[0],cy:p[1],r:i===Math.floor(n/2)?5:3.4}));
+    return {d,nodes};
+  },[w,h,n,amp]);
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} style={{color,display:"block",...style}}>
+      <path d={d} fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round"/>
+      {nodes.map((p,i)=><circle key={i} cx={p.cx} cy={p.cy} r={p.r} fill="currentColor"/>)}
+    </svg>
+  );
+}
 function Badge({c,children,size="sm"}){ const p=size==="md"?"4px 12px":"3px 10px",fs=size==="md"?11:10; return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:p,borderRadius:9999,fontSize:fs,fontWeight:700,background:c+"18",color:c,border:`1px solid ${c}28`,lineHeight:1.3,whiteSpace:"nowrap"}}>{children}</span>; }
 function isUltima(p,parcs){const id=String(p.ID_CONTRATO);const max=(parcs||[]).reduce((m,pp)=>String(pp.ID_CONTRATO)===id?Math.max(m,parseInt(pp.NUM_PARCELA||0)):m,0);return parseInt(p.NUM_PARCELA||0)===max&&max>0;}
 
@@ -510,6 +528,7 @@ function _renderHistParcelas(doc,rows,W,pd,y,GL,DK,BDC,fD,fR,title='HISTÓRICO D
   doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.line(pd,y,pd+tableW,y);
   return y+6;
 }
+
 
 // ─── HELPER: GERAR E ENVIAR COMPROVANTE PDF VIA WHATSAPP ─────────
 function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,contratos,clientes,opts={}){
@@ -991,10 +1010,10 @@ function ComprovanteEnvioModal({parcela,valorPago,dataPago,tipoLabel,parcelas,co
       <div className="modal-box-anim" style={{width:"100%",maxWidth:380,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(0,0,0,0.28)",overflow:"hidden",minWidth:0}}>
         <div style={{background:GRN,padding:"20px 24px",textAlign:"center"}}>
           <div style={{width:44,height:44,borderRadius:"50%",background:"rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px"}}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><polyline points="20,6 9,17 4,12"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={ONBRAND} strokeWidth="2.5"><polyline points="20,6 9,17 4,12"/></svg>
           </div>
-          <div style={{color:"#FFF",fontWeight:800,fontSize:17,letterSpacing:"-0.02em"}}>Pagamento registrado!</div>
-          <div style={{color:"rgba(255,255,255,0.75)",fontSize:12,marginTop:4}}>{parcela.NOME_CLIENTE} · {parcela.ID_CONTRATO} · Parcela {parcela.NUM_PARCELA}</div>
+          <div style={{color:ONBRAND,fontWeight:800,fontSize:17,letterSpacing:"-0.02em"}}>Pagamento registrado!</div>
+          <div style={{color:ONBRANDSOFT,fontSize:12,marginTop:4}}>{parcela.NOME_CLIENTE} · {parcela.ID_CONTRATO} · Parcela {parcela.NUM_PARCELA}</div>
         </div>
         <div style={{padding:"18px 20px",display:"flex",flexDirection:"column",gap:12}}>
           <div style={{background:BG,borderRadius:12,padding:"14px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -3653,7 +3672,7 @@ function NovoContrato({contratos,clientes,onSucesso,clienteInicial}){
   };
   const _gerarCarne=async()=>{if(!contratoOk||carneLoading)return;setCarneLoading(true);setCarneErro("");try{const r=await fetch("/api/efi-charges",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idContrato:contratoOk.idContrato,parcelas:contratoOk.parcelas,cliente:contratoOk.clienteEfi})});const d=await r.json();if(d.ok&&d.boletos?.every(b=>b.ok)){setCarneOk(true);postAction({action:"salvarCobrancasEfi",cobracas:d.boletos});}else{const errs=(d.boletos||[]).filter(b=>!b.ok).map(b=>`Parcela ${b.numParcela}: ${b.erro}`).join("; ");setCarneErro(errs||d.erro||"Erro ao gerar carnê");}}catch(e){setCarneErro(e.message);}setCarneLoading(false);};
   return(<>
-    {contratoOk&&<div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}><div style={{width:"100%",maxWidth:400,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.25)",overflow:"hidden",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}><div style={{background:GRN,padding:"22px 24px",textAlign:"center"}}><div style={{width:44,height:44,borderRadius:"50%",background:"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 8px"}}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><polyline points="20,6 9,17 4,12"/></svg></div><div style={{color:"#FFF",fontWeight:800,fontSize:17}}>Contrato criado</div><div style={{color:"rgba(255,255,255,0.8)",fontSize:12,marginTop:4}}>{contratoOk.nomeCliente} · {contratoOk.idContrato}</div></div><div style={{padding:"18px 20px"}}><div style={{background:BG,borderRadius:10,padding:"12px 16px",marginBottom:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Valor</div><div style={{fontWeight:800,fontSize:15,color:ORG}}>{_fRc(parseFloat(contratoOk.principal))}</div></div><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Parcelas</div><div style={{fontWeight:700,fontSize:13}}>{contratoOk.nParcelas}x de {_fRc(_pmtOk)}</div></div><div style={{gridColumn:"1/-1"}}><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>1º Vencimento</div><div style={{fontWeight:700,fontSize:13}}>{_fDvc(contratoOk.dtVenc)}</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{docLoading?<div style={{padding:"12px",borderRadius:9,background:BG,color:MUTED,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}><IcoSpinner color={MUTED}/> Gerando contrato...</div>:<>{contratoOk.docUrl&&<button onClick={()=>window.open(contratoOk.docUrl,"_blank")} style={{padding:"12px",borderRadius:9,border:"none",background:TEXT,color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoDoc} Abrir no Google Docs</button>}{contratoOk.docId&&!zapUrl&&<button onClick={_enviarZapSign} disabled={zapLoading} style={{padding:"12px",borderRadius:9,border:"none",background:zapLoading?"#9B7FD4":"#6C3FC5",color:"#FFF",cursor:zapLoading?"default":"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{zapLoading?<><IcoSpinner color="#ffffff"/> Enviando...</>:<>{IcoSign} Enviar para ZapSign</>}</button>}</>}{zapUrl&&<button onClick={()=>window.open(zapUrl,"_blank")} style={{padding:"12px",borderRadius:9,border:"none",background:"#6C3FC5",color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoSign} Assinar como credor</button>}
+    {contratoOk&&<div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}><div style={{width:"100%",maxWidth:400,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.25)",overflow:"hidden",minWidth:0,animation:"fadeUp 0.25s cubic-bezier(0.16,1,0.3,1)"}}><div style={{background:GRN,padding:"22px 24px",textAlign:"center"}}><div style={{width:44,height:44,borderRadius:"50%",background:"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 8px"}}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={ONBRAND} strokeWidth="2.5"><polyline points="20,6 9,17 4,12"/></svg></div><div style={{color:ONBRAND,fontWeight:800,fontSize:17}}>Contrato criado</div><div style={{color:ONBRANDSOFT,fontSize:12,marginTop:4}}>{contratoOk.nomeCliente} · {contratoOk.idContrato}</div></div><div style={{padding:"18px 20px"}}><div style={{background:BG,borderRadius:10,padding:"12px 16px",marginBottom:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Valor</div><div style={{fontWeight:800,fontSize:15,color:ORG}}>{_fRc(parseFloat(contratoOk.principal))}</div></div><div><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Parcelas</div><div style={{fontWeight:700,fontSize:13}}>{contratoOk.nParcelas}x de {_fRc(_pmtOk)}</div></div><div style={{gridColumn:"1/-1"}}><div style={{fontSize:10,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>1º Vencimento</div><div style={{fontWeight:700,fontSize:13}}>{_fDvc(contratoOk.dtVenc)}</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{docLoading?<div style={{padding:"12px",borderRadius:9,background:BG,color:MUTED,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}><IcoSpinner color={MUTED}/> Gerando contrato...</div>:<>{contratoOk.docUrl&&<button onClick={()=>window.open(contratoOk.docUrl,"_blank")} style={{padding:"12px",borderRadius:9,border:"none",background:TEXT,color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoDoc} Abrir no Google Docs</button>}{contratoOk.docId&&!zapUrl&&<button onClick={_enviarZapSign} disabled={zapLoading} style={{padding:"12px",borderRadius:9,border:"none",background:zapLoading?"#9B7FD4":"#6C3FC5",color:"#FFF",cursor:zapLoading?"default":"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{zapLoading?<><IcoSpinner color="#ffffff"/> Enviando...</>:<>{IcoSign} Enviar para ZapSign</>}</button>}</>}{zapUrl&&<button onClick={()=>window.open(zapUrl,"_blank")} style={{padding:"12px",borderRadius:9,border:"none",background:"#6C3FC5",color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoSign} Assinar como credor</button>}
 {zapWppUrl&&<button onClick={()=>window.open(zapWppUrl,"_blank")} style={{padding:"12px",borderRadius:12,border:"none",background:"#25D366",color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoPhone} Enviar mensagem de assinatura (WhatsApp)</button>}{!carneOk?<button onClick={_gerarCarne} disabled={carneLoading} style={{padding:"12px",borderRadius:9,border:"none",background:carneLoading?"#7a6a2a":"#B8860B",color:"#FFF",cursor:carneLoading?"default":"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{carneLoading?<><IcoSpinner color="#ffffff"/> Gerando...</>:<>{IcoPag} Gerar Carnê PIX</>}</button>:<div style={{padding:"10px 12px",borderRadius:9,background:GRN+"20",color:GRN,fontWeight:700,fontSize:13,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{IcoCheck} Carnê PIX gerado</div>}{carneErro&&<div style={{padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:11,fontWeight:600}}>Erro carnê: {carneErro}</div>}<button onClick={_abrirWppNovo} style={{padding:"12px",borderRadius:12,border:"none",background:"#25D366",color:"#FFF",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>{IcoPhone} Enviar boas-vindas pelo WhatsApp</button><button onClick={()=>{setContratoOk(null);onSucesso();}} style={{padding:"10px",borderRadius:8,border:`1px solid ${BD}`,background:CARD,color:MUTED,cursor:"pointer",fontWeight:600,fontSize:13}}>Fechar</button>{contratoOk.docErro&&<div style={{marginTop:6,padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:11,fontWeight:600}}>Erro ao gerar doc: {contratoOk.docErro}</div>}{zapErro&&<div style={{marginTop:4,padding:"8px 10px",borderRadius:8,background:RED+"10",color:RED,fontSize:11,fontWeight:600}}>Erro ZapSign: {zapErro}</div>}</div></div></div></div>}
     {loading&&criandoSteps&&<div style={{position:"fixed",inset:0,zIndex:490,background:"rgba(15,23,42,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}><div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.25)",padding:"28px 32px",minWidth:280,animation:"fadeUp 0.2s ease"}}><div style={{fontWeight:800,fontSize:16,marginBottom:20,color:TEXT}}>Criando contrato...</div>{criandoSteps.map((s,i)=>{const isActive=!s.ok&&(i===0||criandoSteps[i-1]?.ok);return(<div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:i<criandoSteps.length-1?14:0,opacity:(!s.ok&&!isActive)?0.35:1,transition:"opacity 0.3s"}}><div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",border:`1.5px solid ${s.ok?GRN:isActive?ACC:BD}`,background:s.ok?GRN+"18":isActive?ACC+"18":"transparent",transition:"all 0.3s"}}>{s.ok?<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={GRN} strokeWidth="3"><polyline points="20,6 9,17 4,12"/></svg>:isActive?<IcoSpinner size={10} color={ACC}/>:null}</div><span style={{fontSize:13,fontWeight:s.ok||isActive?600:400,color:s.ok?GRN:isActive?TEXT:MUTED,transition:"all 0.3s"}}>{s.l}</span></div>);})}</div></div>}
     <div style={{background:CARD,borderRadius:16,padding:20,border:`1px solid ${BD}`,boxShadow:SHD}}>
@@ -3959,17 +3978,17 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
           <div style={{flex:1,overflowY:"auto",padding:mob?"0 16px 16px":"0 24px 20px",display:"flex",flexDirection:"column",gap:16}}>
 
             {/* GRADIENT CARD */}
-            <div style={{background:GRN,borderRadius:14,padding:mob?"16px 18px":"18px 20px",color:"#fff"}}>
-              <div style={{fontSize:13,fontWeight:400,color:"rgba(255,255,255,0.60)",marginBottom:6}}>{contrato.NOME_CLIENTE}</div>
-              <div style={{fontSize:mob?26:30,fontWeight:900,letterSpacing:"0.5px",lineHeight:1,marginBottom:6}}>{fmtR(contrato.VALOR_TOTAL||contrato.VALOR_PRINCIPAL)}</div>
+            <div style={{background:GRN,borderRadius:14,padding:mob?"16px 18px":"18px 20px",color:ONBRAND}}>
+              <div style={{fontSize:13,fontWeight:400,color:ONBRANDSOFT,marginBottom:6}}>{contrato.NOME_CLIENTE}</div>
+              <div className="num" style={{fontSize:mob?26:30,letterSpacing:"0.5px",lineHeight:1,marginBottom:6}}>{fmtR(contrato.VALOR_TOTAL||contrato.VALOR_PRINCIPAL)}</div>
               {parseFloat(contrato.VALOR_TOTAL||0)>0&&parseFloat(contrato.VALOR_TOTAL)!==parseFloat(contrato.VALOR_PRINCIPAL||0)&&(
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",display:"flex",gap:10,marginBottom:8,flexWrap:"wrap"}}>
+                <div style={{fontSize:11,color:ONBRANDSOFT+"CC",display:"flex",gap:10,marginBottom:8,flexWrap:"wrap"}}>
                   <span>Principal: {fmtR(contrato.VALOR_PRINCIPAL)}</span>
                   <span>·</span>
                   <span>Juros totais: {fmtR(parseFloat(contrato.VALOR_TOTAL)-parseFloat(contrato.VALOR_PRINCIPAL||0))}</span>
                 </div>
               )}
-              <div style={{fontSize:12,color:"rgba(255,255,255,0.50)",display:"flex",alignItems:"center",gap:6}}>
+              <div style={{fontSize:12,color:ONBRANDSOFT+"AA",display:"flex",alignItems:"center",gap:6}}>
                 <span>{parcsPagas > 0 ? parcsPagas : 0} de {contrato.NUM_PARCELAS} parcelas</span>
                 {taxa>0&&<><span>·</span><span>{(taxa*100).toFixed(1)}% a.m.</span></>}
               </div>
@@ -4049,8 +4068,8 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
                     setAltVencLoad(false);
                     if(r?.ok){setAltVencOpen(false);setAltVencDate("");onAlterarVencimento&&onAlterarVencimento();}
                     else setAltVencErr(r?.erro||"Erro ao salvar");
-                  }} disabled={altVencLoad} style={{padding:"8px 16px",borderRadius:7,border:"none",background:GRN,color:"#FFF",fontWeight:700,fontSize:12,cursor:"pointer",opacity:altVencLoad?0.6:1}}>
-                    {altVencLoad?<><IcoSpinner color="#fff"/> Salvando...</>:"Confirmar"}
+                  }} disabled={altVencLoad} style={{padding:"8px 16px",borderRadius:7,border:"none",background:GRN,color:ONBRAND,fontWeight:700,fontSize:12,cursor:"pointer",opacity:altVencLoad?0.6:1}}>
+                    {altVencLoad?<><IcoSpinner color={ONBRAND}/> Salvando...</>:"Confirmar"}
                   </button>
                   <button onClick={()=>{setAltVencOpen(false);setAltVencDate("");setAltVencErr("");}} style={{padding:"8px 12px",borderRadius:7,border:`1px solid ${BD}`,background:"transparent",color:MUTED,fontWeight:600,fontSize:12,cursor:"pointer"}}>Cancelar</button>
                 </div>
@@ -5525,11 +5544,11 @@ function TemplatesReguaModal({onFechar}) {
     <div className="modal-overlay-anim" style={{position:"fixed",inset:0,zIndex:600,background:"rgba(15,23,42,0.6)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onFechar}>
       <div className="modal-box-anim" style={{width:"100%",maxWidth:620,maxHeight:"90vh",background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.35)",display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
         <div style={{background:GRN,padding:"16px 20px",borderRadius:"16px 16px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,color:"#fff"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,color:ONBRAND}}>
             <div style={{background:"rgba(255,255,255,0.2)",padding:8,borderRadius:8,display:"flex"}}>{IcoGear}</div>
             <div><div style={{fontWeight:800,fontSize:15}}>Templates de Mensagem</div><div style={{fontSize:11,opacity:0.8}}>Régua de cobrança WhatsApp</div></div>
           </div>
-          <button onClick={onFechar} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+          <button onClick={onFechar} style={{background:"rgba(255,255,255,0.15)",border:"none",color:ONBRAND,borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
         </div>
         <div style={{overflowY:"auto",flex:1,padding:20,display:"flex",flexDirection:"column",gap:16}}>
           {carregando
@@ -6705,6 +6724,7 @@ function App() {
             <div style={{fontSize:10,fontWeight:500,color:"#87DFB6",textTransform:"uppercase",letterSpacing:"0.08em",marginTop:2}}>Crédito Privado</div>
           </div>}
         </div>
+        {sidebarOpen&&<div style={{padding:"10px 16px 0"}}><LinhaConfianca w={188} h={20} n={6} sw={1.5} color="rgba(168,224,63,0.4)"/></div>}
         <div style={{padding:sidebarOpen?"8px 10px":"10px 6px",flex:1,overflowY:"auto"}}>
           <NavSection label="Principal"/>
           <Nav id="dashboard"  label="Dashboard"        ico={IcoDash}/>
@@ -6871,18 +6891,18 @@ function App() {
                 ))}
               </div>
 
-              {/* HERO BANNER */}
-              <div className="rounded-[20px] overflow-hidden hero-banner-dash dash-hero" style={{background:CARD,padding:mob?"20px 18px":"28px 32px",border:`1px solid ${BD}`,boxShadow:SHD}}>
+              {/* HERO BANNER — KPI do dia, único elemento em --brand (hierarquia v3) */}
+              <div className="rounded-[20px] overflow-hidden hero-banner-dash dash-hero" style={{background:`linear-gradient(145deg, ${ACC} 0%, ${GRN2} 38%, ${GRN} 68%, ${ACCINK} 100%)`,padding:mob?"20px 18px":"28px 32px",boxShadow:SHDLG}}>
                 <div className={`flex ${mob?"flex-col":"flex-row"} ${mob?"mb-5":"mb-6"}`} style={{gap:mob?0:0}}>
                   {[
                     {l:"Carteira Total (Capital Emprestado)",v:fmtR(M.vAtivos),sub:`${M.contratosAtivos} contratos ativos`},
                     {l:"Taxa Média de Retorno",v:`${taxaMedia.toFixed(1)}% a.m.`,sub:"Sobre contratos ativos"},
                     {l:"Taxa de Adimplência",v:M.vAtivos>0?(M.taxaInad===0&&parcelasAtrasadas.length>0?"100%*":fmtP(100-M.taxaInad)):"—",sub:M.taxaInad===0&&parcelasAtrasadas.length>0?`*sem venctos no período · ${parcelasAtrasadas.length} parc. em atraso global`:`${parcelasAtrasadas.length} parc. em atraso de ${M.totalCobrancas} no período`},
                   ].map((s,i)=>(
-                    <div key={s.l} style={{flex:1,padding:mob?"0 0 16px 0":i===0?"0 32px 0 0":`0 32px`,borderBottom:mob&&i<2?`1px solid ${BD}`:"none",borderRight:!mob&&i<2?`1px solid ${BD}`:"none",marginBottom:mob&&i<2?16:0}}>
-                      <div className="text-[10px] font-bold uppercase tracking-[0.1em] mb-2" style={{color:MUTED}}>{s.l}</div>
-                      <div className="font-black leading-none" style={{fontSize:mob?22:26,letterSpacing:"0.5px",color:TEXT}}>{priv(s.v)}</div>
-                      <div className="text-[11px] font-medium mt-1.5" style={{color:MUTED}}>{s.sub}</div>
+                    <div key={s.l} style={{flex:1,padding:mob?"0 0 16px 0":i===0?"0 32px 0 0":`0 32px`,borderBottom:mob&&i<2?`1px solid rgba(255,255,255,0.14)`:"none",borderRight:!mob&&i<2?`1px solid rgba(255,255,255,0.14)`:"none",marginBottom:mob&&i<2?16:0}}>
+                      <div className="text-[10px] font-bold uppercase tracking-[0.1em] mb-2 mono" style={{color:ONBRANDSOFT}}>{s.l}</div>
+                      <div className="font-black leading-none num" style={{fontSize:mob?22:26,letterSpacing:"0.5px",color:ONBRAND}}>{priv(s.v)}</div>
+                      <div className="text-[11px] font-medium mt-1.5" style={{color:ONBRANDSOFT}}>{s.sub}</div>
                     </div>
                   ))}
                 </div>
@@ -6928,19 +6948,19 @@ function App() {
                       <button onClick={()=>setTab("cobranca")} style={{fontSize:12,color:GRN,background:"none",border:"none",cursor:"pointer",fontWeight:600,fontFamily:"inherit"}}>Ver cobrança →</button>
                     </div>
                     <div style={{maxHeight:280,overflowY:"auto"}}>
-                      {parcelasAtrasadas.slice(0,6).map((p,i)=>(
-                        <div key={p.ID_PARCELA||i} className="panel-list-item" onClick={()=>{const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(p.ID_CLIENTE));if(c){setSelCliAba("perfil");setSelCli(c);}}} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",borderBottom:i<Math.min(parcelasAtrasadas.length,6)-1?`1px solid ${BD}`:"none",cursor:"pointer"}}>
+                      {parcelasAtrasadas.slice(0,6).map((p,i)=>{const dias=parseInt(p.DIAS_ATRASO||0);const sev=dias>=15?RED:YEL;return(
+                        <div key={p.ID_PARCELA||i} className="panel-list-item" onClick={()=>{const c=(clientes||[]).find(x=>String(x.ID_CLIENTE)===String(p.ID_CLIENTE));if(c){setSelCliAba("perfil");setSelCli(c);}}} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",background:i%2===1?CARD2:"transparent",borderBottom:i<Math.min(parcelasAtrasadas.length,6)-1?`1px solid ${BD}`:"none",cursor:"pointer"}}>
                           <div style={{width:34,height:34,borderRadius:"50%",background:GRN+"18",color:GRN,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,flexShrink:0}}>{_ini(p.NOME_CLIENTE)}</div>
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{fontSize:13,fontWeight:600,color:TEXT,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.NOME_CLIENTE}</div>
-                            <div style={{fontSize:11,color:MUTED,marginTop:1}}>{p.ID_CONTRATO} · {p.DIAS_ATRASO}d atraso</div>
+                            <div style={{display:"flex",alignItems:"center",gap:5,marginTop:2}}><span style={{fontSize:11,color:MUTED}}>{p.ID_CONTRATO}</span><Badge c={sev} size="sm">{dias}d</Badge></div>
                           </div>
                           <div style={{textAlign:"right",flexShrink:0}}>
-                            <div style={{fontSize:13,fontWeight:700,color:RED}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</div>
+                            <div className="num" style={{fontSize:13,color:RED}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</div>
                             <div style={{fontSize:11,color:MUTED,marginTop:1}}>{p.NUM_PARCELA}/{p.TOTAL_PARCELAS||"?"} parc.</div>
                           </div>
                         </div>
-                      ))}
+                      );})}
                     </div>
                   </div>
                   )}
@@ -8281,8 +8301,8 @@ function App() {
       {selPagDetalhe&&<PagamentoDetalheModal pag={selPagDetalhe} parcelas={parcelas||[]} contratos={contratos||[]} clientes={clientes||[]} onFechar={()=>setSelPagDetalhe(null)} onReabrir={()=>{setSelPagDetalhe(null);carregar();}}/>}
       {selCli&&<ClienteModal cliente={selCli} contratos={contratos||[]} parcelas={parcelas||[]} clientes={clientes||[]} abaInicial={selCliAba} onFechar={()=>{setSelCli(null);setSelCliAba("perfil");}} onAtualizar={()=>{setSelCli(null);setSelCliAba("perfil");}} onOptimisticUpdate={(campos,idCliente)=>{setRaw(prev=>{if(!prev)return prev;return{...prev,CLIENTES:(prev.CLIENTES||[]).map(c=>String(c.ID_CLIENTE)===String(idCliente)?{...c,...campos}:c)};});carregar();}} onNovoContrato={(c)=>{setSelCli(null);setSelCliAba("perfil");setNovoContratoIni(c);setDashNovoModal(true);}} onVerContrato={(c)=>{setSelCliAba("contratos");setContratoSel(c);}} onSimular={(dados)=>{setSelCli(null);setSelCliAba("perfil");setSimInicial(dados);setTab("simulador");}}/>}
       {pagamentoHoje&&<PagamentoParcelaModal parcela={pagamentoHoje} parcelas={parcelas||[]} contratos={contratos||[]} clientes={clientes||[]} initialModo={pagModo} onConfirmar={()=>{const p=pagamentoHoje;setPagamentoHoje(null);setPagModo("pagamento");if(p)setRaw(prev=>{if(!prev)return prev;return{...prev,PARCELAS:(prev.PARCELAS||[]).map(par=>String(par.ID_PARCELA)===String(p.ID_PARCELA)?{...par,STATUS:"pago"}:par)};});carregar();}} onFechar={()=>{setPagamentoHoje(null);setPagModo("pagamento");}}/>}
-      {dashRegModal&&<div className="modal-overlay-anim" style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.55)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setDashRegModal(false)}><div className="modal-box-anim" style={{width:"100%",maxWidth:420,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.35)",minWidth:0}} onClick={e=>e.stopPropagation()}><div style={{background:GRN,padding:"16px 20px",borderRadius:"16px 16px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10,color:"#fff"}}><div style={{background:"rgba(255,255,255,0.2)",padding:8,borderRadius:8,display:"flex"}}>{IcoPag}</div><span style={{fontWeight:800,fontSize:15}}>Registrar Pagamento</span></div><button className="modal-close-btn" onClick={()=>setDashRegModal(false)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div><div style={{padding:20}}><PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} clientes={clientes||[]} onSucesso={async()=>{setDashRegModal(false);await carregar();}} onSelecionarParcela={p=>{setDashRegModal(false);setPagamentoHoje(p);}}/></div></div></div>}
-      {dashNovoModal&&<div className="modal-overlay-anim" style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.55)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>{setDashNovoModal(false);setNovoContratoIni(null);}}><div className="modal-box-anim" style={{width:"100%",maxWidth:420,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.35)",minWidth:0}} onClick={e=>e.stopPropagation()}><div style={{background:GRN,padding:"16px 20px",borderRadius:"16px 16px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10,color:"#fff"}}><div style={{background:"rgba(255,255,255,0.2)",padding:8,borderRadius:8,display:"flex"}}>{IcoCtr}</div><span style={{fontWeight:800,fontSize:15}}>Novo Contrato</span></div><button className="modal-close-btn" onClick={()=>{setDashNovoModal(false);setNovoContratoIni(null);}} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div><div style={{padding:20}}><NovoContrato contratos={contratos||[]} clientes={clientes||[]} clienteInicial={novoContratoIni} onSucesso={()=>{setDashNovoModal(false);setNovoContratoIni(null);carregar(true);}}/></div></div></div>}
+      {dashRegModal&&<div className="modal-overlay-anim" style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.55)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setDashRegModal(false)}><div className="modal-box-anim" style={{width:"100%",maxWidth:420,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.35)",minWidth:0}} onClick={e=>e.stopPropagation()}><div style={{background:GRN,padding:"16px 20px",borderRadius:"16px 16px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10,color:ONBRAND}}><div style={{background:"rgba(255,255,255,0.2)",padding:8,borderRadius:8,display:"flex"}}>{IcoPag}</div><span style={{fontWeight:800,fontSize:15}}>Registrar Pagamento</span></div><button className="modal-close-btn" onClick={()=>setDashRegModal(false)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:ONBRAND,borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div><div style={{padding:20}}><PagamentoDrop contratos={contratos||[]} parcelas={parcelas||[]} clientes={clientes||[]} onSucesso={async()=>{setDashRegModal(false);await carregar();}} onSelecionarParcela={p=>{setDashRegModal(false);setPagamentoHoje(p);}}/></div></div></div>}
+      {dashNovoModal&&<div className="modal-overlay-anim" style={{position:"fixed",inset:0,zIndex:500,background:"rgba(15,23,42,0.55)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>{setDashNovoModal(false);setNovoContratoIni(null);}}><div className="modal-box-anim" style={{width:"100%",maxWidth:420,background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:"0 24px 80px rgba(15,23,42,0.35)",minWidth:0}} onClick={e=>e.stopPropagation()}><div style={{background:GRN,padding:"16px 20px",borderRadius:"16px 16px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10,color:ONBRAND}}><div style={{background:"rgba(255,255,255,0.2)",padding:8,borderRadius:8,display:"flex"}}>{IcoCtr}</div><span style={{fontWeight:800,fontSize:15}}>Novo Contrato</span></div><button className="modal-close-btn" onClick={()=>{setDashNovoModal(false);setNovoContratoIni(null);}} style={{background:"rgba(255,255,255,0.15)",border:"none",color:ONBRAND,borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div><div style={{padding:20}}><NovoContrato contratos={contratos||[]} clientes={clientes||[]} clienteInicial={novoContratoIni} onSucesso={()=>{setDashNovoModal(false);setNovoContratoIni(null);carregar(true);}}/></div></div></div>}
       {modalTemplatesRegua&&<TemplatesReguaModal onFechar={()=>setModalTemplatesRegua(false)}/>}
       {perdaAcoesModal&&<PerdaAcoesModal contrato={perdaAcoesModal} parcelas={parcelas||[]} clientes={clientes||[]} onEncerrar={()=>{setEncerramentoModal(perdaAcoesModal);setPerdaAcoesModal(null);}} onRecuperar={()=>{setRecuperacaoModal(perdaAcoesModal);setPerdaAcoesModal(null);}} onAcordoAssistido={()=>{setAcordoAssistModal(perdaAcoesModal);setPerdaAcoesModal(null);}} onAbatimento={()=>{setAbatimentoAssistModal(perdaAcoesModal);setPerdaAcoesModal(null);}} onSairAcordo={()=>{carregar();setPerdaAcoesModal(null);}} onFechar={()=>setPerdaAcoesModal(null)}/>}
       {encerramentoModal&&<EncerrarContratoModal contrato={encerramentoModal} parcelas={parcelas||[]} onConfirmar={()=>{setEncerramentoModal(null);carregar();}} onFechar={()=>setEncerramentoModal(null)}/>}
