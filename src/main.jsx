@@ -676,6 +676,24 @@ function gerarEEnviarComprovante(parcela,valorPago,dataPago,tipoLabel,parcelas,c
     const nomeArq=isQuitado?`comprovante-quitacao-${parcela.ID_CONTRATO}-${ts}.pdf`:`comprovante-${parcela.ID_CONTRATO}-P${pNum}-${ts}.pdf`;
     const tipoLabelToKey={'Somente Juros':'somente_juros','Com Atraso':'pagamento_com_atraso','Quitação Antecipada':'quitacao_antecipada','Antecipado':'pagamento_antecipado'};
     const nome=String(parcela.NOME_CLIENTE||cliente?.NOME_CLIENTE||cliente?.NOME||'—');
+    if(!isQuitado){
+      const authTs=`${ts.slice(0,4)}·${ts.slice(4,8)}·BORGES·${String(parcela.ID_PARCELA||'').slice(-4).toUpperCase()||ts.slice(8,12)}`;
+      abrirComprovantePagamento({
+        valorPago:fR(parseFloat(valorPago||0)),
+        parcelaLabel:`Parcela ${String(pNum).padStart(2,'0')} de ${String(totalParcEfetivo).padStart(2,'0')}`,
+        nome,
+        cpf:String(cliente?.CPF||'—'),
+        contrato:String(parcela.ID_CONTRATO),
+        formaPagamento:String(tipoLabel||'—'),
+        pagoEm:fD(dataPago),
+        vencimentoOriginal:fD(parcela.DATA_VENCIMENTO),
+        saldoDevedor:fR(saldo),
+        idTransacao:String(parcela.ID_PARCELA||'—'),
+        autenticacao:authTs,
+      });
+      if(opts.wpp){const tel=telefone?`55${telefone}`:'';const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);const wppUrl=tel?`https://wa.me/${tel}`:(isMobile?'https://wa.me':'https://web.whatsapp.com');setTimeout(()=>window.open(wppUrl,'_blank'),700);}
+      return;
+    }
     const doc=new jsPDF({unit:'mm',format:'a4'});
     const W=210,pd=20;
     const {G,GL,DK,MT,BDC,LMK}=_PDF_CLR;
