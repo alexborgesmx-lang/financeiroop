@@ -2615,7 +2615,7 @@ function RecuperacaoModal({contrato,onConfirmar,onFechar}){
             <div><div style={{fontSize:9,color:MUTED,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Prejuízo Atual</div><div style={{fontSize:14,fontWeight:800,color:RED}}>{fmtR(prejuizoAtual)}</div></div>
           </div>
           <div><span style={LS()}>Valor Recebido (R$)</span>
-            <input type="number" value={valor} onChange={e=>setValor(e.target.value)} placeholder="0,00" style={{...IS(),fontSize:22,fontWeight:800,textAlign:"center",height:54}}/>
+            <input type="number" value={valor} onChange={e=>setValor(e.target.value)} onPaste={e=>pasteMoeda(e,setValor)} placeholder="0,00" style={{...IS(),fontSize:22,fontWeight:800,textAlign:"center",height:54}}/>
           </div>
           {vRec>0&&(
             <div style={{background:GRN+"10",border:`1px solid ${GRN}40`,borderRadius:10,padding:14}}>
