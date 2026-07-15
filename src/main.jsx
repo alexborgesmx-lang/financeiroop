@@ -5027,6 +5027,7 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
               type="number" min={100} max={100000} step={1}
               value={valor}
               onChange={e=>{const v=Number(e.target.value);if(v>=0)setValor(v);}}
+              onPaste={e=>pasteMoeda(e,v=>setValor(Number(v)))}
               onBlur={e=>{const v=Math.max(100,Math.min(100000,Math.round(Number(e.target.value))));setValor(v);}}
               style={{flex:1,padding:"10px 14px",background:"none",border:"none",outline:"none",fontSize:22,fontWeight:900,color:TEXT,width:"100%"}}
             />
