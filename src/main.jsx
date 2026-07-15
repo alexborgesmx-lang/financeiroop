@@ -3417,10 +3417,10 @@ function PagamentoDrop({contratos,parcelas,clientes,onSucesso,onSelecionarParcel
         ):<div style={{padding:8,background:RED+"08",color:RED,fontSize:12,borderRadius:6}}>Nenhuma parcela pendente.</div>}</div>}
         {modoAtivo==="pagamento"&&parcela&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <div><span style={LS()}>Tipo</span><select value={tipo||""} onChange={e=>changeTipoDrop(e.target.value)} style={IS()}><option value="">Selecione...</option><option value="total">Total</option><option value="parcial">Somente Juros</option></select></div>
-          <div><span style={LS()}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} style={IS()}/></div>
+          <div><span style={LS()}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} onPaste={e=>pasteMoeda(e,setValor)} style={IS()}/></div>
           {tipo==="total"&&parseFloat(parcela?.VALOR_JUROS||0)>0&&<div style={{gridColumn:"1/-1"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><span style={LS()}>Desconto nos Juros (R$)</span><span style={{fontSize:10,color:MUTED,fontWeight:600}}>máx {fmtR(parseFloat(parcela?.VALOR_JUROS||0))}</span></div>
-            <input type="number" value={desconto||""} onChange={e=>changeDescontoDrop(e.target.value)} placeholder="0,00" min="0" max={parseFloat(parcela?.VALOR_JUROS||0)} style={{...IS(),color:desconto>0?GRN:TEXT}}/>
+            <input type="number" value={desconto||""} onChange={e=>changeDescontoDrop(e.target.value)} onPaste={e=>pasteMoeda(e,changeDescontoDrop)} placeholder="0,00" min="0" max={parseFloat(parcela?.VALOR_JUROS||0)} style={{...IS(),color:desconto>0?GRN:TEXT}}/>
             {desconto>0&&<div style={{marginTop:4,fontSize:11,color:GRN,fontWeight:600}}>Cliente paga {fmtR(parseFloat(parcela?.VALOR_PRINCIPAL||0))} + {fmtR(Math.max(0,parseFloat(parcela?.VALOR_JUROS||0)-desconto))} de juros</div>}
           </div>}
           {tipo==="parcial"&&parcela&&<div style={{gridColumn:"1/-1",background:ORG+"08",border:`1px solid ${ORG}25`,borderRadius:10,padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
@@ -3463,7 +3463,7 @@ function PagamentoDrop({contratos,parcelas,clientes,onSucesso,onSelecionarParcel
               {_vlN>0&&<div style={{marginTop:6,paddingTop:6,borderTop:`1px solid ${BLU}20`,color:BLU,fontWeight:700}}>Após este abatimento: {fmtR(Math.max(0,_rest-_vlN))}</div>}
             </div>
             );})()}
-            <div><span style={LS()}>Valor do abatimento (R$)</span><input type="number" value={abatValor} onChange={e=>setAbatValor(e.target.value)} placeholder="0,00" min="0" style={IS()}/></div>
+            <div><span style={LS()}>Valor do abatimento (R$)</span><input type="number" value={abatValor} onChange={e=>setAbatValor(e.target.value)} onPaste={e=>pasteMoeda(e,setAbatValor)} placeholder="0,00" min="0" style={IS()}/></div>
             <div>
               <span style={LS()}>Data</span><input type="date" value={data} onChange={e=>setData(e.target.value)} style={IS()}/>
             </div>
@@ -3528,7 +3528,7 @@ function PagamentoParcelaModal({parcela,parcelas,contratos,clientes,onConfirmar,
         {modo==="pagamento"?(
           <>
           <div><span style={LS()}>Tipo</span><select value={tipo} onChange={e=>changeTipoPPM(e.target.value)} style={IS()}><option value="total">Pagamento total</option><option value="parcial">Somente juros</option></select></div>
-          <div><span style={LS()}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} style={IS()}/></div>
+          <div><span style={LS()}>Valor</span><input type="number" value={valor} onChange={e=>setValor(e.target.value)} onPaste={e=>pasteMoeda(e,setValor)} style={IS()}/></div>
           {tipo==="total"&&parseFloat(parcela?.VALOR_JUROS||0)>0&&(
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
