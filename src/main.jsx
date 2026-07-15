@@ -1959,7 +1959,7 @@ function QuitacaoAntecipadaModal({contrato, parcelas, clientes, quitacoes, onCon
                   ))}
                   <input type="number" value={pct} onChange={e=>onChangePct(e.target.value)} placeholder="%" min="0" max="100" style={{...IS(),width:68,flexShrink:0,textAlign:"center"}}/>
                   <span style={{color:MUTED,fontSize:13,flexShrink:0,padding:"0 2px"}}>→ R$</span>
-                  <input type="number" value={desconto} onChange={e=>onChangeDescR(e.target.value)} placeholder="0.00" min="0" style={{...IS(),flex:1,minWidth:100}}/>
+                  <input type="number" value={desconto} onChange={e=>onChangeDescR(e.target.value)} onPaste={e=>pasteMoeda(e,onChangeDescR)} placeholder="0.00" min="0" style={{...IS(),flex:1,minWidth:100}}/>
                 </div>
                 {totalJuros>0&&<div style={{fontSize:10,color:MUTED,marginTop:3}}>Máx: {fmtR(totalJuros)} (100% dos juros)</div>}
               </div>
