@@ -2713,7 +2713,7 @@ function InfoTooltip({text}){
   );
 }
 
-function CampoEdit({label,field,tipo,opts,edit,setEdit,erros,fixup}){
+function CampoEdit({label,field,tipo,opts,edit,setEdit,erros,fixup,moeda}){
   const erro=erros[field];
   return(
     <div>
@@ -2723,7 +2723,7 @@ function CampoEdit({label,field,tipo,opts,edit,setEdit,erros,fixup}){
             {edit[field]&&!opts.some(o=>o.v===edit[field])&&<option value={edit[field]}>{edit[field]} ⚠ (valor original — normalizar)</option>}
             {opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
           </select>
-        :<input type={tipo||"text"} value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} onBlur={fixup?e=>{const v=fixup(e.target.value);if(v!==e.target.value)setEdit(p=>({...p,[field]:v}));}:undefined} style={{...IS(),border:`1px solid ${erro?RED:BD}`,background:erro?RED+"06":CARD}}/>
+        :<input type={tipo||"text"} value={edit[field]||""} onChange={e=>setEdit(p=>({...p,[field]:e.target.value}))} onPaste={moeda?e=>pasteMoeda(e,v=>setEdit(p=>({...p,[field]:v}))):undefined} onBlur={fixup?e=>{const v=fixup(e.target.value);if(v!==e.target.value)setEdit(p=>({...p,[field]:v}));}:undefined} style={{...IS(),border:`1px solid ${erro?RED:BD}`,background:erro?RED+"06":CARD}}/>
       }
       {erro&&<div style={{fontSize:10,color:RED,fontWeight:600,marginTop:3}}>⚠ {erro}</div>}
     </div>
@@ -3198,10 +3198,10 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
                     <span style={{fontSize:10,color:MUTED,fontWeight:600}}>80% da Renda Líquida</span>
                   </div>
                 </div>
-                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Renda Bruta (R$)" field="RENDA_BRUTA" tipo="number"/>
-                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Renda Líquida (R$)" field="RENDA_LIQUIDA" tipo="number"/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Renda Bruta (R$)" field="RENDA_BRUTA" tipo="number" moeda/>
+                <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Renda Líquida (R$)" field="RENDA_LIQUIDA" tipo="number" moeda/>
                 <div>
-                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Renda Mensal Operacional (R$)" field="RENDA_MENSAL" tipo="number"/>
+                  <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Renda Mensal Operacional (R$)" field="RENDA_MENSAL" tipo="number" moeda/>
                   <div style={{fontSize:10,color:MUTED,marginTop:3}}>Usado no score e limite de crédito</div>
                 </div>
                 <CampoEdit edit={edit} setEdit={setEdit} erros={erros} label="Tipo de Renda" field="TIPO_RENDA" opts={[{v:"",l:"—"},{v:"CLT",l:"CLT"},{v:"Servidor",l:"Servidor Público"},{v:"Aposentado",l:"Aposentado"},{v:"Pensionista",l:"Pensionista"},{v:"Autonomo",l:"Autônomo"},{v:"Informal",l:"Informal"}]}/>
