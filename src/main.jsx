@@ -4776,116 +4776,26 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
 }
 
 // ─── COMPROVANTE DE QUITAÇÃO ─────────────────────────────────────
-function gerarComprovante(contrato, parcelasContrato, cliente, totalPagoOverride, ultPagOverride) {
-  try{
-    const ps=[...parcelasContrato].sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
-    const totalPagoPs=ps.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
-    const totalPago=totalPagoOverride!==undefined?Math.max(totalPagoPs,totalPagoOverride):totalPagoPs;
-    const valorOriginal=parseFloat(contrato.VALOR_PRINCIPAL||contrato.VALOR_TOTAL||0);
-    const datasPs=ps.map(p=>parseDate(p.DATA_PAGAMENTO)).filter(Boolean);
-    const ultPagPs=datasPs.length?datasPs.reduce((a,b)=>a>b?a:b):null;
-    const ultPag=ultPagOverride||ultPagPs;
-    const nome=String(contrato.NOME_CLIENTE||cliente?.NOME_CLIENTE||'—');
-    const cpf=String(contrato.CPF||cliente?.CPF||'—');
-    const fD=d=>{if(!d)return'—';const dt=d instanceof Date?d:parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):'—';};
-    const fR=fmtR;
-    const now=new Date();
-    const doc=new jsPDF({unit:'mm',format:'a4'});
-    const W=210,pd=20;
-    const {G,GL,DK,MT,BDC,LMK}=_PDF_CLR;
-    const G7=[14,92,68],G6=[17,128,94],GI=[230,248,239],G2=[194,239,216],LGR=[247,249,248];
-
-    // ─── LETTERHEAD ────────────────────────────────────────────────
-    let y=16;
-    doc.setFillColor(31,184,119);doc.roundedRect(pd,y,13,13,3,3,'F');
-    doc.setFillColor(...G);doc.roundedRect(pd+9,y+5,13,13,3,3,'F');
-    doc.setFillColor(...LMK);doc.roundedRect(pd+9,y+5,4.5,4.5,1,1,'F');
-    doc.setFont('helvetica','bold');doc.setFontSize(17);doc.setTextColor(...DK);
-    doc.text('Borges Assessoria',pd+27,y+7);
-    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...G7);
-    doc.text('Infraestrutura de crédito privado',pd+27,y+12.5);
-    ['CNPJ 63.124.205/0001-07','borgesassessoriafinanceira@gmail.com','Tel/WPP: (62) 98487-7843'].forEach((l,i)=>{
-      doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...MT);
-      doc.text(l,W-pd,y+i*4.5,{align:'right'});
-    });
-    y+=21;
-    doc.setFillColor(...G);doc.rect(pd,y,16,1.5,'F');
-    doc.setFillColor(...BDC);doc.rect(pd+16,y,W-2*pd-16,1.5,'F');
-    y+=10;
-
-    // ─── QUITAÇÃO TOTAL (substituí o stamp rotacionado por badge) ──
-    const stampCx=W-pd-17,stampCy=y+5;
-    doc.setDrawColor(17,128,94);doc.setLineWidth(1.2);doc.circle(stampCx,stampCy,14,'D');
-    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(14,92,68);
-    doc.text('QUITAÇÃO TOTAL',stampCx,stampCy-1.5,{align:'center',angle:11});
-    doc.setFont('helvetica','normal');doc.setFontSize(5.5);doc.setTextColor(...GL);
-    doc.text('NADA CONSTA',stampCx,stampCy+5,{align:'center',angle:11});
-
-    // ─── TÍTULO ────────────────────────────────────────────────────
-    doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(...G7);
-    doc.text('COMPROVANTE DE QUITAÇÃO DE CONTRATO',pd,y);
-    y+=9;
-    doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(...DK);
-    doc.text('Contrato integralmente quitado',pd,y);
-    y+=11;
-
-    // ─── DECLARAÇÃO ────────────────────────────────────────────────
-    doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(78,88,84);
-    const decl=`A Borges Assessoria declara, para os devidos fins, que o contrato de crédito abaixo identificado foi integralmente quitado pelo(a) cliente, nada mais havendo a ser cobrado a título de principal, juros ou encargos relativos a esta operação.`;
-    const declL=doc.splitTextToSize(decl,W-2*pd-10);doc.text(declL,pd,y);
-    y+=declL.length*5.5+10;
-
-    // ─── BOX RESUMO (verde-100) ────────────────────────────────────
-    const boxRows=[
-      ['Cliente',`${nome} — CPF ${cpf}`],
-      ['Contrato',String(contrato.ID_CONTRATO)],
-      ['Valor principal',fR(valorOriginal)],
-      ['Total pago (principal + juros)',fR(totalPago)],
-      ['Parcelas',`${ps.filter(p=>_ST_TERMINAL.has(String(p.STATUS||"").toLowerCase())).length} de ${ps.length} encerradas`],
-      ['Data da quitação',fD(ultPag)],
-    ];
-    const boxH=8+boxRows.length*10+6;
-    doc.setFillColor(...GI);doc.setDrawColor(...G2);doc.setLineWidth(0.5);
-    doc.roundedRect(pd,y,W-2*pd,boxH,3,3,'FD');
-    let by=y+10;
-    boxRows.forEach(([k,v],i)=>{
-      doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...MT);doc.text(k,pd+6,by);
-      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...DK);doc.text(String(v),W-pd-6,by,{align:'right'});
-      if(i<boxRows.length-1){doc.setDrawColor(...G2);doc.setLineWidth(0.2);doc.line(pd+6,by+3,W-pd-6,by+3);}
-      by+=10;
-    });
-    y+=boxH+10;
-
-    // ─── HISTÓRICO ─────────────────────────────────────────────────
-    const psForPdf=ps.map(p=>String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase()==="renegociado"?{...p,VALOR_PAGO:null,TIPO_PAGAMENTO:"renegociado"}:p);
-    y=_renderHistParcelas(doc,psForPdf,W,pd,y,GL,DK,BDC,fD,fR);
-    y+=10;
-
-    // ─── ASSINATURA + AUTENTICAÇÃO ─────────────────────────────────
-    const authCode=`QT·${String(contrato.ID_CONTRATO).slice(-4)}·${now.getFullYear()}·BORGES`;
-    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...MT);
-    doc.text('Autenticação',pd,y);
-    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...DK);
-    doc.text(authCode,pd,y+5);
-    doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(...MT);
-    doc.text('Verifique em borgesassessoriafinanceira.com.br/validar',pd,y+10);
-    const sx=W-pd-65;
-    doc.setDrawColor(...DK);doc.setLineWidth(0.8);doc.line(sx,y,sx+65,y);
-    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...DK);
-    doc.text('Borges Assessoria',sx+32,y+6,{align:'center'});
-    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);
-    doc.text('Assinado digitalmente',sx+32,y+11,{align:'center'});
-    y+=18;
-
-    // ─── RODAPÉ ────────────────────────────────────────────────────
-    doc.setDrawColor(...BDC);doc.setLineWidth(0.3);doc.line(pd,y,W-pd,y);y+=5;
-    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...MT);
-    doc.text('Borges Assessoria · borgesassessoriafinanceira@gmail.com',pd,y);
-    doc.text(`Página 1 de 1 · ${contrato.ID_CONTRATO}`,W-pd,y,{align:'right'});
-
-    const nomeArq=`comprovante-quitacao-${contrato.ID_CONTRATO}-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.pdf`;
-    doc.save(nomeArq);
-  }catch(e){console.error('Quitacao PDF error:',e);}
+function gerarComprovante(contrato, parcelasContrato, cliente, totalPagoOverride, ultPagOverride){
+  const ps=[...parcelasContrato].sort((a,b)=>parseInt(a.NUM_PARCELA||0)-parseInt(b.NUM_PARCELA||0));
+  const totalPagoPs=ps.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
+  const totalPago=totalPagoOverride!==undefined?Math.max(totalPagoPs,totalPagoOverride):totalPagoPs;
+  const valorOriginal=parseFloat(contrato.VALOR_PRINCIPAL||contrato.VALOR_TOTAL||0);
+  const datasPs=ps.map(p=>parseDate(p.DATA_PAGAMENTO)).filter(Boolean);
+  const ultPag=ultPagOverride||(datasPs.length?datasPs.reduce((a,b)=>a>b?a:b):null);
+  const nome=String(contrato.NOME_CLIENTE||cliente?.NOME_CLIENTE||'—');
+  const cpf=String(contrato.CPF||cliente?.CPF||'—');
+  const fD=d=>{if(!d)return'—';const dt=d instanceof Date?d:parseDate(d);return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR'):'—';};
+  const pagasCount=ps.filter(p=>_ST_TERMINAL.has(String(p.STATUS||"").toLowerCase())).length;
+  abrirComprovanteQuitacao({
+    nome, cpf, contrato:String(contrato.ID_CONTRATO),
+    idCliente:String(cliente?.ID_CLIENTE||contrato.ID_CLIENTE||''),
+    valorPrincipal:fmtR(valorOriginal), totalPago:fmtR(totalPago),
+    parcelasLabel:`${pagasCount} de ${ps.length} pagas`,
+    periodoInicio:fmtMesAno(ps[0]?.DATA_VENCIMENTO), periodoFim:fmtMesAno(ultPag),
+    dataQuitacao:fD(ultPag), dataQuitacaoISO:ultPag?apiDateStr(ultPag):"",
+    autenticacaoFallback:`QT·${String(contrato.ID_CONTRATO).slice(-4)}·${new Date().getFullYear()}·BORGES`,
+  });
 }
 
 function abrirWhatsApp(telefone, nomeCliente) {
