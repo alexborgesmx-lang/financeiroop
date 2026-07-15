@@ -3683,7 +3683,7 @@ function NovoContrato({contratos,clientes,onSucesso,clienteInicial}){
         </div>
         {cliente&&clienteBloqueadoGate&&<div style={{background:RED+"08",border:`1px solid ${RED}30`,borderRadius:8,padding:"10px 12px",fontSize:12,color:RED,fontWeight:600,display:"flex",alignItems:"center",gap:8}}>{clienteJudi?IcoJur:IcoLock} {clienteJudi?"Cliente com histórico de ação judicial — bloqueio permanente para novo crédito.":`Cliente bloqueado${clienteMotivoBloqueio?": "+clienteMotivoBloqueio:"."}`}</div>}
         {cliente&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <div><span style={LS()}>Principal</span><input type="number" value={principal} onChange={e=>setPrincipal(e.target.value)} placeholder="0.00" style={IS()}/></div>
+          <div><span style={LS()}>Principal</span><input type="number" value={principal} onChange={e=>setPrincipal(e.target.value)} onPaste={e=>pasteMoeda(e,setPrincipal)} placeholder="0.00" style={IS()}/></div>
           <div><span style={LS()}>Parcelas</span><input type="number" value={nParcelas} onChange={e=>setNParcelas(e.target.value)} placeholder="1" style={IS()}/></div>
           <div><span style={LS()}>Taxa Mensal (%)</span><input type="number" value={taxa} onChange={e=>setTaxa(e.target.value)} placeholder="0.00" style={IS()}/></div>
           <div><span style={LS()}>1º Vencimento</span><input type="date" value={dtVenc} onChange={e=>setDtVenc(e.target.value)} style={IS()}/></div>
