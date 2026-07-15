@@ -1016,6 +1016,7 @@ function doPost(e) {
     else if (body.action === "cancelarPropostaQuitacao")     { cancelarPropostaQuitacao(body.dados||{}); res={ok:true}; }
     else if (body.action === "pagamentoQuitacaoWebhook")     { var rPQW=pagamentoQuitacaoWebhook(body.txid,body.valor,body.data); res={ok:true,contratoQuitado:rPQW?!!rPQW.contratoQuitado:false,duplicata:rPQW?!!rPQW.duplicata:false}; }
     else if (body.action === "dispararReguaCobranca")        { var rReg=enviarReguaCobranca(false); res={ok:true,enviados:rReg?rReg.enviados:0,erros:rReg?rReg.erros:0}; }
+    else if (body.action === "garantirCertificadoQuitacao")  { var dCert=_buscarDadosCertificado(body.idContrato,body.idCliente); var rCert=gerarCertificadoQuitacao({idContrato:body.idContrato,idCliente:body.idCliente,nomeCliente:dCert.nome,cpf:dCert.cpf,datQuitacao:body.datQuitacao||new Date(),totalPago:dCert.totalPago}); res={ok:true,codigo:rCert.codigoValidacao,link:rCert.linkCertificado}; }
     else if (body.action === "buscarCertificado")            { res=Object.assign({ok:true},buscarCertificadoPublico(body.codigo||"")); }
     else { res={erro:"Acao nao reconhecida: "+body.action}; }
   } catch(err) { res={erro:err.message}; }
