@@ -1553,7 +1553,7 @@ function AbatimentoAssistidoModal({contrato, parcelas, onConfirmar, onFechar}){
         <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
           <div>
             <span style={LS()}>Valor do abatimento (R$)</span>
-            <input type="number" min="0.01" step="0.01" value={valor} onChange={e=>{setValor(e.target.value);setErro("");}} style={IS()} placeholder="0,00" autoFocus/>
+            <input type="number" min="0.01" step="0.01" value={valor} onChange={e=>{setValor(e.target.value);setErro("");}} onPaste={e=>pasteMoeda(e,v=>{setValor(v);setErro("");})} style={IS()} placeholder="0,00" autoFocus/>
           </div>
           <div>
             <span style={LS()}>Observação (opcional)</span>
