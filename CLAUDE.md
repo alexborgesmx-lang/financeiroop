@@ -463,6 +463,61 @@ const isAlreadyProcessed = isSomenteJuros && !!currentInHist && currentInHist.TI
 const totalParcEfetivo = (isSomenteJuros && !isAlreadyProcessed) ? hist.length + 1 : hist.length;
 ```
 
+### Documentos do cliente — migração jsPDF → HTML+print (em andamento, 2026-07-15)
+
+Documentos client-facing estão sendo migrados de jsPDF (desenho client-side em canvas)
+para **HTML renderizado + `window.print()`** — mesmo padrão já usado em `api/cert.js`,
+permite fidelidade real ao handoff de design (`Borges Assessoria/design_handoff_rede_borges/`)
+sem reimplementar CSS em canvas. Migração é **um documento por vez**, plano documentado em
+`docs/superpowers/specs/` e `docs/superpowers/plans/` (prefixo `2026-07-15-comprovante-*`).
+
+**Concluído:**
+- Comprovante de Pagamento (parcela não-final) — `abrirComprovantePagamento` (`main.jsx:638`) +
+  template `_comprovantePagamentoHTML` (`main.jsx:546`)
+- Comprovante de Quitação (parcela final / contrato quitado) — `abrirComprovanteQuitacao`
+  (`main.jsx:767`) + template `_comprovanteQuitacaoHTML` (`main.jsx:650`); `gerarComprovante`
+  (`main.jsx:4779`) virou wrapper fino sobre essa função
+
+**Ainda em jsPDF (backlog, mesma migração pendente):** `gerarExtratoPDF` (Extrato do
+Contrato, `main.jsx:860`). Timbre de Contrato **não** entra nessa migração — decisão
+explícita de manter o fluxo Google Docs + ZapSign como está.
+
+**Padrão de implementação:**
+```javascript
+// Síncrono (sem dado de servidor) — abrir a janela DENTRO do clique síncrono do usuário,
+// nunca depois de um await, senão o navegador bloqueia o pop-up:
+function abrirComprovantePagamento(dados){
+  const win = window.open("", "_blank");
+  if(!win){ alert("Pop-up bloqueado — permita pop-ups e tente novamente."); return null; }
+  win.document.write(_comprovantePagamentoHTML(dados));
+  win.document.close();
+  return win;
+}
+
+// Assíncrono (precisa buscar dado no GAS, ex.: QR do certificado) — abrir a janela
+// IMEDIATAMENTE com um placeholder, e só then fazer o document.write real:
+async function abrirComprovanteQuitacao(dados){
+  const win = window.open("", "_blank");
+  if(!win){ alert("Pop-up bloqueado..."); return null; }
+  win.document.write("<p>Gerando comprovante...</p>");
+  try {
+    const r = await postAction({action:"garantirCertificadoQuitacao", ...});
+    // sucesso: usa r.link/r.codigo — falha: cai no fallback (dados.autenticacaoFallback,
+    // sem QR) e loga via console.error — NUNCA catch vazio, mesmo sendo um caminho de
+    // "degradação graciosa" (documento tem que abrir de qualquer forma)
+  } catch(e){ console.error("garantirCertificadoQuitacao falhou, documento abre sem QR:", e); }
+  win.document.write(_comprovanteQuitacaoHTML({...dados, ...}));
+  win.document.close();
+}
+```
+- Linha de Confiança (elemento de assinatura da marca) dentro de template string HTML:
+  usar `_linhaConfiancaSVG(w,h,n,sw,amp,color)` (`main.jsx:536`) — gerador de string SVG
+  separado do componente React `LinhaConfianca` (Fase 1); duplicação intencional de ~10
+  linhas para não acoplar o template de documento ao componente React já em produção.
+- Documentos que precisam de dado do GAS custam uma chamada de rede a mais que a versão
+  jsPDF não tinha — cobrir sempre com fallback gracioso (nunca travar o documento
+  esperando o servidor, nunca `catch` vazio).
+
 ### Funções utilitárias importantes
 ```javascript
 postAction(body)          // POST para /api/action → GAS doPost
