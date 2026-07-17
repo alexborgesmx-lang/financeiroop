@@ -518,6 +518,27 @@ async function abrirComprovanteQuitacao(dados){
   jsPDF não tinha — cobrir sempre com fallback gracioso (nunca travar o documento
   esperando o servidor, nunca `catch` vazio).
 
+### Rollout design v3 nas abas — `KpiCard` + `Table` (em andamento, 2026-07-17)
+
+Continuação da Fase 1 (que só cobriu tokens + Dashboard): levar o mesmo padrão visual
+de KPI card e tabela pras outras 8 abas (Clientes, Contratos, Financeiro, Carteira,
+Perdas & Recuperação, Promessas, Régua WPP, Simulador), uma aba por vez (spec +
+plano próprios em `docs/superpowers/`, prefixo `2026-07-17-rollout-*`).
+
+**Componentes reutilizáveis já existem — não recriar:**
+- `KpiCard({label,value,sub,color,icon,iconBg,tip,delta,badge,onClick,active})`
+  (`main.jsx:340`, logo após `Badge`) — chama `useIsMobile()` internamente, não
+  precisa de prop `mob`. `onClick` ausente = card não-interativo (sem hover/cursor).
+- Primitivo shadcn `Table/TableHeader/TableRow/TableHead/TableBody/TableCell`
+  (`src/components/ui/table.jsx`, já existia desde a Fase 1, só nunca tinha sido usado
+  — primeiro uso real foi na aba Cobrança). **Gotcha:** `TableHead`/`TableCell`
+  aplicam `whitespace-nowrap` por padrão — colunas com texto que pode quebrar em mais
+  de uma linha (nome+subtítulo, texto livre longo) precisam de
+  `className="whitespace-normal"` explícito, senão cortam/overflow.
+
+**Concluído:** aba Cobrança (KPIs + tabela desktop + zebra mobile).
+**Backlog:** as outras 8 abas — 14 ocorrências restantes de `<table>` cru no arquivo.
+
 ### Funções utilitárias importantes
 ```javascript
 postAction(body)          // POST para /api/action → GAS doPost
@@ -830,7 +851,7 @@ As skills abaixo devem ser invocadas automaticamente via `Skill` tool nos cenár
 | Fase | Descrição | Estado |
 |---|---|---|
 | 1A.1 | Design System Wise completo | Concluído |
-| 1A.2 | Refatoração shadcn (Dashboard primeiro, demais telas em sequência) | Em andamento |
+| 1A.2 | Refatoração shadcn (Dashboard ✅, Cobrança ✅, demais 8 abas em sequência) | Em andamento |
 | 1B | Régua de cobrança automática D-5/D-1/D0/D+1/D+3/D+7 + PIX avulso Efí + log MENSAGENS | **Concluído (2026-06-15)** |
 | 1C | API Roadmap: CEP auto-fill + CNPJ empregador + score empregador + feriados + IBGE (Sprints 1/1.5/2/3) | **Concluído (2026-06-20)** |
 | 1C-pend | API Roadmap: OpenStreetMap Nominatim (Sprint 4) + AwesomeAPI fallback CEP (Sprint 5) | **Concluído (2026-06-20)** |
