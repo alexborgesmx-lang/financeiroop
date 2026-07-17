@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { jsPDF } from "jspdf";
 import { Card } from "./components/ui/card";
 import { Button } from "./components/ui/button";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "./components/ui/table";
 
 const API_URL  = "/api/sheets";
 const POST_URL = "/api/action";
@@ -7321,42 +7322,39 @@ function App() {
                     ))}
                   </div>
                 : <div style={{overflowX:"auto"}}>
-                    <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
-                      <thead>
-                        <tr style={{background:GRN+"10",fontSize:11,color:GRN,fontWeight:700,textTransform:"uppercase"}}>
-                          <th style={{padding:"10px 18px"}}>Cliente</th>
-                          <th>Prioridade</th>
-                          <th>Nível</th>
-                          <th>Atraso Máx</th>
-                          <th>Valor</th>
-                          <th>Próxima Ação</th>
-                          <th style={{padding:"10px 18px",textAlign:"right"}}>Ação</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Cliente</TableHead>
+                          <TableHead>Prioridade</TableHead>
+                          <TableHead>Nível</TableHead>
+                          <TableHead>Atraso Máx</TableHead>
+                          <TableHead>Valor</TableHead>
+                          <TableHead>Próxima Ação</TableHead>
+                          <TableHead className="text-right">Ação</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {cobItemsFiltrados.map(c=>(
-                          <tr key={c.ID_CLIENTE} onClick={()=>setCobModal(c)}
-                            style={{borderBottom:`1px solid ${BD}`,fontSize:13,cursor:"pointer",transition:"background 0.1s"}}
-                            onMouseEnter={e=>e.currentTarget.style.background=BG}
-                            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                            <td style={{padding:"13px 18px"}}>
+                          <TableRow key={c.ID_CLIENTE} onClick={()=>setCobModal(c)} style={{cursor:"pointer"}}>
+                            <TableCell className="whitespace-normal">
                               <div style={{fontWeight:700,display:"flex",alignItems:"center",gap:8}}>{nomeCliente(c)}{scoreBadge(c)}</div>
                               <div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"} · {telCliente(c)}</div>
-                            </td>
-                            <td>{prioridadeBadge(c.prioridade)}</td>
-                            <td style={{fontSize:12,color:MUTED,fontWeight:600}}>{c.prioridade?.nivelLabel||"—"}</td>
-                            <td><Badge c={c.maxAtraso>60?RED:c.maxAtraso>30?ORG:YEL}>{c.maxAtraso} dias</Badge></td>
-                            <td style={{fontWeight:700,color:RED}}>{fmtR(c.vAtraso)}</td>
-                            <td style={{fontSize:12,color:MUTED,maxWidth:200}}>{c.prioridade?.acao||"—"}</td>
-                            <td style={{padding:"13px 18px",textAlign:"right"}}>
+                            </TableCell>
+                            <TableCell>{prioridadeBadge(c.prioridade)}</TableCell>
+                            <TableCell style={{fontSize:12,color:MUTED,fontWeight:600}}>{c.prioridade?.nivelLabel||"—"}</TableCell>
+                            <TableCell><Badge c={c.maxAtraso>60?RED:c.maxAtraso>30?ORG:YEL}>{c.maxAtraso} dias</Badge></TableCell>
+                            <TableCell style={{fontWeight:700,color:RED}}>{fmtR(c.vAtraso)}</TableCell>
+                            <TableCell className="whitespace-normal" style={{fontSize:12,color:MUTED,maxWidth:200}}>{c.prioridade?.acao||"—"}</TableCell>
+                            <TableCell className="text-right">
                               <button onClick={e=>{e.stopPropagation();setCobModal(c);}} style={{...BTN7(GRN),padding:"5px 12px",fontSize:11,display:"flex",alignItems:"center",gap:4}}>
                                 {IcoPag} Registrar
                               </button>
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
+                      </TableBody>
+                    </Table>
                   </div>
               }
             </div>
