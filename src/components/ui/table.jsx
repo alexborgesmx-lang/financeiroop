@@ -90,7 +90,7 @@ function TableCell({
     <td
       data-slot="table-cell"
       className={cn(
-        "px-2 py-5 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "px-2 py-8 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props} />
