@@ -5754,6 +5754,7 @@ function App() {
   const [renegociacaoModal, setRenegociacaoModal] = useState(null);
   const [cobModal, setCobModal] = useState(null);
   const [cobFiltro, setCobFiltro] = useState(null); // null | {tipo:"banda",valor} | {tipo:"ajuizamento"}
+  const [cobSort, setCobSort] = useState(null); // null | {campo:"cliente"|"prioridade"|"atraso"|"valor",dir:"asc"|"desc"}
   const [contratoSel, setContratoSel] = useState(null);
   const [carteiraDetalheModal, setCarteiraDetalheModal] = useState(null);
   const [filtroCtr, setFiltroCtr] = useState("");
@@ -7256,6 +7257,18 @@ function App() {
             const toggleFiltro = f => setCobFiltro(cur=>(cur&&cur.tipo===f.tipo&&cur.valor===f.valor)?null:f);
             const filtroAtivo = k => !!cobFiltro && cobFiltro.tipo===k.filtro?.tipo && cobFiltro.valor===k.filtro?.valor;
             const filtroLabel = !cobFiltro ? "" : cobFiltro.tipo==="banda" ? cobFiltro.valor : "Elegíveis para Ajuizamento";
+            const SORT_DEFAULT_DIR = {cliente:"asc",prioridade:"desc",atraso:"desc",valor:"desc"};
+            const SORT_LABEL = {cliente:"Cliente",prioridade:"Prioridade",atraso:"Atraso Máx",valor:"Valor"};
+            const toggleSort = campo => setCobSort(cur=>!cur||cur.campo!==campo?{campo,dir:SORT_DEFAULT_DIR[campo]}:{campo,dir:cur.dir==="asc"?"desc":"asc"});
+            const sortIcon = campo => cobSort?.campo!==campo ? null : (cobSort.dir==="asc"?"▲":"▼");
+            const cobItemsOrdenados = !cobSort ? cobItemsFiltrados : [...cobItemsFiltrados].sort((a,b)=>{
+              const dir = cobSort.dir==="asc"?1:-1;
+              if(cobSort.campo==="cliente") return dir*nomeCliente(a).localeCompare(nomeCliente(b),"pt-BR");
+              if(cobSort.campo==="prioridade") return dir*((a.prioridade?.score||0)-(b.prioridade?.score||0));
+              if(cobSort.campo==="atraso") return dir*((a.maxAtraso||0)-(b.maxAtraso||0));
+              if(cobSort.campo==="valor") return dir*((a.vAtraso||0)-(b.vAtraso||0));
+              return 0;
+            });
             return(
             <div className="flex flex-col gap-5" style={{animation:"fadeUp 400ms cubic-bezier(0.16,1,0.3,1) both"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:16,flexWrap:"wrap"}}>
@@ -7297,12 +7310,12 @@ function App() {
                     </button>
                   )}
                 </div>
-                {!mob&&<span style={{fontSize:12,color:MUTED,display:"flex",alignItems:"center",gap:5}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Ordenado por Prioridade de Cobrança · clique em um cliente para registrar pagamento</span>}
-                {mob&&<Badge c={RED}>{cobItemsFiltrados.length}</Badge>}
+                {!mob&&<span style={{fontSize:12,color:MUTED,display:"flex",alignItems:"center",gap:5}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>{cobSort?`Ordenado por ${SORT_LABEL[cobSort.campo]} (${cobSort.dir==="asc"?"crescente":"decrescente"})`:"Ordenado por Prioridade de Cobrança"} · clique em um cliente para registrar pagamento</span>}
+                {mob&&<Badge c={RED}>{cobItemsOrdenados.length}</Badge>}
               </div>
               {mob
                 ? <div style={{display:"flex",flexDirection:"column"}}>
-                    {cobItemsFiltrados.map((c,i)=>(
+                    {cobItemsOrdenados.map((c,i)=>(
                       <div key={c.ID_CLIENTE} onClick={()=>setCobModal(c)}
                         style={{padding:"14px 16px",borderBottom:`1px solid ${BD}`,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,background:i%2===1?CARD2:"transparent"}}>
                         <div style={{flex:1,minWidth:0}}>
@@ -7325,21 +7338,20 @@ function App() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Cliente</TableHead>
-                          <TableHead>Prioridade</TableHead>
+                          <TableHead onClick={()=>toggleSort("cliente")} style={{cursor:"pointer",userSelect:"none"}}>Cliente {sortIcon("cliente")}</TableHead>
+                          <TableHead onClick={()=>toggleSort("prioridade")} style={{cursor:"pointer",userSelect:"none"}}>Prioridade {sortIcon("prioridade")}</TableHead>
                           <TableHead>Nível</TableHead>
-                          <TableHead>Atraso Máx</TableHead>
-                          <TableHead>Valor</TableHead>
+                          <TableHead onClick={()=>toggleSort("atraso")} style={{cursor:"pointer",userSelect:"none"}}>Atraso Máx {sortIcon("atraso")}</TableHead>
+                          <TableHead onClick={()=>toggleSort("valor")} style={{cursor:"pointer",userSelect:"none"}}>Valor {sortIcon("valor")}</TableHead>
                           <TableHead>Próxima Ação</TableHead>
                           <TableHead className="text-right">Ação</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {cobItemsFiltrados.map(c=>(
+                        {cobItemsOrdenados.map(c=>(
                           <TableRow key={c.ID_CLIENTE} onClick={()=>setCobModal(c)} style={{cursor:"pointer"}}>
                             <TableCell className="whitespace-normal">
                               <div style={{fontWeight:700,display:"flex",alignItems:"center",gap:8}}>{nomeCliente(c)}{scoreBadge(c)}</div>
-                              <div style={{fontSize:11,color:MUTED}}>ID {c.ID_CLIENTE||"—"} · {telCliente(c)}</div>
                             </TableCell>
                             <TableCell>{prioridadeBadge(c.prioridade)}</TableCell>
                             <TableCell style={{fontSize:12,color:MUTED,fontWeight:600}}>{c.prioridade?.nivelLabel||"—"}</TableCell>
