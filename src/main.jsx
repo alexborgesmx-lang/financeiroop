@@ -7267,33 +7267,22 @@ function App() {
               {/* KPIs de Prioridade de Cobrança — Fase 1, calculado 100% no navegador */}
               <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:14}}>
                 {[
-                  {label:"🔥 Crítica",val:cobKpis.critica,c:RED,filtro:{tipo:"banda",valor:"Crítica"}},
-                  {label:"⚠ Forte",val:cobKpis.forte,c:ORG,filtro:{tipo:"banda",valor:"Forte"}},
-                  {label:"🟡 Normal",val:cobKpis.normal,c:YEL,filtro:{tipo:"banda",valor:"Normal"}},
-                  {label:"⚖ Elegíveis p/ ajuizamento",val:cobKpis.elegivelAjuizamento,c:PUR,filtro:{tipo:"ajuizamento"}},
+                  {label:"🔥 Crítica",value:cobKpis.critica,color:RED,filtro:{tipo:"banda",valor:"Crítica"}},
+                  {label:"⚠ Forte",value:cobKpis.forte,color:ORG,filtro:{tipo:"banda",valor:"Forte"}},
+                  {label:"🟡 Normal",value:cobKpis.normal,color:YEL,filtro:{tipo:"banda",valor:"Normal"}},
+                  {label:"⚖ Elegíveis p/ ajuizamento",value:cobKpis.elegivelAjuizamento,color:PUR,filtro:{tipo:"ajuizamento"}},
                 ].map(k=>(
-                  <div key={k.label} onClick={()=>toggleFiltro(k.filtro)}
-                    style={{background:CARD,padding:16,borderRadius:16,border:`1px solid ${filtroAtivo(k)?k.c:BD}`,boxShadow:SHD,position:"relative",overflow:"hidden",cursor:"pointer",transition:"transform 180ms cubic-bezier(0.34,1.56,0.64,1),box-shadow 180ms ease"}}
-                    onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.13)";}}
-                    onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow=SHD;}}>
-                    <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:4}}>{k.label}</div>
-                    <div style={{fontSize:mob?17:22,fontWeight:800,color:k.c}}>{k.val}</div>
-                    <div style={{fontSize:9,color:k.c,marginTop:5,fontWeight:600,opacity:0.7}}>{filtroAtivo(k)?"clique p/ limpar filtro":"clique p/ filtrar"}</div>
-                    <div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:k.c,borderRadius:"0 0 14px 14px",opacity:0.6}}/>
-                  </div>
+                  <KpiCard key={k.label} label={k.label} value={k.value} color={k.color}
+                    active={filtroAtivo(k)} onClick={()=>toggleFiltro(k.filtro)}
+                    sub={filtroAtivo(k)?"clique p/ limpar filtro":"clique p/ filtrar"}/>
                 ))}
               </div>
               <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)",gap:14}}>
                 {[
-                  {label:"📅 Promessas hoje",val:cobKpis.promessasHoje,c:BLU},
-                  {label:"❌ Promessas quebradas",val:cobKpis.promessasQuebradas,c:RED},
-                  {label:"💰 Valor total em risco",val:fmtR(cobKpis.valorRisco),c:ORG},
-                ].map(k=>(
-                  <div key={k.label} style={{background:CARD,padding:16,borderRadius:16,border:`1px solid ${BD}`,boxShadow:SHD}}>
-                    <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",marginBottom:4}}>{k.label}</div>
-                    <div style={{fontSize:mob?17:20,fontWeight:800,color:k.c}}>{k.val}</div>
-                  </div>
-                ))}
+                  {label:"📅 Promessas hoje",value:cobKpis.promessasHoje,color:BLU},
+                  {label:"❌ Promessas quebradas",value:cobKpis.promessasQuebradas,color:RED},
+                  {label:"💰 Valor total em risco",value:fmtR(cobKpis.valorRisco),color:ORG},
+                ].map(k=>(<KpiCard key={k.label} label={k.label} value={k.value} color={k.color}/>))}
               </div>
 
             <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,overflow:"hidden",boxShadow:SHD}}>
