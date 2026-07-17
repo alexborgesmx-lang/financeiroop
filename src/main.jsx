@@ -7302,9 +7302,9 @@ function App() {
               </div>
               {mob
                 ? <div style={{display:"flex",flexDirection:"column"}}>
-                    {cobItemsFiltrados.map(c=>(
+                    {cobItemsFiltrados.map((c,i)=>(
                       <div key={c.ID_CLIENTE} onClick={()=>setCobModal(c)}
-                        style={{padding:"14px 16px",borderBottom:`1px solid ${BD}`,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+                        style={{padding:"14px 16px",borderBottom:`1px solid ${BD}`,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,background:i%2===1?CARD2:"transparent"}}>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nomeCliente(c)}{scoreBadge(c)}</div>
                           <div style={{fontSize:11,color:MUTED,marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
