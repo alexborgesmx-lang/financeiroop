@@ -336,6 +336,39 @@ function LinhaConfianca({w=420,h=60,n=7,sw=2,amp=0.22,color,style}){
   );
 }
 function Badge({c,children,size="sm"}){ const p=size==="md"?"4px 12px":"3px 10px",fs=size==="md"?11:10; return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:p,borderRadius:9999,fontSize:fs,fontWeight:700,background:c+"18",color:c,border:`1px solid ${c}28`,lineHeight:1.3,whiteSpace:"nowrap"}}>{children}</span>; }
+function KpiCard({label,value,sub,color=TEXT,icon,iconBg,tip,delta,badge,onClick,active}){
+  const mob=useIsMobile();
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background:CARD, padding:16, borderRadius:16,
+        border:`1px solid ${active?color:BD}`,
+        boxShadow:SHD, position:"relative", overflow:"hidden",
+        cursor:onClick?"pointer":"default",
+        transition:"transform 180ms cubic-bezier(0.34,1.56,0.64,1),box-shadow 180ms ease"
+      }}
+      onMouseEnter={onClick?e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.13)";}:undefined}
+      onMouseLeave={onClick?e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow=SHD;}:undefined}
+    >
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:icon?12:4}}>
+        <div style={{fontSize:10,fontWeight:600,color:MUTED,textTransform:"uppercase",letterSpacing:"0.08em",lineHeight:1.3,display:"flex",alignItems:"center",flex:1,minWidth:0}}>
+          {label}{tip&&<InfoTooltip text={tip}/>}
+        </div>
+        {icon&&<div style={{width:30,height:30,borderRadius:8,background:iconBg||color+"18",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginLeft:6}}>{icon}</div>}
+      </div>
+      <div style={{fontSize:mob?17:22,fontWeight:800,color:color}}>{value}</div>
+      {(sub||delta!=null||badge)&&
+        <div style={{display:"flex",alignItems:"center",gap:6,marginTop:5,flexWrap:"wrap"}}>
+          {sub&&<div style={{fontSize:11,color:MUTED,fontWeight:500}}>{sub}</div>}
+          {delta!=null&&<div style={{fontSize:10,fontWeight:700,color:delta>=0?GRN:RED,background:delta>=0?GRN+"14":RED+"14",padding:"1px 5px",borderRadius:4}}>{delta>=0?"▲":"▼"} {Math.abs(delta).toFixed(1)}%</div>}
+          {badge&&<div style={{fontSize:10,fontWeight:700,color:RED,background:RED+"14",padding:"1px 5px",borderRadius:4}}>{badge}</div>}
+        </div>
+      }
+      <div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:color,borderRadius:"0 0 14px 14px",opacity:onClick?0.6:1}}/>
+    </div>
+  );
+}
 function isUltima(p,parcs){const id=String(p.ID_CONTRATO);const max=(parcs||[]).reduce((m,pp)=>String(pp.ID_CONTRATO)===id?Math.max(m,parseInt(pp.NUM_PARCELA||0)):m,0);return parseInt(p.NUM_PARCELA||0)===max&&max>0;}
 
 // ─── CALENDÁRIO ──────────────────────────────────────────────────
