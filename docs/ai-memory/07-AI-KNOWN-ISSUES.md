@@ -622,6 +622,71 @@ Resolvido (2026-07-05 renegociação, 2026-07-06 Acordo Assistido).
 
 ---
 
+## 2026-07-09 — `criarContrato` não valida "contrato ativo único" nem `STATUS_CLIENTE==="bloqueado"` (achado, não corrigido)
+
+### Problema
+Ao implementar o Bloqueio Manual de Cliente (`CLIENTE_BLOQUEADO_MANUAL`, ver `02-AI-CREDIT-RULES.md`), foi confirmado que `criarContrato` (`appscript.gs` ~linha 3280) só valida `CLIENTE_JUDICIALIZADO` no backend (e agora também `CLIENTE_BLOQUEADO_MANUAL`). Duas outras regras de elegibilidade **não são validadas no servidor**:
+
+1. **"Cliente não pode ter mais de um contrato ativo simultâneo"** — regra descrita em `02-AI-CREDIT-RULES.md` (linha 7-9), mas nunca implementada em `criarContrato`. Existe só como checagem client-side (`idsComAtivo` em `NovoContrato`, `src/main.jsx`), que cobre apenas o fluxo de busca direta — não cobre entrada via `ClienteModal` → "Novo Contrato" nem via `SimuladorContrato` → "Abrir como Contrato".
+2. **`STATUS_CLIENTE === "bloqueado"`** (setado automaticamente ao dar baixa de prejuízo) também não é checado em `criarContrato` — hoje só é usado para excluir o cliente da fila de cobrança WhatsApp (`appscript.gs` ~linha 7204).
+
+### Impacto
+Contornável hoje: uma chamada direta à action `novoContrato` (ex. bug de frontend, ou os 2 pontos de entrada que pulam o `idsComAtivo` client-side) pode criar um segundo contrato ativo para o mesmo cliente, ou criar contrato para cliente com prejuízo declarado (`STATUS_CLIENTE="bloqueado"`), sem nenhum bloqueio no servidor.
+
+### Status
+**Não corrigido** — fora do escopo da feature de Bloqueio Manual (que resolveu apenas o caso de decisão subjetiva). Registrado aqui para não ser esquecido; corrigir replicando o mesmo padrão de checagem já usado para `CLIENTE_JUDICIALIZADO`/`CLIENTE_BLOQUEADO_MANUAL` em `criarContrato`.
+
+---
+
+## 2026-07-13 — Régua e confirmação de pagamento: falhas silenciosas por corrida de triggers e exceções engolidas
+
+### Problema
+Dois bugs de mensageria WhatsApp descobertos a partir de relatos reais de clientes:
+
+1. `_logMensagem` calculava a próxima linha livre com `aba.getLastRow()+1` sem lock. `rotinaDiaria` (7h) e o trigger de backup `rotinaRegua` (8h) podem chamar `enviarReguaCobranca()` em execuções concorrentes — cada envio da régua leva alguns segundos (mensagem + PIX + delays), e com centenas de clientes na fila a execução das 7h pode ainda estar rodando quando a das 8h começa. Duas gravações simultâneas na mesma linha faziam uma sobrescrever a outra, apagando o registro mesmo com a mensagem já enviada de verdade.
+2. `_enviarConfirmacaoPagamento` não tinha try/catch cobrindo os passos de leitura/template/envio — qualquer exceção era engolida pelo catch genérico do chamador (`registrarPagamentoAPI`), deixando a falha 100% invisível (nem MENSAGENS, nem a aba Régua WPP).
+3. Efeito colateral: a 2ª mensagem da régua (código PIX, enviada separada do texto) podia falhar silenciosamente — só registrava `Logger.log` interno, sem entrada visível nem retry.
+
+Casos reais confirmados: Brenda Azevedo da Silva (PCL-219, parcela 1 — pagamento de R$510 registrado corretamente, mas confirmação nunca enviada) e Lara Jordana Silva Ribeiro (PCL-139, parcela 6/8 — mensagem 1 de D+3 recebida no WhatsApp sem nenhum registro em MENSAGENS, e a mensagem 2 com o código PIX nunca chegou).
+
+### Impacto
+Cliente pagava e não recebia confirmação, ou recebia lembrete de cobrança sem o código PIX pra pagar. Zero visibilidade da falha para Alex — MENSAGENS/Régua WPP mostrava "tudo certo" ou simplesmente não registrava o evento.
+
+### Solução
+- `_logMensagem`: protegida com `LockService.getScriptLock()` (mesmo padrão já usado em `proximoIdSeq`), serializando escritas concorrentes.
+- `_enviarConfirmacaoPagamento`: corpo inteiro (passos 2-7) envolto em try/catch — qualquer exceção agora grava um registro `ERRO_ENVIO` em MENSAGENS com o motivo real.
+- `enviarReguaCobranca`: 2ª mensagem (PIX) ganhou 1 retentativa automática; se falhar mesmo assim, grava `ERRO_PIX` visível na aba Régua WPP. Também corrigida uma chamada pré-existente a `_logMensagem` no ramo SEM_PIX que não tinha try/catch — como `_logMensagem` agora pode lançar exceção (timeout de lock, até 15s), essa chamada desprotegida quebraria o loop inteiro para os clientes seguintes na fila do dia.
+- Nova função de manutenção `reenviarConfirmacoesPendentes()` (menu GAS → "Régua: Reenviar Confirmações de Pagamento Perdidas (7 dias)"): varre PARCELAS pagas nos últimos 7 dias sem confirmação `ENVIADO` registrada e reenvia — segura de rodar mais de uma vez (reaproveita a checagem de duplicata já existente em `_enviarConfirmacaoPagamento`).
+
+### Status
+Resolvido (2026-07-13)
+
+---
+
+## 2026-07-20 — Confirmação de pagamento: dedup por ID_PARCELA bloqueava pagamento real após pagamento de teste desfeito
+
+### Problema
+`_enviarConfirmacaoPagamento` bloqueava reenvio checando **só** `ID_PARCELA + GATILHO=CONFIRMACAO_PAGAMENTO + STATUS_ENVIO=ENVIADO` em MENSAGENS, sem considerar a data. `reabrirParcelaAPI` (usada por undo e por correções manuais) reseta a parcela em PARCELAS e apaga o registro em PAGAMENTOS, mas **não toca em MENSAGENS** — então uma confirmação antiga ficava órfã, marcada ENVIADO para sempre. Qualquer pagamento real registrado depois nessa mesma parcela era silenciosamente pulado (nem erro, nem log visível — só `Logger.log` interno).
+
+Causa raiz de 3 pagamentos de teste feitos em 17/06/2026 (~10:09–10:10, mesmo lote, valores de centavos como R$5,90/R$10,10/R$2,55) que foram revertidos depois: Brenda Azevedo da Silva (PCL-219, parcela 1) e Lucas Matos Rocha (PCL-229, parcela 1) tiveram a confirmação do pagamento real (semanas depois) bloqueada por esse dedup. Nalanda Vasconcelos da Silva (PCL-230, parcela 1) só escapou porque a mensagem de teste dela falhou no envio (`ERRO_ENVIO`, não `ENVIADO`), então não contou pro dedup.
+
+**Correção retroativa importante:** o caso da Brenda é o mesmo já relatado na entrada acima (2026-07-13) — na época foi diagnosticado como exceção engolida / corrida de trigger, e "resolvido" com try/catch + lock. Esse patch não tocava a causa real (o dedup roda **antes** do try/catch, retorna via `return` simples, nunca lança exceção), então o problema dela nunca foi de fato corrigido — só passou despercebido até essa auditoria em 20/07, quando o mesmo padrão se repetiu com o Lucas e o Alex pediu investigação.
+
+### Impacto
+Cliente paga, o sistema registra certo, mas o WhatsApp de confirmação nunca chega — sem nenhum sinal de erro visível pro Alex em MENSAGENS ou na aba Régua WPP. Só acontece em parcelas que passaram por reabertura (undo, correção manual) e foram pagas de novo depois. Validado contra os dados reais de produção: das 92 confirmações `ENVIADO` existentes, só essas 2 (Brenda e Lucas) tinham esse padrão — nenhuma outra parcela do sistema está nesse estado hoje.
+
+### Solução
+`_enviarConfirmacaoPagamento`: dedup agora só bloqueia se a mensagem `ENVIADO` mais recente para aquele `ID_PARCELA` foi enviada no mesmo dia (ou depois) da `DATA_PAGAMENTO` **vigente** da parcela (novo helper `_dataPagamentoAtualParcela` + `_apenasData`, que trunca pra meia-noite local pra não comparar hora exata — `DATA_PAGAMENTO` é sempre gravada ao meio-dia local via `parseDateLocal`, `DATA_ENVIO` é o horário real do envio). Se a confirmação existente é anterior à data de pagamento vigente, é tratada como órfã de um pagamento já desfeito e não bloqueia.
+
+`reenviarConfirmacoesPendentes()` (menu GAS) simplificada: removido o pré-filtro `jaConfirmadas` (mesmo dedup ingênuo, duplicado) — agora só filtra por parcelas pagas nos últimos 7 dias e delega inteiramente o dedup pra `_enviarConfirmacaoPagamento`.
+
+Brenda e Lucas foram avisados manualmente por WhatsApp pelo Alex enquanto o fix não estava no ar.
+
+### Status
+Resolvido (2026-07-20)
+
+---
+
 ## 2026-07-15 — Colagem de valor monetário BR vira valor errado
 
 ### Problema

@@ -130,6 +130,10 @@ Cliente é **bloqueado para novo crédito** automaticamente se:
 - Renegociação ativa + inadimplente
 - Score final < 30
 
+#### Bloqueio manual de crédito (discricionário)
+
+Independente do score e das regras automáticas acima, Alex pode bloquear qualquer cliente por decisão subjetiva (ex: fraude de identidade, uso de nome de terceiro, quebra de confiança) diretamente no `ClienteModal` — motivo obrigatório, reversível a qualquer momento. Bloqueia apenas **novos** contratos; contratos já ativos do cliente não são afetados. Detalhes em `4.1` e `02-AI-CREDIT-RULES.md`.
+
 ### 2.4 Criação do Contrato
 
 1. Alex acessa **Novo Contrato** no FinanceiroOp.
@@ -315,7 +319,7 @@ Uma linha por parcela de cada contrato.
 | TIPO_PAGAMENTO | Tipo — ver lista abaixo |
 | ORIGEM_PARCELA | `original` ou `gerada_por_pagamento_de_juros` |
 | ID_PARCELA_ORIGEM | ID da parcela que gerou esta (somente_juros) |
-| DATA_ACORDO | Data do acordo/promessa (quando reagendada) |
+| DATA_ACORDO | Data do acordo/promessa (quando reagendada). No `ContratoModal` (aba Parcelas), exibida junto com o `DATA_VENCIMENTO` original (riscado, acima) para não perder a referência de quando a parcela venceria originalmente |
 | VALOR_RECEBIDO | Valor líquido recebido |
 | DESCONTO_APLICADO | Desconto concedido nos juros |
 | DIAS_ATRASO | Dias de atraso no pagamento (gravado pelo backend em `registrarPagamentoAPI` no momento do pagamento). Exibido no `ContratoModal` (aba Parcelas e Linha do Tempo); para parcela ainda pendente e vencida, a UI calcula o valor ao vivo (hoje − vencimento) em vez de ler este campo, já que ele só existe após o pagamento |
@@ -570,6 +574,8 @@ Não é recalculado por dias de atraso (aging normal não se aplica à fase judi
 
 **Bloqueio permanente por judicialização** (2026-07-04): além do bloqueio por status acima (que pode variar ao longo do ciclo do contrato), um cliente que já foi ajuizado (`CLIENTE_JUDICIALIZADO = "SIM"` em CLIENTES) fica **permanentemente** impedido de novo crédito — esse flag nunca é revertido, mesmo com quitação total do processo. Validado tanto no frontend (`NovoContrato`) quanto no backend (`criarContrato` rejeita a criação com erro).
 
+**Bloqueio manual/discricionário** (2026-07-09): terceira forma de bloqueio de crédito, independente das duas acima e sem depender de nenhum dado financeiro objetivo — decisão subjetiva de Alex (ex: cliente usou o nome de outra pessoa para tirar um contrato paralelo, comportamento fraudulento, qualquer motivo de confiança). Campos em CLIENTES: `CLIENTE_BLOQUEADO_MANUAL` (`SIM`/vazio), `MOTIVO_BLOQUEIO_MANUAL` (texto obrigatório ao bloquear), `DATA_BLOQUEIO_MANUAL`. Diferente do bloqueio judicial, **é reversível** — Alex pode desbloquear pelo botão no `ClienteModal` quando a situação for esclarecida (o motivo/data do último bloqueio ficam registrados como histórico mesmo após desbloquear). Não afeta contratos já ativos do cliente — cobrança, régua WhatsApp e pagamentos continuam normalmente; bloqueia apenas a criação de **novos** contratos, validado em `criarContrato` no mesmo bloco de checagem de `CLIENTE_JUDICIALIZADO`. Cliente bloqueado continua visível normalmente em todas as listas, com badge vermelho "BLOQUEADO". Ver `02-AI-CREDIT-RULES.md`.
+
 ### Atualização automática
 
 A rotina diária (7h) recalcula o status de todos os contratos que **não** estão em status final, baseando-se nos dias de atraso da parcela mais velha em aberto. Para contratos em `acordo_assistido`, aplica apenas a regra dos 180 dias.
@@ -815,7 +821,7 @@ Após cada pagamento registrado (manual pelo painel **ou** automático via webho
 7. Loga em MENSAGENS com `GATILHO = "CONFIRMACAO_PAGAMENTO"`
 8. Chama `_cancelarPromessasPorContrato` → todas as PROMESSAS PENDENTE do contrato viram "CUMPRIDA"
 
-**Deduplicação:** não reenvia se já houver linha em MENSAGENS com `GATILHO = "CONFIRMACAO_PAGAMENTO"` + `ID_PARCELA` + `STATUS_ENVIO = "ENVIADO"`.
+**Deduplicação (atualizado 2026-07-20):** não reenvia se já houver linha em MENSAGENS com `GATILHO = "CONFIRMACAO_PAGAMENTO"` + `ID_PARCELA` + `STATUS_ENVIO = "ENVIADO"` **enviada no mesmo dia ou depois da `DATA_PAGAMENTO` vigente da parcela**. Uma confirmação antiga, de um pagamento que foi desfeito e reaberto (`reabrirParcelaAPI` não limpa MENSAGENS), não bloqueia a confirmação de um pagamento real posterior na mesma parcela — ver `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-07-20).
 
 **Cobertura:** funciona para pagamentos manuais (frontend → GAS) e automáticos (Efí webhook → GAS) pois ambos passam por `registrarPagamentoAPI`.
 
@@ -907,7 +913,7 @@ Sistema web acessado via navegador (Vercel). Autenticação por senha com sessã
 | Aba | O que faz |
 |---|---|
 | **Dashboard** | KPIs financeiros (capital emprestado, recebido, a receber, em atraso), gráfico mensal, lista de atrasos, promessas pendentes, card de Acordo Assistido |
-| **Clientes** | Lista completa de clientes com busca, filtros e score. ClienteModal: perfil completo, edição (inclui PERFIL_COBRANCA), lista de contratos, histórico |
+| **Clientes** | Lista completa de clientes com busca, filtros e score. ClienteModal: perfil completo, edição (inclui PERFIL_COBRANCA), lista de contratos, histórico, bloqueio/desbloqueio manual de crédito (motivo obrigatório, badge "BLOQUEADO") |
 | **Contratos** | Lista de contratos com filtros por status. ContratoModal: tabela de parcelas (com dias de atraso por parcela), timeline (com dias de atraso por pagamento em atraso), ações (pagamento, quitação, acordo assistido, abatimento, retornar, baixar) |
 | **Cobrança** | Fila de parcelas vencidas agrupadas por cliente (exclui acordo_assistido e status terminais) |
 | **Financeiro** | KPIs do período + tabela de pagamentos (inclui linha Capital Recuperado Assistido quando houver) + exportação PDF |

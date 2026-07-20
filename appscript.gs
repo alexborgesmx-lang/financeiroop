@@ -6599,6 +6599,36 @@ function _cancelarPromessasPorContrato(idContrato) {
   }
 }
 
+// Trunca um Date para meia-noite local — DATA_PAGAMENTO é sempre gravada ao
+// meio-dia local (padrão parseDateLocal) enquanto DATA_ENVIO é o horário real
+// do envio, então comparar timestamp completo geraria falso-negativo pra
+// confirmações enviadas de manhã. Comparar só o dia evita esse desalinhamento.
+function _apenasData(d) {
+  if (!(d instanceof Date) || isNaN(d.getTime())) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+// Lê a DATA_PAGAMENTO atual gravada em PARCELAS para essa parcela — usada pelo
+// dedup de _enviarConfirmacaoPagamento pra distinguir uma confirmação já enviada
+// para O PAGAMENTO ATUAL de uma confirmação órfã de um pagamento antigo que foi
+// desfeito via reabrirParcelaAPI (que reseta a parcela mas não toca em MENSAGENS).
+function _dataPagamentoAtualParcela(idParcela) {
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var abaP = ss.getSheetByName(ABAS.PARCELAS);
+  if (!abaP) return null;
+  var cmP  = buildColMap(abaP);
+  var dP   = abaP.getDataRange().getValues();
+  var cId  = (cmP["ID_PARCELA"]||1)-1;
+  var cDt  = (cmP["DATA_PAGAMENTO"]||12)-1;
+  for (var i = 1; i < dP.length; i++) {
+    if (String(dP[i][cId]||"").trim() === String(idParcela).trim()) {
+      var dt = dP[i][cDt];
+      return (dt instanceof Date) ? dt : null;
+    }
+  }
+  return null;
+}
+
 function _enviarConfirmacaoPagamento(params) {
   var idParcela     = params.idParcela;
   var idContrato    = params.idContrato;
@@ -6608,20 +6638,36 @@ function _enviarConfirmacaoPagamento(params) {
   var totalParcelas = params.totalParcelas;
   var vlPago        = params.vlPago;
 
-  // 1. Verifica duplicata — não reenvia se já foi ENVIADA para esta parcela
+  // 1. Verifica duplicata — não reenvia se já foi ENVIADA uma confirmação para
+  // O PAGAMENTO ATUAL desta parcela. Comparamos com a DATA_PAGAMENTO vigente em
+  // PARCELAS: se a confirmação existente foi enviada ANTES dessa data, ela é
+  // órfã de um pagamento anterior que foi desfeito/reaberto (reabrirParcelaAPI
+  // não limpa MENSAGENS) — nesse caso não bloqueia. Bug real (2026-07-20): 3
+  // pagamentos de teste em 17/06 deixaram confirmação "ENVIADO" gravada, e o
+  // pagamento de verdade dessas parcelas (semanas depois) foi silenciosamente
+  // pulado porque o dedup antigo olhava só ID_PARCELA, sem considerar a data.
   var abaMsg = _abaMsg();
   var cmMsg  = buildColMap(abaMsg);
+  var dataPagamentoAtual = _dataPagamentoAtualParcela(idParcela);
   if (abaMsg.getLastRow() >= 2) {
     var vMsg = abaMsg.getDataRange().getValues();
-    var cGat = (cmMsg["GATILHO"]   ||7)-1;
-    var cPar = (cmMsg["ID_PARCELA"]||5)-1;
+    var cGat = (cmMsg["GATILHO"]     ||7)-1;
+    var cPar = (cmMsg["ID_PARCELA"]  ||5)-1;
     var cStM = (cmMsg["STATUS_ENVIO"]||9)-1;
+    var cDtM = (cmMsg["DATA_ENVIO"]  ||2)-1;
     for (var i = 1; i < vMsg.length; i++) {
       if (String(vMsg[i][cGat]||"").trim() === "CONFIRMACAO_PAGAMENTO" &&
           String(vMsg[i][cPar]||"").trim() === String(idParcela).trim() &&
           String(vMsg[i][cStM]||"").trim() === "ENVIADO") {
-        Logger.log("ConfirmacaoWPP: ja enviada para " + idParcela);
-        return;
+        var dtEnvioDia = _apenasData(vMsg[i][cDtM]);
+        var dtPagDia   = _apenasData(dataPagamentoAtual);
+        var envioEhAtualOuPosterior = !dtEnvioDia || !dtPagDia || dtEnvioDia >= dtPagDia;
+        if (envioEhAtualOuPosterior) {
+          Logger.log("ConfirmacaoWPP: ja enviada para " + idParcela);
+          return;
+        }
+        // confirmação encontrada é anterior à DATA_PAGAMENTO vigente — órfã de
+        // pagamento antigo já desfeito; não bloqueia, segue verificando o resto
       }
     }
   }
@@ -6706,10 +6752,13 @@ function _enviarConfirmacaoPagamento(params) {
   }
 }
 
-// Varre PARCELAS pagas nos últimos N dias e reenvia a confirmação de pagamento
-// para as que não têm um MENSAGENS/CONFIRMACAO_PAGAMENTO com STATUS_ENVIO=ENVIADO.
-// Seguro pra rodar mais de uma vez: _enviarConfirmacaoPagamento já bloqueia reenvio
-// duplicado (passo 1, dedup por ID_PARCELA). Cobre casos como falha silenciosa de
+// Varre PARCELAS pagas nos últimos N dias e reenvia a confirmação de pagamento.
+// Não faz mais pré-filtro por ID_PARCELA aqui — quem decide se bloqueia ou não é
+// só _enviarConfirmacaoPagamento (dedup consciente da DATA_PAGAMENTO vigente,
+// ver _dataPagamentoAtualParcela). Ter dois dedups redundantes é como esse mesmo
+// bug apareceu: o pré-filtro antigo aqui era tão "cego" quanto o da função
+// principal, e alguns pagamentos verdadeiros já não seriam reenviados nem
+// rodando essa manutenção manualmente. Cobre casos como falha silenciosa de
 // exceção antes do fix de 2026-07-13.
 function reenviarConfirmacoesPendentes() {
   var ui = SpreadsheetApp.getUi();
@@ -6720,18 +6769,6 @@ function reenviarConfirmacoesPendentes() {
   var cm = buildColMap(abaP);
   var dados = abaP.getDataRange().getValues();
 
-  var abaMsg = _abaMsg();
-  var cmMsg  = buildColMap(abaMsg);
-  var dMsg   = abaMsg.getLastRow() >= 2 ? abaMsg.getDataRange().getValues() : [];
-  var jaConfirmadas = {};
-  for (var i = 1; i < dMsg.length; i++) {
-    var gat = String(dMsg[i][(cmMsg["GATILHO"]||7)-1]||"").trim();
-    var st  = String(dMsg[i][(cmMsg["STATUS_ENVIO"]||9)-1]||"").trim();
-    if (gat === "CONFIRMACAO_PAGAMENTO" && st === "ENVIADO") {
-      jaConfirmadas[String(dMsg[i][(cmMsg["ID_PARCELA"]||5)-1]||"").trim()] = true;
-    }
-  }
-
   var limite = new Date();
   limite.setDate(limite.getDate() - 7);
 
@@ -6741,7 +6778,7 @@ function reenviarConfirmacoesPendentes() {
     var st = stCol ? String(dados[i][stCol-1]||"").toLowerCase().trim() : "";
     if (st !== "pago") continue;
     var idParcela = String(dados[i][(cm["ID_PARCELA"]||1)-1]||"").trim();
-    if (!idParcela || jaConfirmadas[idParcela]) continue;
+    if (!idParcela) continue;
     var dtPag = dados[i][(cm["DATA_PAGAMENTO"]||0)-1];
     if (!(dtPag instanceof Date) || dtPag < limite) continue;
     candidatos.push({

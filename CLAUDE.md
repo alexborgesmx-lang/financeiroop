@@ -355,9 +355,11 @@ _enviarConfirmacaoPagamento({idParcela, idContrato, idCliente, nomeCliente, numP
 // Cancela PROMESSAS PENDENTE do contrato (status → "CUMPRIDA")
 _cancelarPromessasPorContrato(idContrato)
 ```
-- Dedup: checa MENSAGENS por `GATILHO="CONFIRMACAO_PAGAMENTO"` + `ID_PARCELA` + `STATUS_ENVIO="ENVIADO"` — nunca reenvia
+- Dedup: bloqueia reenvio só se já existir em MENSAGENS uma linha `GATILHO="CONFIRMACAO_PAGAMENTO"` + `ID_PARCELA` + `STATUS_ENVIO="ENVIADO"` enviada no mesmo dia (ou depois) da `DATA_PAGAMENTO` **vigente** da parcela — não é mais "nunca reenvia" incondicional por `ID_PARCELA`. Helper `_dataPagamentoAtualParcela` + `_apenasData` (appscript.gs ~6602). Motivo: `reabrirParcelaAPI` reseta a parcela mas não limpa MENSAGENS, então uma confirmação antiga (de um pagamento revertido) não pode bloquear o pagamento real seguinte na mesma parcela. Ver `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-07-20).
 - Template: `TEMPLATE_CONFIRMACAO` do CONFIGURACOES; variáveis: `{NOME}`, `{NUM_PARCELA}`, `{TOTAL_PARCELAS}`, `{VALOR_PAGO}`, `{PARCELAS_RESTANTES}`, `{PROXIMO_VENCIMENTO}`
 - Log em MENSAGENS com `GATILHO = "CONFIRMACAO_PAGAMENTO"`
+- **Blindagem contra falha silenciosa (2026-07-13):** todo o corpo de `_enviarConfirmacaoPagamento` roda dentro de try/catch — qualquer exceção grava `ERRO_ENVIO` em MENSAGENS em vez de desaparecer sem rastro. `_logMensagem` usa `LockService.getScriptLock()` (mesmo padrão de `proximoIdSeq`) porque `rotinaDiaria` (7h) e o trigger backup `rotinaRegua` (8h) podem chamar a régua em execuções concorrentes, e sem lock uma escrita podia sobrescrever a outra. Ver `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-07-13). **Nota (2026-07-20):** esse fix não cobria o caso do dedup por data acima — o dedup roda *antes* do try/catch e retorna via `return` simples, nunca lança exceção, então uma confirmação bloqueada por dedup nunca aparecia como `ERRO_ENVIO`.
+- Se uma confirmação ficar sem enviar mesmo assim: menu GAS → **"Régua: Reenviar Confirmações de Pagamento Perdidas (7 dias)"** (`reenviarConfirmacoesPendentes()`) — varre todas as parcelas pagas nos últimos 7 dias (sem pré-filtro próprio) e delega o dedup inteiramente pra `_enviarConfirmacaoPagamento`; seguro rodar mais de uma vez.
 
 **Funções de manutenção do banco (menu GAS "Manutenção"):**
 ```javascript
@@ -408,6 +410,13 @@ arquivarProcessoJudicial(idContrato, dados)     // encerra o processo; sem recup
 _alocarRecuperacaoJudicial(...)                 // cascata: custo do credor → principal → lucro → reembolso ao devedor
 ```
 Pagamento de parcela `acordo_judicial` passa pelo `registrarPagamentoAPI` normal (auto-detecta `ORIGEM_PARCELA`) — não tem action própria. `CLIENTE_JUDICIALIZADO` nunca é limpo (bloqueio permanente, validado em `criarContrato`). Detalhes completos em `docs/ai-memory/02-AI-CREDIT-RULES.md` e `03-AI-FINANCIAL-CALCULATIONS.md`.
+
+**Bloqueio Manual de Cliente (2026-07-09):** decisão subjetiva do dono do negócio (ex: cliente usou nome de terceiro em outro contrato) — independente de `CLIENTE_JUDICIALIZADO` (permanente) e `SCORE_BLOQUEADO` (automático). Campos em CLIENTES: `CLIENTE_BLOQUEADO_MANUAL` (`"SIM"`/vazio), `MOTIVO_BLOQUEIO_MANUAL`, `DATA_BLOQUEIO_MANUAL`.
+```javascript
+bloquearClienteManual(idCliente, motivo)   // motivo obrigatório (min. 5 chars); registra evento BLOQUEIO_MANUAL_CLIENTE
+desbloquearClienteManual(idCliente)        // reversível — MOTIVO/DATA do último bloqueio ficam como histórico
+```
+Validado em `criarContrato` (mesmo bloco de checagem de `CLIENTE_JUDICIALIZADO`) — bloqueia só **novos** contratos, contratos já ativos seguem normalmente. Botão "Bloquear/Desbloquear Cliente" no `ClienteModal`; badge vermelho "BLOQUEADO" no `ClienteModal`, na listagem de Clientes e no dropdown de busca do `NovoContrato`.
 
 **Motor de Undo (15 min) — compensating transactions:**
 ```javascript
@@ -827,8 +836,10 @@ As skills abaixo devem ser invocadas automaticamente via `Skill` tool nos cenár
 
 | Cenário | Skill / Command | Quando ativar |
 |---|---|---|
-| Implementar nova feature em `main.jsx` ou `appscript.gs` | `pair-programming` | Antes de escrever qualquer código novo |
-| Planejar feature complexa, refactor grande, novo módulo | `sparc-methodology` | Quando a tarefa envolve múltiplos arquivos ou etapas |
+| Qualquer trabalho criativo: nova feature, novo componente, nova funcionalidade, mudança de comportamento | `brainstorming` | **Sempre primeiro**, antes de qualquer código. Explora intenção/requisitos, propõe 2-3 abordagens, só avança com design aprovado pelo usuário |
+| Design aprovado no brainstorming, pronto para virar plano | `writing-plans` | Logo em seguida ao brainstorming — transforma a spec aprovada em plano de implementação passo a passo, antes de tocar em código |
+| Implementar nova feature em `main.jsx` ou `appscript.gs` | `pair-programming` | Na etapa de escrita do código, depois que `writing-plans` já produziu o plano |
+| Planejar feature complexa, refactor grande, novo módulo | `sparc-methodology` | Alternativa ao par `brainstorming` + `writing-plans` — usar UM dos dois fluxos, nunca os dois na mesma tarefa |
 | Antes de `vercel deploy --prod` (mudança pequena) | `/quickreview` ou `verification-quality` | Sempre antes de qualquer deploy |
 | Antes de `vercel deploy --prod` (nova funcionalidade) | `/review` ou `github-code-review` | Antes de commit em `main.jsx`, `appscript.gs` ou `api/*.js` |
 | Antes de deploy importante / suspeita de regressão | `/ultrareview-financeiroop` | Feature grande, refactor GAS, nova integração |
@@ -838,8 +849,10 @@ As skills abaixo devem ser invocadas automaticamente via `Skill` tool nos cenár
 
 ### Regras de ativação
 
-- `pair-programming`: ativar em toda tarefa de código com mais de 20 linhas alteradas
-- `sparc-methodology`: ativar quando a tarefa tiver mais de 3 etapas distintas ou envolver design de sistema
+- `brainstorming`: ativar ANTES de qualquer trabalho criativo (feature nova, componente novo, mudança de comportamento) — inclusive tarefas que "parecem simples". Só pular para mudanças puramente mecânicas de Tier 1 (texto, cor, typo). Gate rígido: nenhum código antes do design ser apresentado e aprovado pelo usuário
+- `writing-plans`: ativar assim que o usuário aprovar o design/spec do `brainstorming`, antes de escrever qualquer código
+- `pair-programming`: ativar na etapa de implementação (depois do plano do `writing-plans` pronto) em toda tarefa de código com mais de 20 linhas alteradas
+- `sparc-methodology`: usar como alternativa a `brainstorming` + `writing-plans` quando a tarefa tiver mais de 3 etapas distintas ou envolver design de sistema — escolher um fluxo só, não rodar os dois
 - `/quickreview`: mudanças pequenas (Tier 1) — 5 min
 - `/review`: novas funcionalidades (Tier 2) — 15 min
 - `/ultrareview-financeiroop`: deploys importantes, features de GAS ou integrações (Tier 3) — 30–45 min. **Não usar semanalmente por rotina — use event-based.**
