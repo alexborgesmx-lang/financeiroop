@@ -136,3 +136,14 @@ Se a parcela for reaberta via `reabrirParcelaAPI`, a parcela gerada automaticame
 3. **Bloqueio de crédito é PERMANENTE** — `CLIENTE_JUDICIALIZADO = "SIM"` nunca é limpo, mesmo após quitação total do processo. `criarContrato` valida esse campo no backend (antes só havia bloqueio client-side em `NovoContrato`) e rejeita a criação com erro explícito.
 4. **Score sempre bloqueado** — contratos em `em_processo_judicial` ou `encerrado_judicialmente` entram em `ST_PREJ` no `calcularScore`. Como nunca produzimos os status de `ST_RECUP` (dead statuses), `temPreju && !temRecup` fica permanentemente verdadeiro para esses clientes — bloqueio de score nunca é revertido, mesmo com recuperação total.
 5. **`em_processo_judicial` não conta mais como "ativo"** — removido de `_ST_ATIVO_C` (GAS) e `_ST_ATIVOS` (frontend). Vira bucket próprio (`_ST_JUDICIAL_C`/`_ST_JUDICIAL`), com contador dedicado `CONTRATOS_EM_JUDICIAL` em CLIENTES.
+
+---
+
+## Fator de Estabilidade Profissional no Score (2026-07-24)
+
+O bônus de +2 pts em `calcularScore` por vínculo empregatício estável usa `DATA_ADMISSAO` (tempo de casa do próprio cliente na empresa) — não mais `DATA_ABERTURA_EMPREGADOR` (idade do CNPJ do empregador). Motivo: tempo de casa é sinal mais direto do perfil de estabilidade do tomador do que a idade da empresa onde trabalha.
+
+- **+2 pts** se `DATA_ADMISSAO` ≥ 5 anos atrás.
+- `DATA_ADMISSAO` vazia ou inválida (ex: autônomo sem vínculo CLT) → neutro, 0 pontos, sem penalidade.
+- `SITUACAO_EMPREGADOR` (checagem de idoneidade do CNPJ do empregador, -5 pts se não `"ATIVA"`) **não muda** — é sinal separado (existência/regularidade da empresa), não relacionado ao tempo de casa do cliente.
+- `DATA_ABERTURA_EMPREGADOR` continua no cadastro e ainda alimenta `SCORE_EMPREGADOR` (métrica agregada por empregador, `appscript.gs` ~linha 4051) — só saiu do cálculo individual do score do cliente.

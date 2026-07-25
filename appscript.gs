@@ -1502,14 +1502,14 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
 
   // ── FATOR EMPREGADOR ──
   var sitEmp = String(gv(cmCli, rowCli, "SITUACAO_EMPREGADOR")||"").trim().toUpperCase();
-  var dtAbEmpStr = String(gv(cmCli, rowCli, "DATA_ABERTURA_EMPREGADOR")||"").trim();
-  var empAnosExist = 0;
-  if (dtAbEmpStr) {
-    var dtAbObj = new Date(dtAbEmpStr);
-    if (!isNaN(dtAbObj.getTime())) empAnosExist = (hoje.getTime() - dtAbObj.getTime()) / (365.25*24*60*60*1000);
-  }
   if (sitEmp && sitEmp !== "ATIVA") scoreFinal = Math.max(0, scoreFinal - 5);
-  if (empAnosExist >= 5) scoreFinal = Math.min(100, scoreFinal + 2);
+
+  // ── FATOR TEMPO DE CASA (tempo de vínculo do cliente na empresa) ──
+  var dtAdm = gv(cmCli, rowCli, "DATA_ADMISSAO");
+  var dtAdmObj = dtAdm instanceof Date ? dtAdm : (dtAdm ? parseDateLocal(dtAdm) : null);
+  var tempoCasaAnos = 0;
+  if (dtAdmObj && !isNaN(dtAdmObj.getTime())) tempoCasaAnos = (hoje.getTime() - dtAdmObj.getTime()) / (365.25*24*60*60*1000);
+  if (tempoCasaAnos >= 5) scoreFinal = Math.min(100, scoreFinal + 2);
 
   // ── BLOQUEIOS ──
   var bloqueado = false; var motivoBloq = "";
@@ -1584,7 +1584,7 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
   if (bloqueado)          motivos.push("BLOQUEADO: "+(motivoBloq||"Score < 30"));
   if (totalSJ_cli > 0)   motivos.push("-Prorrogação ×"+totalSJ_cli+" (-"+(totalSJ_cli*10)+"pts)");
   if (sitEmp && sitEmp !== "ATIVA") motivos.push("-Empregador "+sitEmp+" (-5pts)");
-  if (empAnosExist >= 5) motivos.push("+Empregador 5+ anos (+2pts)");
+  if (tempoCasaAnos >= 5) motivos.push("+Tempo de casa 5+ anos (+2pts)");
 
   // ── RECOMENDAÇÃO DE RENOVAÇÃO ──
   var renovStatus, renovMotivo;

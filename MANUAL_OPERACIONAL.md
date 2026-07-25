@@ -79,7 +79,7 @@ Calculado automaticamente a cada pagamento, cadastro, ou diariamente às 7h para
 | D — Relacionamento | 15 pts | Tempo como cliente, padrinho, indicou bons clientes, recuperação |
 | E — Risco atual | 10 pts | Atraso atual, renegociação ativa, concentração de contratos |
 
-**Bônus** (máx +10 pts): antecipação de pagamento, 3+ quitados sem atraso grave, >12 meses sem prejuízo, boa comunicação, indicou clientes. **+2 pts** se empregador ativo há 5+ anos (`DATA_ABERTURA_EMPREGADOR`).
+**Bônus** (máx +10 pts): antecipação de pagamento, 3+ quitados sem atraso grave, >12 meses sem prejuízo, boa comunicação, indicou clientes. **+2 pts** se o cliente tem 5+ anos de tempo de casa no emprego atual (`DATA_ADMISSAO`).
 
 **Penalizações:** atraso atual >7d (−5 a −25), renegociação ativa (−10), comunicação ruim com atraso (−20), prejuízo não recuperado (−30). **−5 pts** se situação cadastral do empregador não for "ATIVA" (`SITUACAO_EMPREGADOR`).
 
