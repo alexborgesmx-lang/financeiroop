@@ -5779,7 +5779,7 @@ function AcaoEnvioManualRegua({m, parcelas, telefone, nomeCliente, onMarcado}){
         {texto&&<button onClick={()=>{abrirWpp(texto);setEnviouTexto(true);}} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${GRN}40`,background:enviouTexto?GRN+"10":CARD,color:GRN,cursor:"pointer",fontSize:11,fontWeight:600,opacity:enviouTexto?0.6:1}}>{enviouTexto?"✓ Texto":"Enviar Texto"}</button>}
         {pix&&<button onClick={()=>{abrirWpp(pix);setEnviouPix(true);}} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${GRN}40`,background:enviouPix?GRN+"10":CARD,color:GRN,cursor:"pointer",fontSize:11,fontWeight:600,opacity:enviouPix?0.6:1}}>{enviouPix?"✓ PIX":"Enviar PIX"}</button>}
       </div>
-      {prontoParaMarcar&&<button disabled={marcando} onClick={marcar} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${BLU}40`,background:BLU+"10",color:BLU,cursor:marcando?"not-allowed":"pointer",fontSize:11,fontWeight:700,opacity:marcando?0.6:1}}>{marcando?"Marcando...":"✓ Marcar como enviada"}</button>}
+      {prontoParaMarcar&&<button disabled={marcando} onClick={marcar} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${ORG}40`,background:ORG+"10",color:ORG,cursor:marcando?"not-allowed":"pointer",fontSize:11,fontWeight:700,opacity:marcando?0.6:1}}>{marcando?"Marcando...":"✓ Marcar como enviada"}</button>}
     </div>
   );
 }
@@ -8365,7 +8365,7 @@ function App() {
                         const err=isErr(m);
                         const manual=m.STATUS_ENVIO==="REENVIADO_MANUAL";
                         const stLbl=err?(m.STATUS_ENVIO==="ERRO_SEM_PIX"?"Sem PIX":"Erro envio"):(manual?"Enviada (manual)":"Enviada");
-                        const stCor=err?RED:(manual?BLU:GRN);
+                        const stCor=err?RED:(manual?ORG:GRN);
                         const cli=cliMap.get(String(m.ID_CLIENTE||""));
                         const nomeCli=cli?cli.NOME:String(m.ID_CLIENTE||"—");
                         const podeEnvioManual=m.STATUS_ENVIO==="ERRO_ENVIO"||m.STATUS_ENVIO==="ERRO_PIX";
