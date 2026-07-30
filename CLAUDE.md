@@ -794,7 +794,7 @@ _gerarEEnviarCertificado(idContrato, idCliente, nomeCliente, datPagamento)  // g
 | Carteira | Carteira de crédito: KPIs, distribuição por faixa de atraso, PDD Gerencial v1.0, Resultado Ajustado ao Risco |
 | Perdas & Recuperação | Contratos baixados, acordos, recuperações |
 | Promessas | Acordos de pagamento futuros |
-| Régua WPP | Logs de envio da régua automática: KPIs, filtros por gatilho, tabela de status. Botão ⚙️ "Templates" → `TemplatesReguaModal` para editar 10 dos 11 templates (9 régua + 1 confirmação; falta `CERTIFICADO_QUITACAO` na UI) sem acessar o Sheets |
+| Régua WPP | Logs de envio da régua automática: KPIs, filtros por gatilho, tabela de status. Botão ⚙️ "Templates" → `TemplatesReguaModal` para editar 10 dos 11 templates (9 régua + 1 confirmação; falta `CERTIFICADO_QUITACAO` na UI) sem acessar o Sheets. Linhas com falha de envio (`ERRO_ENVIO`/`ERRO_PIX`) mostram botão de envio manual via WhatsApp (`AcaoEnvioManualRegua`, `main.jsx`) — fallback pra quando a automação (Evolution GO) cair; marca `STATUS_ENVIO="REENVIADO_MANUAL"` via action `marcarEnvioManualRegua` no GAS. `_jaEnviouHoje` trata `REENVIADO_MANUAL` igual a `ENVIADO` pra não duplicar envio se a régua automática voltar no mesmo dia |
 | Simulador | (em desenvolvimento) |
 
 ---
