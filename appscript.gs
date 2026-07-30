@@ -729,6 +729,8 @@ function onOpen() {
     .addItem("Backup: Fazer Backup Agora", "fazerBackupAutomatico")
     .addItem("Backup: Configurar Trigger Diário (2h)", "configurarTriggerBackup")
     .addItem("Régua: Configurar Trigger Backup (8h)", "configurarTriggerRegua")
+    .addItem("Contabilidade: Gerar Relatório Agora (teste)", "testarRelatorioContabilidadeMensal")
+    .addItem("Contabilidade: Configurar Trigger Dia 22 (rodar 1x)", "configurarTriggerRelatorioContabilidade")
     .addItem("Manutenção: Recalcular JUROS_TOTAL histórico", "recalcularTotaisContratosHistorico")
     .addSeparator()
     .addItem("Quitacao: Criar Aba QUITACOES (rodar 1x)", "_garantirTabelaQuitacoes")
@@ -904,7 +906,7 @@ function maxDiasAtraso(idContrato, dadosP, cmP) {
     if (String(r[iIC]).trim() !== String(idContrato).trim()) return;
     var st = String(r[iSt]||"").toLowerCase().trim();
     if (st==="pago"||st==="cancelado"||st==="baixado_como_prejuizo"||st==="renegociado"||st==="quitacao_antecipada") return;
-    var venc = r[iDV] instanceof Date ? r[iDV] : new Date(r[iDV]);
+    var venc = parseDateLocal(r[iDV]);
     if (isNaN(venc.getTime())) return;
     venc.setHours(0,0,0,0);
     var d = Math.max(0, Math.round((hoje - venc)/86400000));
@@ -1016,6 +1018,7 @@ function doPost(e) {
     else if (body.action === "cancelarPropostaQuitacao")     { cancelarPropostaQuitacao(body.dados||{}); res={ok:true}; }
     else if (body.action === "pagamentoQuitacaoWebhook")     { var rPQW=pagamentoQuitacaoWebhook(body.txid,body.valor,body.data); res={ok:true,contratoQuitado:rPQW?!!rPQW.contratoQuitado:false,duplicata:rPQW?!!rPQW.duplicata:false}; }
     else if (body.action === "dispararReguaCobranca")        { var rReg=enviarReguaCobranca(false); res={ok:true,enviados:rReg?rReg.enviados:0,erros:rReg?rReg.erros:0}; }
+    else if (body.action === "marcarEnvioManualRegua")        { marcarEnvioManualRegua(body.idMensagem); res={ok:true}; }
     else if (body.action === "garantirCertificadoQuitacao")  { var dCert=_buscarDadosCertificado(body.idContrato,body.idCliente); var rCert=gerarCertificadoQuitacao({idContrato:body.idContrato,idCliente:body.idCliente,nomeCliente:dCert.nome,cpf:dCert.cpf,datQuitacao:body.datQuitacao||new Date(),totalPago:dCert.totalPago}); res={ok:true,codigo:rCert.codigoValidacao,link:rCert.linkCertificado}; }
     else if (body.action === "buscarCertificado")            { res=Object.assign({ok:true},buscarCertificadoPublico(body.codigo||"")); }
     else { res={erro:"Acao nao reconhecida: "+body.action}; }
@@ -2848,6 +2851,16 @@ function atualizarStatusContratos() {
   return count;
 }
 
+// Converte pra Number de verdade antes de gravar — nunca deixa o Sheets "adivinhar"
+// o tipo pela string (é essa adivinhação, dependente de locale, que gera divergência).
+function _toMoneyNumber(v) {
+  if (v === null || v === undefined || v === "") return "";
+  if (typeof v === "number") return v;
+  var n = parseFloat(String(v).trim().replace(",", "."));
+  return isNaN(n) ? v : n;
+}
+var _CAMPOS_MONEY_CLIENTES = {RENDA_BRUTA:1, RENDA_LIQUIDA:1, RENDA_MENSAL:1, LIMITE_CREDITO:1};
+
 function atualizarDadosCliente(idCliente, campos) {
   var ss  = SpreadsheetApp.getActiveSpreadsheet();
   var aba = ss.getSheetByName(ABAS.CLIENTES);
@@ -2874,7 +2887,12 @@ function atualizarDadosCliente(idCliente, campos) {
 
   Object.keys(campos).forEach(function(h) {
     var c = cm[h];
-    if (c) { try { aba.getRange(linha,c).clearDataValidations(); aba.getRange(linha,c).setValue(campos[h]); } catch(e){} }
+    if (!c) return;
+    try {
+      aba.getRange(linha,c).clearDataValidations();
+      var val = _CAMPOS_MONEY_CLIENTES[h] ? _toMoneyNumber(campos[h]) : campos[h];
+      aba.getRange(linha,c).setValue(val);
+    } catch(e){}
   });
   var cs = cm["STATUS_CLIENTE"];
   if (cs) aba.getRange(linha,cs).setDataValidation(
@@ -3382,7 +3400,7 @@ function atualizarStatusParcelas() {
   for(var i=1;i<dados.length;i++){
     var st=stCol?String(dados[i][stCol-1]).toLowerCase().trim():"";
     if(!!STATUS_TERMINAL[st])continue;
-    var venc=new Date(dados[i][idxDV]); venc.setHours(0,0,0,0);
+    var venc=parseDateLocal(dados[i][idxDV]); venc.setHours(0,0,0,0);
     var novo=venc<hoje?"atrasado":venc.getTime()===hoje.getTime()?"vence_hoje":"pendente";
     if(novo!==st&&stCol){aba.getRange(i+1,stCol).setValue(novo);count++;}
   }
@@ -4272,9 +4290,9 @@ function rotinaDiaria() {
   try { _reRegistrarWebhookEfi(); } catch(eWh) { Logger.log("Webhook re-reg err: "+eWh.message); }
   try { verificarPagamentosEfi(); } catch(eEfi) { Logger.log("Efi check err: "+eEfi.message); }
   try { enviarReguaCobranca(); } catch(eRegua) { Logger.log("Regua err: "+eRegua.message); }
-  atualizarStatusParcelas();
-  atualizarStatusContratos();
-  verificarPromessasVencidas();
+  try { atualizarStatusParcelas(); } catch(eStP) { Logger.log("Status parcelas err: "+eStP.message); }
+  try { atualizarStatusContratos(); } catch(eStC) { Logger.log("Status contratos err: "+eStC.message); }
+  try { verificarPromessasVencidas(); } catch(eProm) { Logger.log("Promessas vencidas err: "+eProm.message); }
   try { auditarIntegridadeSistema(); } catch(eAud) { Logger.log("Auditoria err: "+eAud.message); }
   try { expirarUndosAntigos(); } catch(eUndo) { Logger.log("Undo expire err: "+eUndo.message); }
   try { verificarQuitacoesExpiradas(); } catch(eQExp) { Logger.log("QuitExp err: "+eQExp.message); }
@@ -6536,6 +6554,21 @@ function _abaMsg() {
   return aba;
 }
 
+function marcarEnvioManualRegua(idMensagem) {
+  var aba = _abaMsg();
+  var cm  = buildColMap(aba);
+  var vals = aba.getDataRange().getValues();
+  var colId = cm["ID_MENSAGEM"];
+  if (!colId) throw new Error("Coluna ID_MENSAGEM nao encontrada em MENSAGENS");
+  for (var i = 1; i < vals.length; i++) {
+    if (String(vals[i][colId-1]||"").trim() === String(idMensagem).trim()) {
+      setCel(aba, i+1, cm, "STATUS_ENVIO", "REENVIADO_MANUAL");
+      return { ok:true };
+    }
+  }
+  throw new Error("Mensagem nao encontrada: " + idMensagem);
+}
+
 function _logMensagem(dados) {
   var aba = _abaMsg();
   var id  = proximoIdSeq(aba, "MSG");
@@ -8586,6 +8619,206 @@ function configurarTriggerBackup() {
     .everyDays(1)
     .create();
   SpreadsheetApp.getUi().alert("Trigger de backup configurado: todo dia às 2h.");
+}
+
+// ─── RELATÓRIO MENSAL DE CONTABILIDADE (dia 22) ────────────────────────────
+// Mesma lógica/colunas do botão "Contabilidade" da aba Contratos
+// (exportarCSVContabilidade em src/main.jsx) — reimplementada aqui porque o
+// export do frontend roda no navegador (Blob+download) e não pode ser
+// disparada por um trigger agendado do GAS.
+
+function gerarRelatorioContabilidadeMensal() {
+  try {
+    var hoje = new Date();
+    var chaveMes = Utilities.formatDate(hoje, "America/Sao_Paulo", "yyyy-MM");
+    if (_getCfg("ULTIMO_MES_RELATORIO_CONTABIL") === chaveMes) {
+      Logger.log("gerarRelatorioContabilidadeMensal: já enviado este mês (" + chaveMes + "), abortando.");
+      return;
+    }
+
+    var telAlex = _getCfg("TEL_ALEX_NOTIFICACOES") || "5562984877843";
+    var ss   = SpreadsheetApp.getActiveSpreadsheet();
+    var abaC = ss.getSheetByName(ABAS.CONTRATOS);
+    var abaCl = ss.getSheetByName(ABAS.CLIENTES);
+    var cmC  = buildColMap(abaC);
+    var cmCl = buildColMap(abaCl);
+    var dadosC  = abaC.getDataRange().getValues();
+    var dadosCl = abaCl.getDataRange().getValues();
+
+    var cliPorId = {};
+    dadosCl.slice(1).forEach(function(r) {
+      cliPorId[String(r[cmCl["ID_CLIENTE"] - 1])] = r;
+    });
+
+    var ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1, 0, 0, 0);
+    var fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59);
+
+    function fmtCPF(v) {
+      if (!v) return "";
+      var s = String(v).replace(/\D/g, "").padStart(11, "0");
+      return s.length === 11 ? (s.slice(0,3) + "." + s.slice(3,6) + "." + s.slice(6,9) + "-" + s.slice(9)) : s;
+    }
+    function fmtCEP(v) {
+      if (!v) return "";
+      var s = String(v).replace(/\D/g, "");
+      return s.length >= 7 ? (s.slice(0,5) + "-" + s.slice(5,8)) : s;
+    }
+    function fmtTelBR(v) {
+      var s = String(v || "").replace(/\D/g, "");
+      if (s.length === 11) return "(" + s.slice(0,2) + ") " + s.slice(2,7) + "-" + s.slice(7);
+      if (s.length === 10) return "(" + s.slice(0,2) + ") " + s.slice(2,6) + "-" + s.slice(6);
+      return v ? String(v) : "";
+    }
+    function campoCl(cl, nomeCol) {
+      var idx = cmCl[nomeCol];
+      return idx ? cl[idx - 1] : "";
+    }
+    function buildEnd(cl) {
+      var p = [];
+      var rua = campoCl(cl,"RUA"), num = campoCl(cl,"NUMERO"), comp = campoCl(cl,"COMPLEMENTO");
+      var quadra = campoCl(cl,"QUADRA"), lote = campoCl(cl,"LOTE"), setor = campoCl(cl,"SETOR"), cidade = campoCl(cl,"CIDADE_ESTADO");
+      if (rua) p.push(rua);
+      if (num) p.push(", " + num);
+      if (comp) p.push(" (" + comp + ")");
+      if (quadra) p.push(" Qd." + quadra);
+      if (lote) p.push(" Lt." + lote);
+      if (setor) p.push(" - " + setor);
+      if (cidade) p.push(" - " + cidade);
+      return p.join("");
+    }
+
+    var linhas = [];
+    dadosC.slice(1).forEach(function(r) {
+      var dataEmpRaw = r[cmC["DATA_EMPRESTIMO"] - 1];
+      if (!dataEmpRaw) return;
+      var d = parseDateLocal(dataEmpRaw);
+      if (isNaN(d.getTime()) || d < ini || d > fim) return;
+      var status = String(r[cmC["STATUS_CONTRATO"] - 1] || "").toLowerCase();
+      if (status === "cancelado") return;
+
+      var cl = cliPorId[String(r[cmC["ID_CLIENTE"] - 1])] || [];
+      var valor = parseFloat(r[cmC["VALOR_TOTAL"] - 1] || 0).toFixed(2).replace(".", ",");
+
+      linhas.push([
+        r[cmC["ID_CONTRATO"] - 1] || "",
+        campoCl(cl,"NOME") || r[cmC["NOME_CLIENTE"] - 1] || "",
+        fmtCPF(campoCl(cl,"CPF")),
+        campoCl(cl,"RG") || "",
+        campoCl(cl,"EMAIL") || "",
+        fmtTelBR(campoCl(cl,"TELEFONE_WPP")),
+        fmtCEP(campoCl(cl,"CEP")),
+        buildEnd(cl),
+        valor
+      ]);
+    });
+    linhas.sort(function(a,b) { return String(a[0]).localeCompare(String(b[0]), "pt-BR", {numeric:true}); });
+
+    var mesLabel = Utilities.formatDate(hoje, "America/Sao_Paulo", "MM/yyyy");
+    var diaLabel = Utilities.formatDate(hoje, "America/Sao_Paulo", "dd/MM/yyyy");
+
+    if (linhas.length === 0) {
+      _enviarWppRegua(telAlex,
+        "📊 Relatório Contabilidade " + mesLabel + ": nenhum contrato novo encontrado até " + diaLabel + ". Nenhum arquivo foi gerado.");
+      _setCfg("ULTIMO_MES_RELATORIO_CONTABIL", chaveMes);
+      return { contratos: 0, contadorConfigurado: false, contadorEnviado: false };
+    }
+
+    var header = ["ID Contrato","Nome Completo","CPF","RG","E-mail","Telefone","CEP","Endereço Completo","Valor Contrato"];
+    function esc(v) {
+      var s = String(v == null ? "" : v);
+      return /[;"\r\n]/.test(s) ? ('"' + s.replace(/"/g,'""') + '"') : s;
+    }
+    var csvBody = [header].concat(linhas).map(function(l) { return l.map(esc).join(";"); }).join("\r\n");
+    var csv = "﻿" + csvBody;
+
+    var nomeArq = "contabilidade_automatico_" + Utilities.formatDate(hoje, "America/Sao_Paulo", "MM-yyyy") +
+      "_corte" + Utilities.formatDate(hoje, "America/Sao_Paulo", "dd") + ".csv";
+    var blob = Utilities.newBlob(csv, "text/csv", nomeArq);
+
+    var pastaIt = DriveApp.getFoldersByName("Relatórios Contabilidade");
+    var pasta = pastaIt.hasNext() ? pastaIt.next() : DriveApp.createFolder("Relatórios Contabilidade");
+    var arquivo = pasta.createFile(blob);
+    arquivo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var linkArquivo = arquivo.getUrl();
+
+    var arquivos = [];
+    var it = pasta.getFiles();
+    while (it.hasNext()) arquivos.push(it.next());
+    arquivos.sort(function(a,b) { return b.getDateCreated() - a.getDateCreated(); });
+    for (var i = 12; i < arquivos.length; i++) arquivos[i].setTrashed(true);
+
+    var telContador = _getCfg("TEL_CONTADOR");
+    var contadorEnviado = false;
+    if (telContador) {
+      contadorEnviado = _enviarWppRegua(telContador,
+        "📊 Olá! Segue o relatório de contratos de " + mesLabel + " (Borges Assessoria), " +
+        "com os contratos feitos até " + diaLabel + ".\n\nAcesse o arquivo aqui: " + linkArquivo);
+    }
+
+    var avisoContadorAlex = telContador
+      ? (contadorEnviado ? "Também já mandei pro contador via WhatsApp com o link do arquivo." : "⚠️ Tentei mandar pro contador mas o envio falhou — confira o número em TEL_CONTADOR e as Execuções do Apps Script.")
+      : "⚠️ TEL_CONTADOR não está configurado na aba CONFIGURACOES — o contador NÃO foi avisado.";
+
+    _enviarWppRegua(telAlex,
+      "📊 Relatório de Contabilidade de " + mesLabel + " pronto! " + linhas.length +
+      " contrato(s) até " + diaLabel + ".\n\n" + avisoContadorAlex +
+      "\n\nArquivo: " + linkArquivo);
+
+    _setCfg("ULTIMO_MES_RELATORIO_CONTABIL", chaveMes);
+    Logger.log("gerarRelatorioContabilidadeMensal: OK, " + linhas.length + " contratos, arquivo " + nomeArq + ", contador enviado: " + contadorEnviado);
+    return { contratos: linhas.length, contadorConfigurado: !!telContador, contadorEnviado: contadorEnviado };
+  } catch (e) {
+    Logger.log("gerarRelatorioContabilidadeMensal ERRO: " + e.message);
+    try {
+      _enviarWppRegua(_getCfg("TEL_ALEX_NOTIFICACOES") || "5562984877843",
+        "⚠️ Falha ao gerar o Relatório de Contabilidade automático. Verifique o Apps Script (Execuções) ou gere manualmente pelo botão \"Contabilidade\" na aba Contratos.");
+    } catch (e2) {
+      Logger.log("gerarRelatorioContabilidadeMensal: também falhou ao avisar por WhatsApp: " + e2.message);
+    }
+    return null;
+  }
+}
+
+function configurarTriggerRelatorioContabilidade() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === "gerarRelatorioContabilidadeMensal") ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger("gerarRelatorioContabilidadeMensal")
+    .timeBased()
+    .onMonthDay(22)
+    .atHour(8)
+    .create();
+  SpreadsheetApp.getUi().alert("Trigger configurado: Relatório de Contabilidade será gerado e enviado todo dia 22 às 8h.");
+}
+
+// Wrapper só pro menu manual — gerarRelatorioContabilidadeMensal() é chamada
+// pelo trigger sem contexto de UI (SpreadsheetApp.getUi() quebraria a execução
+// automática), então o feedback visual pro Alex fica só aqui.
+function testarRelatorioContabilidadeMensal() {
+  var jaEnviadoEsteMes = _getCfg("ULTIMO_MES_RELATORIO_CONTABIL") === Utilities.formatDate(new Date(), "America/Sao_Paulo", "yyyy-MM");
+  var resultado = gerarRelatorioContabilidadeMensal();
+  var ui = SpreadsheetApp.getUi();
+
+  if (jaEnviadoEsteMes) {
+    ui.alert("⚠️ O relatório deste mês já tinha sido enviado antes (trava de idempotência) — nada foi reenviado agora.\n\nPra forçar um novo teste, apague a linha ULTIMO_MES_RELATORIO_CONTABIL na aba CONFIGURACOES e rode de novo.");
+    return;
+  }
+  if (!resultado) {
+    ui.alert("❌ Ocorreu um erro ao gerar o relatório. Veja Execuções no menu Extensões → Apps Script pra checar o erro. Um aviso de falha deve ter chegado no seu WhatsApp.");
+    return;
+  }
+  if (resultado.contratos === 0) {
+    ui.alert("ℹ️ Nenhum contrato encontrado no período — você recebeu um aviso por WhatsApp, mas nenhum arquivo foi gerado (e o contador não foi avisado, já que não há nada a enviar).");
+    return;
+  }
+
+  var msg = "✅ Relatório gerado com " + resultado.contratos + " contrato(s)! Confira o WhatsApp em alguns segundos.\n\n";
+  msg += resultado.contadorConfigurado
+    ? (resultado.contadorEnviado
+        ? "Contador também foi avisado por WhatsApp com o link do arquivo."
+        : "⚠️ Tentei avisar o contador mas o envio falhou — confira o número em TEL_CONTADOR (aba CONFIGURACOES) e as Execuções do Apps Script.")
+    : "⚠️ TEL_CONTADOR não está configurado na aba CONFIGURACOES — o contador NÃO foi avisado.";
+  ui.alert(msg);
 }
 
 // ─── MANUTENÇÃO: RECALCULAR JUROS_TOTAL HISTÓRICO ─────────────────────────
