@@ -5754,6 +5754,36 @@ function UndoToast({undo, onDismiss, onReverter}) {
   );
 }
 
+function AcaoEnvioManualRegua({m, parcelas, telefone, nomeCliente, onMarcado}){
+  const [enviouTexto,setEnviouTexto]=useState(false);
+  const [enviouPix,setEnviouPix]=useState(false);
+  const [marcando,setMarcando]=useState(false);
+  const {texto,pix}=_montarEnvioManualRegua(m,parcelas);
+  const tel=String(telefone||"").replace(/\D/g,"");
+  if(!tel||(!texto&&!pix)) return <span style={{fontSize:11,color:MUTED}}>—</span>;
+  const abrirWpp=txt=>window.open(`https://api.whatsapp.com/send?phone=55${tel}&text=${encodeURIComponent(txt)}`,"_blank");
+  const prontoParaMarcar=(!texto||enviouTexto)&&(!pix||enviouPix);
+  const marcar=async()=>{
+    if(!window.confirm(`Confirma que a mensagem foi enviada para ${nomeCliente} pelo WhatsApp?`))return;
+    setMarcando(true);
+    try{
+      const r=await postAction({action:"marcarEnvioManualRegua",idMensagem:m.ID_MENSAGEM});
+      if(r?.ok) onMarcado(m.ID_MENSAGEM);
+      else alert("Não consegui marcar como enviada. Tenta de novo.");
+    }catch(e){ alert("Não consegui marcar como enviada. Tenta de novo."); }
+    finally{ setMarcando(false); }
+  };
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-start"}}>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {texto&&<button onClick={()=>{abrirWpp(texto);setEnviouTexto(true);}} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${GRN}40`,background:enviouTexto?GRN+"10":CARD,color:GRN,cursor:"pointer",fontSize:11,fontWeight:600,opacity:enviouTexto?0.6:1}}>{enviouTexto?"✓ Texto":"Enviar Texto"}</button>}
+        {pix&&<button onClick={()=>{abrirWpp(pix);setEnviouPix(true);}} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${GRN}40`,background:enviouPix?GRN+"10":CARD,color:GRN,cursor:"pointer",fontSize:11,fontWeight:600,opacity:enviouPix?0.6:1}}>{enviouPix?"✓ PIX":"Enviar PIX"}</button>}
+      </div>
+      {prontoParaMarcar&&<button disabled={marcando} onClick={marcar} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${BLU}40`,background:BLU+"10",color:BLU,cursor:marcando?"not-allowed":"pointer",fontSize:11,fontWeight:700,opacity:marcando?0.6:1}}>{marcando?"Marcando...":"✓ Marcar como enviada"}</button>}
+    </div>
+  );
+}
+
 // ─── APP ─────────────────────────────────────────────────────────
 function App() {
   const mob = useIsMobile();
@@ -8321,21 +8351,24 @@ function App() {
                   </div>
                   {msgsFilt.length===0
                     ?<div style={{padding:"40px 18px",textAlign:"center",color:MUTED,fontSize:13}}>Nenhum registro encontrado. A régua ainda não disparou ou não há logs para este filtro.</div>
-                    :<div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left",minWidth:560}}>
+                    :<div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left",minWidth:700}}>
                       <thead><tr style={{background:GRN+"10",fontSize:11,color:GRN,fontWeight:700,textTransform:"uppercase"}}>
                         <th style={{padding:"10px 18px"}}>Tipo</th>
                         <th>Cliente</th>
                         <th>Contrato</th>
                         <th>Status</th>
                         <th style={{padding:"10px 18px"}}>Envio</th>
+                        <th style={{padding:"10px 18px"}}>Ações</th>
                       </tr></thead>
                       <tbody>{msgsFilt.slice(0,200).map((m,i)=>{
                         const {cat,cor}=categG(m.GATILHO);
                         const err=isErr(m);
-                        const stLbl=err?(m.STATUS_ENVIO==="ERRO_SEM_PIX"?"Sem PIX":"Erro envio"):"Enviada";
-                        const stCor=err?RED:GRN;
+                        const manual=m.STATUS_ENVIO==="REENVIADO_MANUAL";
+                        const stLbl=err?(m.STATUS_ENVIO==="ERRO_SEM_PIX"?"Sem PIX":"Erro envio"):(manual?"Enviada (manual)":"Enviada");
+                        const stCor=err?RED:(manual?BLU:GRN);
                         const cli=cliMap.get(String(m.ID_CLIENTE||""));
                         const nomeCli=cli?cli.NOME:String(m.ID_CLIENTE||"—");
+                        const podeEnvioManual=m.STATUS_ENVIO==="ERRO_ENVIO"||m.STATUS_ENVIO==="ERRO_PIX";
                         return(
                           <tr key={m.ID_MENSAGEM||i} style={{borderBottom:`1px solid ${BD}`,fontSize:13,background:i%2===0?CARD:BG}}>
                             <td style={{padding:"12px 18px"}}>
@@ -8349,6 +8382,11 @@ function App() {
                               {stLbl}
                             </span></td>
                             <td style={{padding:"12px 18px",color:MUTED,fontSize:12,whiteSpace:"nowrap"}}>{fmtMsgDt(m.DATA_ENVIO)}</td>
+                            <td style={{padding:"12px 18px"}}>
+                              {podeEnvioManual
+                                ? <AcaoEnvioManualRegua m={m} parcelas={parcelas} telefone={cli?.TELEFONE_WPP} nomeCliente={nomeCli} onMarcado={idMsg=>{setRaw(prev=>{if(!prev)return prev;return{...prev,MENSAGENS:(prev.MENSAGENS||[]).map(x=>String(x.ID_MENSAGEM)===String(idMsg)?{...x,STATUS_ENVIO:"REENVIADO_MANUAL"}:x)};});}}/>
+                                : <span style={{fontSize:11,color:MUTED}}>—</span>}
+                            </td>
                           </tr>
                         );
                       })}</tbody>
