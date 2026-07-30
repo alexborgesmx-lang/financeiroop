@@ -6563,6 +6563,7 @@ function marcarEnvioManualRegua(idMensagem) {
   for (var i = 1; i < vals.length; i++) {
     if (String(vals[i][colId-1]||"").trim() === String(idMensagem).trim()) {
       setCel(aba, i+1, cm, "STATUS_ENVIO", "REENVIADO_MANUAL");
+      setCel(aba, i+1, cm, "DATA_ENVIO", new Date());
       return { ok:true };
     }
   }
