@@ -242,6 +242,28 @@ function _startProg(){if(_progTimer)clearInterval(_progTimer);let p=5;if(_progSe
 function _doneProg(){if(_progTimer){clearInterval(_progTimer);_progTimer=null;}if(_progSetFn){_progSetFn(100);setTimeout(()=>{if(_progSetFn)_progSetFn(-1);},450);}}
 async function postAction(body){_startProg();try{const r=await fetch(POST_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const d=await r.json();_doneProg();return d;}catch(e){_doneProg();throw e;}}
 
+function _montarEnvioManualRegua(m, parcelas){
+  const status = String(m.STATUS_ENVIO||"");
+  if(status==="ERRO_PIX"){
+    const pix = String(m.CONTEUDO||"").replace(/^ERRO_PIX_NAO_ENVIADO:\s*/,"").trim();
+    return { texto:null, pix: pix||null };
+  }
+  if(status==="ERRO_ENVIO"){
+    const texto = String(m.CONTEUDO||"");
+    let pix=null;
+    if(m.ID_PARCELA){
+      const par=(parcelas||[]).find(p=>String(p.ID_PARCELA)===String(m.ID_PARCELA));
+      if(par&&par.EFI_PIX_CODE) pix=String(par.EFI_PIX_CODE);
+    } else if(String(m.GATILHO||"").toUpperCase().startsWith("PROMESSA") && m.ID_CONTRATO){
+      const abertas=(parcelas||[]).filter(p=>String(p.ID_CONTRATO)===String(m.ID_CONTRATO)&&!_ST_TERMINAL.has(String(p.STATUS||"").toLowerCase()));
+      abertas.sort((a,b)=>toNum(a.DATA_VENCIMENTO)-toNum(b.DATA_VENCIMENTO));
+      if(abertas[0]&&abertas[0].EFI_PIX_CODE) pix=String(abertas[0].EFI_PIX_CODE);
+    }
+    return { texto, pix };
+  }
+  return { texto:null, pix:null };
+}
+
 const IS = ()=>({width:"100%",padding:"10px 13px",background:CARD,border:`1px solid ${BD}`,borderRadius:10,color:TEXT,fontSize:14,boxSizing:"border-box",outline:"none",transition:"border-color 0.15s, box-shadow 0.15s"});
 const LS = ()=>({color:MUTED,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:5});
 
