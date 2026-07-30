@@ -6611,7 +6611,7 @@ function _jaEnviouHoje(idCliente) {
     var ds = dt.getFullYear() + "-" + dt.getMonth() + "-" + dt.getDate();
     if (ds === hj
         && String(vals[i][cCli]||"").trim() === String(idCliente).trim()
-        && String(vals[i][cSt] ||"").trim() === "ENVIADO") return true;
+        && (String(vals[i][cSt] ||"").trim() === "ENVIADO" || String(vals[i][cSt] ||"").trim() === "REENVIADO_MANUAL")) return true;
   }
   return false;
 }
