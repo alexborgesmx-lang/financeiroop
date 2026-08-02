@@ -707,6 +707,357 @@ Resolvido (2026-07-15)
 
 ---
 
+## 2026-07-22 — Contrato mostra "EM DIA" com parcela já atrasada (staleness do STATUS_CONTRATO)
+
+### Problema
+`STATUS_CONTRATO` é um campo gravado no Sheets, recalculado só 1x/dia às 7h por `atualizarStatusContratos()` (via `rotinaDiaria`). O status da parcela mostrado na tabela do `ContratoModal` (`statusEfetivo()`, `main.jsx:110`) é calculado ao vivo no navegador a cada render. Isso cria uma janela estrutural de até 24h onde os dois podem divergir — mas no caso reportado (Alex, contrato PCL-198/Cassia Antunes Rodrigues) a parcela venceu no dia anterior, ou seja, o trigger das 7h já deveria ter corrigido o status antes da tela ser aberta e não corrigiu.
+
+### Causa raiz mais provável
+Dentro de `rotinaDiaria()` (`appscript.gs`), `atualizarStatusParcelas()`, `atualizarStatusContratos()` e `verificarPromessasVencidas()` rodavam **sem `try/catch`**, diferente de todas as outras etapas da função. Se qualquer uma lançasse exceção — ou fosse interrompida pelo limite de 6 min do GAS (mesmo padrão do bug de timeout da régua, ver entrada acima na linha ~460) — a execução parava ali, silenciosamente, sem log de erro, e as etapas seguintes (inclusive a atualização de status do próprio contrato) nunca rodavam naquele dia.
+
+Achado secundário (dormente, não confirmado como causa deste caso): `maxDiasAtraso()` e `atualizarStatusParcelas()` faziam `new Date(valorDaCelula)` como parsing de data em vez de `parseDateLocal()` — violação do padrão obrigatório do projeto. Inofensivo enquanto as parcelas forem criadas via `parseDateLocal` (grava `Date` real na célula), mas arriscado para qualquer edição manual na planilha.
+
+### Solução
+1. As 3 chamadas em `rotinaDiaria()` agora são independentes, cada uma com seu próprio `try/catch` — uma falha em `atualizarStatusParcelas()` não impede mais `atualizarStatusContratos()` de rodar, e o erro fica logado em vez de mascarado.
+2. `maxDiasAtraso()` e `atualizarStatusParcelas()` agora usam `parseDateLocal()` para parsear `DATA_VENCIMENTO`, alinhado ao padrão do resto do GAS.
+
+### Pendente
+Não foi possível confirmar via log de execuções do Apps Script se o trigger das 7h realmente falhou nesse dia (fora do alcance do Claude Code) — Alex pode confirmar em Extensões → Apps Script → Execuções. Recomendado rodar manualmente o menu "Atualizar Status Contratos" para corrigir o contrato PCL-198 imediatamente, sem esperar o próximo ciclo das 7h.
+
+### Status
+Resolvido (2026-07-22) — deploy no Apps Script publicado por Alex. Correção retroativa do contrato PCL-198 depende de rodar o menu "Atualizar Status Contratos" (ou aguardar o trigger das 7h do dia seguinte).
+
+---
+
+## 2026-07-22 — Gotcha: `ScriptApp.getProjectTriggers`/`newTrigger` falha por escopo OAuth ausente no manifesto
+
+### Problema
+Ao rodar `configurarTriggerRelatorioContabilidade()` pela primeira vez (ver feature "Relatório Automático de Contabilidade" logo abaixo), apareceu: `Exception: As permissões especificadas não são suficientes para chamar ScriptApp.getProjectTriggers. Permissões necessárias: https://www.googleapis.com/auth/script.scriptapp`.
+
+### Causa raiz
+O manifesto do projeto (`appsscript.json`) tem `oauthScopes` explícito (lista fixa de permissões) em vez de detecção automática de escopo. Qualquer serviço do Apps Script usado no código — incluindo `ScriptApp.newTrigger`/`getProjectTriggers`/`deleteTrigger` — precisa estar nessa lista, senão a chamada falha em runtime com esse erro. Funções `configurarTrigger*` já existentes (`configurarTriggerBackup`, `configurarTriggerRegua` etc.) usam exatamente a mesma API e não davam esse erro porque já tinham sido autorizadas antes da lista de escopos existir/ficar restrita — não é uma proteção nova, é só a primeira vez nesta sessão que uma função desse tipo foi executada.
+
+### Solução
+Adicionado `"https://www.googleapis.com/auth/script.scriptapp"` ao array `oauthScopes` em `appsscript.json` (no editor do Apps Script: ⚙️ Configurações do projeto → marcar "Mostrar arquivo de manifesto 'appsscript.json'" → editar o arquivo → salvar). A primeira execução seguinte pede reautorização ("Revisar permissões" → Avançado → Acessar [projeto] → Permitir) — normal em projeto pessoal não verificado pelo Google.
+
+### Nota para o futuro
+Qualquer nova feature que chame `ScriptApp.newTrigger`/`getProjectTriggers`/`deleteTrigger` pela primeira vez numa sessão pode reproduzir esse erro. Não é regressão de código — confirmar que `script.scriptapp` está no `oauthScopes` do manifesto antes de investigar como bug.
+
+### Status
+Resolvido (2026-07-22)
+
+---
+
+## 2026-07-22 — Relatório Automático de Contabilidade (dia 22) — feature nova
+
+### O que é
+Todo dia 22 às 8h, `gerarRelatorioContabilidadeMensal()` (`appscript.gs`) gera o mesmo CSV do botão manual "Contabilidade" (aba Contratos, `exportarCSVContabilidade` em `main.jsx:6643-6695`), mas cobrindo do dia 1 ao dia 22 do mês corrente (corte parcial, não o mês fechado — contratos feitos depois do dia 22 ficam de fora, complementar via botão manual se necessário). Salva o arquivo na pasta Drive "Relatórios Contabilidade" (mantém as últimas 12) e avisa **só por WhatsApp** (sem e-mail — removido por pedido do Alex depois do primeiro teste) tanto o Alex quanto o contador, com o link do arquivo.
+
+### Configuração (aba CONFIGURACOES)
+- `TEL_ALEX_NOTIFICACOES` — WhatsApp do Alex (fallback hardcoded no código: `5562984877843`)
+- `TEL_CONTADOR` — WhatsApp do contador (configurado: `5562983194833`)
+- `ULTIMO_MES_RELATORIO_CONTABIL` — trava de idempotência (`yyyy-MM`), gravada automaticamente ao final de cada execução bem-sucedida; evita reenvio duplicado se o trigger disparar mais de uma vez no mesmo dia
+
+### Trigger
+`configurarTriggerRelatorioContabilidade()` registra `onMonthDay(22).atHour(8)` — já rodado 1x manualmente pelo menu "Contabilidade: Configurar Trigger Dia 22", confirmado ativo. Teste manual disponível no menu "Contabilidade: Gerar Relatório Agora (teste)" → `testarRelatorioContabilidadeMensal()`.
+
+### Observação de segurança (decisão consciente do Alex, não bug)
+O arquivo CSV compartilhado tem CPF/RG/endereço completo dos clientes do mês. A opção escolhida foi `DriveApp.Access.ANYONE_WITH_LINK` (qualquer pessoa com o link) em vez de restringir por conta Google do contador — Alex foi avisado explicitamente do risco (se a mensagem de WhatsApp for encaminhada, quem receber o link consegue abrir e ver os dados) e priorizou simplicidade. Se quiser reforçar depois: trocar por `DriveApp.Access.PRIVATE` + `arquivo.addViewer(emailDoContador)` (exige saber o e-mail Google do contador).
+
+### Status
+Resolvido/Em produção (2026-07-22) — testado e confirmado funcionando por Alex (CSV correto, WhatsApp chegando pros dois números, link abrindo certo).
+
+---
+
+## 2026-07-22 — Badge "Vence Hoje" aparecia em parcela já vencida ontem
+
+### Problema
+No `ContratoModal` e no cálculo de `calcPrioridadeCobranca`, `diasAteVenc` comparava `parseDate(dataVencimento)` (que sempre normaliza para meio-dia, `setHours(12,0,0,0)` — convenção do `parseDate` em `main.jsx:77` pra evitar bug de fuso) contra "hoje" à meia-noite (`setHours(0,0,0,0)`). Isso cria um viés fixo de +0,5 dia em todo `diasAteVenc`: para uma parcela vencida exatamente ontem, a diferença real é -1 dia, mas o cálculo dava -0,5 → `Math.round(-0.5)` em JS retorna `-0`, e `-0 === 0` é `true` em JavaScript — então o badge de "Vence Hoje" (`diasAteVenc===0`) acendia indevidamente. Reportado por Alex no contrato PCL-198 (Cassia Antunes Rodrigues): parcela 3 vencida em 21/07 (1 dia de atraso, corretamente marcada "Atrasado" na tabela) mas o header do modal mostrava a tag "Vence Hoje".
+
+### Impacto
+Efeito sistemático (não só no caso de -1 dia): `diasAteVenc` calculado sempre saía com +1 em relação ao valor real, em `main.jsx` nos dois pontos:
+- `ContratoModal` (linha ~4021) — badge "Vence Hoje" e cor do campo "Próximo vencimento"
+- `calcPrioridadeCobranca` (linha ~142) — nível "Preventivo" da Prioridade de Cobrança (`docs/ai-memory` / `project_prioridade_cobranca.md`), threshold `diasAteVenc<=5` na prática cortava em 4 dias reais, não 5
+
+Um contrato que realmente vence **hoje** (diasAteVenc real = 0) na verdade calculava `1` e **não** mostrava o badge — o bug se manifestava só no ponto exato em que "ontem" (-1) virava `-0`.
+
+### Solução
+Normalizar a data de vencimento parseada para meia-noite (`setHours(0,0,0,0)`) antes de subtrair de "hoje", igual ao padrão já usado corretamente em `statusEfetivo()` e no cálculo de `diasAtraso` (linha ~139) da mesma função. Aplicado nos dois pontos (`main.jsx:142-144` e `main.jsx:4021-4023`).
+
+### Observação (não corrigido, baixo impacto)
+`main.jsx:4427` (coluna "Xd atraso" na tabela de parcelas do `ContratoModal`) usa `new Date()` (hora real atual) menos `parseDate()` (meio-dia fixo) em vez de comparar meia-noite a meia-noite. Só produz leitura errada (+1 dia) numa janela de poucas horas antes da meia-noite; não mexido porque não reproduz o sintoma reportado e o risco de regressão não compensa pra um caso tão raro.
+
+### Status
+Resolvido (2026-07-22)
+
+---
+
+## 2026-07-28 — Campo de renda some no ClienteModal por dado legado com vírgula (e tentativa de backfill que piorou o dado)
+
+### Problema
+`<input type="number">` no `ClienteModal` (`RENDA_BRUTA`, `RENDA_LIQUIDA`, `RENDA_MENSAL`) aparecia em branco mesmo com o valor certo salvo na planilha. Causa: registro legado (anterior ao fix de colagem BR de 2026-07-15) tinha o valor gravado como texto com vírgula decimal (ex: `"2542,50"`). HTML5 `type="number"` recusa exibir um valor com vírgula — o campo fica em branco silenciosamente, sem erro no console — mas `parseFloat` em JS ainda lê o valor truncado no primeiro caractere inválido, então cálculos derivados (Limite de Crédito = 80% × Renda Líquida) continuavam mostrando um número plausível, mascarando o bug. Caso reportado: cliente Reginaldo Rocha Torres (ID 124).
+
+### Tentativa 1 (revertida) — backfill automático piorou o dado
+Primeira correção incluiu `normalizarRendaClientes()` no GAS pra varrer CLIENTES e converter qualquer `RENDA_*` gravado como texto pra número. Rodado uma vez, **corrompeu ainda mais** o registro do Reginaldo: em algum momento do passado alguém colou um bloco de texto grande (provavelmente o contracheque inteiro, com vários números/datas juntos) direto numa célula da planilha, fora do app. O regex de limpeza do parser (`[^\d.,]`) removeu os espaços do bloco colado e concatenou todos os dígitos numa sequência de ~17 algarismos; como JS não representa inteiros tão grandes com precisão exata (limite seguro ~2^53), o resultado saiu arredondado e sem sentido (`25430201030000000` = R$25 quatrilhões) — pior que o bug original, porque virou um número "confiável" (não mais em branco) que alimentaria o Limite de Crédito automaticamente numa aprovação de contrato.
+
+Investigação mostrou que a base de CLIENTES tem formatos de `RENDA_*` muito inconsistentes entre registros (com/sem vírgula, com/sem ponto, sem pontuação nenhuma) — dado inserido em fases diferentes ao longo do tempo, sem padronização. Alex decidiu **não vale a pena tentar consertar o histórico** de forma automática — risco de "consertar errado e pior" é real (confirmado na prática). Prioridade: garantir que **daqui pra frente** qualquer forma de entrada (digitar ou colar) sempre grave o valor limpo.
+
+### Solução final — duas camadas, só olhando pra frente
+1. **Frontend** (`src/main.jsx`): `pasteMoeda()`/`normMoedaSheet()` ganharam teto de sanidade `MOEDA_TETO = 1e7` (R$10 milhões, bem acima de qualquer valor real do negócio). Colar algo que resulte nesse teto ou acima: `pasteMoeda` recusa e alerta o usuário em vez de aceitar cego. `normMoedaSheet` (usado ao inicializar o `edit` do `ClienteModal` e no `salvar()`) devolve `""` em vez do número implausível — protege inclusive dado legado já quebrado, que agora só volta a ficar em branco (pedindo pra redigitar) em vez de virar um número gigante "confiável".
+2. **GAS** (`atualizarDadosCliente`, appscript.gs): `_toMoneyNumber()` + `_CAMPOS_MONEY_CLIENTES` (`RENDA_BRUTA`, `RENDA_LIQUIDA`, `RENDA_MENSAL`, `LIMITE_CREDITO`) convertem explicitamente pra `Number` do JS antes de `setValue()`, em vez de depender do Google Sheets "adivinhar" o tipo pela string recebida — essa adivinhação, dependente do locale pt-BR da planilha, era a raiz real da divergência de formato.
+3. A função de backfill (`normalizarRendaClientes`) e a tentativa seguinte de diagnóstico read-only (`diagnosticarRendaAbsurda`) foram **removidas** — decisão explícita de não mexer em dado histórico, só blindar o caminho de entrada.
+
+Ver também `CLAUDE.md` (seção "Campos monetários — colagem BR") e `docs/ai-memory` memória `project_bugfix_renda_virgula.md` (Claude Code) pra detalhe da sessão.
+
+### Status
+Resolvido (2026-07-28) — deploy frontend via `vercel deploy --prod`; GAS colado manualmente por Alex (4 rodadas: fix inicial → remoção do backfill perigoso → diagnóstico read-only → coerção explícita a Number, com o diagnóstico removido na rodada seguinte). Dado histórico de clientes antigos com renda mal formatada **não foi corrigido de propósito** — só normaliza na próxima vez que o cliente for reaberto e o valor redigitado manualmente.
+
+---
+
+## 2026-07-29 — Taxa de Adimplência do Dashboard misturava bases diferentes (numerador/denominador)
+
+### Problema
+O card "Taxa de Adimplência" do Dashboard (`M.taxaInad`) calculava `100% − (valor das parcelas
+vencidas com vencimento dentro do período do filtro ÷ principal total da carteira, sem filtro de
+período)`. Numerador incluía juros e era filtrado por período; denominador era só principal e nunca
+filtrado. O texto de apoio junto do card ("29 parc. em atraso de 111 no período") também misturava uma
+contagem global (`parcelasAtrasadas.length`, sem filtro) com uma contagem filtrada por período
+(`M.totalCobrancas`) — nenhuma das duas era o numerador/denominador real do percentual mostrado.
+
+### Impacto
+Nenhuma perda de dado ou erro de cálculo que afetasse cobrança/pagamento — é um KPI de leitura, não
+usado em nenhuma decisão de crédito ou fluxo financeiro. Mas o número exibido não correspondia a
+nenhuma metodologia padrão (bancária ou não) e mudava de forma pouco intuitiva conforme o filtro
+"Este mês/30 dias/90 dias" do Dashboard, o que dificultava confiar nele pra decisão de negócio.
+
+### Solução
+Padronizado como NPL 90+ dias (padrão Basileia/BCB), base 100% principal (`principalAberto`), sempre
+como foto de hoje — sem filtro de período. Mesma correção aplicada ao "Painel de Inadimplência" da
+aba Carteira, que usava corte de 31+ dias com o texto "Padrão BCB" (impreciso — o padrão real é 90+).
+Detalhe completo da fórmula e das 3 decisões de modelagem em
+`docs/ai-memory/03-AI-FINANCIAL-CALCULATIONS.md` (seção "Taxa de Inadimplência — padronizada como
+NPL 90+ dias").
+
+### Status
+Resolvido (2026-07-29) — só frontend (`src/main.jsx`), sem mudança em GAS/Sheets. Pendente: recalibrar
+os thresholds de cor (`< 20%` bom / `20-25%` atenção / `25%+` crítico) do painel da Carteira para o
+novo corte de 90d — ficou de fora deste fix, é decisão de política de risco separada.
+
+---
+
+## 2026-07-31 — Evolution GO: instância "borges" travava no QR code — resolvido criando instância nova
+
+### Problema
+Desde 2026-07-29 a instância "borges" do Evolution GO (WhatsApp da régua/atendimento) ficava presa em
+"Aguardando QR Code..." pra sempre — `POST /instance/connect` respondia 200 em ~2ms (rápido demais pra
+uma conexão real) e o log mostrava só `No QR code available yet, waiting a bit more...` em loop. Token,
+porta, limite de dispositivos, rede/DNS e recriar a mesma instância do zero foram todos descartados como
+causa (ver `project_evolution_go_infra.md` na memória). Efeito colateral notado no mesmo dia: a porta do
+contêiner (`evolution-go-oizv-api-1`) tinha mudado sozinha de novo, de `32772` pra `32773`.
+
+### Causa raiz
+Não identificada com certeza — suspeita de bug interno do software Evolution GO (`evoapicloud/evolution-go`)
+específico daquela instância/sessão, já que uma instância **nova** conectou normalmente.
+
+### Solução
+Criada instância nova `borges-fp` (mesmo WhatsApp Business, número `5562984877843`) no painel Evolution GO —
+o QR code gerou e conectou normalmente. Atualizados os 3 apontamentos em 2 lugares:
+- **Vercel (env vars produção)**: `EVOLUTION_API_URL` → `http://76.13.228.217:32773`, `EVOLUTION_INSTANCE`
+  → `borges-fp`, `EVOLUTION_API_KEY` → novo token da instância
+- **Google Sheets (CONFIGURACOES)**: `EVOLUTION_URL`, `EVOLUTION_INSTANCE`, `EVOLUTION_KEY` — mesmos 3 valores
+
+Testado com envio real via `POST /send/text` — confirmado `"message":"success"`. A instância "borges" antiga
+ficou pra trás, desconectada, sem uso.
+
+### Nota para o futuro
+Se a porta do container mudar de novo (já aconteceu 2x), atualizar nos mesmos 2 lugares acima. Se o
+QR travar de novo numa instância existente, o caminho mais rápido é criar outra instância com nome
+diferente em vez de insistir em diagnosticar a mesma — foi o que resolveu desta vez.
+
+### Status
+Resolvido (2026-07-31). Fila de ~19 mensagens de erro acumuladas na aba Régua WPP (via botão de envio
+manual, ver `project_envio_manual_regua`) ainda pendente de limpar manualmente.
+
+---
+
+## 2026-07-31 — Notificação de erro de sistema por e-mail (canal independente do WhatsApp)
+
+### Motivação
+O incidente acima (instância "borges" travada) expôs um ponto cego: toda a régua de cobrança e as
+notificações de erro do GAS dependiam só do WhatsApp/Evolution GO — se a própria infra de WhatsApp
+quebrasse (como aconteceu), o Alex não seria avisado de nada, porque o único canal de aviso era o
+mesmo canal quebrado.
+
+### Solução
+Nova função `_notificarErroSistema(origem, mensagem)` em `appscript.gs`, perto de `_enviarWppRegua`:
+- **E-mail via `GmailApp.sendEmail(EMAIL_ADMIN, ...)`** — canal garantido, roda 100% na infra do Google,
+  independente de Evolution GO / VPS Hostinger / Vercel. `GmailApp` já era usado no sistema (cadastro via
+  Forms), sem escopo OAuth novo pra autorizar.
+- **WhatsApp via `_enviarWppRegua` pro `TEL_ALEX_NOTIFICACOES`** — best-effort, tentado depois do e-mail;
+  se falhar (inclusive se a causa for a própria infra de WPP), o e-mail já garantiu o aviso.
+
+Plugada nos pontos onde erro de rotina automática (sem ninguém olhando a tela) hoje só virava
+`Logger.log` silencioso — nunca em ações interativas da UI, que o Alex já vê na hora:
+- `rotinaDiaria()` — nos 9 sub-processos (webhook Efí, verificação de pagamentos Efí, régua, status de
+  parcelas/contratos, promessas vencidas, auditoria, expiração de undo, expiração de quitações)
+- `rotinaRegua()` — trigger de backup das 8h
+- `enviarReguaCobranca()` — **um resumo por execução** se houver falhas (não 1 e-mail por cliente, pra
+  não virar spam se muitos envios falharem juntos)
+- `_enviarConfirmacaoPagamento()` — tanto falha de envio (`ok=false`) quanto erro fatal (`catch eFatal`)
+
+Nova chave em CONFIGURACOES: `TEL_ALEX_NOTIFICACOES = 556281060333` (número pessoal do Alex, separado do
+`TELEFONE_WPP_PROPRIO` usado pra atendimento/régua). Também usada agora como padrão em `testarEnvioWpp()`
+e `diagnosticarEvolution()` (funções de teste manual do GAS).
+
+### Gap conhecido
+`api/webhook-efi.js` e `api/whatsapp.js` rodam em Node.js na Vercel, fora do GAS — não têm esse canal de
+e-mail ainda (Node não tem `GmailApp` nativo, precisaria de um provedor tipo Resend). Falhas ali hoje só
+são pegas indiretamente pelo fallback `verificarPagamentosEfi()` dentro de `rotinaDiaria()`.
+
+### Status
+Implementado (2026-07-31), aguardando publicação da nova versão do Web App no editor do GAS.
+
+---
+
+## 2026-08-01 — Cliente pagou a parcela errada (pulou a atrasada) usando um PIX antigo do WhatsApp
+
+### Problema
+Cliente com uma parcela atrasada (31 dias) foi pagar e, sem querer, pagou a parcela do mês corrente em
+vez da atrasada. Resultado: parcela mais nova ficou `pago`, a mais antiga seguiu `atrasado` — um "buraco"
+cronológico no histórico do contrato.
+
+### Causa raiz
+Não é bug de uma função específica — é uma lacuna estrutural confirmada em 4 pontos do código:
+1. Cada parcela gera um PIX próprio com TXID determinístico (`FOP<contrato>P<parcela>`,
+   `api/efi-pix-avulso.js`). Fica válido por 30 dias **a partir da geração** — e pra parcelas já
+   atrasadas, a "data de vencimento" enviada à Efí é forçada pro dia da geração (workaround pra Efí não
+   rejeitar data passada), o que estende ainda mais essa janela.
+2. A régua (`enviarReguaCobranca`, `appscript.gs`) dispara mensagem/PIX por parcela em dias diferentes
+   (D-5/D-1/D0/D+1/D+3/D+7). Já deduplicava certo **dentro do mesmo dia** (só manda a de maior
+   prioridade), mas **entre dias diferentes** nada impedia a parcela atrasada disparar num dia e a
+   seguinte disparar em outro — os dois PIX ficavam simultaneamente válidos no histórico do WhatsApp.
+3. Nada cancelava o PIX de uma parcela quando outra parcela do mesmo contrato era paga.
+4. O webhook (`api/webhook-efi.js` → `pagamentoAutomatico`) mapeia o pagamento de volta pra parcela só
+   pelo TXID, sem checar se existe parcela mais antiga em aberto no mesmo contrato. `registrarPagamentoAPI`
+   também não tinha essa checagem, nem o dropdown de seleção manual de parcela no painel.
+
+Não existia (e ainda não existe, por decisão consciente) nenhuma regra de "pagar a parcela mais antiga
+primeiro" documentada em `MANUAL_OPERACIONAL.md`/`docs/ai-memory/`.
+
+### Solução
+Quatro mudanças, todas em `appscript.gs` (+ um botão em `main.jsx`):
+1. **`realocarPagamentoAPI`** — nova ação pra corrigir pagamento já registrado na parcela errada. Reaproveita
+   `reabrirParcelaAPI` (origem) + `registrarPagamentoAPI` (destino) em vez de tocar direto na célula
+   `ID_PARCELA` de PAGAMENTOS — um `UPDATE` direto deixaria `PARCELAS`/`EVENTOS`/`TOTAL_SOMENTE_JUROS`/
+   `STATUS_CONTRATO` inconsistentes. Valida a parcela de destino (existe, não terminal) **antes** de
+   desfazer a origem, pra não deixar o pagamento no limbo se o destino for inválido. Botão "Realocar" no
+   `PagamentoDetalheModal`. Detalhes em `CLAUDE.md` seção "Padrões do GAS".
+2. **Régua nunca avança pra parcela nova com atrasada em aberto** — `enviarReguaCobranca` calcula a
+   parcela mais antiga em atraso por contrato (`atrasoMaisAntigoPorContrato`) e só deixa essa parcela
+   disparar mensagem/gerar PIX; qualquer parcela mais nova do mesmo contrato fica suprimida enquanto a
+   mais velha não for resolvida. Ataca a causa raiz #2/#3 acima.
+3. **Aviso no texto da mensagem** — gatilhos `D+1`/`D+3`/`D+7` ganham uma linha fixa: "Use apenas o código
+   PIX enviado nesta mensagem. Não utilize códigos PIX de mensagens anteriores".
+4. **Alerta automático se acontecer de novo** (defesa em profundidade, não bloqueia o pagamento):
+   - Tempo real: `pagamentoAutomatico` checa se existe parcela mais antiga `atrasado` no mesmo contrato
+     antes de processar o pagamento e chama `_notificarErroSistema` se sim (cobre webhook + o polling de
+     fallback `verificarPagamentosEfi`, que reusa a mesma função).
+   - Diário: novo check `SEQUENCIA_PAGAMENTO` em `auditarIntegridadeSistema` (severidade ALTO), backstop
+     caso o alerta em tempo real falhe silenciosamente por algum motivo.
+
+### Efeito colateral sabido, não resolvido
+Os gatilhos da régua são únicos (D-5 a D+7, sem recorrência depois disso). Com o fix #2, uma parcela que
+já passou de D+7 sem pagar (como a do incidente, 31 dias) também segura a mensagem da parcela seguinte —
+o contrato fica sem nenhuma cobrança automática até alguém agir manualmente. Fecha o buraco que causou o
+incidente, mas não resolve "régua para de cobrar depois de D+7" — gap separado, avaliado e deixado de
+fora desse fix por decisão consciente (fora do escopo pedido).
+
+### Descartado deliberadamente
+Avaliada e descartada (nessa rodada) a proposta de: novos campos de schema pra rastrear realocação
+(`ID_PARCELA_ORIGINAL`/`ATUAL`/`REALOCADO`/etc. — o rastro já sai da reutilização dos primitivos +
+EVENTOS, sem precisar de coluna nova); um menu "Correções Financeiras" com função `reorganizarContrato()`
+genérica (o check novo em `auditarIntegridadeSistema` já cobre a detecção, reaproveitando infra
+existente); e o modelo "PIX do contrato calculado sob demanda, nunca reutilizado" (pressupõe portal do
+cliente, que está no roadmap só pós-Supabase).
+
+### Bug encontrado testando o botão "Realocar" pela primeira vez (mesmo dia)
+Alex perguntou, ao testar no contrato real do incidente (PCL-Nº 185, Felipe Cassiano Lopes de Souza):
+"e o código PIX da 4ª parcela, já que já foi pago, como fica agora?" — pergunta certeira que expôs uma
+lacuna real no `reabrirParcelaAPI` (não só no `realocarPagamentoAPI` novo, que só chama ele por baixo).
+
+**Problema:** `reabrirParcelaAPI` reseta `STATUS`/`DATA_PAGAMENTO`/`VALOR_PAGO`/etc. da parcela, mas nunca
+tocava em `EFI_TXID`/`EFI_PIX_CODE`/`EFI_LINK`/`EFI_STATUS`. Como o TXID é determinístico por parcela
+(`FOP<contrato>P<numParcela>`, não muda entre gerações normais) e o cobv correspondente já foi marcado
+`CONCLUIDA` na Efí no momento do pagamento original, a parcela reaberta ficava com um PIX "morto" salvo —
+a próxima cobrança (régua ou manual) reenviaria esse mesmo código já pago. Na melhor hipótese o cliente
+simplesmente não consegue pagar de novo (cobv já concluída); na pior, se de alguma forma o pagamento fosse
+processado, o webhook bloquearia por idempotência (`_idem_check` vendo o TXID já `PROCESSADO`) e o
+dinheiro recebido não seria creditado em lugar nenhum — silenciosamente.
+
+Gap pré-existente, não introduzido pelo fix de hoje — já afetava o botão "Reabrir" simples e o Motor de
+Undo (`_reverterPagamentoNormal`/`_reverterSomenteJuros`), que sempre chamaram `reabrirParcelaAPI` por
+baixo. Já existia até uma ferramenta manual pra mitigar em lote (`limparPixAbertosParaRegeneracao`, menu
+GAS — varre todas as parcelas abertas e limpa `EFI_TXID`/`EFI_PIX_CODE`), mas nada limpava automaticamente
+no momento da reabertura de uma parcela específica.
+
+**Solução:** `reabrirParcelaAPI` agora limpa as 4 colunas EFI (`EFI_TXID`, `EFI_PIX_CODE`, `EFI_LINK`,
+`EFI_STATUS`) da parcela reaberta, dentro do mesmo bloco que já zera `STATUS`/`DATA_PAGAMENTO`/etc.
+(`appscript.gs`, seção "1. Resetar parcela"). Com as colunas vazias, a próxima vez que a parcela precisar
+de PIX, `_gerarPixAvulso` gera do zero — e como o `upsertCobv(txidBase,...)` vai falhar (cobv original
+ainda `CONCLUIDA` na Efí), cai automaticamente no fallback já existente de sufixo `R1`/`R2` (mesmo
+mecanismo documentado na entrada de auditoria de PIX mais acima nesse arquivo), criando um cobv/TXID
+genuinamente novo e pagável. Nenhuma mudança na Efí em si — só a limpeza de colunas que faltava.
+
+### Status
+**Verificado em produção (2026-08-01).** GAS publicado, frontend deployado. Contrato PCL-Nº 185 (Felipe
+Cassiano Lopes de Souza) corrigido de ponta a ponta pelo botão "Realocar": parcela 4 voltou `pendente`
+com EFI limpo, parcela 3 ficou `pago` com o valor/data corretos, contrato voltou a `ativo_em_dia`. Alex
+testou manualmente a regeneração de PIX em massa (limpar `EFI_TXID`/`EFI_PIX_CODE` + "PIX → Gerar Todos
+Contratos") e confirmou o resultado esperado: parcela 4 recebeu TXID novo com sufixo `R1`
+(`FOP0000000000000185P000004R1`) e PIX genuinamente novo — o fallback funcionou exatamente como previsto
+na revisão de código, sem precisar de nenhum ajuste adicional.
+
+---
+
+## 2026-08-01 — `rotinaAnalitica` estourava "Exceeded maximum execution time" (Google Apps Script)
+
+### Problema
+E-mails automáticos do Google ("Summary of failures for Google Apps Script") avisando falha de
+`rotinaAnalitica` por `Exceeded maximum execution time` em duas execuções seguidas (30 e 31/07).
+
+### Causa raiz
+`_atualizarScoresDiario` (chamada por `rotinaAnalitica`) recalcula score + métricas de **todos** os
+clientes ativos numa única execução, e `calcularScore`/`calcularMetricasCliente` fazem varredura linear
+de CONTRATOS/PARCELAS/PAGAMENTOS **por cliente** — o custo cresce com o tamanho da carteira. Com a base
+de clientes atual, uma passada completa já não cabe no limite de 6 minutos do Apps Script pra execuções
+automáticas (trigger). Não é um bug de cálculo — as fórmulas de score/métricas continuam corretas; é
+puramente a rotina de orquestração ficando lenta demais pro volume atual de dados.
+
+### Solução
+`_atualizarScoresDiario` (`appscript.gs`) processa em **lote com cursor persistido**:
+- Monta a lista de clientes ativos e lê um cursor salvo em CONFIGURACOES (`CURSOR_SCORE_DIARIO` via
+  `_getCfg`/`_setCfg`, chave criada automaticamente na primeira execução).
+- Processa a partir do cursor, respeitando um orçamento de 4,5min por execução (`Date.now()` vs início).
+- Ao final, grava onde parou (ou volta pro 0 se completou a volta inteira).
+- Cada execução avança e nunca reprocessa do zero — completa o ciclo pela carteira inteira ao longo de
+  várias execuções, sem nunca estourar o limite de 6min, independente de quantos clientes existirem.
+
+Novo trigger `configurarTriggerAnalitica()` (menu GAS → "Analitica: Configurar Trigger a cada 2h (rodar
+1x)") substitui o trigger antigo de `rotinaAnalitica` (que rodava 1x/dia, insuficiente pra ciclar a
+carteira em lotes) por um a cada 2h — com o batching, isso garante ciclo completo em menos de um dia.
+
+`rotinaAnalitica` e `rotinaVerificarPagamentos` também passaram a chamar `_notificarErroSistema` nos
+catches — antes só logavam via `Logger.log`, e o único aviso de falha era o e-mail genérico e-mail do
+próprio Google (o gatilho deste bug), não o canal de notificação real do sistema.
+
+Nenhum cálculo financeiro/score foi alterado — só a orquestração do loop que os invoca.
+
+### Status
+Resolvido e publicado (2026-08-01). Falta rodar 1x o item de menu "Analitica: Configurar Trigger a cada
+2h" pra substituir o trigger antigo pelo novo em lote.
+
+---
+
 ## Débitos Técnicos
 
 - `src/main.jsx` com ~6000+ linhas — candidato a modularização futura (Fase 3).
@@ -716,6 +1067,7 @@ Resolvido (2026-07-15)
 - Contratos em `acordo_assistido` antes de 2026-06-14 não têm `DATA_ENTRADA_ACORDO_ASSISTIDO` preenchida; o GAS usa fallback para a data de criação, o que pode ser impreciso na regra dos 180 dias.
 - `DIFERENCA_RECEBIDA` em PAGAMENTOS: campo histórico (81 registros pré-feature); não é mais gravado em novos pagamentos. Usar `RECEITA_EXTRA_ATRASO` como campo oficial.
 - `FEE_PRORROGACAO` em PAGAMENTOS: campo criado em 2026-06-19. Registros de somente_juros anteriores têm o fee em `RECEITA_EXTRA_ATRASO` (não em `FEE_PRORROGACAO`). Somas financeiras usam `RECEITA_EXTRA_ATRASO + FEE_PRORROGACAO` para cobrir ambos os casos. O KPI "Fee de Prorrogação" é preciso apenas para pagamentos a partir de 2026-06-19.
+- `RENDA_BRUTA`/`RENDA_LIQUIDA`/`RENDA_MENSAL` em CLIENTES: formato inconsistente em registros antigos (com/sem vírgula, com/sem ponto, texto vs número) — decisão consciente de não fazer backfill (ver entrada 2026-07-28 acima, uma tentativa automática corrompeu dado real). Um cliente com Limite de Crédito parecendo `R$0,00` ou visualmente errado no `ClienteModal` pode só precisar ter a renda redigitada manualmente — a entrada agora está blindada (frontend + conversão a Number no GAS), só o dado já existente pode estar assim.
 - Observações de eventos financeiros no GAS (ex: `registrarQuitacaoJudicial`, `registrarAcordoComPerda`) usam `.toFixed(2)` puro (`"R$ 1464.00"`) em vez de formatação pt-BR (`"R$ 1.464,00"`) — padrão já estabelecido em todo o GAS, não é regressão da Recuperação Judicial. Aparece em `OBSERVACOES` de EVENTOS e, por consequência, na timeline "Percurso do Contrato" do Extrato (§20 DESIGN_SYSTEM.md). Não corrigido — mudaria convenção em várias funções pré-existentes fora do escopo do módulo judicial.
 - `TemplatesReguaModal` (`main.jsx`) tem `LABELS`/`ORDEM` hardcoded com 10 chaves; `TEMPLATE_CERTIFICADO_QUITACAO` existe no backend mas não aparece na UI de edição — só editável direto na aba CONFIGURACOES.
 - Auditoria automática (`auditarIntegridadeSistema`) e backup automático (`fazerBackupAutomatico`) têm as funções prontas mas **os triggers (`configurarTriggerAuditoria`, `configurarTriggerBackup`) precisam ser rodados manualmente 1x no editor do GAS** — não há garantia de que já estejam ativos em produção; confirmar em Extensões → Apps Script → Gatilhos antes de assumir que rodam diariamente.

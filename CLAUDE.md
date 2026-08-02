@@ -304,6 +304,27 @@ function parseDateLocal(s) {
 
 **Trigger diário** — 7h: `atualizarStatusParcelas()` + `atualizarStatusContratos()`
 
+**Rotinas automáticas e triggers ativos:**
+```javascript
+rotinaDiaria()              // 7h — webhook Efí, verificação pagamentos, régua, status parcelas/contratos,
+                            // promessas vencidas, auditoria, expiração undo/quitações
+rotinaRegua()                // 8h — trigger de backup só da régua (redundância se rotinaDiaria travar antes)
+rotinaVerificarPagamentos()  // a cada 1h — polling de pagamentos Efí (fallback do webhook)
+rotinaAnalitica()            // a cada 2h (configurarTriggerAnalitica) — score/métricas em lote + tabelas
+                            // EMPREGADORES/PADRINHOS
+```
+
+**Processamento em lote com cursor — evita "Exceeded maximum execution time" (2026-08-01):**
+`_atualizarScoresDiario` (chamada por `rotinaAnalitica`) recalcula score+métricas de todos os clientes
+ativos, mas `calcularScore`/`calcularMetricasCliente` variam linearmente com o tamanho de
+CONTRATOS/PARCELAS/PAGAMENTOS — processar a carteira inteira numa execução só passou a estourar o limite
+de 6min do Apps Script. Padrão adotado: cursor persistido em CONFIGURACOES (`CURSOR_SCORE_DIARIO` via
+`_getCfg`/`_setCfg`) + orçamento de tempo (`Date.now()` vs início, 4,5min) — cada execução processa a
+partir de onde a anterior parou e nunca estoura o limite, completando o ciclo pela carteira ao longo de
+várias execuções. **Reaproveitar esse padrão** (cursor em CONFIGURACOES + orçamento de tempo) em qualquer
+rotina automática nova cujo custo cresça com o volume de dados — não só aumentar a frequência do trigger.
+Detalhes em `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-08-01).
+
 **Exclusão física de contrato** — `excluirContrato(idContrato)`:
 - Bloqueia se há PAGAMENTOS registrados no contrato
 - Deleta linha de CONTRATOS (`deleteRow`)
@@ -335,6 +356,26 @@ _getCfg("CHAVE")           // retorna valor ou "" se não encontrado
 _setCfg("CHAVE", valor)    // atualiza linha existente ou appenda nova linha
 ```
 
+**Notificação de erro de sistema (2026-07-31):**
+```javascript
+_notificarErroSistema(origem, mensagem)   // e-mail (GmailApp → EMAIL_ADMIN, canal garantido) + WhatsApp
+                                          // best-effort (TEL_ALEX_NOTIFICACOES) — chamar em catch de
+                                          // rotinas automáticas (triggers/rotinaDiaria), NUNCA em ações
+                                          // interativas da UI (doPost) — o Alex já vê erro de UI na hora,
+                                          // notificar ali também só geraria ruído
+```
+Já plugada em todos os sub-processos de `rotinaDiaria()`/`rotinaRegua()`, no resumo de falhas de
+`enviarReguaCobranca()` (1 aviso por execução, não por cliente) e em `_enviarConfirmacaoPagamento()`.
+Ao adicionar uma nova rotina automática (trigger diário/backup), envolver com `try/catch` chamando
+`_notificarErroSistema("<nomeFuncao>", e.message)` no catch, seguindo o mesmo padrão. Detalhes e
+motivação (WhatsApp sozinho falha como canal de alerta quando o próprio WhatsApp é a causa do erro) em
+`docs/ai-memory/07-AI-KNOWN-ISSUES.md` (entrada 2026-07-31).
+
+Também plugada em `pagamentoAutomatico` (2026-08-01) — não é um catch de erro, mas o mesmo raciocínio
+de "fluxo automático sem UI, ninguém veria isso na hora" se aplica: se um pagamento via PIX cai numa
+parcela enquanto outra mais antiga do mesmo contrato segue `atrasado`, avisa o Alex no mesmo dia em vez
+de só a auditoria das 7h05 (ou o próprio Alex, meses depois) pegar. Não bloqueia o pagamento — só avisa.
+
 **Templates da régua — carregados do CONFIGURACOES:**
 ```javascript
 buscarTemplatesRegua()           // retorna objeto com todos os TEMPLATE_* do CONFIGURACOES
@@ -346,6 +387,8 @@ Chaves: `TEMPLATE_D-5`, `TEMPLATE_D-1`, `TEMPLATE_D0`, `TEMPLATE_D+1`, `TEMPLATE
 `_garantirConfigsRegua()` — chamada no início de `enviarReguaCobranca` — popula todas as chaves TEMPLATE_* no CONFIGURACOES se ainda não existirem.
 
 **Gap conhecido:** `TemplatesReguaModal` (`main.jsx`) tem `LABELS`/`ORDEM` hardcoded com só 10 chaves — `CERTIFICADO_QUITACAO` existe no backend (`_MSG_TEMPLATES`, `_garantirConfigsRegua`, `buscarTemplatesRegua`) mas não aparece na UI. Pra editar o texto desse template hoje só mexendo direto na aba CONFIGURACOES (`TEMPLATE_CERTIFICADO_QUITACAO`).
+
+**Nunca avança pra parcela nova com atrasada em aberto (2026-08-01):** dentro de `enviarReguaCobranca`, se existe outra parcela do mesmo contrato mais antiga e ainda em atraso (`atrasoMaisAntigoPorContrato`, calculado no início da função), a parcela sendo avaliada só entra na fila de disparo se ela mesma for essa mais antiga — nunca manda mensagem/gera PIX pra parcela seguinte enquanto a mais velha segue em aberto. Corrige o cenário em que o cliente tinha dois códigos PIX simultaneamente válidos no histórico do WhatsApp (um de cada parcela, cada um gerado em dia diferente) e pagou o errado. Mensagens de atraso (`D+1`/`D+3`/`D+7`) também ganharam um aviso fixo no texto: "Use apenas o código PIX enviado nesta mensagem". **Efeito colateral sabido:** os gatilhos são únicos (D-5 a D+7) — uma parcela que passou de D+7 sem pagar já não recebe mais nenhuma mensagem, e agora isso também segura a mensagem da parcela seguinte. Contrato fica sem cobrança automática até ação manual; resolver esse gap (recorrência além de D+7) é um follow-up separado, não implementado ainda.
 
 **Confirmação automática de pagamento:**
 ```javascript
@@ -430,6 +473,16 @@ expirarUndosAntigos()                                         // marca EXPIRADO 
 - Todo `_reverter*` grava evento `UNDO_REVERTIDO` em EVENTOS e recalcula score/métricas do cliente quando aplicável
 - **Ainda sem entrada no frontend** — só é acionável chamando a action correspondente direto na API; não existe botão "Desfazer" no `main.jsx`
 
+**Realocar pagamento entre parcelas (2026-08-01):** corrige o cliente ter pago a parcela errada (ex: usou um PIX antigo do WhatsApp e pagou a parcela do mês corrente em vez da atrasada). Não existe fora do TTL de 15 min do Motor de Undo acima — cobre qualquer pagamento, de qualquer data.
+```javascript
+realocarPagamentoAPI({idContrato, idCliente, numParcelaOrigem, numParcelaDestino, idPagamento, motivo})
+```
+- Reaproveita os primitivos existentes em vez de tocar direto na célula `ID_PARCELA` de PAGAMENTOS (isso deixaria `PARCELAS`/`EVENTOS`/`TOTAL_SOMENTE_JUROS`/`STATUS_CONTRATO` inconsistentes): valida a parcela de destino primeiro (existe e não está em `STATUS_TERMINAL` — falha aqui antes de mexer em qualquer coisa), depois chama `reabrirParcelaAPI` na origem e `registrarPagamentoAPI` no destino com a mesma data/valor/forma do pagamento original
+- Grava evento `REALOCACAO_PAGAMENTO` em EVENTOS além dos que os dois primitivos já geram — não precisa de colunas novas em nenhuma aba
+- **Não corrige juros/multa automaticamente** — se a parcela de destino tinha mais dias de atraso do que o valor pago cobre, a diferença fica como está; avaliar desconto ou cobrança complementar manualmente
+- Botão "Realocar" no `PagamentoDetalheModal` (`main.jsx`), ao lado do "Reabrir" já existente
+- **`reabrirParcelaAPI` agora também limpa `EFI_TXID`/`EFI_PIX_CODE`/`EFI_LINK`/`EFI_STATUS` da parcela reaberta** (fix no mesmo dia, achado testando o botão "Realocar" pela primeira vez): o TXID é determinístico por parcela (`FOP<contrato>P<numParcela>`) e o cobv correspondente já foi marcado `CONCLUIDA` na Efí quando a parcela foi paga — sem limpar essas colunas, a próxima cobrança (régua ou manual) reenviaria o mesmo código já pago, e se o cliente conseguisse pagar de novo mesmo assim, o webhook bloquearia por idempotência (TXID já `PROCESSADO`) e o dinheiro recebido não seria creditado em lugar nenhum. `_gerarPixAvulso` já sabia criar TXID novo com sufixo `R1`/`R2` quando o base está terminal na Efí (ver `docs/ai-memory/07-AI-KNOWN-ISSUES.md`) — só faltava limpar as colunas pra essa lógica disparar de novo. Afeta também o botão "Reabrir" simples e o Motor de Undo (`_reverterPagamentoNormal`/`_reverterSomenteJuros`), que chamam `reabrirParcelaAPI` por baixo — ambos ganharam o fix de graça. Existia uma ferramenta manual pra isso (`limparPixAbertosParaRegeneracao`, menu GAS, varre TODAS as parcelas abertas de uma vez) — ainda útil pra limpeza em lote de dados antigos, mas agora o caso comum (reabrir 1 parcela) já sai limpo sozinho.
+
 **Idempotência — proteção contra webhook duplicado:**
 ```javascript
 _idem_check(chave)              // true se a chave já foi PROCESSADO
@@ -444,7 +497,7 @@ _idem_registrar_tentativa_dupla(chave, tipo)  // loga tentativa bloqueada (não 
 auditarIntegridadeSistema()      // varre CLIENTES/CONTRATOS/PARCELAS/PAGAMENTOS/PROMESSAS/EVENTOS/OPERACOES_PROCESSADAS
 configurarTriggerAuditoria()     // registra o trigger diário (rodar 1x manual)
 ```
-- Verifica: relacionamentos órfãos, parcela/status inconsistente com PAGAMENTOS, duplicidade de pagamento (mesma parcela+data+valor), TXID Efí duplicado, promessa órfã/inconsistente, `VALOR_TOTAL`/`JUROS_TOTAL` do contrato divergente da soma das parcelas, `TOTAL_PAGO`/`CONTRATOS_ATIVOS` do cliente divergente do real, chave de idempotência duplicada
+- Verifica: relacionamentos órfãos, parcela/status inconsistente com PAGAMENTOS, duplicidade de pagamento (mesma parcela+data+valor), TXID Efí duplicado, promessa órfã/inconsistente, `VALOR_TOTAL`/`JUROS_TOTAL` do contrato divergente da soma das parcelas, `TOTAL_PAGO`/`CONTRATOS_ATIVOS` do cliente divergente do real, chave de idempotência duplicada, **sequência de pagamento** (2026-08-01: severidade ALTO se uma parcela mais nova está `pago` enquanto outra do mesmo contrato, mais antiga, segue `atrasado` — backstop diário caso o cliente pague a parcela errada e as defesas da régua/webhook não peguem)
 - Gera **score de 0–100** (desconta por severidade CRITICO/ALTO/MEDIO/BAIXO) e grava tudo na aba `AUDITORIA` com marcador de início/fim de sessão
 - Não corrige nada automaticamente — é só diagnóstico (`AUTO_CORRIGIDO` sempre "NAO" hoje)
 
@@ -453,6 +506,14 @@ configurarTriggerAuditoria()     // registra o trigger diário (rodar 1x manual)
 fazerBackupAutomatico()     // copia a planilha inteira para pasta "FinanceiroOp Backups" no Drive, mantém só as últimas 30
 configurarTriggerBackup()   // registra o trigger diário (rodar 1x manual)
 ```
+
+**Relatório Automático de Contabilidade (dia 22, 2026-07-22):** todo dia 22 às 8h, gera o mesmo CSV do botão manual "Contabilidade" (aba Contratos) cobrindo do dia 1 ao dia 22 do mês corrente (corte parcial — contratos feitos depois do dia 22 não entram, complementar via botão manual). Entrega **só por WhatsApp** (sem e-mail) pro Alex e direto pro contador, com link do arquivo no Drive.
+```javascript
+gerarRelatorioContabilidadeMensal()          // gera CSV + salva no Drive ("Relatórios Contabilidade", últimas 12) + WhatsApp pros dois
+configurarTriggerRelatorioContabilidade()    // registra o trigger dia 22 às 8h (rodar 1x manual)
+testarRelatorioContabilidadeMensal()         // wrapper de teste manual, com alert() de resultado (a função principal não pode chamar getUi() pois roda também via trigger sem UI)
+```
+Config em CONFIGURACOES: `TEL_ALEX_NOTIFICACOES`, `TEL_CONTADOR`, `ULTIMO_MES_RELATORIO_CONTABIL` (trava de idempotência). Arquivo no Drive compartilhado como `DriveApp.Access.ANYONE_WITH_LINK` — decisão consciente do Alex (simplicidade > restringir por conta Google do contador), CPF/RG/endereço dos clientes ficam expostos a quem tiver o link. Detalhes e gotcha de permissão OAuth (`script.scriptapp` em `appsscript.json`) em `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-07-22).
 
 ---
 
@@ -585,6 +646,10 @@ const setF=f=>v=>setDados(p=>({...p,[f]:v}));
 ```
 
 Campos de percentual (`Taxa Mensal %`) e quantidade (`Nº de Parcelas`) ficam de fora deliberadamente — não é o problema que esse padrão resolve. A exibição do campo com vírgula decimal (ex: `2670,15`) é comportamento nativo do Chrome em pt-BR, não algo implementado por nós; separador de milhar (`1.000`) nunca aparece em `type="number"` nativo, em nenhum idioma — formatação visual completa (`R$ 2.000,00` ao vivo) exigiria trocar o input por um componente de máscara de moeda, avaliado e descartado por ora (ver spec).
+
+**Teto de sanidade (adicionado 2026-07-28):** `pasteMoeda`/`normMoedaSheet` (`main.jsx`, perto de `parseValorColado`) rejeitam qualquer valor colado/normalizado ≥ `MOEDA_TETO` (R$10.000.000 — bem acima de qualquer valor real do negócio). `pasteMoeda` recusa o paste com um alerta explicando o motivo; `normMoedaSheet` (usado ao ler o valor vindo do Sheets, ex: init do `edit` do `ClienteModal`) devolve `""` em vez do número implausível. Existe pra impedir que uma colagem errada (ex: bloco de texto inteiro colado numa célula, concatenando vários números) vire um valor "confiável" e gigante que contamina cálculos derivados (ex: Limite de Crédito). Ver `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-07-28).
+
+**Conversão explícita a Number no GAS (adicionado 2026-07-28):** o frontend sempre manda o valor já limpo (string com ponto decimal), mas isso sozinho não garante que a célula do Sheets vire um Number de verdade — o `setValue()` do Apps Script decide o tipo tentando "adivinhar" a partir da string, dependente do locale pt-BR da planilha. Pra fechar essa ambiguidade, `atualizarDadosCliente` (appscript.gs) usa `_toMoneyNumber()` + o mapa `_CAMPOS_MONEY_CLIENTES` (`RENDA_BRUTA`, `RENDA_LIQUIDA`, `RENDA_MENSAL`, `LIMITE_CREDITO`) pra converter explicitamente pra `Number` do JS antes de gravar — nunca deixa o Sheets adivinhar. Se um novo campo monetário for adicionado em CLIENTES, incluir no mapa; se for adicionado em outra aba, replicar o padrão no ponto de escrita correspondente do GAS.
 
 ### Constantes de status globais — NUNCA redefinir localmente
 ```javascript
@@ -779,6 +844,11 @@ _gerarEEnviarCertificado(idContrato, idCliente, nomeCliente, datPagamento)  // g
 - **Endpoint envio**: `POST /send/text` com body `{ number, text, instanceId }` e header `apikey: <token_instancia>`
 - **ATENÇÃO**: Evolution GO usa **Token da Instância** (por instância), não API key global. Obtido em Instâncias → Configurações no painel.
 - **Configs no Sheets (CONFIGURACOES)**: `EVOLUTION_URL`, `EVOLUTION_KEY` (= Token da Instância), `EVOLUTION_INSTANCE`
+- **Instância atual (desde 2026-07-31)**: `borges-fp`, VPS `76.13.228.217`, porta `32773` — porta e nome de
+  instância já mudaram sozinhos mais de uma vez (histórico completo e causa em
+  `docs/ai-memory/07-AI-KNOWN-ISSUES.md`, entrada 2026-07-31). Se a régua parar de enviar, checar primeiro
+  se a porta do container `evolution-go-oizv-api-1` ainda bate com `EVOLUTION_URL` (Sheets) e
+  `EVOLUTION_API_URL` (Vercel) antes de qualquer outro diagnóstico.
 
 ---
 
@@ -788,7 +858,7 @@ _gerarEEnviarCertificado(idContrato, idCliente, nomeCliente, datPagamento)  // g
 |---|---|
 | Dashboard | KPIs, Em Atraso, últimos pagamentos |
 | Clientes | Lista + ClienteModal (perfil/editar/contratos/todos os dados) |
-| Contratos | Lista + ContratoModal (parcelas com dias de atraso/pagamentos) |
+| Contratos | Lista + ContratoModal (parcelas com dias de atraso/pagamentos). Botão "Contabilidade" exporta CSV (ID/nome/CPF/RG/e-mail/telefone/CEP/endereço/valor total) por período escolhido, pro contador emitir nota fiscal — mesma lógica do relatório automático do dia 22 (ver "Padrões do GAS") |
 | Cobrança | Parcelas vencidas agrupadas por cliente |
 | Financeiro | Histórico de pagamentos filtrado por período |
 | Carteira | Carteira de crédito: KPIs, distribuição por faixa de atraso, PDD Gerencial v1.0, Resultado Ajustado ao Risco |
