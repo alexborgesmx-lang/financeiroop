@@ -686,6 +686,17 @@ Regra de segurança: só é possível desfazer a operação **mais recente** de 
 
 **Ainda não tem botão no app** — hoje só é acionável tecnicamente, não pela interface que Alex usa no dia a dia.
 
+### 5.7.2 Realocar Pagamento entre Parcelas (2026-08-01)
+
+Correção para quando o cliente paga a parcela errada do mesmo contrato (ex: usou um código PIX antigo do WhatsApp e pagou a parcela do mês corrente em vez da atrasada). Diferente do Undo (5.7.1), **não tem limite de 15 minutos** — cobre qualquer pagamento, de qualquer data.
+
+- Ação: botão "Realocar" no Detalhe do Pagamento, ao lado do "Reabrir" já existente.
+- Valida a parcela de destino primeiro (existe, não está paga/cancelada/etc.) — se falhar, não mexe em nada.
+- Desfaz o pagamento na parcela de origem (mesma lógica da Reabertura, 5.7) e registra o mesmo valor/data/forma na parcela de destino, como se o pagamento tivesse acontecido ali desde o início.
+- Se a parcela de destino tinha mais dias de atraso do que o valor pago cobre, a diferença de juros/multa **não é corrigida automaticamente** — fica em aberto pra decidir (desconto ou cobrança complementar).
+- Limpa os códigos PIX antigos (`EFI_TXID`/`EFI_PIX_CODE`/`EFI_LINK`/`EFI_STATUS`) da parcela de origem — sem isso, a próxima cobrança reenviaria um código já pago. Na próxima vez que a parcela de origem precisar de PIX, o sistema gera um código novo automaticamente (mesmo mecanismo de fallback usado quando um cobv já está concluído na Efí, ver 10.2).
+- Score e métricas do cliente recalculados; evento `REALOCACAO_PAGAMENTO` registrado em EVENTOS.
+
 ### 5.8 Acordo Assistido e Abatimento
 
 Para clientes que perderam renda temporariamente mas mantêm boa comunicação:
@@ -787,6 +798,7 @@ Executa automaticamente às 7h via trigger do GAS. Envia mensagens e PIX por Wha
 - Cada mensagem é seguida de uma segunda mensagem com o código PIX (para fácil cópia)
 - PIX gerado via `api/efi-pix-avulso.js` → Efí Bank cobv — se parcela estiver vencida, usa a data de hoje como dataDeVencimento
 - PIX gerado é salvo em `EFI_PIX_CODE` na aba PARCELAS (reutilizado nas execuções seguintes)
+- **Nunca dispara mensagem/PIX de uma parcela mais nova enquanto existir uma parcela mais antiga do mesmo contrato ainda em atraso (2026-08-01)** — regra de ordem de liquidação: o sistema sempre prioriza cobrar a parcela mais antiga em aberto primeiro. Antes disso, era possível o cliente ter dois códigos PIX de parcelas diferentes simultaneamente válidos no histórico do WhatsApp (um de cada, gerados em dias diferentes) e pagar o errado. Mensagens de atraso (D+1/D+3/D+7) também incluem um aviso fixo pedindo pro cliente usar só o PIX daquela mensagem. **Efeito colateral sabido:** uma parcela que já passou de D+7 sem pagar também não deixa a régua avançar pra próxima parcela — o contrato fica sem nenhuma mensagem automática até ação manual (reabertura/realocação, cobrança direta, ou acordo). Ver `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-08-01).
 - Todos os disparos são logados na aba MENSAGENS
 
 **Teste manual:** rodar `testarReguaCobranca()` no GAS (dry-run — não envia, só loga).
@@ -902,6 +914,25 @@ Modelo sugerido:
 
 **Impacto:** DRE mensal mostraria resultado provisionado mais realista. Se o cliente pagar após provisão, o recebimento aparece como receita "acima do esperado". Implementação pendente definição dos percentuais pelo operador.
 
+### 8.4 Envio Mensal ao Contador — Manual e Automático (2026-07-22)
+
+Todo mês o contador precisa dos dados dos contratos feitos naquele período pra emitir as notas fiscais e apurar os impostos: `ID_CONTRATO`, nome completo, CPF, RG, e-mail, telefone, CEP, endereço completo e **valor total do contrato (principal + juros — nunca o principal isolado, pois a nota é emitida sobre o valor final)**.
+
+**Manual** — botão "Contabilidade" na aba Contratos (`exportarCSVContabilidade`, `src/main.jsx`): gera um CSV pro período escolhido pelo usuário (seletor de mês/ano dedicado, independente dos filtros da tela). Exclui contratos `cancelado`.
+
+**Automático** — todo dia 22 às 8h, `gerarRelatorioContabilidadeMensal()` (GAS) gera o mesmo CSV cobrindo do dia 1 ao dia 22 do mês corrente (corte parcial — contratos feitos depois do dia 22 ficam de fora, complementar via botão manual se necessário). Salva no Google Drive (pasta "Relatórios Contabilidade") e avisa **só por WhatsApp** — Alex e o contador recebem o link do arquivo diretamente, sem e-mail. Configuração em CONFIGURACOES: `TEL_ALEX_NOTIFICACOES`, `TEL_CONTADOR`. Detalhes técnicos e decisão de segurança (arquivo compartilhado como "qualquer pessoa com o link") em `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-07-22).
+
+### 8.5 Notificação de Erro de Sistema (2026-07-31)
+
+Quando uma rotina automática do GAS falha (trigger diário, régua, webhook Efí, confirmação de pagamento),
+`_notificarErroSistema(origem, mensagem)` avisa o Alex por dois canais:
+- **E-mail** (`GmailApp` → `alexborges.mx@gmail.com`) — canal garantido, independente da infra de WhatsApp/VPS/Vercel
+- **WhatsApp** (`TEL_ALEX_NOTIFICACOES`) — best-effort, complementar
+
+Motivação: se o próprio WhatsApp (Evolution GO) for a causa do erro, um aviso só por WhatsApp nunca
+chegaria — o e-mail garante que o aviso chega de qualquer forma. `TEL_ALEX_NOTIFICACOES` é o número
+pessoal do Alex, separado do `TELEFONE_WPP_PROPRIO` usado pra atendimento/régua com os clientes.
+
 ---
 
 ## 9. Interface do FinanceiroOp
@@ -946,6 +977,8 @@ Sistema web acessado via navegador (Vercel). Autenticação por senha com sessã
 - **Credenciais:** variáveis de ambiente no Vercel
 - **Fluxo:** Frontend chama `/api/efi-charges` → autenticação → cria cobranças em lote → retorna `pixCopiaECola` por parcela.
 - **Webhook:** `/api/webhook-efi` recebe confirmação de pagamento e chama `pagamentoAutomatico()` no GAS.
+- **TXID determinístico por parcela:** `FOP<idContrato>P<numParcela>` (`api/efi-pix-avulso.js`) — sempre o mesmo para a mesma parcela, entre gerações normais.
+- **Fallback quando o cobv já está concluído (2026-08-01):** se a parcela já foi paga antes e precisa de um PIX novo (ex: depois de Reabrir/Realocar, 5.7/5.7.2), o TXID original está `CONCLUIDA` na Efí e não pode ser reaproveitado — o sistema detecta isso automaticamente e cria um cobv novo com sufixo `R1` (ou `R2` se `R1` também já existir), com um PIX genuinamente novo e pagável. O webhook reconhece o TXID com sufixo normalmente (extrai contrato/parcela pela posição fixa da string, ignora o sufixo no final).
 
 ### 10.3 ZapSign — Assinatura Eletrônica
 

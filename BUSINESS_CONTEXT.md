@@ -87,6 +87,9 @@ Para clientes que perderam renda temporariamente mas mantêm boa comunicação:
 ### 2.8 Ajuizamento em reincidência (2026-07-05/06)
 Um contrato que já foi renegociado ou já passou por Acordo Assistido e volta a atrasar (`ativo_em_atraso`) libera a opção "Ajuizar contrato" imediatamente — sem esperar os 30 dias normais até `em_cobranca`. Reincidência pós-renegociação/acordo já é uma 2ª chance não cumprida, tratada como situação agravada.
 
+### 2.9 Bloqueio manual de cliente (2026-07-09)
+Alex pode bloquear qualquer cliente para novo crédito por decisão subjetiva/discricionária — sem depender de score, atraso ou qualquer dado financeiro objetivo. Caso típico: descobrir que o cliente usou o nome de outra pessoa para tirar um contrato paralelo. Motivo é obrigatório e fica registrado. Diferente do bloqueio permanente por judicialização, **é reversível** — Alex pode desbloquear quando a situação for esclarecida. Não afeta contratos já ativos do cliente (cobrança, régua e pagamentos seguem normalmente); bloqueia só a criação de novos contratos. Botão "Bloquear/Desbloquear Cliente" no ClienteModal, badge vermelho "BLOQUEADO" visível em todas as listas.
+
 ---
 
 ## 3. Stack tecnológico
@@ -201,7 +204,7 @@ Autenticação: cookie `fp_session` = HMAC-SHA256 da senha. Sessão dura 30 dias
 
 ---
 
-## 7. Estado atual do produto (atualizado 2026-07-04)
+## 7. Estado atual do produto (atualizado 2026-07-09)
 
 ### Em produção e funcionando
 - Sistema completo de contratos, parcelas e pagamentos
@@ -221,6 +224,7 @@ Autenticação: cookie `fp_session` = HMAC-SHA256 da senha. Sessão dura 30 dias
 - **Certificado de Quitação (implementado 2026-07-04)** — link público automático (sem login) enviado por WhatsApp quando o contrato quita, com CPF sempre mascarado
 - **Motor de Undo — 15 min (implementado 2026-07-04)** — pagamentos e outras operações financeiras reversíveis podem ser desfeitas em até 15 minutos; **ainda sem botão no app**, só acionável via API
 - **Auditoria automática de integridade + backup automático (implementado 2026-07-04)** — score diário de integridade dos dados (07:05) e cópia de segurança diária da planilha no Drive (2h, retém 30 cópias)
+- **Bloqueio manual de cliente (implementado 2026-07-09)** — Alex pode bloquear/desbloquear qualquer cliente para novo crédito por decisão subjetiva (motivo obrigatório), independente de score ou judicialização; contratos já ativos não são afetados
 
 ### Em andamento
 - Bot triagem WhatsApp (Evolution API + Claude AI) — Fase 1B

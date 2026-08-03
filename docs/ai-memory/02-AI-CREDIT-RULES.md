@@ -139,6 +139,25 @@ Se a parcela for reaberta via `reabrirParcelaAPI`, a parcela gerada automaticame
 
 ---
 
+## Bloqueio Manual de Cliente (subjetivo/discricionário — 2026-07-09)
+
+Existe uma terceira forma de bloqueio de crédito, **independente** das duas anteriores (`CLIENTE_JUDICIALIZADO` e `SCORE_BLOQUEADO`):
+
+- `CLIENTE_JUDICIALIZADO` — automático, ligado a `ajuizarContrato`, **permanente**, nunca limpo.
+- `SCORE_BLOQUEADO` — automático, recalculado a cada `calcularScore` (atraso >30 dias, prejuízo não recuperado, comunicação ruim, score final <30), **pode ser revertido** no próximo recálculo se o comportamento objetivo melhorar.
+- `CLIENTE_BLOQUEADO_MANUAL` — **decisão subjetiva do dono do negócio**, sem base em dado financeiro objetivo (ex: cliente usou nome de terceiro para tirar contrato paralelo, comportamento fraudulento, qualquer motivo de confiança). Campos em CLIENTES:
+  - `CLIENTE_BLOQUEADO_MANUAL` — `"SIM"` / vazio
+  - `MOTIVO_BLOQUEIO_MANUAL` — texto livre, obrigatório ao bloquear
+  - `DATA_BLOQUEIO_MANUAL` — data do bloqueio
+
+Funções GAS: `bloquearClienteManual(idCliente, motivo)` / `desbloquearClienteManual(idCliente)`. Diferente do bloqueio judicial, **é reversível** — Alex pode desbloquear quando a situação for esclarecida (`MOTIVO`/`DATA` do último bloqueio permanecem como histórico após desbloquear, não são apagados).
+
+**Não afeta contratos já ativos** — cobrança, régua WhatsApp e pagamentos seguem normalmente. Bloqueia apenas a criação de **novos** contratos, validado em `criarContrato` (mesmo bloco de checagem de `CLIENTE_JUDICIALIZADO`, `appscript.gs` ~linha 3280).
+
+Cliente bloqueado continua visível em todas as listas (não é escondido), com badge vermelho "BLOQUEADO" — no `ClienteModal`, na listagem de Clientes, e no dropdown de busca do `NovoContrato`. Toda mudança gera evento em EVENTOS (`BLOQUEIO_MANUAL_CLIENTE` / `DESBLOQUEIO_MANUAL_CLIENTE`).
+
+---
+
 ## Fator de Estabilidade Profissional no Score (2026-07-24)
 
 O bônus de +2 pts em `calcularScore` por vínculo empregatício estável usa `DATA_ADMISSAO` (tempo de casa do próprio cliente na empresa) — não mais `DATA_ABERTURA_EMPREGADOR` (idade do CNPJ do empregador). Motivo: tempo de casa é sinal mais direto do perfil de estabilidade do tomador do que a idade da empresa onde trabalha.

@@ -48,12 +48,25 @@ function parseValorColado(texto){
   if(isNaN(n))return null;
   return neg?-n:n;
 }
+const MOEDA_TETO=1e7; // R$10.000.000 — bem acima de qualquer valor real do negócio; acima disso é colagem/concatenação errada, não dinheiro de verdade
 function pasteMoeda(e,setter){
   const texto=e.clipboardData?.getData("text")||"";
   const n=parseValorColado(texto);
   if(n===null)return;
+  if(Math.abs(n)>=MOEDA_TETO){
+    e.preventDefault();
+    alert("O valor colado ficou absurdamente alto (R$ "+n.toLocaleString("pt-BR")+") — provavelmente foi colado um texto com vários números junto (ex: contracheque inteiro), não só o valor. Copie e cole apenas o número, ou digite manualmente.");
+    return;
+  }
   e.preventDefault();
   setter(String(n));
+}
+function normMoedaSheet(v){
+  if(v===null||v===undefined||v==="")return"";
+  if(typeof v==="number")return Math.abs(v)<MOEDA_TETO?String(v):"";
+  const n=parseValorColado(String(v));
+  if(n===null||Math.abs(n)>=MOEDA_TETO)return"";
+  return String(n);
 }
 const fmtP  = v => Number(v||0).toFixed(1) + "%";
 const fmtDt = v => { if(!v) return "—"; const d = v instanceof Date ? v : new Date(v); return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR"); };
@@ -139,7 +152,9 @@ function calcPrioridadeCobranca({ contrato, parcelasContrato, eventos, cliente }
     if (dv) { dv.setHours(0, 0, 0, 0); diasAtraso = Math.max(diasAtraso, Math.round((hoje - dv) / 86400000)); }
   });
   const proxima = pendentes.slice().sort((a, b) => toNum(a.DATA_VENCIMENTO) - toNum(b.DATA_VENCIMENTO))[0];
-  const diasAteVenc = proxima ? Math.round((parseDate(proxima.DATA_VENCIMENTO) - hoje) / 86400000) : null;
+  const proxVencCob = proxima ? parseDate(proxima.DATA_VENCIMENTO) : null;
+  if (proxVencCob) proxVencCob.setHours(0, 0, 0, 0);
+  const diasAteVenc = proxVencCob ? Math.round((proxVencCob.getTime() - hoje.getTime()) / 86400000) : null;
 
   const jaRenegociado = ps.some(p => String(p.ORIGEM_PARCELA || "").toLowerCase() === "renegociada");
   const jaTeveAcordoAssistido = (eventos || []).some(e =>
@@ -3101,9 +3116,9 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
     NACIONALIDADE:cliente.NACIONALIDADE||"",
     STATUS_CLIENTE:cliente.STATUS_CLIENTE||"ativo",
     DIA_VENCIMENTO_PREFERIDO:cliente.DIA_VENCIMENTO_PREFERIDO||"",
-    RENDA_BRUTA:   cliente.RENDA_BRUTA||"",
-    RENDA_LIQUIDA: cliente.RENDA_LIQUIDA||"",
-    RENDA_MENSAL:  cliente.RENDA_MENSAL||"",
+    RENDA_BRUTA:   normMoedaSheet(cliente.RENDA_BRUTA),
+    RENDA_LIQUIDA: normMoedaSheet(cliente.RENDA_LIQUIDA),
+    RENDA_MENSAL:  normMoedaSheet(cliente.RENDA_MENSAL),
     TIPO_RENDA:    cliente.TIPO_RENDA||"",
     RENDA_COMPROVADA: cliente.RENDA_COMPROVADA||"",
     QUALIDADE_COMUNICACAO: cliente.QUALIDADE_COMUNICACAO||"",
@@ -3192,7 +3207,9 @@ function ClienteModal({cliente,contratos,parcelas,clientes,onFechar,onAtualizar,
 
   const salvar=async()=>{
     setSaving(true);setSaveMsg(null);
-    const campos={...edit,STATUS_CLIENTE:"ativo",LIMITE_CREDITO:Math.round(parseFloat(edit.RENDA_LIQUIDA||0)*0.8)};
+    const campos={...edit,STATUS_CLIENTE:"ativo",
+      RENDA_BRUTA:normMoedaSheet(edit.RENDA_BRUTA),RENDA_LIQUIDA:normMoedaSheet(edit.RENDA_LIQUIDA),RENDA_MENSAL:normMoedaSheet(edit.RENDA_MENSAL),
+      LIMITE_CREDITO:Math.round(parseFloat(edit.RENDA_LIQUIDA||0)*0.8)};
     if(String(cliente.STATUS_CLIENTE||"").toLowerCase()==="aguardando_conferencia"){
       const OBS_PADRAO="Cadastro via formulario - aguardando conferencia";
       if(String(campos.OBSERVACOES||"").trim().toLowerCase()===OBS_PADRAO.toLowerCase())
@@ -4039,6 +4056,7 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
   const pct = parseFloat(contrato.VALOR_PRINCIPAL||0) > 0
     ? (totalPago / parseFloat(contrato.VALOR_TOTAL||contrato.VALOR_PRINCIPAL||1)) * 100 : 0;
   const proxVenc = proxParcela ? parseDate(proxParcela.DATA_VENCIMENTO) : null;
+  if (proxVenc) proxVenc.setHours(0,0,0,0);
   const diasAteVenc = proxVenc ? Math.round((proxVenc.getTime()-new Date().setHours(0,0,0,0))/86400000) : null;
   const taxa = parseFloat(contrato.TAXA_JUROS_MENSAL||0);
   const juros = parseFloat(contrato.VALOR_PRINCIPAL||0) * taxa;
@@ -4760,6 +4778,25 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
     setLoading(false);
   };
 
+  const realocar=async()=>{
+    if(!numParc){alert("Não foi possível identificar o número da parcela.");return;}
+    const candidatas=hist.filter(p=>String(p.NUM_PARCELA)!==String(numParc)&&!_ST_TERMINAL.has(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase()));
+    if(!candidatas.length){alert("Não há outra parcela em aberto neste contrato para realocar o pagamento.");return;}
+    const lista=candidatas.map(p=>`#${p.NUM_PARCELA} — venc. ${fmtDt(parseDate(p.DATA_VENCIMENTO))}`).join("\n");
+    const escolha=window.prompt(`Realocar o pagamento de ${fmtR(pag.VALOR_PAGO)} da parcela ${numParc} para qual parcela?\n\n${lista}\n\nDigite o número da parcela de destino:`);
+    if(escolha===null)return;
+    const destino=candidatas.find(p=>String(p.NUM_PARCELA)===String(escolha).trim());
+    if(!destino){alert("Número de parcela inválido.");return;}
+    if(!window.confirm(`Confirma: mover o pagamento de ${fmtR(pag.VALOR_PAGO)} da parcela ${numParc} para a parcela ${destino.NUM_PARCELA}?\n\nIsso desfaz o pagamento na parcela ${numParc} (volta pendente/atrasado) e registra o mesmo valor/data na parcela ${destino.NUM_PARCELA}.`))return;
+    const motivo=window.prompt("Motivo da realocação (opcional):")||"";
+    setLoading(true);
+    try{
+      const res=await postAction({action:"realocarPagamento",idContrato:pag.ID_CONTRATO,idCliente:pag.ID_CLIENTE,numParcelaOrigem:String(numParc),numParcelaDestino:String(destino.NUM_PARCELA),idPagamento:pag.ID_PAGAMENTO,motivo});
+      if(res.ok){onReabrir();onFechar();}else alert("Erro: "+(res.erro||"falha ao realocar"));
+    }catch(e){alert("Erro: "+e.message);}
+    setLoading(false);
+  };
+
   return(
     <div className="modal-overlay-anim" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div className="modal-box-anim" style={{background:CARD,borderRadius:16,width:"100%",maxWidth:560,boxShadow:"0 24px 80px rgba(0,0,0,0.28)",border:`1px solid ${BD}`,maxHeight:"92vh",display:"flex",flexDirection:"column",overflow:"hidden",minWidth:0}}>
@@ -4824,6 +4861,7 @@ function PagamentoDetalheModal({pag, parcelas, contratos, clientes, onFechar, on
           <button onClick={enviarWpp} disabled={sharing} style={{...BTN2(sharing),flex:2}}>
             {sharing?<><IcoSpinner color="#fff"/> Gerando...</>:<>{IcoPhone} Enviar pelo WhatsApp</>}
           </button>
+          <button onClick={realocar} disabled={loading} style={{...BTN5(ORG),flex:1,opacity:loading?0.7:1}}>{loading?<><IcoSpinner color={ORG}/> Processando...</>:<>{IcoArrL} Realocar</>}</button>
           <button onClick={reabrir} disabled={loading} style={{...BTN5(RED),flex:1,opacity:loading?0.7:1}}>{loading?<><IcoSpinner color={RED}/> Processando...</>:<>{IcoArrL} Reabrir</>}</button>
         </div>
       </div>
@@ -5830,6 +5868,11 @@ function App() {
   const [ctrCalOpen, setCtrCalOpen] = useState(false);
   const [ctrCalPos, setCtrCalPos] = useState({top:0,right:0});
   const ctrCalBtnRef = useRef(null);
+  const [expDe, setExpDe] = useState(null);
+  const [expAte, setExpAte] = useState(null);
+  const [expCalOpen, setExpCalOpen] = useState(false);
+  const [expCalPos, setExpCalPos] = useState({top:0,right:0});
+  const expCalBtnRef = useRef(null);
   const [pagamentoHoje, setPagamentoHoje] = useState(null);
   const [pagModo, setPagModo] = useState("pagamento");
   const [dashPeriodo, setDashPeriodo] = useState(()=>mesAtualRange());
@@ -6029,9 +6072,13 @@ function App() {
     const pagamentosPeriodo=(pagamentos||[]).filter(p=>noPeriodoDash(p.DATA_PAGAMENTO));
     const parcelasAbertas=(parcelasPeriodo||[]).filter(p=>!statusPago(p));
     const parcelasPagas=(parcelasPeriodo||[]).filter(p=>statusPago(p));
-    const _baseM=new Date();_baseM.setHours(0,0,0,0);
-    const vAtrasoTotal=parcelasAbertas.filter(p=>{if(String(p.STATUS||p.STATUS_PARCELA||"").toLowerCase()!=="atrasado")return false;if(p.DATA_ACORDO){const _da=parseDate(p.DATA_ACORDO);if(_da){_da.setHours(0,0,0,0);if(_da.getTime()>=_baseM.getTime())return false;}}return true;}).reduce((s,p)=>s+parseFloat(p.VALOR_PARCELA||0),0);
-    const taxaInad=vAtivos>0?(vAtrasoTotal/vAtivos*100):0;
+    // Taxa de Inadimplência (padrão Basileia/BCB — NPL 90+ dias): foto de hoje, não filtrada
+    // por período do Dashboard. Base = principal em aberto (principalAberto via perdaInfoMap),
+    // nunca saldo devedor com juros — ver docs/ai-memory/03-AI-FINANCIAL-CALCULATIONS.md
+    const contratosNPL90=ativos.filter(c=>(perdaInfoMap[String(c.ID_CONTRATO||"")]?.diasAtraso||0)>=91);
+    const principalInadNPL=contratosNPL90.reduce((s,c)=>s+(perdaInfoMap[String(c.ID_CONTRATO||"")]?.principalAberto||0),0);
+    const taxaInadNPL=vAtivos>0?(principalInadNPL/vAtivos*100):0;
+    const qtdNPL90=contratosNPL90.length;
     const pagsPeriodoSemAbat=(pagamentosPeriodo||[]).filter(p=>p.TIPO_PAGAMENTO!=="abatimento_acordo_assistido");
     const receitaTotal=pagsPeriodoSemAbat.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
     const receitaExtra=(pagamentosPeriodo||[]).reduce((s,p)=>s+parseFloat(p.RECEITA_EXTRA_ATRASO||0)+parseFloat(p.FEE_PRORROGACAO||0),0);
@@ -6049,7 +6096,7 @@ function App() {
     const totalRecebidoGeral=(pagamentos||[]).reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);
     const principalLiberadoGeral=(contratos||[]).reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
     const caixaAtual=totalRecebidoGeral-principalLiberadoGeral;
-    return{vAtivos,vAtrasoTotal,taxaInad,receitaTotal,receitaExtra,lucro,capitalRecuperadoAssistido,qtyProrrogadas,pagNormais,pagAtraso,pagJuros,totalCobrancas:(parcelasPeriodo||[]).length,parcelasPagas:parcelasPagas.length,parcelasPendentes:parcelasAbertas.length,vPendente,contratosAtivos:ativos.length,caixaAtual,pagamentosPeriodo:pagamentosPeriodo.length};
+    return{vAtivos,principalInadNPL,taxaInadNPL,qtdNPL90,receitaTotal,receitaExtra,lucro,capitalRecuperadoAssistido,qtyProrrogadas,pagNormais,pagAtraso,pagJuros,totalCobrancas:(parcelasPeriodo||[]).length,parcelasPagas:parcelasPagas.length,parcelasPendentes:parcelasAbertas.length,vPendente,contratosAtivos:ativos.length,caixaAtual,pagamentosPeriodo:pagamentosPeriodo.length};
   },[contratos,parcelas,pagamentos,periodoDash,perdaInfoMap]);
 
   const chartData=useMemo(()=>{
@@ -6239,7 +6286,7 @@ function App() {
     const carteiraAjustada=saldoDevedor-totalPDD;
     const perdaHistoricaLiq=capitalPerdidoLiquido;
     const coberturaPDD=perdaHistoricaLiq>0?totalPDD/perdaHistoricaLiq:0;
-    return{capitalCirculacao,capitalEmRisco,capitalAssistido,capitalJudicial,capitalPerdidoLiquido,capitalTotal,dist,totalAbertos:abertos.length,qtdCirc:cCirc.length,qtdRisco:cRisco.length,qtdAssist:cAssist.length,qtdJudicial:cJudicial.length,saldoDevedor,principalTotal,totalPDD,carteiraAjustada,coberturaPDD,pddFaixas};
+    return{capitalCirculacao,capitalEmRisco,capitalAssistido,capitalJudicial,capitalPerdidoLiquido,capitalTotal,dist,abertos,totalAbertos:abertos.length,qtdCirc:cCirc.length,qtdRisco:cRisco.length,qtdAssist:cAssist.length,qtdJudicial:cJudicial.length,saldoDevedor,principalTotal,totalPDD,carteiraAjustada,coberturaPDD,pddFaixas};
   },[contratos,perdaInfoMap]);
 
   const resultado12m=useMemo(()=>{
@@ -6678,6 +6725,70 @@ function App() {
     }catch(e){console.error('PDF error:',e);alert('Erro ao gerar PDF: '+e.message);}
   }
 
+  function abrirExportContabilidade(){
+    const hoje=new Date();
+    const inicioMesAnterior=new Date(hoje.getFullYear(),hoje.getMonth()-1,1);
+    const fimMesAnterior=new Date(hoje.getFullYear(),hoje.getMonth(),0);
+    setExpDe(inicioMesAnterior);setExpAte(fimMesAnterior);
+    if(expCalBtnRef.current){const r=expCalBtnRef.current.getBoundingClientRect();setExpCalPos({top:r.bottom+8,right:window.innerWidth-r.right});}
+    setExpCalOpen(true);
+  }
+
+  function exportarCSVContabilidade(deArg,ateArg){
+    try{
+      const ini=new Date(deArg);ini.setHours(0,0,0,0);
+      const fim=new Date(ateArg);fim.setHours(23,59,59,999);
+      const cliMap=new Map((clientes||[]).map(c=>[String(c.ID_CLIENTE),c]));
+      const fmtCPF=v=>{if(!v)return'';const s=String(v).replace(/\D/g,'').padStart(11,'0');return s.length===11?`${s.slice(0,3)}.${s.slice(3,6)}.${s.slice(6,9)}-${s.slice(9)}`:s;};
+      const fmtCEP=v=>{if(!v)return'';const s=String(v).replace(/\D/g,'');return s.length>=7?`${s.slice(0,5)}-${s.slice(5,8)}`:s;};
+      const buildEnd=cl=>{const p=[];if(cl.RUA)p.push(cl.RUA);if(cl.NUMERO)p.push(`, ${cl.NUMERO}`);if(cl.COMPLEMENTO)p.push(` (${cl.COMPLEMENTO})`);if(cl.QUADRA)p.push(` Qd.${cl.QUADRA}`);if(cl.LOTE)p.push(` Lt.${cl.LOTE}`);if(cl.SETOR)p.push(` - ${cl.SETOR}`);if(cl.CIDADE_ESTADO)p.push(` - ${cl.CIDADE_ESTADO}`);return p.join('');};
+
+      const linhas=(contratos||[])
+        .filter(c=>{
+          const d=parseDate(c.DATA_EMPRESTIMO);
+          if(!d)return false;
+          const dc=new Date(d.getTime());dc.setHours(12,0,0,0);
+          if(!(dc>=ini&&dc<=fim))return false;
+          return String(c.STATUS_CONTRATO||"").toLowerCase()!=="cancelado";
+        })
+        .sort((a,b)=>String(a.ID_CONTRATO||"").localeCompare(String(b.ID_CONTRATO||""),"pt-BR",{numeric:true}))
+        .map(c=>{
+          const cl=cliMap.get(String(c.ID_CLIENTE))||{};
+          const tel=cl.TELEFONE_WPP||cl.TELEFONE;
+          const valor=parseFloat(c.VALOR_TOTAL||0).toFixed(2).replace('.',',');
+          return [
+            c.ID_CONTRATO||'',
+            cl.NOME||cl.NOME_CLIENTE||c.NOME_CLIENTE||'',
+            fmtCPF(cl.CPF),
+            cl.RG||'',
+            cl.EMAIL||'',
+            tel?fmtTel(tel):'',
+            fmtCEP(cl.CEP),
+            buildEnd(cl),
+            valor,
+          ];
+        });
+
+      if(linhas.length===0){
+        alert('Nenhum contrato encontrado no período selecionado (contratos cancelados não entram no arquivo).');
+        return;
+      }
+
+      const header=['ID Contrato','Nome Completo','CPF','RG','E-mail','Telefone','CEP','Endereço Completo','Valor Contrato'];
+      const esc=v=>{const s=String(v??'');return /[;"\r\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;};
+      const csvBody=[header,...linhas].map(l=>l.map(esc).join(';')).join('\r\n');
+      const csv='﻿'+csvBody;
+      const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      const mm=String(deArg.getMonth()+1).padStart(2,'0');
+      const aa=deArg.getFullYear();
+      a.href=url;a.download=`contabilidade_${mm}-${aa}.csv`;
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),3000);
+    }catch(e){console.error('CSV contabilidade error:',e);alert('Erro ao gerar CSV: '+e.message);}
+  }
+
   const aguardando=useMemo(()=>(clientes||[]).filter(c=>c.STATUS_CLIENTE==="aguardando_conferencia"),[clientes]);
   const promessasAtivas=useMemo(()=>(promessas||[]).filter(p=>String(p.STATUS_PROMESSA||"").toUpperCase()==="PENDENTE").length,[promessas]);
 
@@ -6795,6 +6906,7 @@ function App() {
       {finCalOpen&&<div onClick={()=>setFinCalOpen(false)} style={{position:"fixed",inset:0,zIndex:199,background:"transparent"}}/>}
       {dashCalOpen&&<div onClick={()=>setDashCalOpen(false)} style={{position:"fixed",inset:0,zIndex:199,background:"transparent"}}/>}
       {ctrCalOpen&&<div onClick={()=>setCtrCalOpen(false)} style={{position:"fixed",inset:0,zIndex:199,background:"transparent"}}/>}
+      {expCalOpen&&<div onClick={()=>setExpCalOpen(false)} style={{position:"fixed",inset:0,zIndex:199,background:"transparent"}}/>}
 
       {dashCalOpen&&(
         <div style={{position:"fixed",top:dashCalPos.top,right:dashCalPos.right,zIndex:300}} onClick={e=>e.stopPropagation()}>
@@ -6809,6 +6921,15 @@ function App() {
       {ctrCalOpen&&(
         <div style={{position:"fixed",top:ctrCalPos.top,right:ctrCalPos.right,zIndex:300}} onClick={e=>e.stopPropagation()}>
           <CalendarioRange de={ctrDe} ate={ctrAte} onSelecionar={(d,a)=>{setCtrDe(d);setCtrAte(a);if(a)setCtrCalOpen(false);}} onLimpar={()=>{setCtrDe(null);setCtrAte(null);setCtrCalOpen(false);}}/>
+        </div>
+      )}
+      {expCalOpen&&(
+        <div style={{position:"fixed",top:expCalPos.top,right:expCalPos.right,zIndex:300}} onClick={e=>e.stopPropagation()}>
+          <CalendarioRange de={expDe} ate={expAte} onSelecionar={(d,a)=>{setExpDe(d);setExpAte(a);}} onLimpar={()=>{setExpDe(null);setExpAte(null);}}/>
+          <div style={{background:CARD,border:`1px solid ${BD}`,borderTop:"none",borderRadius:"0 0 16px 16px",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,boxShadow:SHD}}>
+            <span style={{fontSize:11,color:MUTED,fontWeight:600}}>{expDe&&expAte?`${dStrFin(expDe)} → ${dStrFin(expAte)}`:"Selecione o período"}</span>
+            <button disabled={!expDe||!expAte} onClick={()=>{exportarCSVContabilidade(expDe,expAte);setExpCalOpen(false);}} style={{...BTN7(GRN),padding:"6px 14px",fontSize:12,opacity:(!expDe||!expAte)?0.5:1,cursor:(!expDe||!expAte)?"not-allowed":"pointer"}}>Exportar CSV</button>
+          </div>
         </div>
       )}
 
@@ -7003,7 +7124,7 @@ function App() {
                   {[
                     {l:"Carteira Total (Capital Emprestado)",v:fmtR(M.vAtivos),sub:`${M.contratosAtivos} contratos ativos`},
                     {l:"Taxa Média de Retorno",v:`${taxaMedia.toFixed(1)}% a.m.`,sub:"Sobre contratos ativos"},
-                    {l:"Taxa de Adimplência",v:M.vAtivos>0?(M.taxaInad===0&&parcelasAtrasadas.length>0?"100%*":fmtP(100-M.taxaInad)):"—",sub:M.taxaInad===0&&parcelasAtrasadas.length>0?`*sem venctos no período · ${parcelasAtrasadas.length} parc. em atraso global`:`${parcelasAtrasadas.length} parc. em atraso de ${M.totalCobrancas} no período`},
+                    {l:"Taxa de Adimplência",v:M.vAtivos>0?fmtP(100-M.taxaInadNPL):"—",sub:`NPL 90+ dias · ${M.qtdNPL90} contrato${M.qtdNPL90!==1?"s":""} · ${fmtR(M.principalInadNPL)} de ${fmtR(M.vAtivos)}`},
                   ].map((s,i)=>(
                     <div key={s.l} style={{flex:1,padding:mob?"0 0 16px 0":i===0?"0 32px 0 0":`0 32px`,borderBottom:mob&&i<2?`1px solid rgba(255,255,255,0.14)`:"none",borderRight:!mob&&i<2?`1px solid rgba(255,255,255,0.14)`:"none",marginBottom:mob&&i<2?16:0}}>
                       <div className="text-[10px] font-bold uppercase tracking-[0.1em] mb-2 mono" style={{color:ONBRANDSOFT}}>{s.l}</div>
@@ -7225,6 +7346,10 @@ function App() {
                   <button className="btn-ghost-anim" onClick={exportarPDFContratos} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:9,border:`1px solid ${GRN}40`,background:GRN+"08",color:GRN,fontSize:12,fontWeight:700,cursor:"pointer"}}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     PDF
+                  </button>
+                  <button ref={expCalBtnRef} className="btn-ghost-anim" onClick={abrirExportContabilidade} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:9,border:`1px solid ${BLU}40`,background:BLU+"08",color:BLU,fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7l-5-4H8Z"/><path d="M14 3v4a2 2 0 0 0 2 2h4"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+                    Contabilidade
                   </button>
                   <button ref={ctrCalBtnRef} className="btn-ghost-anim" onClick={()=>{if(ctrCalBtnRef.current){const r=ctrCalBtnRef.current.getBoundingClientRect();setCtrCalPos({top:r.bottom+8,right:window.innerWidth-r.right});}setCtrCalOpen(o=>!o);}} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:9,border:`1px solid ${ctrDe?ORG+"40":BD}`,background:ctrDe?ORG+"08":CARD,color:ctrDe?ORG:MUTED,fontSize:12,fontWeight:ctrDe?700:400,cursor:"pointer"}}>
                     {IcoCal} {ctrDe?labelPeriodoCtr:"Filtrar por período"}
@@ -7749,13 +7874,16 @@ function App() {
                 {/* PAINEL DE INADIMPLÊNCIA */}
                 {(()=>{
                   const qtdAtrasoTotal=carteira.dist[1]+carteira.dist[2]+carteira.dist[3]+carteira.dist[4];
-                  const qtdInadReal=carteira.dist[2]+carteira.dist[3]+carteira.dist[4];
                   const tot=carteira.totalAbertos||1;
                   const txBruta=qtdAtrasoTotal/tot*100;
+                  // Inadimplência real (padrão Basileia/BCB — NPL): contratos com 90+ dias de atraso.
+                  // Cutoff alinhado ao mesmo corte usado na Taxa de Adimplência do Dashboard e na
+                  // faixa da PDD onde o percentual salta de 35%→60% (docs/ai-memory/03-AI-FINANCIAL-CALCULATIONS.md)
+                  const contratosNPL90=(carteira.abertos||[]).filter(c=>(perdaInfoMap[String(c.ID_CONTRATO||"")]?.diasAtraso||0)>=91);
+                  const principalInadNPL=contratosNPL90.reduce((s,c)=>s+(perdaInfoMap[String(c.ID_CONTRATO||"")]?.principalAberto||0),0);
+                  const qtdInadReal=contratosNPL90.length;
                   const txRealQtd=qtdInadReal/tot*100;
-                  // Inadimplência por valor (padrão BCB): principal remanescente 31d+ / principal total ativo
-                  const principalInad31d=(contratos||[]).filter(c=>(perdaInfoMap[String(c.ID_CONTRATO||"")]?.diasAtraso||0)>=31).reduce((s,c)=>s+(perdaInfoMap[String(c.ID_CONTRATO||"")]?.principalAberto||0),0);
-                  const txRealValor=carteira.principalTotal>0?principalInad31d/carteira.principalTotal*100:0;
+                  const txRealValor=carteira.principalTotal>0?principalInadNPL/carteira.principalTotal*100:0;
                   const txCapital=carteira.capitalTotal>0?carteira.capitalEmRisco/carteira.capitalTotal*100:0;
                   const principalOriginado=(contratos||[]).reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0);
                   const txPerdaHist=principalOriginado>0?perdas.prejuizoReal/principalOriginado*100:0;
@@ -7766,9 +7894,9 @@ function App() {
                   const indicadores=[
                     {
                       l:"Inadimplência Real (por valor)",
-                      desc:"Padrão BCB · principal remanescente com 31d+ de atraso / principal total ativo",
+                      desc:"Padrão Basileia/BCB (NPL) · principal remanescente com 90+ dias de atraso / principal total ativo",
                       v:txRealValor.toFixed(1)+"%",
-                      detalhe:`${fmtR(principalInad31d)} de ${fmtR(carteira.principalTotal)}`,
+                      detalhe:`${fmtR(principalInadNPL)} de ${fmtR(carteira.principalTotal)}`,
                       ref:"< 20%",
                       status:statusLabel(txRealValor,15,20),
                       c:corValor,
@@ -7777,7 +7905,7 @@ function App() {
                     },
                     {
                       l:"Inadimplência por Contratos",
-                      desc:"Qtd. de contratos com 31d+ de atraso / total de contratos ativos",
+                      desc:"Qtd. de contratos com 90+ dias de atraso / total de contratos ativos",
                       v:txRealQtd.toFixed(1)+"%",
                       detalhe:`${qtdInadReal} de ${carteira.totalAbertos} contratos`,
                       ref:"< 20%",

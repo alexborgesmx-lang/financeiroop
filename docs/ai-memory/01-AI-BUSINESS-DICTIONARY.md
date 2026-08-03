@@ -13,6 +13,18 @@ Possui cadastro único no sistema (aba CLIENTES).
 
 Status possíveis: `aguardando_conferencia`, `ativo`, `inativo`, `bloqueado`.
 
+**Atenção:** o valor `bloqueado` de `STATUS_CLIENTE` é setado automaticamente ao dar baixa de prejuízo (significa "cliente com prejuízo declarado") — **não é o mesmo conceito** de `CLIENTE_BLOQUEADO_MANUAL` (bloqueio discricionário do dono do negócio, ver abaixo). Não confundir os dois.
+
+---
+
+## Bloqueio Manual de Cliente (`CLIENTE_BLOQUEADO_MANUAL`)
+
+Impedimento de crédito aplicado por decisão subjetiva do dono do negócio (Alex) — não depende de score, atraso ou qualquer dado financeiro objetivo. Caso típico: descobrir que o cliente usou o nome de outra pessoa para tirar um contrato paralelo.
+
+Campos em CLIENTES: `CLIENTE_BLOQUEADO_MANUAL` (`"SIM"`/vazio), `MOTIVO_BLOQUEIO_MANUAL` (texto livre, obrigatório), `DATA_BLOQUEIO_MANUAL`.
+
+Bloqueia apenas **novos** contratos — contratos já ativos do cliente continuam normalmente (cobrança, régua, pagamentos). Diferente de `CLIENTE_JUDICIALIZADO` (permanente), este bloqueio **é reversível**. Detalhes completos em `02-AI-CREDIT-RULES.md`.
+
 ---
 
 ## Perfil de Cobrança (PERFIL_COBRANCA)

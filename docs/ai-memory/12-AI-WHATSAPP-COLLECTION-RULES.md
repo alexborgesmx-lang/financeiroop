@@ -230,6 +230,8 @@ Esta é uma mensagem automática do sistema.
 8. Registrar status de envio, data, hora e conteúdo enviado.
 9. O PIX enviado deve ser sempre o PIX vigente da parcela.
 10. Caso exista pagamento identificado, cancelar imediatamente os próximos eventos da régua referentes àquela parcela.
+11. **(2026-08-01) Nunca disparar mensagem/PIX de uma parcela mais nova enquanto existir outra parcela do mesmo contrato mais antiga e ainda em atraso.** A regra 6 (não duplicar no mesmo dia) só resolve a colisão quando dois gatilhos competem no mesmo dia — essa regra cobre entre dias diferentes, que é onde o cliente pode acumular mais de um PIX simultaneamente válido no histórico do WhatsApp. Implementado em `enviarReguaCobranca` via `atrasoMaisAntigoPorContrato`. Efeito colateral: uma parcela que passou de D+7 sem pagar também segura a mensagem da parcela seguinte — o contrato fica sem cobrança automática até ação manual.
+12. **(2026-08-01) Mensagens de atraso (D+1/D+3/D+7) incluem aviso fixo** pedindo pro cliente usar só o código PIX daquela mensagem, nunca um código de mensagem anterior.
 
 # Prioridade dos Eventos
 

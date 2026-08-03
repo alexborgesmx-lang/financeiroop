@@ -265,6 +265,76 @@ O mesmo vale para `M.vAtivos` (Dashboard "Carteira Total") e `vAtivosG` (Gestão
 
 ---
 
+## Taxa de Inadimplência — padronizada como NPL 90+ dias (2026-07-29)
+
+Antes de 2026-07-29, o card "Taxa de Adimplência" do Dashboard misturava bases diferentes: numerador
+era o valor (`VALOR_PARCELA`, com juros) das parcelas vencidas **dentro do período do filtro do
+Dashboard** ("Este mês"/"30 dias"/"90 dias"), denominador era o principal total da carteira **sem
+filtro de período**. Resultado: o texto de apoio ("29 parc. em atraso de 111 no período") misturava
+contagem global com contagem filtrada por período, e o percentual não correspondia a nenhuma das
+duas contagens exibidas — confuso mesmo para quem entende o sistema.
+
+Padronizado (decisão do Alex, 2026-07-29) para seguir a mesma convenção usada pelo mercado
+financeiro/BACEN (Resolução 2682/99, Basileia) e já parcialmente usada na PDD deste sistema:
+
+```
+Taxa de Inadimplência (NPL) = principal em aberto de contratos com 90+ dias de atraso
+                               ÷ principal em aberto de todos os contratos ativos × 100
+Taxa de Adimplência = 100% − Taxa de Inadimplência
+```
+
+Três decisões de modelagem, todas definidas nesta data:
+
+1. **Corte de 90+ dias** (não 1+ dia) — é o padrão NPL/Basileia, e coincide com o ponto em que a
+   própria PDD do sistema salta de 35%→60% (faixa "91–120 dias" acima). Abaixo de 90 dias a chance
+   de recuperação ainda é alta; não deveria contar como "inadimplência real" para efeito de reporte.
+2. **Base = principal (`principalAberto`), nunca saldo devedor com juros** — mesma base já usada na
+   PDD e no `capitalEmRisco`/`capitalCirculacao` da aba Carteira. Motivo: mede o capital que
+   efetivamente está em risco de não voltar, não o "a receber" incluindo juros que nunca viraram caixa.
+3. **Foto de hoje, nunca filtrada por período** — é uma métrica de estoque (quanto da carteira está
+   em atraso agora), não de fluxo (quanto venceu neste mês). O filtro "Este mês/30 dias/90 dias" do
+   Dashboard não afeta mais este card — só afeta os KPIs que já eram de período (Recebido, A Receber).
+
+### Implementação
+
+```javascript
+// Dashboard — M useMemo (main.jsx)
+const contratosNPL90 = ativos.filter(c => (perdaInfoMap[c.ID_CONTRATO]?.diasAtraso||0) >= 91);
+const principalInadNPL = contratosNPL90.reduce((s,c) => s + perdaInfoMap[c.ID_CONTRATO].principalAberto, 0);
+const taxaInadNPL = vAtivos>0 ? (principalInadNPL/vAtivos*100) : 0;
+// Taxa de Adimplência exibida = 100 - taxaInadNPL
+```
+
+Substituiu `taxaInad`/`vAtrasoTotal` (removidos — não tinham outro uso no código).
+
+**Aba Carteira, "Painel de Inadimplência" (`Inadimplência Real (por valor)` e `Inadimplência por
+Contratos`):** usava o mesmo conceito mas com corte de **31+ dias**, e o texto dizia "Padrão BCB"
+incorretamente (31d não é o padrão BCB/Basileia — 90d é). Alinhado para 90+ dias nesta mesma data,
+para que as duas telas do sistema não reportem números diferentes com o mesmo nome. Os thresholds de
+cor (`< 20%` bom, `20-25%` atenção, `25%+` crítico) **não foram recalibrados** — só a definição do
+corte de dias mudou. Recalibrar esses thresholds para o novo corte de 90d é uma decisão de política de
+risco separada, ainda pendente (mesma revisão programada da PDD — ver seção acima, "após 50 contratos
+encerrados ou Dez/2026").
+
+**Não alterado:** a distribuição por faixa de atraso (`carteira.dist`, buckets 0/1-30/31-60/61-120/>120,
+usada no gráfico "Distribuição por Faixa de Atraso") e as faixas da PDD (0/1-30/31-60/61-90/91-120/
+121-180/181+) — ambas são visões de aging completo, não o indicador único de "inadimplência real".
+
+**Bug de escopo encontrado e corrigido no mesmo dia (ultra review):** a primeira versão deste fix
+(no painel da aba Carteira) filtrava o numerador (`contratosNPL90`) sobre `(contratos||[])` — todos os
+contratos, sem exclusão de status — enquanto o denominador `carteira.principalTotal` é somado só sobre
+`abertos` (exclui `EXCL` = `quitado/cancelado/encerrado_sem_recuperacao/recuperado_integralmente/
+em_processo_judicial/encerrado_judicialmente` + `baixado_como_prejuizo`). Como `atualizarStatusParcelas()`
+no GAS segue atualizando `DIAS_ATRASO`/status de parcela normalmente mesmo com o contrato em
+`em_processo_judicial` (só o `STATUS_CONTRATO` é "congelado", não a parcela), um contrato judicializado
+com parcela antiga não fechada entrava no numerador sem nunca poder entrar no denominador — inflando
+artificialmente o percentual. Corrigido trocando a base do numerador para `carteira.abertos` (array agora
+exposto no retorno do `useMemo` de `carteira`), igualando à população do denominador. O card do Dashboard
+(`M.taxaInadNPL`, que usa `ativos` = `_ST_ATIVOS`) nunca teve esse problema — `_ST_ATIVOS` já exclui
+judicial/baixado corretamente.
+
+---
+
 ## Resultado Ajustado ao Risco (implementado — Jun/2026)
 
 Seção na aba Carteira após o PDD. DRE simplificado sobre os últimos 12 meses.

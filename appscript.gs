@@ -725,6 +725,7 @@ function onOpen() {
     .addItem("Somente Juros: Backfill contador (rodar 1x)", "backfillTotalSomenteJuros")
     .addItem("Auditoria de Integridade (FASE 1)", "auditarIntegridadeSistema")
     .addItem("Configurar Trigger Auditoria 07:05", "configurarTriggerAuditoria")
+    .addItem("Analitica: Configurar Trigger a cada 2h (rodar 1x)", "configurarTriggerAnalitica")
     .addSeparator()
     .addItem("Backup: Fazer Backup Agora", "fazerBackupAutomatico")
     .addItem("Backup: Configurar Trigger Diário (2h)", "configurarTriggerBackup")
@@ -995,6 +996,7 @@ function doPost(e) {
       res={ok:true,score:scoreRet};
     }
     else if (body.action === "reabrirParcela")          { var rRe=reabrirParcelaAPI(body); res={ok:true,msg:rRe}; }
+    else if (body.action === "realocarPagamento")       { res=realocarPagamentoAPI(body); }
     else if (body.action === "alterarVencimento")        { var rAv=alterarVencimentoContrato(body.idContrato,body.novaData); res={ok:true,parcelas_alteradas:rAv}; }
     else if (body.action === "migrarDataAcordo")        { adicionarColunaDataAcordoParcelas(); res={ok:true}; }
     else if (body.action === "salvarCobrancasEfi")      { var rEfi=salvarCobrancasEfi(body); res={ok:rEfi.ok,salvos:rEfi.salvos||0}; }
@@ -1761,6 +1763,17 @@ function reabrirParcelaAPI(v) {
       if (cmP["DIAS_ANTECIPACAO"])   abaP.getRange(parcelaLin, cmP["DIAS_ANTECIPACAO"]).setValue("");
       if (cmP["TIPO_PAGAMENTO"])     abaP.getRange(parcelaLin, cmP["TIPO_PAGAMENTO"]).setValue("");
       if (cmP["OBSERVACOES"])        abaP.getRange(parcelaLin, cmP["OBSERVACOES"]).setValue("");
+      // Limpa o PIX Efí antigo — o TXID é determinístico por parcela (FOP<contrato>P<numParcela>) e o
+      // cobv correspondente já foi marcado CONCLUIDA na Efí quando essa parcela foi paga. Sem isso, a
+      // próxima cobrança (régua ou manual) reenviaria o MESMO código já pago: na melhor hipótese o
+      // cliente não consegue pagar de novo, na pior o webhook bloqueia o pagamento novo por idempotência
+      // (mesmo TXID já registrado como PROCESSADO) e o dinheiro recebido não é creditado em lugar nenhum.
+      // _gerarPixAvulso já sabe criar um TXID novo com sufixo R1/R2 quando o base está em status
+      // terminal na Efí — só precisa encontrar as colunas vazias aqui pra saber que precisa gerar de novo.
+      if (cmP["EFI_TXID"])     abaP.getRange(parcelaLin, cmP["EFI_TXID"]).setValue("");
+      if (cmP["EFI_PIX_CODE"]) abaP.getRange(parcelaLin, cmP["EFI_PIX_CODE"]).setValue("");
+      if (cmP["EFI_LINK"])     abaP.getRange(parcelaLin, cmP["EFI_LINK"]).setValue("");
+      if (cmP["EFI_STATUS"])   abaP.getRange(parcelaLin, cmP["EFI_STATUS"]).setValue("");
       break;
     }
   }
@@ -1842,6 +1855,67 @@ function reabrirParcelaAPI(v) {
   if (idCliente) try { calcularMetricasCliente(idCliente); } catch(e) { Logger.log("Metricas err: "+e.message); }
 
   return "Parcela " + numParcela + " do contrato " + idContrato + " reaberta com sucesso";
+}
+
+function realocarPagamentoAPI(v) {
+  var idContrato  = String(v.idContrato||"").trim();
+  var idCliente   = String(v.idCliente||"").trim();
+  var numOrigem   = String(v.numParcelaOrigem||"").trim();
+  var numDestino  = String(v.numParcelaDestino||"").trim();
+  var idPagamento = String(v.idPagamento||"").trim();
+  var motivo      = String(v.motivo||"").trim();
+  if (!idContrato || !numOrigem || !numDestino || !idPagamento)
+    throw new Error("Parametros obrigatorios ausentes (idContrato, numParcelaOrigem, numParcelaDestino, idPagamento)");
+  if (numOrigem === numDestino) throw new Error("Parcela de destino igual a de origem");
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // 1. Capturar dados do pagamento ANTES de reabrir (reabrirParcelaAPI deleta a linha)
+  var abaPag = ss.getSheetByName(ABAS.PAGAMENTOS);
+  var cmPag  = buildColMap(abaPag);
+  var dadosPag = abaPag.getDataRange().getValues();
+  var pagRow = null;
+  for (var i = 1; i < dadosPag.length; i++) {
+    if (String(dadosPag[i][(cmPag["ID_PAGAMENTO"]||1)-1]).trim() === idPagamento) { pagRow = dadosPag[i]; break; }
+  }
+  if (!pagRow) throw new Error("Pagamento nao encontrado: " + idPagamento);
+  var dataPagOriginal   = pagRow[(cmPag["DATA_PAGAMENTO"]||6)-1];
+  var valorPagoOriginal = parseFloat(pagRow[(cmPag["VALOR_PAGO"]||8)-1])||0;
+  var formaOriginal     = String(pagRow[(cmPag["FORMA_PAGAMENTO"]||13)-1]||"pix");
+
+  // 2. Validar a parcela de destino ANTES de mexer na de origem — se o destino nao existir
+  //    ou ja estiver paga, falha aqui sem ter desfeito nada (evita deixar o pagamento no limbo)
+  var abaP = ss.getSheetByName(ABAS.PARCELAS);
+  var cmP  = buildColMap(abaP);
+  var dadosP = abaP.getDataRange().getValues();
+  var idParcelaDestino = "";
+  var stColDestino = cmP["STATUS"] || cmP["STATUS_PAGAMENTO"];
+  for (var j = 1; j < dadosP.length; j++) {
+    if (String(dadosP[j][(cmP["ID_CONTRATO"]||2)-1]).trim() === idContrato &&
+        String(dadosP[j][(cmP["NUM_PARCELA"]||5)-1]).trim() === numDestino) {
+      idParcelaDestino = String(dadosP[j][(cmP["ID_PARCELA"]||1)-1]).trim();
+      var stDestino = stColDestino ? String(dadosP[j][stColDestino-1]||"").trim().toLowerCase() : "";
+      if (STATUS_TERMINAL[stDestino]) throw new Error("Parcela de destino #" + numDestino + " ja esta em status terminal (" + stDestino + ")");
+      break;
+    }
+  }
+  if (!idParcelaDestino) throw new Error("Parcela de destino nao encontrada: #" + numDestino);
+
+  // 3. Desfazer o pagamento na parcela de origem (reaproveita o primitivo existente)
+  reabrirParcelaAPI({ idContrato:idContrato, numParcela:numOrigem, idPagamento:idPagamento, idCliente:idCliente });
+
+  // 4. Registrar o mesmo pagamento na parcela de destino
+  var resultado = registrarPagamentoAPI(idParcelaDestino, dataPagOriginal, valorPagoOriginal, formaOriginal);
+
+  // 5. Evento de auditoria dedicado (alem dos que reabrirParcelaAPI/registrarPagamentoAPI ja geram)
+  try {
+    registrarEvento({ idContrato:idContrato, idCliente:idCliente, nomeCliente:"", idParcela:idParcelaDestino,
+      tipoEvento:"REALOCACAO_PAGAMENTO",
+      observacoes:"Pagamento "+idPagamento+" originalmente na parcela #"+numOrigem+" realocado para parcela #"+numDestino+
+        (motivo?(". Motivo: "+motivo):"") });
+  } catch(eEv) { Logger.log("RealocarPagamento evento err: "+eEv.message); }
+
+  return { ok:true, contratoQuitado: resultado.contratoQuitado, idUndo: resultado.idUndo, idParcelaDestino: idParcelaDestino };
 }
 
 function registrarAcordoComPerda(v) {
@@ -4287,20 +4361,20 @@ function configurarTriggerDiario() {
 function rotinaDiaria() {
   Logger.log("ROTINA DIARIA - "+new Date().toLocaleString("pt-BR"));
   // Re-registro diário do webhook Efí — idempotente, Efí Bank perde o registro com frequência
-  try { _reRegistrarWebhookEfi(); } catch(eWh) { Logger.log("Webhook re-reg err: "+eWh.message); }
-  try { verificarPagamentosEfi(); } catch(eEfi) { Logger.log("Efi check err: "+eEfi.message); }
-  try { enviarReguaCobranca(); } catch(eRegua) { Logger.log("Regua err: "+eRegua.message); }
-  try { atualizarStatusParcelas(); } catch(eStP) { Logger.log("Status parcelas err: "+eStP.message); }
-  try { atualizarStatusContratos(); } catch(eStC) { Logger.log("Status contratos err: "+eStC.message); }
-  try { verificarPromessasVencidas(); } catch(eProm) { Logger.log("Promessas vencidas err: "+eProm.message); }
-  try { auditarIntegridadeSistema(); } catch(eAud) { Logger.log("Auditoria err: "+eAud.message); }
-  try { expirarUndosAntigos(); } catch(eUndo) { Logger.log("Undo expire err: "+eUndo.message); }
-  try { verificarQuitacoesExpiradas(); } catch(eQExp) { Logger.log("QuitExp err: "+eQExp.message); }
+  try { _reRegistrarWebhookEfi(); } catch(eWh) { Logger.log("Webhook re-reg err: "+eWh.message); _notificarErroSistema("rotinaDiaria > _reRegistrarWebhookEfi", eWh.message); }
+  try { verificarPagamentosEfi(); } catch(eEfi) { Logger.log("Efi check err: "+eEfi.message); _notificarErroSistema("rotinaDiaria > verificarPagamentosEfi", eEfi.message); }
+  try { enviarReguaCobranca(); } catch(eRegua) { Logger.log("Regua err: "+eRegua.message); _notificarErroSistema("rotinaDiaria > enviarReguaCobranca", eRegua.message); }
+  try { atualizarStatusParcelas(); } catch(eStP) { Logger.log("Status parcelas err: "+eStP.message); _notificarErroSistema("rotinaDiaria > atualizarStatusParcelas", eStP.message); }
+  try { atualizarStatusContratos(); } catch(eStC) { Logger.log("Status contratos err: "+eStC.message); _notificarErroSistema("rotinaDiaria > atualizarStatusContratos", eStC.message); }
+  try { verificarPromessasVencidas(); } catch(eProm) { Logger.log("Promessas vencidas err: "+eProm.message); _notificarErroSistema("rotinaDiaria > verificarPromessasVencidas", eProm.message); }
+  try { auditarIntegridadeSistema(); } catch(eAud) { Logger.log("Auditoria err: "+eAud.message); _notificarErroSistema("rotinaDiaria > auditarIntegridadeSistema", eAud.message); }
+  try { expirarUndosAntigos(); } catch(eUndo) { Logger.log("Undo expire err: "+eUndo.message); _notificarErroSistema("rotinaDiaria > expirarUndosAntigos", eUndo.message); }
+  try { verificarQuitacoesExpiradas(); } catch(eQExp) { Logger.log("QuitExp err: "+eQExp.message); _notificarErroSistema("rotinaDiaria > verificarQuitacoesExpiradas", eQExp.message); }
 }
 
 function rotinaRegua() {
   Logger.log("ROTINA REGUA - "+new Date().toLocaleString("pt-BR"));
-  try { enviarReguaCobranca(); } catch(eRegua) { Logger.log("Regua err: "+eRegua.message); }
+  try { enviarReguaCobranca(); } catch(eRegua) { Logger.log("Regua err: "+eRegua.message); _notificarErroSistema("rotinaRegua > enviarReguaCobranca", eRegua.message); }
 }
 
 function configurarTriggerRegua() {
@@ -4313,7 +4387,7 @@ function configurarTriggerRegua() {
 
 function rotinaVerificarPagamentos() {
   Logger.log("ROTINA VERIFICAR PAGAMENTOS - "+new Date().toLocaleString("pt-BR"));
-  try { verificarPagamentosEfi(); } catch(e) { Logger.log("VerificarPag err: "+e.message); }
+  try { verificarPagamentosEfi(); } catch(e) { Logger.log("VerificarPag err: "+e.message); _notificarErroSistema("rotinaVerificarPagamentos > verificarPagamentosEfi", e.message); }
 }
 
 function configurarTriggerVerificacaoPagamentos() {
@@ -4326,9 +4400,21 @@ function configurarTriggerVerificacaoPagamentos() {
 
 function rotinaAnalitica() {
   Logger.log("ROTINA ANALITICA - "+new Date().toLocaleString("pt-BR"));
-  try { _atualizarScoresDiario(); } catch(eScore) { Logger.log("Score diario err: "+eScore.message); }
-  try { atualizarTabelaEmpregadores(); } catch(eEmp) { Logger.log("Empregadores err: "+eEmp.message); }
-  try { atualizarTabelaPadrinhos(); } catch(ePad) { Logger.log("Padrinhos err: "+ePad.message); }
+  try { _atualizarScoresDiario(); } catch(eScore) { Logger.log("Score diario err: "+eScore.message); _notificarErroSistema("rotinaAnalitica > _atualizarScoresDiario", eScore.message); }
+  try { atualizarTabelaEmpregadores(); } catch(eEmp) { Logger.log("Empregadores err: "+eEmp.message); _notificarErroSistema("rotinaAnalitica > atualizarTabelaEmpregadores", eEmp.message); }
+  try { atualizarTabelaPadrinhos(); } catch(ePad) { Logger.log("Padrinhos err: "+ePad.message); _notificarErroSistema("rotinaAnalitica > atualizarTabelaPadrinhos", ePad.message); }
+}
+
+// rodar 1x manualmente (menu) — substitui qualquer trigger existente de rotinaAnalitica
+// (inclusive um criado manualmente pela UI de Triggers do Apps Script) por um a cada 2h.
+// Com o processamento em lote de _atualizarScoresDiario, isso garante ciclo completo
+// pela carteira de clientes ativos ao longo do dia sem nunca estourar 6min por execução.
+function configurarTriggerAnalitica() {
+  ScriptApp.getProjectTriggers()
+    .filter(function(t){return t.getHandlerFunction()==="rotinaAnalitica";})
+    .forEach(function(t){ScriptApp.deleteTrigger(t);});
+  ScriptApp.newTrigger("rotinaAnalitica").timeBased().everyHours(2).create();
+  Logger.log("Trigger rotinaAnalitica configurado para rodar a cada 2 horas");
 }
 
 function _atualizarScoresDiario() {
@@ -4347,19 +4433,38 @@ function _atualizarScoresDiario() {
   var dadosProm = abaProm ? abaProm.getDataRange().getValues() : [];
   var cmCli    = buildColMap(abaCli);
   var stCol    = cmCli["STATUS_CLIENTE"] ? cmCli["STATUS_CLIENTE"] - 1 : -1;
-  var count = 0;
+
+  var ativos = [];
   for (var i = 1; i < dadosCli.length; i++) {
     var idCli = String(dadosCli[i][0]).trim();
     if (!idCli) continue;
     if (stCol >= 0 && String(dadosCli[i][stCol]) !== "ativo") continue;
-    try { calcularScore(idCli, dadosCli, dadosC, dadosP); count++; } catch(e) {
-      Logger.log("Score err " + idCli + ": " + e.message);
-    }
-    try { calcularMetricasCliente(idCli, dadosCli, dadosC, dadosP, dadosPag, dadosProm); } catch(e) {
-      Logger.log("Metricas err " + idCli + ": " + e.message);
-    }
+    ativos.push(idCli);
   }
-  Logger.log("_atualizarScoresDiario: " + count + " clientes atualizados");
+
+  // Processa em lote com cursor persistido — evita "Exceeded maximum execution
+  // time" conforme a base de clientes cresce. Cada execução avança o cursor e
+  // retoma de onde parou na próxima chamada; ao completar a volta, reinicia do 0.
+  var cursor = parseInt(_getCfg("CURSOR_SCORE_DIARIO") || "0", 10) || 0;
+  if (cursor >= ativos.length) cursor = 0;
+
+  var LIMITE_MS = 4.5 * 60 * 1000;
+  var inicio = Date.now();
+  var count = 0;
+  var idx = cursor;
+  while (idx < ativos.length) {
+    if (Date.now() - inicio > LIMITE_MS) break;
+    var idCliLote = ativos[idx];
+    try { calcularScore(idCliLote, dadosCli, dadosC, dadosP); count++; } catch(e) {
+      Logger.log("Score err " + idCliLote + ": " + e.message);
+    }
+    try { calcularMetricasCliente(idCliLote, dadosCli, dadosC, dadosP, dadosPag, dadosProm); } catch(e) {
+      Logger.log("Metricas err " + idCliLote + ": " + e.message);
+    }
+    idx++;
+  }
+  _setCfg("CURSOR_SCORE_DIARIO", String(idx >= ativos.length ? 0 : idx));
+  Logger.log("_atualizarScoresDiario: " + count + " clientes atualizados (cursor " + cursor + "->" + idx + " de " + ativos.length + ")");
 }
 
 function verificarPromessasVencidas() {
@@ -4669,6 +4774,35 @@ function pagamentoAutomatico(contractNum, numParcela, valor, data, txid, isSJ) {
   if (!idParcelaEncontrada) {
     throw new Error("Parcela nao encontrada: contrato#"+contractNum+" parcela#"+numParcela);
   }
+
+  // Alerta (não bloqueia) se essa parcela está sendo paga via PIX enquanto existe outra
+  // mais antiga em atraso no mesmo contrato — mesmo caso que causou o cliente pagar a
+  // parcela errada usando um PIX antigo do WhatsApp. Cobre webhook e o polling de
+  // fallback verificarPagamentosEfi(), que também chama esta função.
+  try {
+    var dtVPaga = null;
+    for (var iDv = 1; iDv < dados.length; iDv++) {
+      if (String(dados[iDv][0]).trim() === idParcelaEncontrada) { dtVPaga = dados[iDv][(cm["DATA_VENCIMENTO"]||7)-1]; break; }
+    }
+    var numParcelaMaisAntiga = null;
+    for (var iAl = 1; iAl < dados.length; iAl++) {
+      var idCAl = String(dados[iAl][(cm["ID_CONTRATO"]||2)-1]).trim();
+      if (idCAl !== String(idContratoEncontrado).trim()) continue;
+      var stAl = String(dados[iAl][stKey-1]).toLowerCase().trim();
+      if (stAl !== "atrasado") continue;
+      var idParAl = String(dados[iAl][0]).trim();
+      if (idParAl === idParcelaEncontrada) continue;
+      var dtVAl = dados[iAl][(cm["DATA_VENCIMENTO"]||7)-1];
+      if (dtVPaga && dtVAl && dtVAl >= dtVPaga) continue; // só interessa se for MAIS antiga que a que está sendo paga
+      numParcelaMaisAntiga = dados[iAl][(cm["NUM_PARCELA"]||5)-1];
+      break;
+    }
+    if (numParcelaMaisAntiga != null) {
+      _notificarErroSistema("pagamentoAutomatico",
+        "Pagamento da parcela #" + numParcela + " (contrato " + contractNum + ") processado via PIX enquanto a parcela #" +
+        numParcelaMaisAntiga + " do mesmo contrato segue em atraso. Verifique se o cliente pagou a parcela certa.");
+    }
+  } catch (eAlertaSeq) { Logger.log("pagamentoAutomatico: alerta sequencia err: " + eAlertaSeq.message); }
 
   // Converte horario UTC da Efí para data local Brasil (UTC-3) antes de gravar
   var dataLocal = data
@@ -5434,6 +5568,38 @@ function auditarIntegridadeSistema() {
       log("CRITICO","RELACIONAMENTO","PARCELAS",id,"Parcela órfã — ID_CONTRATO inexistente em CONTRATOS","ID_CONTRATO="+p.idContrato);
     if(p.idCliente && !setClientes[p.idCliente])
       log("CRITICO","RELACIONAMENTO","PARCELAS",id,"Parcela órfã — ID_CLIENTE inexistente em CLIENTES","ID_CLIENTE="+p.idCliente);
+  }
+
+  // ═══ 1b. SEQUÊNCIA DE PAGAMENTO — parcela mais nova paga com mais antiga em atraso ═══
+  // Rede de segurança pro caso do cliente pagar a parcela errada (ex: usando um PIX
+  // antigo do WhatsApp) — a régua e o webhook já têm defesas próprias pra isso, esse
+  // check é o backstop diário caso alguma delas falhe.
+  var idxDVAud  = (cmP["DATA_VENCIMENTO"]||7)-1;
+  var idxNumAud = (cmP["NUM_PARCELA"]||5)-1;
+  var parcelasPorContratoAud = {};
+  for (var iSq = 1; iSq < dadosP.length; iSq++) {
+    var idCSq = String(dadosP[iSq][(cmP["ID_CONTRATO"]||2)-1]||"").trim(); if (!idCSq) continue;
+    var dtVSq = dadosP[iSq][idxDVAud]; if (!dtVSq) continue;
+    if (!parcelasPorContratoAud[idCSq]) parcelasPorContratoAud[idCSq] = [];
+    parcelasPorContratoAud[idCSq].push({
+      id:  String(dadosP[iSq][0]||"").trim(),
+      num: dadosP[iSq][idxNumAud],
+      dtV: dtVSq,
+      st:  String(dadosP[iSq][stColP]||"").trim().toLowerCase()
+    });
+  }
+  for (var idCSq2 in parcelasPorContratoAud) {
+    var listaSq = parcelasPorContratoAud[idCSq2];
+    var atrasadasSq = listaSq.filter(function(p){ return p.st === "atrasado"; });
+    if (!atrasadasSq.length) continue;
+    var maisAntigaSq = atrasadasSq.reduce(function(a,b){ return (a.dtV < b.dtV) ? a : b; });
+    var novaPagaSq = listaSq.filter(function(p){ return p.st === "pago" && p.dtV > maisAntigaSq.dtV; });
+    if (novaPagaSq.length) {
+      log("ALTO","SEQUENCIA_PAGAMENTO","PARCELAS",maisAntigaSq.id,
+        "Parcela mais nova paga enquanto parcela mais antiga do mesmo contrato segue em atraso",
+        "Contrato="+idCSq2+" | Parcela atrasada #"+maisAntigaSq.num+" | Parcela(s) mais nova(s) paga(s): #"+
+          novaPagaSq.map(function(p){return p.num;}).join(", "));
+    }
   }
 
   var cPagIC  = (cmPag["ID_CONTRATO"] ||2)-1;
@@ -6771,6 +6937,7 @@ function _enviarConfirmacaoPagamento(params) {
       telefone:telefone, gatilho:"CONFIRMACAO_PAGAMENTO",
       conteudo:texto, status: ok ? "ENVIADO" : "ERRO_ENVIO"
     });
+    if (!ok) _notificarErroSistema("_enviarConfirmacaoPagamento", "Falha ao enviar confirmação de pagamento pro cliente " + nome + " (parcela " + idParcela + ").");
 
     // 7. Cancela promessas PENDENTE do contrato
     try { _cancelarPromessasPorContrato(idContrato); } catch(eP) { Logger.log("CancelProm err: "+eP.message); }
@@ -6783,6 +6950,7 @@ function _enviarConfirmacaoPagamento(params) {
         telefone:"", gatilho:"CONFIRMACAO_PAGAMENTO",
         conteudo:"ERRO_INTERNO: " + eFatal.message, status:"ERRO_ENVIO"});
     } catch (eLog2) { Logger.log("ConfirmacaoWPP: log de erro tambem falhou — " + eLog2.message); }
+    _notificarErroSistema("_enviarConfirmacaoPagamento (erro fatal)", eFatal.message);
   }
 }
 
@@ -7131,6 +7299,24 @@ function _enviarWppRegua(tel, texto) {
   }
 }
 
+// Canal de alerta pra erros de sistema/rotina em background (sem usuário olhando a tela).
+// E-mail é o canal garantido — roda 100% dentro do Google, independente de Evolution GO/VPS/Vercel.
+// WhatsApp é best-effort: se a própria infra de WPP for a causa do erro, o e-mail ainda chega.
+function _notificarErroSistema(origem, mensagem) {
+  var corpo = "Origem: " + origem + "\n\nErro: " + mensagem + "\n\nData: " + new Date().toLocaleString("pt-BR");
+  try {
+    GmailApp.sendEmail(EMAIL_ADMIN, "🚨 FinanceiroOp - Erro: " + origem, corpo);
+  } catch (eMail) {
+    Logger.log("_notificarErroSistema: falha ao enviar e-mail — " + eMail.message);
+  }
+  try {
+    var tel = _getCfg("TEL_ALEX_NOTIFICACOES") || "5562984877843";
+    _enviarWppRegua(tel, "🚨 *Erro no FinanceiroOp*\n\nOrigem: " + origem + "\n" + mensagem);
+  } catch (eWpp) {
+    Logger.log("_notificarErroSistema: falha ao enviar WhatsApp — " + eWpp.message);
+  }
+}
+
 function enviarPixManual(dados) {
   try {
     var nome          = String(dados.nome          || "Cliente");
@@ -7227,7 +7413,7 @@ function testarEnvioWpp() {
   Logger.log("URL: " + url);
   Logger.log("Instance: " + instance);
   Logger.log("Key: " + (key ? key.slice(0,8)+"..." : "AUSENTE"));
-  var ok = _enviarWppRegua(_getCfg("TEL_TESTE") || "5562984877843", "Teste da régua de cobrança Borges Assessoria. " + new Date().toLocaleString("pt-BR"));
+  var ok = _enviarWppRegua(_getCfg("TEL_ALEX_NOTIFICACOES") || "5562984877843", "Teste da régua de cobrança Borges Assessoria. " + new Date().toLocaleString("pt-BR"));
   Logger.log("Resultado: " + (ok ? "ENVIADO ✓" : "FALHOU ✗"));
 }
 
@@ -7235,7 +7421,7 @@ function diagnosticarEvolution() {
   var baseUrl  = _getCfg("EVOLUTION_URL");
   var key      = _getCfg("EVOLUTION_KEY");
   var instance = _getCfg("EVOLUTION_INSTANCE");
-  var num      = "5562984877843";
+  var num      = _getCfg("TEL_ALEX_NOTIFICACOES") || "5562984877843";
   var hdrs     = { apikey: key };
   var endpoint = baseUrl + "/send/text";
 
@@ -7343,6 +7529,20 @@ function enviarReguaCobranca(dryRun) {
     totalParcMap[idC2] = (totalParcMap[idC2]||0) + 1;
   }
 
+  // Parcela mais antiga em atraso por contrato — usada pra nunca disparar mensagem/PIX
+  // de uma parcela mais nova enquanto existe uma mais velha ainda em aberto no contrato
+  // (causa raiz do cliente pagar a parcela errada usando um PIX antigo do WhatsApp)
+  var atrasoMaisAntigoPorContrato = {};
+  for (var iA = 1; iA < dP.length; iA++) {
+    var stA = String(dP[iA][ipSt]||"").trim().toLowerCase();
+    if (STATUS_TERMINAL[stA]) continue;
+    var dtVA = dP[iA][ipDtV]; if (!dtVA) continue;
+    if (_diffDiasRegua(dtVA) >= 0) continue; // só interessa quem já venceu
+    var idCA = String(dP[iA][ipCont]||"").trim(); if (!idCA) continue;
+    var atualA = atrasoMaisAntigoPorContrato[idCA];
+    if (!atualA || dtVA < atualA._dtV) atrasoMaisAntigoPorContrato[idCA] = { idParcela: String(dP[iA][ipId]||"").trim(), _dtV: dtVA };
+  }
+
   // Promessas ativas por cliente
   var promMap = {};
   if (abaProm && cmProm["STATUS_PROMESSA"]) {
@@ -7391,6 +7591,11 @@ function enviarReguaCobranca(dryRun) {
     else if (dias === -3) gatilho = "D+3";
     else if (dias === -7) gatilho = "D+7";
     if (!gatilho) continue;
+
+    // Se existe parcela mais antiga em atraso no mesmo contrato, só ela dispara —
+    // nunca avança pra cobrar a parcela seguinte enquanto a mais velha segue em aberto
+    var maisAntigaAtraso = atrasoMaisAntigoPorContrato[idContP];
+    if (maisAntigaAtraso && maisAntigaAtraso.idParcela !== String(dP[i][ipId]||"").trim()) continue;
 
     var pixCode  = ipPix  >= 0 ? String(dP[i][ipPix] ||"").trim() : "";
     var txidCode = ipTxid >= 0 ? String(dP[i][ipTxid]||"").trim() : "";
@@ -7513,6 +7718,10 @@ function enviarReguaCobranca(dryRun) {
       VALOR_COMBINADO:_fmtValorRegua(ev.valorPrometido)
     });
 
+    if (["D+1","D+3","D+7"].indexOf(ev.gatilho) >= 0) {
+      texto += "\n\n⚠️ Use apenas o código PIX enviado nesta mensagem. Não utilize códigos PIX de mensagens anteriores — eles podem se referir a outra parcela.";
+    }
+
     if (dryRun) {
       Logger.log("REGUA [DRY-RUN] [" + ev.gatilho + "] " + cli.NOME + " (" + cli.TELEFONE_WPP + ")\n---\n" + texto + "\n[PIX separado]: " + pix + "\n---");
       enviados++;
@@ -7554,6 +7763,9 @@ function enviarReguaCobranca(dryRun) {
   }
 
   Logger.log("REGUA: concluida. Enviados=" + enviados + " Erros=" + erros);
+  if (!dryRun && erros > 0) {
+    _notificarErroSistema("enviarReguaCobranca", erros + " mensagem(ns) da régua falharam no envio (de " + (enviados+erros) + " no total). Confira a aba Régua WPP.");
+  }
   return {ok:true, enviados:enviados, erros:erros};
 }
 
