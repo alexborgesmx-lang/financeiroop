@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comprovante de Quitação — Borges Assessoria</title>
+<link rel="stylesheet" href="brand-v3.css">
+<style>
+  body{display:flex; flex-direction:column; align-items:center; padding:34px 16px; gap:18px;}
+  .sheet{width:794px; max-width:100%; min-height:1080px; background:var(--surface); box-shadow:var(--shadow-lg); border:1px solid var(--line); padding:0 0 56px; position:relative; display:flex; flex-direction:column; overflow:hidden;}
+
+  /* faixa de marca */
+  .band{background:var(--brand); color:var(--on-brand); padding:34px 60px 30px; position:relative; overflow:hidden;}
+  .band .thread{position:absolute; top:10px; left:0; width:100%; height:52px; opacity:.26; color:var(--on-brand-soft);}
+  .band .top{display:flex; justify-content:space-between; align-items:flex-start; position:relative;}
+  .band .id{display:flex; align-items:center; gap:14px;}
+  .band .id .nm{font-size:20px; font-weight:700; letter-spacing:-.02em;}
+  .band .id .ds{font-family:var(--mono); font-size:11px; color:var(--on-brand-soft);}
+  .band .co{text-align:right; font-size:10.5px; color:var(--on-brand-soft); line-height:1.7;}
+
+  .inner{padding:0 60px; flex:1; display:flex; flex-direction:column;}
+
+  .stamp{position:absolute; top:196px; right:60px; width:150px; height:150px; border:3px solid var(--signal); color:var(--signal); border-radius:50%; display:grid; place-items:center; text-align:center; transform:rotate(-11deg); opacity:.94;}
+  .stamp b{font-size:17px; letter-spacing:.04em; line-height:1.1;}
+
+  .kick{font-family:var(--mono); font-size:12px; letter-spacing:.12em; color:var(--signal); text-transform:uppercase; margin-top:50px;}
+  h1{font-size:38px; margin-top:12px; letter-spacing:-.02em; max-width:74%;}
+
+  .decl{font-size:15px; line-height:1.75; color:var(--ink-soft); margin-top:26px; max-width:64ch;}
+  .decl strong{color:var(--ink);}
+  .decl .ok{color:var(--signal); font-weight:700;}
+
+  .facts{margin-top:30px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--r-lg); padding:8px 24px;}
+  .row{display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--line-soft); font-size:15px;}
+  .row:last-child{border-bottom:none;}
+  .row .k{color:var(--ink-faint);} .row .v{font-weight:600; text-align:right; color:var(--ink);}
+
+  /* convite à indicação — a peça-vitrine */
+  .invite{margin-top:26px; border:1px dashed var(--line); border-radius:var(--r-lg); padding:20px 24px; text-align:center; background:var(--bg);}
+  .invite .q{font-family:var(--serif); font-style:italic; font-size:19px; color:var(--brand);}
+  .invite p{font-size:13.5px; color:var(--ink-soft); margin-top:7px;}
+
+  .sign{margin-top:auto; padding-top:44px; display:flex; justify-content:space-between; align-items:flex-end; gap:30px;}
+  .sign .auth{display:flex; gap:18px; align-items:center;}
+  .sign .auth .mono{font-size:10px; color:var(--ink-faint); line-height:1.6;}
+  .sign .auth .mono b{color:var(--ink); font-weight:600;}
+  .sign .who{text-align:center;}
+  .sign .who .line{width:230px; border-top:1.5px solid var(--ink); padding-top:8px;}
+  .sign .who .nm{font-size:13px; font-weight:600;}
+  .sign .who .mono{font-size:10px; color:var(--ink-faint);}
+
+  @media print{ body{padding:0;} .sheet{box-shadow:none; width:100%; min-height:auto; border:none;} @page{size:A4; margin:0;} }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn btn-p" onclick="window.print()">Salvar / imprimir PDF</button>
+    <span class="btn btn-s">Modelo · quitação total</span>
+  </div>
+
+  <div class="sheet">
+    <div class="band">
+      <svg class="thread" data-thread data-w="794" data-h="52" data-n="12" data-sw="1.75" aria-hidden="true"></svg>
+      <div class="top">
+        <div class="id">
+          <svg width="46" height="46" viewBox="0 0 68 68"><rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#fff"/><path d="M25 25 H43 V43 H25 Z" fill="#0E5C44"/></svg>
+          <div><div class="nm">Borges Assessoria</div><div class="ds">Rede privada de confiança</div></div>
+        </div>
+        <div class="co">Borges Assessoria Financeira<br>CNPJ 63.124.205/0001-07<br>borgesassessoriafinanceira@gmail.com<br>(62) 98487-7843</div>
+      </div>
+    </div>
+
+    <div class="stamp"><div><b>QUITAÇÃO<br>TOTAL</b><div class="mono" style="font-size:9px; margin-top:4px;">NADA CONSTA</div></div></div>
+
+    <div class="inner">
+      <div class="kick">Comprovante de quitação de contrato</div>
+      <h1 class="serif">Contrato integralmente quitado</h1>
+
+      <p class="decl">
+        A <strong>Borges Assessoria</strong> declara, para os devidos fins, que o contrato de crédito abaixo identificado foi <span class="ok">integralmente quitado</span> pelo(a) cliente, nada mais havendo a ser cobrado a título de principal, juros ou encargos relativos a esta operação. Palavra dada, palavra cumprida.
+      </p>
+
+      <div class="facts">
+        <div class="row"><span class="k">Cliente</span><span class="v">Maria Andrade — CPF <span class="num">123.456.789-00</span></span></div>
+        <div class="row"><span class="k">Contrato</span><span class="v mono">CON-2026-0481</span></div>
+        <div class="row"><span class="k">Valor principal</span><span class="v num">R$ 12.500,00</span></div>
+        <div class="row"><span class="k">Total pago (principal + juros)</span><span class="v num">R$ 15.000,00</span></div>
+        <div class="row"><span class="k">Parcelas</span><span class="v num">12 de 12 pagas</span></div>
+        <div class="row"><span class="k">Período</span><span class="v num">jun/2025 — mai/2026</span></div>
+        <div class="row"><span class="k">Data da quitação</span><span class="v num">29/05/2026</span></div>
+      </div>
+
+      <div class="invite">
+        <div class="q">“Você faz parte da Rede Borges.”</div>
+        <p>Conhece alguém de confiança que merece o mesmo? Sua indicação é o que mantém a rede forte.</p>
+      </div>
+
+      <div class="sign">
+        <div class="auth">
+          <svg width="78" height="78" viewBox="0 0 78 78" shape-rendering="crispEdges"><rect width="78" height="78" fill="#fff"/><g fill="#07241B"><rect x="6" y="6" width="20" height="20"/><rect x="52" y="6" width="20" height="20"/><rect x="6" y="52" width="20" height="20"/></g><g fill="#fff"><rect x="11" y="11" width="10" height="10"/><rect x="57" y="11" width="10" height="10"/><rect x="11" y="57" width="10" height="10"/></g><g fill="#07241B"><rect x="14" y="14" width="4" height="4"/><rect x="60" y="14" width="4" height="4"/><rect x="14" y="60" width="4" height="4"/></g><g fill="#0B3D2E"><rect x="34" y="8" width="5" height="5"/><rect x="44" y="18" width="5" height="5"/><rect x="34" y="34" width="5" height="5"/><rect x="8" y="34" width="5" height="5"/><rect x="18" y="34" width="5" height="5"/><rect x="44" y="34" width="5" height="5"/><rect x="60" y="34" width="5" height="5"/><rect x="34" y="44" width="5" height="5"/><rect x="48" y="44" width="5" height="5"/><rect x="34" y="60" width="5" height="5"/><rect x="48" y="58" width="5" height="5"/><rect x="58" y="48" width="5" height="5"/></g></svg>
+          <div class="mono">Autenticação<br><b>QT·0481·2026·BORGES·A1B2</b><br>Verifique com a Borges Assessoria</div>
+        </div>
+        <div class="who">
+          <div class="line"></div>
+          <div class="nm">Borges Assessoria</div>
+          <div class="mono">Assinado digitalmente</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="brand-v3.js"></script>
+</body>
+</html>

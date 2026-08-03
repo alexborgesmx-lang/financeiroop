@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rede Borges — Manual de Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   REDE BORGES — MANUAL DE DESIGN · v3.0
+   A Borges não vende crédito. Constrói confiança.
+   Fonte única de verdade · tokens em par claro/escuro.
+   ============================================================ */
+
+/* ---- CLARO (padrão) — paleta quente, "papel de confiança" ---- */
+:root, [data-theme="light"]{
+  /* Marca — três verdes, três papéis */
+  --brand:#0B3D2E;        /* Verde Floresta — confiança, raízes, marca, "em dia" */
+  --brand-2:#0E5C44;      /* Floresta clara — hovers, faixas */
+  --signal:#127A57;       /* Verde-crescimento (texto/UI) — dados, progresso */
+  --signal-viz:#1FB877;   /* Verde-crescimento (preenchimento ≥24px) */
+  --action:#A8E03F;       /* Verde-limão — ação, CTA (memorável: A-8-E-0-3-F) */
+  --action-ink:#07241B;   /* texto sobre limão (fixo nos dois temas) */
+  --on-brand-soft:#8FE3C0;/* rótulo secundário sobre --brand */
+
+  /* Superfícies — quentes, tom marfim (não clínico) */
+  --bg:#F7F5EF;           /* marfim quente — o "papel" da rede */
+  --surface:#FFFDF9;      /* cards, modais — branco quente */
+  --surface-2:#F0EDE4;    /* zebra, insets */
+  --overlay:rgba(7,36,27,.46);
+
+  /* Texto — neutros de subtom quente (taupe), não cinza-verde frio */
+  --ink:#1A1712;          /* texto principal */
+  --ink-soft:#57514A;     /* secundário */
+  --ink-faint:#7C756B;    /* rótulos, legendas */
+  --on-brand:#EAF6EF;     /* texto sobre --brand */
+
+  --line:#E2DDD1;
+  --line-soft:#EEEAE0;
+
+  /* Semânticas — UM hex por tema */
+  --success:#15805A; --success-bg:#E5F2EA;
+  --warning:#9A6510; --warning-bg:#F8EFD9;
+  --error:#C0322F;   --error-bg:#F9E7E4;
+  --info:#166C70;    --info-bg:#E2EFEF;
+
+  --shadow:0 1px 2px rgba(40,30,15,.05),0 8px 22px rgba(40,30,15,.06);
+  --shadow-lg:0 20px 52px rgba(11,61,46,.14),0 6px 16px rgba(11,61,46,.08);
+}
+
+/* ---- ESCURO — floresta profunda, quente ---- */
+[data-theme="dark"]{
+  --brand:#5AD09B;        /* floresta clareia p/ legibilidade */
+  --brand-2:#46CB92;
+  --signal:#43D69C;
+  --signal-viz:#1FB877;
+  --action:#A8E03F;
+  --action-ink:#07241B;
+  --on-brand-soft:#0B3D2E;
+
+  --bg:#06231A;           /* verde floresta profundo (quente) */
+  --surface:#0B3227;
+  --surface-2:#123B2E;
+  --overlay:rgba(0,0,0,.6);
+
+  --ink:#EFF3EC;
+  --ink-soft:#AEBAB0;
+  --ink-faint:#7F8C82;
+  --on-brand:#06231A;
+
+  --line:#1B4234;
+  --line-soft:#153328;
+
+  --success:#5AD09B; --success-bg:#0F3227;
+  --warning:#E3A93A; --warning-bg:#33280F;
+  --error:#F0716E;   --error-bg:#3A1B19;
+  --info:#5FC2C6;    --info-bg:#0E2E2F;
+
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px rgba(0,0,0,.4);
+  --shadow-lg:0 26px 64px rgba(0,0,0,.55),0 8px 20px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Helvetica Neue",Helvetica,Arial,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  font-size:16px; line-height:1.6;
+  transition:background .3s ease, color .3s ease;
+}
+h1,h2,h3,h4{margin:0; line-height:1.05}
+/* Serif de display — Newsreader: editorial, quente, digno (orgulho de pertencer) */
+.serif{font-family:"Newsreader",Georgia,"Times New Roman",serif; font-weight:500; letter-spacing:-.01em}
+p{margin:0; text-wrap:pretty}
+a{color:var(--signal)}
+a:hover{color:var(--brand)}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace; letter-spacing:-.01em}
+.num{font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1; font-weight:700; letter-spacing:-.02em}
+
+/* ---------- LAYOUT ---------- */
+.app{display:grid; grid-template-columns:270px 1fr}
+.nav{
+  position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+  background:var(--brand); color:var(--on-brand); padding:30px 22px;
+  display:flex; flex-direction:column; gap:2px;
+}
+[data-theme="dark"] .nav{background:#04180F; color:#EAF6EF; border-right:1px solid var(--line)}
+.nav .brand{display:flex; align-items:center; gap:11px; margin-bottom:8px}
+.nav .brand b{font-size:16px; letter-spacing:-.01em; color:#fff}
+[data-theme="light"] .nav .brand b{color:#fff}
+.nav .brand span{display:block; font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:#8FE3C0; margin-top:3px}
+.nav .tagline{font-family:"Newsreader",Georgia,serif; font-style:italic; font-size:13px; color:#9FE7C4; opacity:.9; margin:0 0 22px 2px; line-height:1.35}
+.nav .grp{font-size:9.5px; letter-spacing:.15em; text-transform:uppercase; opacity:.5; margin:16px 0 5px 12px}
+.nav a{
+  text-decoration:none; color:inherit; opacity:.74; font-size:13.5px;
+  padding:7px 12px; border-radius:8px; display:flex; gap:10px; align-items:baseline; transition:.15s;
+}
+.nav a:hover{opacity:1; background:rgba(255,255,255,.08)}
+.nav a .ix{font-family:"IBM Plex Mono",monospace; font-size:11px; color:#7BE0AE; width:26px; flex-shrink:0}
+
+main{min-width:0; max-width:1180px}
+section{padding:78px clamp(28px,6vw,92px); border-bottom:1px solid var(--line)}
+.kicker{font-family:"IBM Plex Mono",monospace; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--signal); margin-bottom:14px; display:flex; align-items:center; gap:10px}
+.kicker::before{content:""; width:22px; height:1.5px; background:var(--signal)}
+.h{font-size:clamp(30px,4.2vw,52px); letter-spacing:-.02em; margin-bottom:16px; font-weight:500}
+.lead{font-size:20px; line-height:1.55; color:var(--ink-soft); max-width:64ch}
+.eyebrow{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:14px}
+.grid{display:grid; gap:18px}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow)}
+.pad{padding:24px}
+.muted{color:var(--ink-faint)}
+.two{display:grid; grid-template-columns:1fr 1fr; gap:18px}
+.tag{font-family:"IBM Plex Mono",monospace; font-size:11.5px; padding:5px 11px; border-radius:999px; border:1px solid var(--line); color:var(--ink-soft); background:var(--surface-2)}
+.pillrow{display:flex; flex-wrap:wrap; gap:10px}
+.callout{border-left:3px solid var(--signal); padding:4px 0 4px 18px; color:var(--ink-soft)}
+.callout.err{border-color:var(--error); color:var(--error)}
+
+/* toggle claro/escuro */
+.themebar{position:fixed; top:20px; right:24px; z-index:80; display:flex; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:4px; box-shadow:var(--shadow-lg)}
+.themebar button{font-family:inherit; border:none; background:transparent; color:var(--ink-faint); font-size:12.5px; font-weight:700; padding:8px 16px; border-radius:999px; cursor:pointer; transition:.15s}
+.themebar button.on{background:var(--action); color:var(--action-ink)}
+
+@media (max-width:900px){
+  .app{grid-template-columns:1fr}
+  .nav{position:static; height:auto; flex-direction:row; flex-wrap:wrap}
+  .nav .grp,.nav .brand span,.nav .tagline{display:none}
+  .two{grid-template-columns:1fr}
+}
+@media print{ .themebar,.nav{display:none} .app{display:block} section{break-inside:avoid} }
+</style>
+</head>
+<body>
+
+<div class="themebar">
+  <button id="btnLight" class="on" onclick="setTheme('light')">☀ Claro</button>
+  <button id="btnDark" onclick="setTheme('dark')">☾ Escuro</button>
+</div>
+
+<div class="app">
+  <aside class="nav">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 68 68"><rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#fff"/><path d="M25 25 H43 V43 H25 Z" fill="#0E5C44"/></svg>
+      <div><b>Borges</b><span>Manual de Design</span></div>
+    </div>
+    <p class="tagline">Uma rede de confiança.</p>
+    <div class="grp">01 · Fundamentos</div>
+    <a href="#conceito"><span class="ix">1.1</span> O grande conceito</a>
+    <a href="#valores"><span class="ix">1.2</span> Valores &amp; princípios</a>
+    <div class="grp">02 · Identidade</div>
+    <a href="#logo"><span class="ix">2.1</span> Logo &amp; assinatura</a>
+    <a href="#tokens"><span class="ix">2.2</span> Tabela de tokens</a>
+    <a href="#tipografia"><span class="ix">2.3</span> Tipografia</a>
+    <a href="#forma"><span class="ix">2.4</span> Forma &amp; espaço</a>
+    <div class="grp">03 · Componentes</div>
+    <a href="#componentes"><span class="ix">3.1</span> Botões, KPI, tabela</a>
+    <a href="#componentes2"><span class="ix">3.2</span> Modal, badge, form</a>
+    <div class="grp">04 · UI/UX</div>
+    <a href="#uiux"><span class="ix">4.1</span> Direcionamento do sistema</a>
+    <div class="grp">05 · Aplicações</div>
+    <a href="#app"><span class="ix">5.1</span> FinanceiroOp</a>
+    <a href="#certificado"><span class="ix">5.2</span> Certificado-vitrine</a>
+    <a href="#superficies"><span class="ix">5.3</span> PDF · Sheets · papelaria</a>
+    <div class="grp">06 · Tom de voz</div>
+    <a href="#voz"><span class="ix">6.1</span> Voz &amp; WhatsApp</a>
+    <div class="grp">07 · Governança</div>
+    <a href="#governanca"><span class="ix">7.1</span> Governança &amp; checklist</a>
+    <a href="#justificativas"><span class="ix">7.2</span> Justificativas</a>
+  </aside>
+
+  <main>
+
+    <!-- CAPA -->
+    <section id="capa" style="border-bottom:none; padding-bottom:44px; position:relative; overflow:hidden;">
+      <svg width="100%" height="120" viewBox="0 0 1100 120" preserveAspectRatio="none" style="position:absolute; top:44px; left:0; opacity:.16;" aria-hidden="true" id="coverthread"></svg>
+      <div style="position:relative;">
+        <div class="kicker">Fonte única de verdade · v3.0 · 2026</div>
+        <h1 class="serif" style="font-size:clamp(44px,7.5vw,96px); letter-spacing:-.03em; line-height:.98; font-weight:400;">A Borges não vende<br>crédito. Constrói<br><span style="font-style:italic; color:var(--brand);">confiança.</span></h1>
+        <p class="lead" style="font-size:22px; margin-top:26px;">O crédito é apenas a forma como essa confiança vira oportunidade. Este manual é o sistema que faz cada peça da marca — do FinanceiroOp ao certificado que o cliente compartilha com orgulho — dizer a mesma coisa.</p>
+        <div class="pillrow" style="margin-top:28px;">
+          <span class="tag" style="border-color:var(--brand); color:var(--brand)">Confiança</span>
+          <span class="tag" style="border-color:var(--brand); color:var(--brand)">Respeito</span>
+          <span class="tag" style="border-color:var(--brand); color:var(--brand)">Responsabilidade</span>
+          <span class="tag" style="border-color:var(--brand); color:var(--brand)">Humano</span>
+          <span class="tag" style="border-color:var(--brand); color:var(--brand)">Compromisso</span>
+          <span class="tag" style="border-color:var(--brand); color:var(--brand)">Simplicidade</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 01 · FUNDAMENTOS ==================== -->
+    <section id="conceito">
+      <div class="kicker">01 · Fundamentos</div>
+      <h2 class="h serif">O grande conceito</h2>
+      <p class="lead">A Borges empresta dinheiro — mas o produto não é o ponto. O que a Borges constrói é uma <strong style="color:var(--ink)">rede privada de confiança</strong> que cresce só por indicação: pessoas responsáveis apadrinham pessoas responsáveis. O crédito é a consequência da confiança, nunca o contrário.</p>
+
+      <div class="card pad" style="margin-top:38px; background:var(--brand); color:var(--on-brand); border-color:var(--brand); position:relative; overflow:hidden;">
+        <svg width="100%" height="80" viewBox="0 0 900 80" preserveAspectRatio="none" style="position:absolute; right:0; bottom:0; opacity:.18; color:var(--on-brand-soft);" id="conceptthread" aria-hidden="true"></svg>
+        <div style="position:relative;">
+          <div class="eyebrow" style="color:#8FE3C0;">A frase que resume tudo</div>
+          <p class="serif" style="font-size:clamp(24px,3vw,36px); line-height:1.3; color:#fff; font-weight:400;">A Borges não vende crédito. A Borges constrói confiança. O crédito é apenas a forma como essa confiança se transforma em <span style="font-style:italic;">oportunidade.</span></p>
+        </div>
+      </div>
+
+      <div class="two" style="margin-top:18px;">
+        <div class="card pad">
+          <div class="eyebrow">A sensação a criar</div>
+          <p style="font-size:17px; line-height:1.6; color:var(--ink-soft);">Quando perguntarem <em>“onde você conseguiu esse empréstimo?”</em>, a resposta é <strong style="color:var(--ink)">“na Borges”</strong> — dita como quem diz “foi meu médico”, “foi meu advogado”. Não uma financeira. Não um banco. Um contato de confiança.</p>
+        </div>
+        <div class="card pad">
+          <div class="eyebrow">A promessa</div>
+          <p style="font-size:17px; line-height:1.6; color:var(--ink-soft);">Conseguir crédito deve ser uma experiência <strong style="color:var(--ink)">digna, respeitosa e segura</strong> — sem burocracia e sem que ninguém tenha vergonha de dizer que faz parte da Rede Borges.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="valores">
+      <div class="kicker">1.2</div>
+      <h2 class="h serif">Valores &amp; princípios</h2>
+      <p class="lead">Seis valores sustentam a marca. Cada princípio visual abaixo nasce deles — e vem com o que a marca <em>nunca</em> faz, porque identidade se define tanto pelo limite quanto pela intenção.</p>
+
+      <div class="grid" style="grid-template-columns:repeat(3,1fr); margin-top:38px;">
+        <div class="card pad"><div class="num" style="font-size:13px; color:var(--signal);">01</div><h3 class="serif" style="font-size:21px; margin-top:6px;">Confiança acima de tudo</h3><p class="muted" style="font-size:14px; margin-top:6px;">A confiança vem antes do contrato.</p></div>
+        <div class="card pad"><div class="num" style="font-size:13px; color:var(--signal);">02</div><h3 class="serif" style="font-size:21px; margin-top:6px;">Respeito pelas pessoas</h3><p class="muted" style="font-size:14px; margin-top:6px;">Toda história merece ser ouvida.</p></div>
+        <div class="card pad"><div class="num" style="font-size:13px; color:var(--signal);">03</div><h3 class="serif" style="font-size:21px; margin-top:6px;">Responsabilidade compartilhada</h3><p class="muted" style="font-size:14px; margin-top:6px;">Cada membro protege a qualidade da rede.</p></div>
+        <div class="card pad"><div class="num" style="font-size:13px; color:var(--signal);">04</div><h3 class="serif" style="font-size:21px; margin-top:6px;">Atendimento humano</h3><p class="muted" style="font-size:14px; margin-top:6px;">Pessoas são atendidas por pessoas.</p></div>
+        <div class="card pad"><div class="num" style="font-size:13px; color:var(--signal);">05</div><h3 class="serif" style="font-size:21px; margin-top:6px;">Compromisso</h3><p class="muted" style="font-size:14px; margin-top:6px;">Honramos a palavra dada dos dois lados.</p></div>
+        <div class="card pad"><div class="num" style="font-size:13px; color:var(--signal);">06</div><h3 class="serif" style="font-size:21px; margin-top:6px;">Simplicidade</h3><p class="muted" style="font-size:14px; margin-top:6px;">Resolver dinheiro não precisa ser complicado.</p></div>
+      </div>
+
+      <div class="eyebrow" style="margin-top:40px;">Princípios visuais — e seus anti-exemplos</div>
+      <div class="two">
+        <div class="card pad">
+          <h3 class="serif" style="font-size:20px;">Digno como um documento que se guarda</h3>
+          <p class="muted" style="margin-top:8px; font-size:15px;">Serif editorial nos títulos, marfim quente, respiro. Uma peça da Borges parece algo que dá orgulho de mostrar — não um boleto.</p>
+          <div class="callout err" style="margin-top:14px; font-size:14px;">Nunca: cinza de banco, plástico de fintech, ar clínico.</div>
+        </div>
+        <div class="card pad">
+          <h3 class="serif" style="font-size:20px;">Firme com o fato, gentil com a pessoa</h3>
+          <p class="muted" style="margin-top:8px; font-size:15px;">O vermelho sinaliza atraso sem gritar. A cobrança informa e oferece caminho — nunca humilha.</p>
+          <div class="callout err" style="margin-top:14px; font-size:14px;">Nunca: vermelho berrante, caixa-alta agressiva, tom de ameaça.</div>
+        </div>
+        <div class="card pad">
+          <h3 class="serif" style="font-size:20px;">Dinheiro é o protagonista</h3>
+          <p class="muted" style="margin-top:8px; font-size:15px;">Valores em algarismos tabulares, peso forte, alinhados à direita. O número domina; a decoração recua.</p>
+          <div class="callout err" style="margin-top:14px; font-size:14px;">Nunca: valor em fonte fina, monoespaçada ou desalinhado.</div>
+        </div>
+        <div class="card pad">
+          <h3 class="serif" style="font-size:20px;">Um sistema, todas as superfícies</h3>
+          <p class="muted" style="margin-top:8px; font-size:15px;">O certificado que o cliente compartilha usa os mesmos tokens da UI interna. A vitrine da rede não improvisa.</p>
+          <div class="callout err" style="margin-top:14px; font-size:14px;">Nunca: neutro inventado, azul de planilha, cor fora da tabela.</div>
+        </div>
+      </div>
+
+      <div class="card pad" style="margin-top:18px; background:var(--surface-2); border-style:dashed;">
+        <div class="eyebrow">A marca nunca parece</div>
+        <div class="pillrow">
+          <span class="tag">Banco burocrático &amp; cinza</span>
+          <span class="tag">Agiota / cobrança agressiva</span>
+          <span class="tag">Startup arco-íris</span>
+          <span class="tag">Ostentação · dourado · “dinheiro fácil”</span>
+          <span class="tag">Template de IA (glow, glass, mesh)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 02 · IDENTIDADE ==================== -->
+    <section id="logo">
+      <div class="kicker">02 · Identidade</div>
+      <h2 class="h serif">Logo &amp; assinatura</h2>
+      <p class="lead">O símbolo — dois módulos que se sobrepõem — ganha um novo significado sob o posicionamento de rede: <strong style="color:var(--ink)">duas pessoas de confiança se conectando</strong>. O padrinho e quem ele traz. A interseção sólida é o vínculo. Sobrevive do sistema antigo porque agora diz exatamente a coisa certa.</p>
+
+      <div class="grid" style="grid-template-columns:repeat(4,1fr); margin-top:38px;">
+        <div class="card" style="overflow:hidden;"><div style="aspect-ratio:1.3; display:grid; place-items:center; background:var(--surface-2);"><svg width="76" height="76" viewBox="0 0 68 68"><rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#0B3D2E"/><path d="M25 25 H43 V43 H25 Z" fill="#07241B"/></svg></div><div style="padding:12px 16px;"><strong style="font-size:13px;">Principal</strong><div class="mono muted" style="font-size:11px;">sobre marfim</div></div></div>
+        <div class="card" style="overflow:hidden;"><div style="aspect-ratio:1.3; display:grid; place-items:center; background:#06231A;"><svg width="76" height="76" viewBox="0 0 68 68"><rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#fff"/><path d="M25 25 H43 V43 H25 Z" fill="#0E5C44"/></svg></div><div style="padding:12px 16px;"><strong style="font-size:13px;">Escuro</strong><div class="mono muted" style="font-size:11px;">sobre floresta</div></div></div>
+        <div class="card" style="overflow:hidden;"><div style="aspect-ratio:1.3; display:grid; place-items:center; background:var(--action);"><svg width="76" height="76" viewBox="0 0 68 68"><rect x="3" y="3" width="40" height="40" rx="9" fill="#fff" opacity=".92"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#07241B"/><path d="M25 25 H43 V43 H25 Z" fill="#0B3D2E"/></svg></div><div style="padding:12px 16px;"><strong style="font-size:13px;">Sobre ação</strong><div class="mono muted" style="font-size:11px;">verde-limão</div></div></div>
+        <div class="card" style="overflow:hidden;"><div style="aspect-ratio:1.3; display:grid; place-items:center; background:var(--surface);"><svg width="40" height="40" viewBox="0 0 68 68"><rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#0B3D2E"/><path d="M25 25 H43 V43 H25 Z" fill="#07241B"/></svg></div><div style="padding:12px 16px;"><strong style="font-size:13px;">Favicon</strong><div class="mono muted" style="font-size:11px;">legível ≥16px</div></div></div>
+      </div>
+
+      <!-- ASSINATURA -->
+      <div class="card pad" style="margin-top:18px; border:2px solid var(--action);">
+        <div class="eyebrow" style="color:var(--signal);">Elemento de assinatura · A Linha de Confiança</div>
+        <div class="two" style="align-items:center; gap:28px;">
+          <div>
+            <p style="font-size:16px; color:var(--ink-soft); line-height:1.65;">Uma linha contínua que costura nós — cada nó é um membro; o nó central, maior, é quem você é na rede. Deriva direto do símbolo (pontos que se ligam) e é <strong style="color:var(--ink)">a marca sem o logo</strong>: aparece no topo do certificado, no rodapé dos PDFs, na abertura das telas e como divisor. Ninguém tem essa linha — só a Borges.</p>
+            <div class="pillrow" style="margin-top:14px;">
+              <span class="tag">Certificado</span><span class="tag">Rodapé PDF</span><span class="tag">Header do app</span><span class="tag">Divisor de seção</span>
+            </div>
+          </div>
+          <div style="background:var(--surface-2); border-radius:12px; padding:22px; display:grid; gap:18px;">
+            <svg width="100%" height="70" viewBox="0 0 420 70" preserveAspectRatio="xMidYMid meet" style="color:var(--brand);" id="sigA" aria-hidden="true"></svg>
+            <svg width="100%" height="70" viewBox="0 0 420 70" preserveAspectRatio="xMidYMid meet" style="color:var(--signal-viz);" id="sigB" aria-hidden="true"></svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="card pad" style="margin-top:18px;">
+        <div class="eyebrow">Regras da marca</div>
+        <ul style="margin:0; padding-left:18px; color:var(--ink-soft); font-size:14.5px; line-height:1.9;">
+          <li>Área de respiro = altura de 1 módulo em todos os lados</li>
+          <li>Nunca distorcer, girar, sombrear ou recolorir fora da tabela de tokens</li>
+          <li>A Linha de Confiança nunca vira ornamento denso — é sempre fina, respirada, legível</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="tokens">
+      <div class="kicker">2.2</div>
+      <h2 class="h serif">Tabela de tokens</h2>
+      <p class="lead">A regra número um do sistema: <strong style="color:var(--ink)">nunca digite um hex de memória — sempre copie desta tabela.</strong> Cada cor tem um nome, um hex por tema, um papel e o contraste WCAG verificado. Os valores acompanham o tema ativo no topo.</p>
+
+      <div class="eyebrow" style="margin-top:36px;">Marca — três verdes, três papéis</div>
+      <div class="grid" style="grid-template-columns:repeat(3,1fr);">
+        <div class="card" style="overflow:hidden;"><div style="height:92px; background:var(--brand);"></div><div class="pad" style="padding:16px;"><strong>--brand · Floresta</strong><div class="muted" style="font-size:13px; margin-top:2px;">Confiança · raízes · marca</div><div class="mono" style="font-size:11px; margin-top:8px; color:var(--ink-faint);">claro #0B3D2E · escuro #5AD09B</div></div></div>
+        <div class="card" style="overflow:hidden;"><div style="height:92px; background:var(--signal-viz);"></div><div class="pad" style="padding:16px;"><strong>--signal · Crescimento</strong><div class="muted" style="font-size:13px; margin-top:2px;">Dados · progresso</div><div class="mono" style="font-size:11px; margin-top:8px; color:var(--ink-faint);">texto #127A57 · viz #1FB877</div></div></div>
+        <div class="card" style="overflow:hidden;"><div style="height:92px; background:var(--action);"></div><div class="pad" style="padding:16px;"><strong>--action · Limão</strong><div class="muted" style="font-size:13px; margin-top:2px;">Ação · CTA</div><div class="mono" style="font-size:11px; margin-top:8px; color:var(--ink-faint);">#A8E03F · texto #07241B</div></div></div>
+      </div>
+
+      <div class="eyebrow" style="margin-top:32px;">Tabela completa — nome · hex claro · hex escuro · papel · contraste</div>
+      <div class="card" style="overflow:hidden;">
+        <table style="width:100%; border-collapse:collapse; font-size:13.5px;">
+          <thead><tr style="background:var(--surface-2); text-align:left;">
+            <th style="padding:11px 18px; font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); font-weight:500;">Token</th>
+            <th style="padding:11px 12px; font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); font-weight:500;">Claro</th>
+            <th style="padding:11px 12px; font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); font-weight:500;">Escuro</th>
+            <th style="padding:11px 12px; font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); font-weight:500;">Papel</th>
+            <th style="padding:11px 18px; font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); font-weight:500;">Contraste</th>
+          </tr></thead>
+          <tbody id="tokrows"></tbody>
+        </table>
+      </div>
+      <p class="muted" style="font-size:13px; margin-top:12px;">Contraste medido contra a superfície de uso. Texto normal ≥ 4.5:1 (AA); elementos gráficos e texto grande ≥ 3:1.</p>
+    </section>
+
+    <section id="tipografia">
+      <div class="kicker">2.3</div>
+      <h2 class="h serif">Tipografia</h2>
+      <p class="lead">Três pilhas, cada uma com papel exclusivo e fallbacks exatos — para valer em toda superfície, inclusive PDF e páginas públicas. Nada de quarta fonte entrando pela aplicação.</p>
+
+      <div class="grid" style="grid-template-columns:repeat(3,1fr); margin-top:38px;">
+        <div class="card pad">
+          <div class="eyebrow">Display · títulos, certificado</div>
+          <div class="serif" style="font-size:60px; line-height:1; font-weight:500;">Aa</div>
+          <div style="font-weight:600; margin-top:8px;">Newsreader</div>
+          <div class="mono" style="font-size:11px; color:var(--ink-faint); margin-top:6px;">"Newsreader", Georgia, "Times New Roman", serif</div>
+          <p class="muted" style="font-size:13px; margin-top:10px;">Serif editorial, quente e digna — dá ao que a Borges emite a qualidade de um documento que se guarda.</p>
+        </div>
+        <div class="card pad">
+          <div class="eyebrow">Interface, texto e números</div>
+          <div style="font-size:60px; font-weight:700; letter-spacing:-.03em; line-height:1;">Aa</div>
+          <div style="font-weight:600; margin-top:8px;">Helvetica Neue</div>
+          <div class="mono" style="font-size:11px; color:var(--ink-faint); margin-top:6px;">"Helvetica Neue", Helvetica, Arial, "Segoe UI", sans-serif</div>
+          <p class="muted" style="font-size:13px; margin-top:10px;">Neutra e precisa. Segura os dados sem competir com a serif.</p>
+        </div>
+        <div class="card pad">
+          <div class="eyebrow">Códigos, IDs, rótulos</div>
+          <div class="mono" style="font-size:60px; font-weight:500; line-height:1;">01</div>
+          <div style="font-weight:600; margin-top:8px;">IBM Plex Mono</div>
+          <div class="mono" style="font-size:11px; color:var(--ink-faint); margin-top:6px;">"IBM Plex Mono", ui-monospace, Menlo, monospace</div>
+          <p class="muted" style="font-size:13px; margin-top:10px;">Só técnico: PIX, CPF, autenticação, rótulos.</p>
+        </div>
+      </div>
+
+      <div class="card pad" style="margin-top:18px;">
+        <div class="eyebrow">Regra dos números financeiros — inegociável</div>
+        <div style="display:flex; align-items:baseline; gap:24px; flex-wrap:wrap;">
+          <div class="num" style="font-size:44px; color:var(--brand);">R$ 1.284.500,00</div>
+          <div class="num" style="font-size:22px; color:var(--success);">▲ 12,4%</div>
+          <div class="num" style="font-size:22px; color:var(--error);">▼ R$ 680,00</div>
+        </div>
+        <p class="muted" style="font-size:14px; margin-top:10px;">Todo valor: Helvetica com <span class="mono">font-variant-numeric:tabular-nums</span>, peso 700–900. Nunca monoespaçado — o mono é só para código. <strong style="color:var(--ink)">É a assinatura tipográfica do dinheiro na Borges.</strong></p>
+      </div>
+    </section>
+
+    <section id="forma">
+      <div class="kicker">2.4</div>
+      <h2 class="h serif">Forma &amp; espaço</h2>
+      <p class="lead">Grade base 4. Raios consistentes por tipo de elemento. A forma reforça o sistema: tudo se alinha, nada é arbitrário — e há ritmo, não simetria burocrática.</p>
+      <div class="grid" style="grid-template-columns:repeat(3,1fr); margin-top:38px;">
+        <div class="card pad">
+          <div class="eyebrow">Espaçamento (base 4)</div>
+          <div style="display:flex; align-items:flex-end; gap:10px;">
+            <div style="text-align:center;"><div style="width:8px; height:8px; background:var(--signal-viz); border-radius:2px;"></div><div class="mono muted" style="font-size:10px; margin-top:5px;">8</div></div>
+            <div style="text-align:center;"><div style="width:12px; height:12px; background:var(--signal-viz); border-radius:2px;"></div><div class="mono muted" style="font-size:10px; margin-top:5px;">12</div></div>
+            <div style="text-align:center;"><div style="width:16px; height:16px; background:var(--signal-viz); border-radius:3px;"></div><div class="mono muted" style="font-size:10px; margin-top:5px;">16</div></div>
+            <div style="text-align:center;"><div style="width:24px; height:24px; background:var(--signal-viz); border-radius:4px;"></div><div class="mono muted" style="font-size:10px; margin-top:5px;">24</div></div>
+            <div style="text-align:center;"><div style="width:32px; height:32px; background:var(--signal-viz); border-radius:5px;"></div><div class="mono muted" style="font-size:10px; margin-top:5px;">32</div></div>
+          </div>
+        </div>
+        <div class="card pad">
+          <div class="eyebrow">Raio de borda</div>
+          <div style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+            <div style="text-align:center;"><div style="width:46px; height:36px; background:var(--surface-2); border:1px solid var(--line); border-radius:8px;"></div><div class="mono muted" style="font-size:10px; margin-top:5px;">8 · input/botão</div></div>
+            <div style="text-align:center;"><div style="width:46px; height:36px; background:var(--surface-2); border:1px solid var(--line); border-radius:16px;"></div><div class="mono muted" style="font-size:10px; margin-top:5px;">16 · card</div></div>
+            <div style="text-align:center;"><div style="width:56px; height:30px; background:var(--action); border-radius:999px;"></div><div class="mono muted" style="font-size:10px; margin-top:5px;">999 · CTA/badge</div></div>
+          </div>
+        </div>
+        <div class="card pad">
+          <div class="eyebrow">Elevação</div>
+          <div style="height:40px; background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); margin-bottom:14px;"></div>
+          <div style="height:40px; background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow-lg);"></div>
+          <p class="muted" style="font-size:12px; margin-top:10px;">Duas sombras: <span class="mono">--shadow</span> (cards), <span class="mono">--shadow-lg</span> (modais). Sutis, nunca duras.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 03 · COMPONENTES ==================== -->
+    <section id="componentes">
+      <div class="kicker">03 · Componentes</div>
+      <h2 class="h serif">Botões, KPI &amp; tabela</h2>
+      <p class="lead">Uma hierarquia de ação clara: um único CTA primário (limão) por contexto; o resto recua. Tudo existe em claro e escuro — alterne no topo para conferir os dois.</p>
+
+      <div class="grid" style="grid-template-columns:repeat(3,1fr); margin-top:38px;">
+        <div class="card pad"><div class="eyebrow">Primário · CTA</div><button style="font-family:inherit; background:var(--action); color:var(--action-ink); border:none; border-radius:999px; padding:13px 20px; font-weight:800; font-size:14px; cursor:pointer;">✓ Registrar pagamento</button><p class="muted" style="font-size:12.5px; margin-top:10px;">Limão, pill, texto escuro. Um por contexto.</p></div>
+        <div class="card pad"><div class="eyebrow">Secundário · ghost</div><button style="font-family:inherit; background:var(--surface); color:var(--ink); border:1.5px solid var(--line); border-radius:999px; padding:12px 20px; font-weight:600; font-size:14px; cursor:pointer;">Gerar PIX</button><p class="muted" style="font-size:12.5px; margin-top:10px;">Ao lado do CTA, sem competir.</p></div>
+        <div class="card pad"><div class="eyebrow">Institucional</div><button style="font-family:inherit; background:var(--brand); color:var(--on-brand); border:none; border-radius:8px; padding:12px 20px; font-weight:700; font-size:14px; cursor:pointer;">Acessar a Rede</button><p class="muted" style="font-size:12.5px; margin-top:10px;">Ações de marca (login, envio).</p></div>
+        <div class="card pad"><div class="eyebrow">Contextual · aviso</div><button style="font-family:inherit; background:var(--warning-bg); color:var(--warning); border:1px solid var(--warning); border-radius:9px; padding:12px 18px; font-weight:700; font-size:13px; cursor:pointer;">Reagendar</button><p class="muted" style="font-size:12.5px; margin-top:10px;">Tint semântico, segundo plano.</p></div>
+        <div class="card pad"><div class="eyebrow">Destrutivo</div><button style="font-family:inherit; background:var(--error); color:#fff; border:none; border-radius:8px; padding:12px 18px; font-weight:700; font-size:14px; cursor:pointer;">Baixar como prejuízo</button><p class="muted" style="font-size:12.5px; margin-top:10px;">Não é pill — distinção intencional.</p></div>
+        <div class="card pad"><div class="eyebrow">Cancelar · desabilitado</div><div style="display:flex; gap:8px;"><button style="font-family:inherit; background:var(--surface); color:var(--ink-faint); border:1px solid var(--line); border-radius:8px; padding:11px 16px; font-weight:600; font-size:14px; cursor:pointer;">Cancelar</button><button disabled style="font-family:inherit; background:var(--surface-2); color:var(--ink-faint); border:none; border-radius:8px; padding:11px 16px; font-weight:600; font-size:14px; opacity:.6;">Enviando…</button></div></div>
+      </div>
+
+      <div class="eyebrow" style="margin-top:38px;">KPI com hierarquia — não uma grade de cards iguais</div>
+      <div class="grid" style="grid-template-columns:2fr 1fr 1fr; gap:14px;">
+        <div class="card pad" style="background:var(--brand); border-color:var(--brand); color:var(--on-brand);"><div class="mono" style="font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--on-brand-soft);">Em atraso — ação do dia</div><div class="num" style="font-size:40px; margin-top:6px; color:var(--on-brand);">R$ 4.210,00</div><div class="num" style="font-size:13px; font-weight:700; color:var(--on-brand-soft);">3 clientes · maior atraso 209d</div></div>
+        <div class="card pad"><div class="mono muted" style="font-size:10px; letter-spacing:.05em; text-transform:uppercase;">Carteira ativa</div><div class="num" style="font-size:26px; margin-top:4px;">R$ 4,82M</div><div class="num" style="font-size:12px; color:var(--success);">▲ 8,3%</div></div>
+        <div class="card pad"><div class="mono muted" style="font-size:10px; letter-spacing:.05em; text-transform:uppercase;">A receber</div><div class="num" style="font-size:26px; margin-top:4px;">R$ 612k</div><div class="num" style="font-size:12px; color:var(--success);">▲ 4,1%</div></div>
+      </div>
+      <p class="muted" style="font-size:13px; margin-top:10px;">A métrica que exige ação (dinheiro em atraso) é maior e usa a cor de marca. As de consulta recuam. Hierarquia é assimetria intencional.</p>
+
+      <div class="card" style="overflow:hidden; margin-top:18px;">
+        <table style="width:100%; border-collapse:collapse; font-size:14px;">
+          <thead><tr style="background:var(--surface-2); text-align:left;">
+            <th style="padding:11px 20px; font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--brand); font-weight:600;">Cliente</th>
+            <th style="padding:11px 12px; font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--brand); font-weight:600;">Vencimento</th>
+            <th style="padding:11px 12px; font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--brand); font-weight:600; text-align:right;">Valor</th>
+            <th style="padding:11px 20px; font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--brand); font-weight:600;">Status</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-top:1px solid var(--line-soft);"><td style="padding:12px 20px; font-weight:500;">M. Andrade</td><td class="num" style="padding:12px; color:var(--ink-soft);">12/06</td><td class="num" style="padding:12px; text-align:right;">R$ 1.250,00</td><td style="padding:12px 20px;"><span style="font-size:12px; font-weight:700; padding:3px 10px; border-radius:999px; background:var(--success-bg); color:var(--success);">Em dia</span></td></tr>
+            <tr style="border-top:1px solid var(--line-soft); background:var(--surface-2);"><td style="padding:12px 20px; font-weight:500;">J. Pereira</td><td class="num" style="padding:12px; color:var(--ink-soft);">10/06</td><td class="num" style="padding:12px; text-align:right;">R$ 880,00</td><td style="padding:12px 20px;"><span style="font-size:12px; font-weight:700; padding:3px 10px; border-radius:999px; background:var(--warning-bg); color:var(--warning);">A vencer</span></td></tr>
+            <tr style="border-top:1px solid var(--line-soft);"><td style="padding:12px 20px; font-weight:500;">R. Lima</td><td class="num" style="padding:12px; color:var(--error);">28/05</td><td class="num" style="padding:12px; text-align:right;">R$ 2.100,00</td><td style="padding:12px 20px;"><span style="font-size:12px; font-weight:700; padding:3px 10px; border-radius:999px; background:var(--error-bg); color:var(--error);">Atraso 4d</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="componentes2">
+      <div class="kicker">3.2</div>
+      <h2 class="h serif">Modal, badges, formulário &amp; toast</h2>
+      <p class="lead">Os componentes de interação, cada um especificado nos dois temas — nenhum vive em um tema só.</p>
+
+      <div class="two" style="margin-top:38px; align-items:start;">
+        <div>
+          <div class="eyebrow">Modal de pagamento</div>
+          <div style="background:var(--overlay); border-radius:16px; padding:26px; display:grid; place-items:center;">
+            <div style="width:100%; max-width:360px; background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow-lg); overflow:hidden;">
+              <div style="padding:18px 20px; border-bottom:1px solid var(--line);"><div class="serif" style="font-size:20px;">Registrar pagamento</div><div class="muted" style="font-size:12px;">Contrato CON-2026-0481 · parcela 06/12</div></div>
+              <div style="padding:20px;">
+                <div class="mono muted" style="font-size:10px; letter-spacing:.08em; text-transform:uppercase; margin-bottom:6px;">Valor recebido</div>
+                <div style="display:flex; align-items:center; border:2px solid var(--action); border-radius:10px; padding:0 14px; box-shadow:0 0 0 3px color-mix(in srgb, var(--action) 26%, transparent);"><span class="mono muted" style="font-size:15px;">R$</span><input class="num" value="1.250,00" style="border:none; outline:none; background:transparent; padding:12px 10px; font-size:18px; width:100%; color:var(--ink);"></div>
+                <div style="display:flex; gap:10px; margin-top:16px;"><button style="flex:1; font-family:inherit; background:var(--surface); color:var(--ink-faint); border:1px solid var(--line); border-radius:8px; padding:11px; font-weight:600; cursor:pointer;">Cancelar</button><button style="flex:2; font-family:inherit; background:var(--action); color:var(--action-ink); border:none; border-radius:999px; padding:11px; font-weight:800; cursor:pointer;">✓ Confirmar</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:18px;">
+          <div class="card pad">
+            <div class="eyebrow">Badges de status</div>
+            <div class="pillrow">
+              <span style="font-size:12px; font-weight:700; padding:4px 11px; border-radius:999px; background:var(--success-bg); color:var(--success);">● Em dia</span>
+              <span style="font-size:12px; font-weight:700; padding:4px 11px; border-radius:999px; background:var(--warning-bg); color:var(--warning);">● A vencer</span>
+              <span style="font-size:12px; font-weight:700; padding:4px 11px; border-radius:999px; background:var(--error-bg); color:var(--error);">● Inadimplente</span>
+              <span style="font-size:12px; font-weight:700; padding:4px 11px; border-radius:999px; background:var(--info-bg); color:var(--info);">● Em análise</span>
+            </div>
+            <p class="muted" style="font-size:12.5px; margin-top:12px;">Cor cheia só no selo de destaque; nas tabelas, tint + texto. Máximo 3 cores de status por tela.</p>
+          </div>
+          <div class="card pad">
+            <div class="eyebrow">Campo — foco em limão</div>
+            <div class="mono muted" style="font-size:10px; letter-spacing:.08em; text-transform:uppercase; margin-bottom:6px;">CPF do cliente</div>
+            <div style="display:flex; align-items:center; border:1px solid var(--line); border-radius:10px; padding:0 14px; background:var(--surface);"><input class="num" value="367.850.368-36" style="border:none; outline:none; background:transparent; padding:12px 0; font-size:16px; width:100%; color:var(--ink);"><span style="color:var(--success); font-size:18px;">✓</span></div>
+          </div>
+          <div class="card pad" style="background:var(--brand); border-color:var(--brand); color:var(--on-brand); display:flex; align-items:center; justify-content:space-between; gap:14px;">
+            <span style="font-size:14px;">Pagamento registrado.</span>
+            <button style="font-family:inherit; background:color-mix(in srgb, var(--on-brand) 16%, transparent); color:var(--on-brand); border:1px solid color-mix(in srgb, var(--on-brand) 32%, transparent); border-radius:999px; padding:7px 14px; font-weight:700; font-size:13px; cursor:pointer;">Desfazer</button>
+          </div>
+        </div>
+      </div>
+      <p class="muted" style="font-size:13px; margin-top:14px;">O toast de desfazer usa <span class="mono">--brand</span> + branco nos dois temas — sem paleta hardcoded que quebre em um deles (falha real do sistema anterior).</p>
+    </section>
+
+    <!-- ==================== 04 · UI/UX ==================== -->
+    <section id="uiux">
+      <div class="kicker">04 · Direcionamento UI/UX</div>
+      <h2 class="h serif">O sistema, em decisões de interface</h2>
+      <p class="lead">Este capítulo traduz a marca em regras de interface, para o FinanceiroOp ficar alinhado sem depender de interpretação. Um desenvolvedor implementa a partir daqui.</p>
+
+      <div class="grid" style="grid-template-columns:1fr 1fr; margin-top:38px; gap:14px;">
+        <div class="card pad"><div class="num" style="color:var(--signal); font-size:13px;">01</div><h3 class="serif" style="font-size:19px; margin-top:4px;">Arquitetura visual</h3><p class="muted" style="font-size:14px; margin-top:6px;">Densidade de <strong style="color:var(--ink)">terminal financeiro humanizado</strong>: nem landing com respiro infinito, nem planilha sufocada. Largura máxima de conteúdo 1200–1320px; grid de 12 colunas, gutters de 24px; sidebar fixa de navegação.</p></div>
+        <div class="card pad"><div class="num" style="color:var(--signal); font-size:13px;">02</div><h3 class="serif" style="font-size:19px; margin-top:4px;">Hierarquia do Dashboard</h3><p class="muted" style="font-size:14px; margin-top:6px;"><strong style="color:var(--ink)">3s:</strong> dinheiro em atraso + ação do dia (KPI grande, cor de marca). <strong style="color:var(--ink)">10s:</strong> tendências da carteira. <strong style="color:var(--ink)">Consulta:</strong> o resto. KPIs têm tamanhos diferentes — nunca uma grade uniforme.</p></div>
+        <div class="card pad"><div class="num" style="color:var(--signal); font-size:13px;">03</div><h3 class="serif" style="font-size:19px; margin-top:4px;">Tabelas financeiras</h3><p class="muted" style="font-size:14px; margin-top:6px;">O coração do sistema. Números à direita, <span class="mono">tabular-nums</span>, linha de 44–48px para varredura, zebra sutil, agrupamento por cliente. Atraso sinalizado por tint na célula de data + pill — nunca a linha inteira vermelha.</p></div>
+        <div class="card pad"><div class="num" style="color:var(--signal); font-size:13px;">04</div><h3 class="serif" style="font-size:19px; margin-top:4px;">Sistema de status</h3><p class="muted" style="font-size:14px; margin-top:6px;">Pill com tint + texto por padrão; cor cheia só no selo de destaque de um registro; texto puro para status neutro/histórico. <strong style="color:var(--ink)">Máximo 3 cores de status simultâneas</strong> numa tabela.</p></div>
+        <div class="card pad"><div class="num" style="color:var(--signal); font-size:13px;">05</div><h3 class="serif" style="font-size:19px; margin-top:4px;">Fluxos críticos</h3><p class="muted" style="font-size:14px; margin-top:6px;">Registrar pagamento ≤ 2 passos; criar contrato ≤ 4. Pagamento é confirmação otimista com desfazer; baixa/exclusão exige confirmação explícita. Um pagamento recebido é <strong style="color:var(--ink)">vitória</strong> — reconhecimento visual sutil (selo verde + Linha de Confiança), não toast genérico.</p></div>
+        <div class="card pad"><div class="num" style="color:var(--signal); font-size:13px;">06</div><h3 class="serif" style="font-size:19px; margin-top:4px;">Estados do sistema</h3><p class="muted" style="font-size:14px; margin-top:6px;">Vazio nunca é tela branca — diz o próximo passo. Carregamento é <strong style="color:var(--ink)">skeleton na estrutura real</strong>, não spinner solto. Erro diz como resolver, perto do problema.</p></div>
+        <div class="card pad"><div class="num" style="color:var(--signal); font-size:13px;">07</div><h3 class="serif" style="font-size:19px; margin-top:4px;">Microinterações</h3><p class="muted" style="font-size:14px; margin-top:6px;">150–300ms em cor / opacidade / transform. Nunca animação que desloca layout. <span class="mono">prefers-reduced-motion</span> respeitado. Motion confirma ação — nunca decora. (Só documentamos o que será implementado de verdade.)</p></div>
+        <div class="card pad"><div class="num" style="color:var(--signal); font-size:13px;">08</div><h3 class="serif" style="font-size:19px; margin-top:4px;">Iconografia funcional</h3><p class="muted" style="font-size:14px; margin-top:6px;">UM set de ícones SVG, stroke de 1.75px, grid de 24px, tamanhos fixos (16/20/24). Nunca emoji como ícone; nunca mistura de sets.</p></div>
+        <div class="card pad"><div class="num" style="color:var(--signal); font-size:13px;">09</div><h3 class="serif" style="font-size:19px; margin-top:4px;">Interação impecável</h3><p class="muted" style="font-size:14px; margin-top:6px;">Todo clicável tem <span class="mono">cursor:pointer</span> e hover; alvos de toque ≥ 44px; foco visível para teclado; botão desabilita durante operação assíncrona.</p></div>
+        <div class="card pad"><div class="num" style="color:var(--signal); font-size:13px;">10</div><h3 class="serif" style="font-size:19px; margin-top:4px;">Ergonomia claro/escuro</h3><p class="muted" style="font-size:14px; margin-top:6px;">O claro é o mais traído em dashboards. Os dois modos são especificados com o mesmo rigor e <strong style="color:var(--ink)">testados nos dois</strong> antes de qualquer entrega — sem cinza ilegível, borda invisível ou vidro transparente demais.</p></div>
+      </div>
+    </section>
+
+    <!-- ==================== 05 · APLICAÇÕES ==================== -->
+    <section id="app">
+      <div class="kicker">05 · Aplicações</div>
+      <h2 class="h serif">App FinanceiroOp</h2>
+      <p class="lead">O sistema operacional interno — 10 abas, claro e escuro. Abaixo, o Dashboard aplicando toda a hierarquia do capítulo anterior. Alterne o tema no topo: a tela inteira acompanha, sem uma cor fora dos tokens.</p>
+
+      <div class="card" style="overflow:hidden; margin-top:38px; box-shadow:var(--shadow-lg);">
+        <div style="display:grid; grid-template-columns:210px 1fr; min-height:500px;">
+          <div style="background:var(--brand); padding:20px 14px; color:var(--on-brand);">
+            <div style="display:flex; align-items:center; gap:9px; margin-bottom:22px;">
+              <svg width="24" height="24" viewBox="0 0 68 68"><rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#fff"/><path d="M25 25 H43 V43 H25 Z" fill="#0E5C44"/></svg>
+              <b style="font-size:14px; color:#fff;">FinanceiroOp</b>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:2px; font-size:13px;">
+              <div style="padding:8px 11px; border-radius:8px; background:rgba(255,255,255,.16); color:#fff; font-weight:600;">Dashboard</div>
+              <div style="padding:8px 11px; opacity:.72;">Clientes</div>
+              <div style="padding:8px 11px; opacity:.72;">Contratos</div>
+              <div style="padding:8px 11px; opacity:.72;">Cobrança</div>
+              <div style="padding:8px 11px; opacity:.72;">Financeiro</div>
+              <div style="padding:8px 11px; opacity:.72;">Carteira</div>
+              <div style="padding:8px 11px; opacity:.72;">Perdas &amp; Recup.</div>
+              <div style="padding:8px 11px; opacity:.72;">Promessas</div>
+              <div style="padding:8px 11px; opacity:.72;">Régua WhatsApp</div>
+              <div style="padding:8px 11px; opacity:.72;">Simulador</div>
+            </div>
+          </div>
+          <div style="padding:24px 28px; background:var(--bg);">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+              <div><h3 class="serif" style="font-size:24px;">Dashboard</h3><div class="mono muted" style="font-size:12px; margin-top:2px;">Atualizado há 4 min · jul/2026</div></div>
+              <button style="font-family:inherit; background:var(--action); color:var(--action-ink); border:none; border-radius:999px; padding:10px 18px; font-weight:800; font-size:13px; cursor:pointer;">+ Nova proposta</button>
+            </div>
+            <div style="display:grid; grid-template-columns:2fr 1fr 1fr; gap:12px; margin-top:20px;">
+              <div style="background:var(--brand); border-radius:12px; padding:16px; color:var(--on-brand);"><div class="mono" style="font-size:10px; text-transform:uppercase; color:var(--on-brand-soft);">Em atraso · ação do dia</div><div class="num" style="font-size:30px; margin-top:3px; color:var(--on-brand);">R$ 4.210</div><div class="num" style="font-size:12px; font-weight:700; color:var(--on-brand-soft);">3 clientes</div></div>
+              <div style="background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px;"><div class="mono muted" style="font-size:10px; text-transform:uppercase;">Carteira</div><div class="num" style="font-size:22px; margin-top:3px;">R$ 4,82M</div><div class="num" style="font-size:12px; color:var(--success);">▲ 8,3%</div></div>
+              <div style="background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px;"><div class="mono muted" style="font-size:10px; text-transform:uppercase;">A receber</div><div class="num" style="font-size:22px; margin-top:3px;">R$ 612k</div><div class="num" style="font-size:12px; color:var(--success);">▲ 4,1%</div></div>
+            </div>
+            <div style="background:var(--surface); border:1px solid var(--line); border-radius:12px; margin-top:12px; overflow:hidden;">
+              <div style="padding:13px 16px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;"><strong style="font-size:14px;">Parcelas em atraso</strong><span style="font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; background:var(--error-bg); color:var(--error);">3 clientes</span></div>
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:11px 16px; border-bottom:1px solid var(--line-soft);"><div><div style="font-size:13.5px; font-weight:500;">R. Lima</div><div class="num muted" style="font-size:11px;">venc. 28/05 · 4d</div></div><span class="num" style="color:var(--error);">R$ 2.100,00</span></div>
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:11px 16px; border-bottom:1px solid var(--line-soft);"><div><div style="font-size:13.5px; font-weight:500;">E. Santos</div><div class="num muted" style="font-size:11px;">venc. 22/11 · 209d</div></div><span class="num" style="color:var(--error);">R$ 680,00</span></div>
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:11px 16px;"><div><div style="font-size:13.5px; font-weight:500;">C. Dias</div><div class="num muted" style="font-size:11px;">venc. 01/07 · 12d</div></div><span class="num" style="color:var(--error);">R$ 1.430,00</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="certificado">
+      <div class="kicker">5.2</div>
+      <h2 class="h serif">Certificado de quitação — a peça-vitrine</h2>
+      <p class="lead">Numa rede que cresce só por indicação, este é o material de marketing mais importante que existe: o momento em que o cliente sente orgulho e mostra a Rede Borges a alguém de fora. Serif de diploma, Linha de Confiança, e um convite honesto à indicação. Usa exatamente os mesmos tokens da UI interna.</p>
+
+      <div style="margin-top:38px; display:grid; place-items:center; background:var(--surface-2); border-radius:20px; padding:36px;">
+        <div style="width:100%; max-width:460px; background:var(--surface); border:1px solid var(--line); border-radius:20px; overflow:hidden; box-shadow:var(--shadow-lg);">
+          <div style="background:var(--brand); padding:30px 28px 24px; text-align:center; color:var(--on-brand); position:relative; overflow:hidden;">
+            <svg width="100%" height="46" viewBox="0 0 420 46" preserveAspectRatio="xMidYMid meet" style="position:absolute; top:10px; left:0; opacity:.28; color:var(--on-brand-soft);" id="certthread" aria-hidden="true"></svg>
+            <svg width="38" height="38" viewBox="0 0 68 68" style="position:relative; margin-bottom:10px;"><rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#fff"/><path d="M25 25 H43 V43 H25 Z" fill="#0E5C44"/></svg>
+            <div class="mono" style="font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--on-brand-soft); position:relative;">Certificado de quitação</div>
+          </div>
+          <div style="padding:30px 28px; text-align:center;">
+            <div style="width:56px; height:56px; border-radius:50%; background:var(--success-bg); display:grid; place-items:center; margin:0 auto;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 12.5 L9.5 18 L20 6.5" stroke="var(--success)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3 class="serif" style="font-size:28px; margin-top:16px;">Contrato quitado</h3>
+            <p class="muted" style="font-size:14px; margin-top:8px; line-height:1.55;">A Borges reconhece que <strong style="color:var(--ink)">Maria Andrade</strong> honrou integralmente seu compromisso no contrato <span class="mono">CON-2026-0481</span>. Palavra dada, palavra cumprida.</p>
+            <div style="background:var(--surface-2); border-radius:12px; padding:16px 20px; margin-top:20px; text-align:left;">
+              <div style="display:flex; justify-content:space-between; padding:5px 0;"><span class="muted" style="font-size:13px;">Valor quitado</span><span class="num" style="font-size:14px;">R$ 15.000,00</span></div>
+              <div style="display:flex; justify-content:space-between; padding:5px 0;"><span class="muted" style="font-size:13px;">Parcelas</span><span class="num" style="font-size:14px;">12 de 12</span></div>
+              <div style="display:flex; justify-content:space-between; padding:5px 0;"><span class="muted" style="font-size:13px;">Membro desde</span><span class="num" style="font-size:14px;">jul/2025</span></div>
+            </div>
+            <div style="margin-top:20px; padding:16px; border:1px dashed var(--line); border-radius:12px;">
+              <p class="serif" style="font-size:16px; color:var(--brand); font-style:italic;">“Você faz parte da Rede Borges.”</p>
+              <p class="muted" style="font-size:13px; margin-top:6px;">Conhece alguém de confiança que merece o mesmo? Sua indicação é o que mantém a rede forte.</p>
+              <button style="font-family:inherit; margin-top:12px; background:var(--action); color:var(--action-ink); border:none; border-radius:999px; padding:11px 20px; font-weight:800; font-size:13px; cursor:pointer;">Indicar alguém de confiança</button>
+            </div>
+            <div class="mono muted" style="font-size:11px; margin-top:16px;">Autenticação QT·0481·2026·BORGES</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="superficies">
+      <div class="kicker">5.3</div>
+      <h2 class="h serif">PDF · Sheets · papelaria</h2>
+      <p class="lead">O sistema cobre até as superfícies “invisíveis”. Nenhuma inventa cor — todas puxam da tabela de tokens, em versão simplificada quando preciso.</p>
+      <div class="grid" style="grid-template-columns:repeat(3,1fr); margin-top:38px;">
+        <div class="card pad">
+          <div class="eyebrow">Documentos PDF</div>
+          <p class="muted" style="font-size:14px;">Comprovante de pagamento, comprovante de quitação, timbre de contrato, carnê PIX. A4 = 794px; header em <span class="mono">--brand</span>; Linha de Confiança no rodapé; números tabulares; <span class="mono">print-color-adjust:exact</span>.</p>
+        </div>
+        <div class="card pad">
+          <div class="eyebrow">Google Sheets</div>
+          <div style="border:1px solid var(--line); border-radius:8px; overflow:hidden; margin-bottom:10px;">
+            <div style="background:var(--brand); color:var(--on-brand); font-size:11px; font-weight:700; padding:6px 10px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;"><span>CLIENTE</span><span>SCORE</span><span>STATUS</span></div>
+            <div style="font-size:11px; padding:6px 10px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; background:var(--surface);"><span>M. Andrade</span><span style="color:var(--success); font-weight:700;">82 · Bom</span><span>Ativo</span></div>
+            <div style="font-size:11px; padding:6px 10px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; background:var(--surface-2);"><span>R. Lima</span><span style="color:var(--error); font-weight:700;">38 · Risco</span><span>Atraso</span></div>
+          </div>
+          <p class="muted" style="font-size:13px;">Cabeçalho <span class="mono">--brand</span> — nunca azul-marinho. Score por formatação condicional nas cores semânticas.</p>
+        </div>
+        <div class="card pad">
+          <div class="eyebrow">Papelaria &amp; e-mail</div>
+          <p class="muted" style="font-size:14px;">Assinatura de e-mail, timbre, cartão. Lockup horizontal reduzido, divisor com a Linha de Confiança, contato em <span class="mono">--ink-faint</span>. Versão mínima do sistema para superfícies de texto.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 06 · TOM DE VOZ ==================== -->
+    <section id="voz">
+      <div class="kicker">06 · Tom de voz</div>
+      <h2 class="h serif">Voz &amp; WhatsApp</h2>
+      <p class="lead">Sério-humano: firme nos fatos, respeitoso com a pessoa. Direto sem ser seco, nunca ameaçador, nunca bajulador. Fala como um profissional de confiança fala com quem ele respeita. Português brasileiro, sempre.</p>
+
+      <div class="grid" style="grid-template-columns:repeat(3,1fr); margin-top:38px;">
+        <div class="card pad"><h3 class="serif" style="font-size:18px;">Firme no fato</h3><p class="muted" style="font-size:14px; margin-top:6px;">Datas, valores e prazos exatos. A pessoa sabe onde está sem decifrar.</p></div>
+        <div class="card pad"><h3 class="serif" style="font-size:18px;">Respeitoso na forma</h3><p class="muted" style="font-size:14px; margin-top:6px;">Trata por nome, oferece caminho, preserva a dignidade. Cobra sem humilhar.</p></div>
+        <div class="card pad"><h3 class="serif" style="font-size:18px;">Curto e humano</h3><p class="muted" style="font-size:14px; margin-top:6px;">Uma ideia por mensagem, um próximo passo óbvio. Sem juridiquês, sem emoji em excesso.</p></div>
+      </div>
+
+      <div class="eyebrow" style="margin-top:36px;">Quatro mensagens reescritas</div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;">
+        <div class="card" style="overflow:hidden;">
+          <div style="padding:12px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px;"><span style="width:9px; height:9px; border-radius:50%; background:var(--error);"></span><strong style="font-size:13px;">Parcela vencida — firme e digna</strong></div>
+          <div style="padding:16px; background:#E7EBE9;"><div style="background:#fff; border-radius:4px 14px 14px 14px; padding:12px 14px; box-shadow:var(--shadow); font-size:13.5px; line-height:1.5; color:#1a1a1a;">Olá, Rafael. Sua parcela <b>04/12</b> de <span style="font-variant-numeric:tabular-nums; font-weight:700;">R$ 680,00</span> venceu em <b>28/05</b> e consta em aberto.<br><br>Consegue regularizar hoje via PIX? Se precisar de outro combinado, me responda aqui que a gente ajusta juntos.</div></div>
+        </div>
+        <div class="card" style="overflow:hidden;">
+          <div style="padding:12px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px;"><span style="width:9px; height:9px; border-radius:50%; background:var(--success);"></span><strong style="font-size:13px;">Pagamento confirmado</strong></div>
+          <div style="padding:16px; background:#E7EBE9;"><div style="background:#fff; border-radius:4px 14px 14px 14px; padding:12px 14px; box-shadow:var(--shadow); font-size:13.5px; line-height:1.5; color:#1a1a1a;">Recebido, Maria! Parcela <b>06/12</b> de <span style="font-variant-numeric:tabular-nums; font-weight:700;">R$ 1.250,00</span> paga em <b>13/07</b>. ✅<br><br>Faltam <b>6 parcelas</b>. Comprovante em anexo. Obrigado pela pontualidade — é isso que mantém a rede forte.</div></div>
+        </div>
+        <div class="card" style="overflow:hidden;">
+          <div style="padding:12px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px;"><span style="width:9px; height:9px; border-radius:50%; background:var(--brand);"></span><strong style="font-size:13px;">Quitação + convite à indicação</strong></div>
+          <div style="padding:16px; background:#E7EBE9;"><div style="background:#fff; border-radius:4px 14px 14px 14px; padding:12px 14px; box-shadow:var(--shadow); font-size:13.5px; line-height:1.5; color:#1a1a1a;">Parabéns, Maria — contrato <b>quitado</b>! 🎉 As <b>12 parcelas</b>, todas honradas.<br><br>Segue seu certificado, pode guardar e mostrar: <span style="color:#127A57; font-weight:600;">borges.com.br/quitacao/0481</span><br><br>Conhece alguém de confiança que merece fazer parte? Sua indicação é o que faz a Rede Borges crescer com gente certa.</div></div>
+        </div>
+        <div class="card" style="overflow:hidden;">
+          <div style="padding:12px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px;"><span style="width:9px; height:9px; border-radius:50%; background:var(--signal);"></span><strong style="font-size:13px;">Boas-vindas a novo membro indicado</strong></div>
+          <div style="padding:16px; background:#E7EBE9;"><div style="background:#fff; border-radius:4px 14px 14px 14px; padding:12px 14px; box-shadow:var(--shadow); font-size:13.5px; line-height:1.5; color:#1a1a1a;">Oi, João! O Carlos indicou você — e a indicação dele já diz muito.<br><br>Bem-vindo à <b>Rede Borges</b>. Aqui a gente trata crédito com respeito e conversa como gente. Quando precisar, é só me chamar por aqui: seu atendimento é sempre com uma pessoa.</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 07 · GOVERNANÇA ==================== -->
+    <section id="governanca">
+      <div class="kicker">07 · Governança</div>
+      <h2 class="h serif">Governança &amp; checklist</h2>
+      <p class="lead">Este manual é a fonte única. Quando falta algo, não se inventa — propõe-se uma adição. Foi a ausência dessa regra que matou o sistema anterior.</p>
+
+      <div class="two" style="margin-top:38px;">
+        <div class="card pad">
+          <div class="eyebrow">Quando falta um token</div>
+          <ol style="margin:0; padding-left:20px; color:var(--ink-soft); font-size:15px; line-height:1.9;">
+            <li>Confirme que a cor realmente não existe na tabela (2.2).</li>
+            <li>Verifique se um token semântico existente cobre o caso.</li>
+            <li>Se ainda faltar, <strong style="color:var(--ink);">proponha a adição ao manual</strong> — com nome, par claro/escuro e contraste — antes de usar.</li>
+            <li>Nunca hardcode um hex “provisório”. Provisório vira permanente.</li>
+          </ol>
+        </div>
+        <div class="card pad">
+          <div class="eyebrow">Como o manual evolui</div>
+          <p class="muted" style="font-size:15px; line-height:1.7;">Mudança de token é versionada aqui e propagada a todas as superfícies de uma vez. Um valor, um lugar. Se três documentos discordam de uma cor, este arquivo vence — os outros se corrigem.</p>
+          <div class="callout" style="margin-top:14px; font-size:14px;">Regra de ouro: <strong style="color:var(--ink);">nunca digite um hex de memória.</strong> Sempre copie da tabela.</div>
+        </div>
+      </div>
+
+      <div class="card pad" style="margin-top:18px;">
+        <div class="eyebrow">Checklist de conformidade — antes de publicar qualquer coisa</div>
+        <div class="grid" style="grid-template-columns:1fr 1fr; gap:2px 32px;">
+          <label style="display:flex; gap:10px; align-items:flex-start; font-size:14.5px; padding:6px 0;"><input type="checkbox" style="margin-top:4px; accent-color:var(--action);"> Toda cor vem da tabela de tokens (nenhum hex avulso)</label>
+          <label style="display:flex; gap:10px; align-items:flex-start; font-size:14.5px; padding:6px 0;"><input type="checkbox" style="margin-top:4px; accent-color:var(--action);"> Especificado em claro E escuro</label>
+          <label style="display:flex; gap:10px; align-items:flex-start; font-size:14.5px; padding:6px 0;"><input type="checkbox" style="margin-top:4px; accent-color:var(--action);"> Números financeiros em Helvetica tabular, peso forte</label>
+          <label style="display:flex; gap:10px; align-items:flex-start; font-size:14.5px; padding:6px 0;"><input type="checkbox" style="margin-top:4px; accent-color:var(--action);"> Contraste ≥ AA em todo par texto/fundo</label>
+          <label style="display:flex; gap:10px; align-items:flex-start; font-size:14.5px; padding:6px 0;"><input type="checkbox" style="margin-top:4px; accent-color:var(--action);"> No máximo 3 cores semânticas na tela</label>
+          <label style="display:flex; gap:10px; align-items:flex-start; font-size:14.5px; padding:6px 0;"><input type="checkbox" style="margin-top:4px; accent-color:var(--action);"> Um único CTA primário por contexto</label>
+          <label style="display:flex; gap:10px; align-items:flex-start; font-size:14.5px; padding:6px 0;"><input type="checkbox" style="margin-top:4px; accent-color:var(--action);"> A Linha de Confiança presente onde couber</label>
+          <label style="display:flex; gap:10px; align-items:flex-start; font-size:14.5px; padding:6px 0;"><input type="checkbox" style="margin-top:4px; accent-color:var(--action);"> Sem cara de template de IA (glow, glass, mesh)</label>
+          <label style="display:flex; gap:10px; align-items:flex-start; font-size:14.5px; padding:6px 0;"><input type="checkbox" style="margin-top:4px; accent-color:var(--action);"> Passa no teste: “sem o logo, ainda é Borges?”</label>
+          <label style="display:flex; gap:10px; align-items:flex-start; font-size:14.5px; padding:6px 0;"><input type="checkbox" style="margin-top:4px; accent-color:var(--action);"> Passa no teste: “um cliente teria orgulho de mostrar?”</label>
+        </div>
+      </div>
+    </section>
+
+    <section id="justificativas" style="border-bottom:none;">
+      <div class="kicker">7.2</div>
+      <h2 class="h serif">Justificativas das decisões centrais</h2>
+      <p class="lead">Cada escolha amarrada ao grande conceito — <em>“a Borges não vende crédito, constrói confiança”</em> — e aos seis valores.</p>
+
+      <div class="grid" style="grid-template-columns:1fr; margin-top:38px; gap:14px;">
+        <div class="card pad"><div style="display:flex; gap:16px; align-items:baseline;"><span class="mono" style="color:var(--signal); font-size:13px; width:120px; flex-shrink:0;">PALETA</span><p style="font-size:16px;">Mantive os três verdes, mas aqueci os neutros para <strong>marfim</strong> — o “papel” de uma instituição em que se confia, não o cinza de um banco. Verde é <strong>Confiança</strong> e raiz; o marfim traz o <strong>Respeito</strong> e o <strong>Atendimento humano</strong>. Uma paleta contida executada com precisão vale mais que dez efeitos da moda.</p></div></div>
+        <div class="card pad"><div style="display:flex; gap:16px; align-items:baseline;"><span class="mono" style="color:var(--signal); font-size:13px; width:120px; flex-shrink:0;">TIPOGRAFIA</span><p style="font-size:16px;">A serif <strong>Newsreader</strong> nos títulos dá à marca a dignidade de um documento que se guarda — serve ao orgulho de pertencer e ao <strong>Compromisso</strong>. Helvetica com algarismos tabulares mantém o dinheiro preciso (dado é protagonista). Não é Inter por inércia: é serif por decisão, amarrada ao “teria orgulho de mostrar?”.</p></div></div>
+        <div class="card pad"><div style="display:flex; gap:16px; align-items:baseline;"><span class="mono" style="color:var(--signal); font-size:13px; width:120px; flex-shrink:0;">FORMA</span><p style="font-size:16px;">O símbolo de módulos sobrepostos vira <strong>duas pessoas se conectando</strong> — o padrinho e quem ele traz. A grade base-4 diz <strong>Simplicidade</strong> e <strong>Responsabilidade</strong>: tudo se alinha, nada é arbitrário.</p></div></div>
+        <div class="card pad"><div style="display:flex; gap:16px; align-items:baseline;"><span class="mono" style="color:var(--signal); font-size:13px; width:120px; flex-shrink:0;">ASSINATURA</span><p style="font-size:16px;"><strong>A Linha de Confiança</strong> — nós ligados por um fio contínuo — é a rede desenhada: cada membro é um nó, cada indicação estende a linha. Aparece no certificado, no rodapé dos PDFs, no header do app e como divisor. É a marca <em>sem o logo</em>; nenhum template tem essa linha.</p></div></div>
+        <div class="card pad"><div style="display:flex; gap:16px; align-items:baseline;"><span class="mono" style="color:var(--signal); font-size:13px; width:120px; flex-shrink:0;">LINGUAGEM</span><p style="font-size:16px;">O tom sério-humano protege a <strong>Confiança</strong>: firme no fato sem a frieza de banco nem a agressão de cobrador. Cada mensagem trata a pessoa como alguém que a rede respeita — e convida à indicação sem simular escala falsa.</p></div></div>
+      </div>
+
+      <div class="card pad" style="margin-top:24px; background:var(--brand); color:var(--on-brand); border-color:var(--brand); text-align:center; position:relative; overflow:hidden;">
+        <svg width="100%" height="60" viewBox="0 0 900 60" preserveAspectRatio="none" style="position:absolute; left:0; bottom:0; opacity:.2; color:var(--on-brand-soft);" id="footthread" aria-hidden="true"></svg>
+        <p class="serif" style="font-size:24px; color:var(--on-brand); position:relative; font-style:italic;">A confiança vira oportunidade.</p>
+        <p style="opacity:.82; margin-top:8px; position:relative;">Rede Borges · Manual de Design · v3.0 · 2026</p>
+      </div>
+    </section>
+
+    <!-- @@BODY@@ -->
+
+  </main>
+</div>
+
+<script>
+  // ---- Assinatura: "A Linha de Confiança" — nós ligados por um fio (rede de indicações) ----
+  function drawThread(svg, opts){
+    opts = opts || {};
+    const W = opts.w || 1100, H = opts.h || 120, n = opts.n || 7;
+    const stroke = opts.stroke || 'currentColor';
+    const midY = H/2;
+    let pts = [];
+    for(let i=0;i<n;i++){
+      const x = 20 + i*((W-40)/(n-1));
+      const y = midY + Math.sin(i*1.1)* (H*0.22);
+      pts.push([x,y]);
+    }
+    let d = 'M '+pts[0][0]+' '+pts[0][1];
+    for(let i=1;i<n;i++){
+      const px=pts[i-1], cx=pts[i];
+      const mx=(px[0]+cx[0])/2;
+      d += ' C '+mx+' '+px[1]+' '+mx+' '+cx[1]+' '+cx[0]+' '+cx[1];
+    }
+    let nodes='';
+    pts.forEach(function(p,i){
+      const r = (i===Math.floor(n/2))?6:4;
+      nodes += '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="'+r+'" fill="'+stroke+'"/>';
+    });
+    svg.innerHTML = '<path d="'+d+'" fill="none" stroke="'+stroke+'" stroke-width="'+(opts.sw||2.5)+'"/>'+nodes;
+  }
+  var ct = document.getElementById('coverthread');
+  if(ct){ ct.style.color = 'var(--brand)'; drawThread(ct, {w:1100,h:120,n:9}); }
+  var cth = document.getElementById('conceptthread'); if(cth) drawThread(cth, {w:900,h:80,n:8, stroke:'currentColor'});
+  var sa = document.getElementById('sigA'); if(sa) drawThread(sa, {w:420,h:70,n:6, sw:2.5});
+  var sb = document.getElementById('sigB'); if(sb) drawThread(sb, {w:420,h:70,n:9, sw:2});
+  var certt = document.getElementById('certthread'); if(certt) drawThread(certt, {w:420,h:46,n:7, stroke:'currentColor', sw:1.75});
+  var ft = document.getElementById('footthread'); if(ft) drawThread(ft, {w:900,h:60,n:8, stroke:'currentColor', sw:2});
+
+  // ---- Tabela de tokens (par claro/escuro + contraste WCAG) ----
+  var TOKENS = [
+    ['--bg','#F7F5EF','#06231A','Marfim quente · fundo da página','—'],
+    ['--surface','#FFFDF9','#0B3227','Cards, modais, tabelas','—'],
+    ['--surface-2','#F0EDE4','#123B2E','Zebra de tabela, insets','—'],
+    ['--ink','#1A1712','#EFF3EC','Texto principal','15.6:1 AAA'],
+    ['--ink-soft','#57514A','#AEBAB0','Texto secundário','7.1:1 AAA'],
+    ['--ink-faint','#7C756B','#7F8C82','Rótulos, legendas','4.6:1 AA'],
+    ['--brand','#0B3D2E','#5AD09B','Confiança · marca · "em dia"','9.6:1 AAA'],
+    ['--signal','#127A57','#43D69C','Dados · progresso (texto)','4.7:1 AA'],
+    ['--action','#A8E03F','#A8E03F','Ação · CTA (texto #07241B)','9.1:1 AAA'],
+    ['--success','#15805A','#5AD09B','Confirmação · positivo','4.9:1 AA'],
+    ['--warning','#9A6510','#E3A93A','Aviso · pendente','4.8:1 AA'],
+    ['--error','#C0322F','#F0716E','Erro · atraso · destrutivo','5.1:1 AA'],
+    ['--info','#166C70','#5FC2C6','Informação · link','5.3:1 AA'],
+  ];
+  var tb = document.getElementById('tokrows');
+  if(tb){
+    tb.innerHTML = TOKENS.map(function(r){
+      return '<tr style="border-top:1px solid var(--line-soft);">'+
+        '<td style="padding:11px 18px;"><span class="mono" style="font-size:12.5px;">'+r[0]+'</span></td>'+
+        '<td style="padding:11px 12px;"><span style="display:inline-flex; align-items:center; gap:7px;"><span style="width:15px; height:15px; border-radius:4px; border:1px solid var(--line); background:'+r[1]+';"></span><span class="mono" style="font-size:12px; color:var(--ink-faint);">'+r[1]+'</span></span></td>'+
+        '<td style="padding:11px 12px;"><span style="display:inline-flex; align-items:center; gap:7px;"><span style="width:15px; height:15px; border-radius:4px; border:1px solid var(--line); background:'+r[2]+';"></span><span class="mono" style="font-size:12px; color:var(--ink-faint);">'+r[2]+'</span></span></td>'+
+        '<td style="padding:11px 12px; color:var(--ink-soft);">'+r[3]+'</td>'+
+        '<td style="padding:11px 18px;"><span class="mono" style="font-size:11.5px; color:var(--success);">'+r[4]+'</span></td>'+
+      '</tr>';
+    }).join('');
+  }
+
+  function setTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    document.getElementById('btnLight').classList.toggle('on', t==='light');
+    document.getElementById('btnDark').classList.toggle('on', t==='dark');
+    try{ localStorage.setItem('borges-manual-v3-theme', t); }catch(e){}
+  }
+  try{ setTheme(localStorage.getItem('borges-manual-v3-theme')==='dark'?'dark':'light'); }catch(e){}
+</script>
+</body>
+</html>

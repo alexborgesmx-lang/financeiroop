@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timbre de Contrato — Borges Assessoria</title>
+<link rel="stylesheet" href="brand-v3.css">
+<style>
+  body{display:flex; flex-direction:column; align-items:center; padding:34px 16px; gap:18px;}
+  .sheet{width:794px; max-width:100%; min-height:1123px; background:var(--surface); box-shadow:var(--shadow-lg); border:1px solid var(--line); position:relative; display:flex; flex-direction:column; overflow:hidden;}
+
+  /* TIMBRE: cabeçalho */
+  .t-head{padding:40px 56px 20px; display:flex; justify-content:space-between; align-items:flex-start; position:relative;}
+  .t-head::after{content:""; position:absolute; left:56px; right:56px; bottom:0; height:2px; background:linear-gradient(90deg,var(--brand) 0 72px,var(--line) 72px);}
+  .t-id .nm{font-size:18px; font-weight:700; letter-spacing:-.02em;}
+  .t-id .ds{font-family:var(--mono); font-size:10px; color:var(--signal);}
+  .t-co{text-align:right; font-size:10.5px; color:var(--ink-faint); line-height:1.7;}
+
+  /* Linha de Confiança discreta sob o timbre */
+  .t-thread{margin:0 56px; color:var(--signal-viz); opacity:.5; height:22px;}
+
+  /* marca d'água */
+  .watermark{position:absolute; inset:0; display:grid; place-items:center; pointer-events:none;}
+
+  /* corpo de exemplo */
+  .doc-body{padding:22px 56px 8px; font-size:11.5px; line-height:1.9; color:var(--ink-soft); position:relative; z-index:1;}
+  .doc-body h2{font-family:var(--serif); font-weight:600; font-size:19px; text-align:center; margin-bottom:6px; color:var(--ink); letter-spacing:-.01em;}
+  .doc-body .sub{font-family:var(--mono); text-align:center; font-size:10px; color:var(--ink-faint); margin-bottom:22px;}
+  .doc-body .cl{font-weight:700; color:var(--ink); display:block; margin:16px 0 2px;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:6px 24px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--r-md); padding:14px 18px; margin:12px 0; font-size:11.5px;}
+  .grid2 .lbl{font-family:var(--mono); font-size:8.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--signal);}
+
+  /* TIMBRE: rodapé */
+  .t-foot{margin-top:auto; padding:14px 56px 30px; position:relative;}
+  .t-foot::before{content:""; position:absolute; left:56px; right:56px; top:0; height:1px; background:var(--line);}
+  .t-foot .frow{display:flex; justify-content:space-between; font-size:10px; color:var(--ink-faint); padding-top:12px;}
+  .t-foot .frow .mono{color:var(--ink-soft);}
+
+  @media print{ body{padding:0;} .sheet{box-shadow:none; width:100%; min-height:auto; border:none;} @page{size:A4; margin:0;} }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn btn-p" onclick="window.print()">Salvar / imprimir PDF</button>
+    <span class="btn btn-s">Timbre · página de contrato</span>
+  </div>
+
+  <div class="sheet">
+    <!-- TIMBRE: cabeçalho -->
+    <div class="t-head">
+      <div class="t-id" style="display:flex; align-items:center; gap:13px;">
+        <svg width="42" height="42" viewBox="0 0 68 68"><rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#0B3D2E"/><path d="M25 25 H43 V43 H25 Z" fill="#07241B"/></svg>
+        <div><div class="nm">Borges Assessoria</div><div class="ds">Rede privada de confiança</div></div>
+      </div>
+      <div class="t-co">Borges Assessoria Financeira<br>CNPJ 63.124.205/0001-07<br>borgesassessoriafinanceira@gmail.com<br>(62) 98487-7843</div>
+    </div>
+    <svg class="t-thread" data-thread data-w="682" data-h="22" data-n="10" data-sw="1.4" data-amp="0.32" aria-hidden="true"></svg>
+
+    <!-- marca d'água -->
+    <div class="watermark"><svg width="380" height="380" viewBox="0 0 68 68" style="opacity:.04;"><rect x="3" y="3" width="40" height="40" rx="9" fill="#0B3D2E"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#0B3D2E"/></svg></div>
+
+    <!-- corpo de exemplo -->
+    <div class="doc-body">
+      <h2>CÉDULA DE CRÉDITO BANCÁRIO</h2>
+      <div class="sub">Nº CON-2026-0481 · Emitida em Goiânia/GO</div>
+
+      <div class="grid2">
+        <div><div class="lbl">Credor</div>Borges Assessoria Financeira — CNPJ 63.124.205/0001-07</div>
+        <div><div class="lbl">Emissão</div>29 de maio de 2026</div>
+        <div><div class="lbl">Devedor</div>Maria Andrade — CPF 123.456.789-00</div>
+        <div><div class="lbl">Praça de pagamento</div>Goiânia/GO</div>
+      </div>
+
+      <span class="cl">Cláusula 1ª — Do valor e da finalidade</span>
+      Pelo presente instrumento, o(a) DEVEDOR(a) confessa dever ao CREDOR a quantia de R$ 12.500,00 (doze mil e quinhentos reais), recebida a título de empréstimo pessoal, comprometendo-se a restituí-la nos termos aqui pactuados.
+
+      <span class="cl">Cláusula 2ª — Da forma de pagamento</span>
+      O valor será restituído em 12 (doze) parcelas mensais e sucessivas de R$ 1.250,00 (mil duzentos e cinquenta reais), vencendo-se a primeira em 06/07/2025 e as demais no mesmo dia dos meses subsequentes, mediante PIX ou boleto emitido pelo CREDOR.
+
+      <span class="cl">Cláusula 3ª — Dos encargos</span>
+      Sobre o valor incidirão juros remuneratórios de 2,89% ao mês, resultando em Custo Efetivo Total (CET) informado ao DEVEDOR no ato da contratação. Em caso de atraso, incidirão multa de 2% e juros de mora de 1% ao mês sobre a parcela inadimplida.
+
+      <span class="cl">Cláusula 4ª — Do vencimento antecipado</span>
+      O não pagamento de qualquer parcela na data aprazada faculta ao CREDOR considerar antecipadamente vencida a totalidade da dívida, independentemente de aviso ou notificação judicial ou extrajudicial.
+
+      <span class="cl">Cláusula 5ª — Do foro</span>
+      Fica eleito o foro da comarca de Goiânia/GO para dirimir quaisquer questões oriundas deste instrumento, com renúncia a qualquer outro, por mais privilegiado que seja.
+    </div>
+
+    <!-- TIMBRE: rodapé -->
+    <div class="t-foot">
+      <div class="frow">
+        <span>Borges Assessoria Financeira · borgesassessoriafinanceira@gmail.com · (62) 98487-7843</span>
+        <span class="mono">Página 1 de 3 · CON-2026-0481</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="brand-v3.js"></script>
+</body>
+</html>

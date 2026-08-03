@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Assinatura de E-mail — Rede Borges</title>
+<link rel="stylesheet" href="brand-v3.css">
+<style>
+  body{padding:0;}
+  .wrap{max-width:920px; margin:0 auto; padding:56px clamp(20px,5vw,64px) 90px;}
+  .kick{font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--signal);}
+  h1{font-family:var(--serif); font-weight:500; font-size:clamp(34px,5vw,52px); letter-spacing:-.02em; margin-top:10px;}
+  .lead{font-size:19px; line-height:1.55; color:var(--ink-soft); max-width:62ch; margin-top:18px;}
+  .thread-hero{color:var(--signal-viz); height:32px; width:260px; margin-top:24px; opacity:.85;}
+
+  .block{margin-top:44px;}
+  .blabel{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); display:flex; align-items:center; gap:12px; margin-bottom:16px;}
+  .blabel::after{content:""; flex:1; height:1px; background:var(--line);}
+
+  /* moldura estilo "janela de e-mail" */
+  .mail{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--shadow); overflow:hidden;}
+  .mail .bar{display:flex; align-items:center; gap:7px; padding:12px 16px; border-bottom:1px solid var(--line-soft); background:var(--surface-2);}
+  .mail .bar .d{width:11px; height:11px; border-radius:50%;}
+  .mail .bar .subj{margin-left:12px; font-size:12.5px; color:var(--ink-faint);}
+  .mail .body{padding:26px 30px;}
+  .mail .greet{font-size:14px; color:var(--ink-soft); line-height:1.7; margin-bottom:22px;}
+
+  .act{display:flex; gap:10px; align-items:center; margin-top:16px; flex-wrap:wrap;}
+  .copy{font-family:var(--sans); font-size:13px; font-weight:700; border:none; border-radius:999px; padding:10px 20px; cursor:pointer; background:var(--action); color:var(--action-ink); transition:.15s;}
+  .copy:hover{filter:brightness(1.04);}
+  .copy.done{background:var(--success-bg); color:var(--success);}
+  .copy.ghost{background:var(--surface); color:var(--ink); border:1px solid var(--line);}
+  .hint{font-size:12.5px; color:var(--ink-faint);}
+
+  .note{margin-top:40px; background:var(--surface-2); border:1px solid var(--line); border-left:3px solid var(--signal-viz); border-radius:var(--r-md); padding:16px 20px; font-size:13.5px; color:var(--ink-soft); line-height:1.7;}
+  .note b{color:var(--ink);}
+  .note code{font-family:var(--mono); font-size:12px; background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:1px 6px; color:var(--signal);}
+
+  .footnote{margin-top:56px; padding-top:22px; border-top:1px solid var(--line); font-size:12px; color:var(--ink-faint);}
+  .footnote .mono{color:var(--ink-soft);}
+</style>
+</head>
+<body>
+  <div class="toolbar" style="justify-content:flex-start; padding:20px clamp(20px,5vw,64px) 0;">
+    <span class="btn btn-s">Papelaria · assinatura de e-mail</span>
+  </div>
+
+  <div class="wrap">
+    <div class="kick">05 · Aplicações · papelaria</div>
+    <h1>Assinatura de e-mail</h1>
+    <p class="lead">A mesma marca no envelope digital. Símbolo, tipografia e verdes da Rede Borges, em HTML de tabela que sobrevive à maioria dos clientes de e-mail. Copie e cole direto no Gmail, Outlook ou Apple Mail.</p>
+    <svg class="thread-hero" data-thread data-w="260" data-h="32" data-n="8" data-sw="2" aria-hidden="true"></svg>
+
+    <!-- COMPLETA -->
+    <div class="block">
+      <div class="blabel">Versão completa</div>
+      <div class="mail">
+        <div class="bar"><span class="d" style="background:#F0716E;"></span><span class="d" style="background:#E3A93A;"></span><span class="d" style="background:#5AD09B;"></span><span class="subj">Re: Sua proposta — Borges Assessoria</span></div>
+        <div class="body">
+          <div class="greet">Olá, Maria!<br>Segue em anexo o comprovante. Qualquer dúvida, é só me chamar — seu atendimento é sempre com uma pessoa.<br><br>Um abraço,</div>
+
+          <!-- ASSINATURA (copiável) -->
+          <table id="sig-full" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; color:#1A1712;">
+            <tr>
+              <td style="vertical-align:top; padding-right:18px;">
+                <table cellpadding="0" cellspacing="0" role="presentation"><tr><td>
+                  <img src="assets/borges-simbolo-verde.png" width="52" height="52" alt="Borges" style="display:block; border-radius:12px;">
+                </td></tr></table>
+              </td>
+              <td style="vertical-align:top; border-left:2px solid #A8E03F; padding-left:18px;">
+                <div style="font-size:16px; font-weight:700; letter-spacing:-.01em; color:#0B3D2E;">Borges Assessoria</div>
+                <div style="font-size:12px; color:#127A57; letter-spacing:.02em; margin-top:1px;">Rede privada de confiança</div>
+                <div style="font-size:12.5px; color:#57514A; line-height:1.75; margin-top:9px;">
+                  <a href="mailto:borgesassessoriafinanceira@gmail.com" style="color:#127A57; text-decoration:none;">borgesassessoriafinanceira@gmail.com</a><br>
+                  <a href="https://wa.me/5562984877843" style="color:#127A57; text-decoration:none;">(62) 98487-7843</a> · WhatsApp<br>
+                  <span style="color:#7C756B;">CNPJ 63.124.205/0001-07</span>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      <div class="act">
+        <button class="copy" data-target="sig-full">Copiar assinatura</button>
+        <button class="copy ghost" data-html="sig-full">Copiar código HTML</button>
+        <span class="hint">Cole (Ctrl/Cmd+V) no campo de assinatura do seu e-mail.</span>
+      </div>
+    </div>
+
+    <!-- COMPACTA -->
+    <div class="block">
+      <div class="blabel">Versão compacta · uma linha</div>
+      <div class="mail">
+        <div class="bar"><span class="d" style="background:#F0716E;"></span><span class="d" style="background:#E3A93A;"></span><span class="d" style="background:#5AD09B;"></span><span class="subj">Novo e-mail</span></div>
+        <div class="body">
+          <div class="greet">Att.,</div>
+          <table id="sig-mini" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+            <tr>
+              <td style="vertical-align:middle; padding-right:12px;">
+                <img src="assets/borges-simbolo-verde.png" width="38" height="38" alt="Borges" style="display:block; border-radius:9px;">
+              </td>
+              <td style="vertical-align:middle;">
+                <div style="font-size:14px; font-weight:700; color:#0B3D2E;">Borges Assessoria</div>
+                <div style="font-size:12px; color:#57514A; margin-top:2px;">
+                  <a href="mailto:borgesassessoriafinanceira@gmail.com" style="color:#127A57; text-decoration:none;">borgesassessoriafinanceira@gmail.com</a>
+                  <span style="color:#C9C2B4;">&nbsp;·&nbsp;</span>
+                  <a href="https://wa.me/5562984877843" style="color:#127A57; text-decoration:none;">(62) 98487-7843</a>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      <div class="act">
+        <button class="copy" data-target="sig-mini">Copiar assinatura</button>
+        <button class="copy ghost" data-html="sig-mini">Copiar código HTML</button>
+        <span class="hint">Ideal para respostas rápidas.</span>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>Sobre a imagem do símbolo:</b> a assinatura aponta para <code>assets/borges-simbolo-verde.png</code> (caminho local). Para funcionar em e-mails enviados, hospede o arquivo em uma URL pública e troque o <code>src</code> pelo endereço completo (ex.: <code>https://…/borges-simbolo-verde.png</code>).
+    </div>
+
+    <div class="footnote">
+      <span class="mono">Borges Assessoria Financeira · CNPJ 63.124.205/0001-07 · borgesassessoriafinanceira@gmail.com · (62) 98487-7843</span>
+    </div>
+  </div>
+
+  <script src="brand-v3.js"></script>
+  <script>
+    document.querySelectorAll('.copy').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = btn.getAttribute('data-target') || btn.getAttribute('data-html');
+        var el = document.getElementById(id);
+        var wantHtml = btn.hasAttribute('data-html');
+        var done = function(){
+          var old = btn.textContent;
+          btn.textContent = wantHtml ? 'HTML copiado ✓' : 'Copiado ✓';
+          btn.classList.add('done');
+          setTimeout(function(){ btn.textContent = old; btn.classList.remove('done'); }, 1700);
+        };
+        var html = el.outerHTML;
+        if(wantHtml){
+          navigator.clipboard.writeText(html).then(done).catch(function(){});
+          return;
+        }
+        // copia com formatação (rich) para colar direto no e-mail
+        try{
+          var item = new ClipboardItem({
+            'text/html': new Blob([html], {type:'text/html'}),
+            'text/plain': new Blob([el.innerText], {type:'text/plain'})
+          });
+          navigator.clipboard.write([item]).then(done).catch(function(){
+            navigator.clipboard.writeText(el.innerText).then(done);
+          });
+        }catch(e){
+          navigator.clipboard.writeText(el.innerText).then(done);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

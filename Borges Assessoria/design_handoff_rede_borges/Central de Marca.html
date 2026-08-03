@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Central de Marca — Rede Borges</title>
+<link rel="stylesheet" href="brand-v3.css">
+<style>
+  body{padding:0;}
+  .wrap{max-width:1120px; margin:0 auto; padding:56px clamp(20px,5vw,72px) 100px;}
+
+  .head{display:flex; align-items:flex-start; justify-content:space-between; gap:28px; flex-wrap:wrap;}
+  .head .id{display:flex; align-items:center; gap:14px;}
+  .head .id .nm{font-size:18px; font-weight:700; letter-spacing:-.02em;}
+  .head .id .ds{font-family:var(--mono); font-size:11px; color:var(--signal);}
+  .kick{font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--signal); margin-top:34px;}
+  h1{font-family:var(--serif); font-weight:500; font-size:clamp(36px,5.5vw,58px); letter-spacing:-.02em; margin-top:10px;}
+  .lead{font-size:19px; line-height:1.55; color:var(--ink-soft); max-width:60ch; margin-top:18px;}
+  .thread-hero{color:var(--signal-viz); height:34px; width:300px; margin-top:26px; opacity:.85;}
+
+  .sec{margin-top:60px;}
+  .seclabel{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); display:flex; align-items:center; gap:12px; margin-bottom:20px;}
+  .seclabel::after{content:""; flex:1; height:1px; background:var(--line);}
+
+  /* logos */
+  .logos{display:grid; grid-template-columns:repeat(2,1fr); gap:18px;}
+  @media (max-width:760px){ .logos{grid-template-columns:1fr;} }
+  .asset{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden; box-shadow:var(--shadow); display:flex; flex-direction:column;}
+  .asset .prev{height:180px; display:grid; place-items:center; padding:26px; overflow:hidden;}
+  .asset .prev.ivory{background:var(--bg);}
+  .asset .prev.forest{background:var(--brand);}
+  .asset .prev.check{background:
+     linear-gradient(45deg,#EEEAE0 25%,transparent 25%),
+     linear-gradient(-45deg,#EEEAE0 25%,transparent 25%),
+     linear-gradient(45deg,transparent 75%,#EEEAE0 75%),
+     linear-gradient(-45deg,transparent 75%,#EEEAE0 75%);
+     background-size:18px 18px; background-position:0 0,0 9px,9px -9px,-9px 0; background-color:#FBFAF6;}
+  .asset .prev img{max-width:100%; max-height:128px; object-fit:contain;}
+  .asset .meta{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px; border-top:1px solid var(--line-soft);}
+  .asset .meta .nm{font-size:14px; font-weight:700;}
+  .asset .meta .dim{font-family:var(--mono); font-size:11px; color:var(--ink-faint); margin-top:2px;}
+  .dl{font-family:var(--sans); font-size:12.5px; font-weight:700; text-decoration:none; border-radius:999px; padding:8px 16px; background:var(--action); color:var(--action-ink); transition:.15s; white-space:nowrap;}
+  .dl:hover{filter:brightness(1.04); color:var(--action-ink);}
+
+  /* cores */
+  .swatches{display:grid; grid-template-columns:repeat(4,1fr); gap:14px;}
+  @media (max-width:860px){ .swatches{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:520px){ .swatches{grid-template-columns:1fr;} }
+  .sw{border:1px solid var(--line); border-radius:var(--r-md); overflow:hidden; background:var(--surface); box-shadow:var(--shadow); cursor:pointer; transition:.15s;}
+  .sw:hover{transform:translateY(-2px); box-shadow:var(--shadow-lg);}
+  .sw .chip{height:88px; display:flex; align-items:flex-end; padding:10px;}
+  .sw .chip .role{font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; opacity:.9;}
+  .sw .info{padding:11px 13px;}
+  .sw .info .nm{font-size:13px; font-weight:700;}
+  .sw .info .hex{font-family:var(--mono); font-size:12px; color:var(--ink-faint); margin-top:2px; display:flex; align-items:center; justify-content:space-between;}
+  .sw .info .hex .cp{font-size:10px; color:var(--signal); font-weight:600;}
+  .sw.copied .info .hex .cp{color:var(--success);}
+
+  /* tipografia */
+  .type{display:grid; gap:14px;}
+  .tcard{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); padding:24px 26px; box-shadow:var(--shadow); display:flex; align-items:baseline; justify-content:space-between; gap:24px; flex-wrap:wrap;}
+  .tcard .sample{min-width:0;}
+  .tcard .role{font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--signal);}
+  .tcard .spec{font-size:12.5px; color:var(--ink-faint); margin-top:4px;}
+  .tcard .big{margin-top:10px; color:var(--ink);}
+
+  /* hub */
+  .hub{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+  @media (max-width:820px){ .hub{grid-template-columns:1fr;} }
+  .link{display:flex; flex-direction:column; gap:6px; text-decoration:none; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); padding:20px 22px; box-shadow:var(--shadow); transition:.15s; color:var(--ink);}
+  .link:hover{transform:translateY(-2px); box-shadow:var(--shadow-lg); border-color:var(--signal-viz); color:var(--ink);}
+  .link .t{font-family:var(--serif); font-weight:600; font-size:19px;}
+  .link .d{font-size:13px; color:var(--ink-soft); line-height:1.55;}
+  .link .go{font-family:var(--mono); font-size:11px; color:var(--signal); margin-top:4px;}
+
+  .footnote{margin-top:64px; padding-top:22px; border-top:1px solid var(--line); font-size:12px; color:var(--ink-faint); line-height:1.7;}
+  .footnote .mono{color:var(--ink-soft);}
+</style>
+</head>
+<body>
+  <div class="toolbar" style="justify-content:flex-start; padding:20px clamp(20px,5vw,72px) 0;">
+    <span class="btn btn-s">Central de marca · downloads</span>
+  </div>
+
+  <div class="wrap">
+    <div class="head">
+      <div>
+        <div class="kick">Rede Borges · v3.0</div>
+        <h1>Central de marca</h1>
+        <p class="lead">Tudo que a empresa precisa para representar a Rede Borges: logos, cores, tipografia e as peças oficiais — num só lugar. Baixe o arquivo certo, copie o hex exato, use o tom de voz certo.</p>
+        <svg class="thread-hero" data-thread data-w="300" data-h="34" data-n="9" data-sw="2" aria-hidden="true"></svg>
+      </div>
+      <div class="id" style="display:flex; align-items:center; gap:14px; margin-top:6px;">
+        <svg width="46" height="46" viewBox="0 0 68 68"><rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#0B3D2E"/><path d="M25 25 H43 V43 H25 Z" fill="#07241B"/></svg>
+        <div><div class="nm">Borges Assessoria</div><div class="ds">Rede privada de confiança</div></div>
+      </div>
+    </div>
+
+    <!-- LOGOS -->
+    <div class="sec">
+      <div class="seclabel">Logos & símbolo — baixe em PNG</div>
+      <div class="logos">
+        <div class="asset">
+          <div class="prev ivory"><img src="assets/borges-logo-horizontal.png" alt="Lockup horizontal"></div>
+          <div class="meta"><div><div class="nm">Lockup horizontal</div><div class="dim">PNG · fundos claros</div></div><a class="dl" href="assets/borges-logo-horizontal.png" download>Baixar</a></div>
+        </div>
+        <div class="asset">
+          <div class="prev forest"><img src="assets/borges-logo-horizontal-branco.png" alt="Lockup horizontal branco"></div>
+          <div class="meta"><div><div class="nm">Lockup horizontal · branco</div><div class="dim">PNG · fundos escuros</div></div><a class="dl" href="assets/borges-logo-horizontal-branco.png" download>Baixar</a></div>
+        </div>
+        <div class="asset">
+          <div class="prev check"><img src="assets/borges-simbolo.png" alt="Símbolo" style="width:120px; height:120px;"></div>
+          <div class="meta"><div><div class="nm">Símbolo</div><div class="dim">PNG · 1024×1024 · transparente</div></div><a class="dl" href="assets/borges-simbolo.png" download>Baixar</a></div>
+        </div>
+        <div class="asset">
+          <div class="prev ivory"><img src="assets/borges-simbolo-verde.png" alt="Símbolo em tile" style="width:120px; height:120px; border-radius:20px;"></div>
+          <div class="meta"><div><div class="nm">Símbolo · tile floresta</div><div class="dim">PNG · avatar / app icon</div></div><a class="dl" href="assets/borges-simbolo-verde.png" download>Baixar</a></div>
+        </div>
+        <div class="asset">
+          <div class="prev check"><img src="assets/borges-favicon-256.png" alt="Favicon" style="width:96px; height:96px;"></div>
+          <div class="meta"><div><div class="nm">Favicon</div><div class="dim">PNG · 256×256</div></div><a class="dl" href="assets/borges-favicon-256.png" download>Baixar</a></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CORES -->
+    <div class="sec">
+      <div class="seclabel">Cores — clique para copiar o hex</div>
+      <div class="swatches" id="swatches"></div>
+    </div>
+
+    <!-- TIPOGRAFIA -->
+    <div class="sec">
+      <div class="seclabel">Tipografia</div>
+      <div class="type">
+        <div class="tcard">
+          <div class="sample">
+            <div class="role">Títulos · serifada</div>
+            <div class="spec">Newsreader · 400 / 500 / 600 · itálico</div>
+            <div class="big serif" style="font-size:34px; font-weight:500;">A confiança vira oportunidade.</div>
+          </div>
+          <a class="dl" href="https://fonts.google.com/specimen/Newsreader" target="_blank" rel="noopener">Google Fonts</a>
+        </div>
+        <div class="tcard">
+          <div class="sample">
+            <div class="role">UI & números · sans</div>
+            <div class="spec">Helvetica Neue · algarismos tabulares (nunca mono para valores)</div>
+            <div class="big" style="font-size:30px; font-weight:700;">R$ 1.284.500,00 <span style="font-size:18px; color:var(--signal); font-weight:600;">▲ 12,4%</span></div>
+          </div>
+          <span class="dl" style="background:var(--surface-2); color:var(--ink-soft); cursor:default;">Fonte de sistema</span>
+        </div>
+        <div class="tcard">
+          <div class="sample">
+            <div class="role">Códigos & IDs · mono</div>
+            <div class="spec">IBM Plex Mono · 400 / 500 / 600 · só para códigos, nunca para dinheiro</div>
+            <div class="big mono" style="font-size:22px;">CON-2026-0481 · PCL-Nº 49</div>
+          </div>
+          <a class="dl" href="https://fonts.google.com/specimen/IBM+Plex+Mono" target="_blank" rel="noopener">Google Fonts</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- HUB -->
+    <div class="sec">
+      <div class="seclabel">Peças & guias oficiais</div>
+      <div class="hub">
+        <a class="link" href="Manual de Design v3.html"><span class="t">Manual de Design</span><span class="d">A fonte única de verdade: tokens, componentes, tom de voz e governança.</span><span class="go">Abrir →</span></a>
+        <a class="link" href="Régua WhatsApp.html"><span class="t">Régua de WhatsApp</span><span class="d">Modelos de mensagem prontos para toda a jornada do cliente.</span><span class="go">Abrir →</span></a>
+        <a class="link" href="Assinatura de E-mail.html"><span class="t">Assinatura de e-mail</span><span class="d">Copie e cole no Gmail, Outlook ou Apple Mail.</span><span class="go">Abrir →</span></a>
+        <a class="link" href="Extrato do Contrato.html"><span class="t">Extrato do contrato</span><span class="d">Posição completa de um contrato — KPIs, histórico e pendências.</span><span class="go">Abrir →</span></a>
+        <a class="link" href="Comprovante de Pagamento.html"><span class="t">Comprovante de pagamento</span><span class="d">Recibo de parcela paga, pronto para enviar ao cliente.</span><span class="go">Abrir →</span></a>
+        <a class="link" href="Comprovante de Quitação.html"><span class="t">Comprovante de quitação</span><span class="d">A peça-vitrine: o certificado que o cliente mostra com orgulho.</span><span class="go">Abrir →</span></a>
+        <a class="link" href="Timbre de Contrato.html"><span class="t">Timbre de contrato</span><span class="d">Papel timbrado para cédulas e documentos jurídicos.</span><span class="go">Abrir →</span></a>
+      </div>
+    </div>
+
+    <div class="footnote">
+      <span class="mono">Borges Assessoria Financeira · CNPJ 63.124.205/0001-07 · borgesassessoriafinanceira@gmail.com · (62) 98487-7843</span><br>
+      Regra de ouro: nunca digite um hex de memória. Sempre copie daqui ou da tabela de tokens do Manual.
+    </div>
+  </div>
+
+  <script src="brand-v3.js"></script>
+  <script>
+    var COLORS = [
+      {group:'Marca', items:[
+        {nm:'Verde Floresta', hex:'#0B3D2E', role:'Confiança · marca', ink:'#EAF6EF'},
+        {nm:'Floresta clara', hex:'#0E5C44', role:'Faixas · hovers', ink:'#EAF6EF'},
+        {nm:'Verde-crescimento', hex:'#127A57', role:'Dados · texto', ink:'#EAF6EF'},
+        {nm:'Crescimento (viz)', hex:'#1FB877', role:'Gráficos ≥24px', ink:'#07241B'},
+      ]},
+      {group:'Ação', items:[
+        {nm:'Verde-limão', hex:'#A8E03F', role:'CTA · ação', ink:'#07241B'},
+        {nm:'Tinta do limão', hex:'#07241B', role:'Texto sobre limão', ink:'#EAF6EF'},
+      ]},
+      {group:'Papel (marfim)', items:[
+        {nm:'Fundo', hex:'#F7F5EF', role:'Papel da rede', ink:'#1A1712'},
+        {nm:'Superfície', hex:'#FFFDF9', role:'Cards · folhas', ink:'#1A1712'},
+        {nm:'Superfície 2', hex:'#F0EDE4', role:'Zebra · insets', ink:'#1A1712'},
+        {nm:'Tinta', hex:'#1A1712', role:'Texto principal', ink:'#F7F5EF'},
+      ]},
+      {group:'Semânticas', items:[
+        {nm:'Sucesso', hex:'#15805A', role:'Em dia · pago', ink:'#fff'},
+        {nm:'Atenção', hex:'#9A6510', role:'Aviso', ink:'#fff'},
+        {nm:'Erro', hex:'#C0322F', role:'Atraso · dívida', ink:'#fff'},
+        {nm:'Info', hex:'#166C70', role:'Neutro informativo', ink:'#fff'},
+      ]},
+    ];
+    var host = document.getElementById('swatches');
+    COLORS.forEach(function(g){
+      g.items.forEach(function(c){
+        var el = document.createElement('div');
+        el.className = 'sw';
+        el.innerHTML =
+          '<div class="chip" style="background:'+c.hex+'; color:'+c.ink+';"><span class="role">'+g.group+'</span></div>'+
+          '<div class="info"><div class="nm">'+c.nm+'</div><div class="hex"><span>'+c.hex+'</span><span class="cp">copiar</span></div></div>';
+        el.addEventListener('click', function(){
+          navigator.clipboard.writeText(c.hex).then(function(){
+            el.classList.add('copied');
+            var cp = el.querySelector('.cp'); var old = cp.textContent; cp.textContent = 'copiado ✓';
+            setTimeout(function(){ el.classList.remove('copied'); cp.textContent = old; }, 1500);
+          });
+        });
+        host.appendChild(el);
+      });
+    });
+  </script>
+</body>
+</html>

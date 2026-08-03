@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Régua WhatsApp — Rede Borges</title>
+<link rel="stylesheet" href="brand-v3.css">
+<style>
+  body{padding:0;}
+  .wrap{max-width:1120px; margin:0 auto; padding:56px clamp(20px,5vw,72px) 90px;}
+
+  /* cabeçalho */
+  .head{display:flex; align-items:flex-start; justify-content:space-between; gap:28px; flex-wrap:wrap;}
+  .head .id{display:flex; align-items:center; gap:14px;}
+  .head .id .nm{font-size:18px; font-weight:700; letter-spacing:-.02em;}
+  .head .id .ds{font-family:var(--mono); font-size:11px; color:var(--signal);}
+  .kick{font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--signal); margin-top:34px;}
+  h1{font-family:var(--serif); font-weight:500; font-size:clamp(34px,5vw,52px); letter-spacing:-.02em; margin-top:10px;}
+  .lead{font-size:19px; line-height:1.55; color:var(--ink-soft); max-width:64ch; margin-top:18px;}
+  .thread-hero{color:var(--signal-viz); height:34px; width:280px; margin-top:26px; opacity:.85;}
+
+  /* princípios */
+  .rules{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:44px;}
+  .rule{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); padding:20px 22px; box-shadow:var(--shadow);}
+  .rule h3{font-family:var(--serif); font-weight:600; font-size:18px;}
+  .rule p{font-size:14px; color:var(--ink-soft); margin-top:6px; line-height:1.6;}
+
+  /* legenda de variáveis */
+  .vars{margin-top:36px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--r-lg); padding:18px 22px;}
+  .vars .lbl{font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:12px;}
+  .vars .chips{display:flex; flex-wrap:wrap; gap:8px;}
+  .var{font-family:var(--mono); font-size:12px; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:5px 12px; color:var(--signal);}
+  .var b{color:var(--ink-soft); font-weight:500;}
+
+  /* seções da régua */
+  .stage{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint); margin:52px 0 6px; display:flex; align-items:center; gap:12px;}
+  .stage::after{content:""; flex:1; height:1px; background:var(--line);}
+  .stage .dot{width:9px; height:9px; border-radius:50%;}
+
+  .cards{display:grid; grid-template-columns:repeat(2,1fr); gap:18px; margin-top:16px;}
+  @media (max-width:820px){ .cards, .rules{grid-template-columns:1fr;} }
+
+  .tpl{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden; box-shadow:var(--shadow); display:flex; flex-direction:column;}
+  .tpl .top{padding:13px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .tpl .top .t{display:flex; align-items:center; gap:9px;}
+  .tpl .top .t .d{width:9px; height:9px; border-radius:50%;}
+  .tpl .top strong{font-size:13.5px;}
+  .tpl .top .when{font-family:var(--mono); font-size:10.5px; color:var(--ink-faint);}
+
+  /* bolha whatsapp (recebida pelo cliente) */
+  .chat{padding:18px 16px; background:#E7EBE9; flex:1; display:flex;}
+  .bubble{background:#fff; border-radius:4px 14px 14px 14px; padding:13px 15px; box-shadow:0 1px 1px rgba(0,0,0,.08); font-size:13.5px; line-height:1.55; color:#111; max-width:100%;}
+  .bubble b{font-weight:700;}
+  .bubble .money{font-variant-numeric:tabular-nums; font-weight:700;}
+  .bubble .link{color:#127A57; font-weight:600;}
+  .bubble .ph{background:#EAF6EF; color:#0E5C44; border-radius:4px; padding:0 4px; font-family:var(--mono); font-size:12px;}
+  .bubble .time{display:block; text-align:right; font-size:10px; color:#8a938d; margin-top:6px;}
+
+  .tpl .act{display:flex; gap:8px; padding:11px 14px; border-top:1px solid var(--line); background:var(--surface);}
+  .copy{font-family:var(--sans); font-size:12.5px; font-weight:700; border:none; border-radius:999px; padding:8px 16px; cursor:pointer; background:var(--action); color:var(--action-ink); transition:.15s;}
+  .copy:hover{filter:brightness(1.04);}
+  .copy.done{background:var(--success-bg); color:var(--success);}
+  .hint{font-size:11.5px; color:var(--ink-faint); align-self:center;}
+
+  .footnote{margin-top:60px; padding-top:22px; border-top:1px solid var(--line); font-size:12px; color:var(--ink-faint); line-height:1.7;}
+  .footnote .mono{color:var(--ink-soft);}
+</style>
+</head>
+<body>
+  <div class="toolbar" style="justify-content:flex-start; padding:20px clamp(20px,5vw,72px) 0;">
+    <span class="btn btn-s">Régua de relacionamento · WhatsApp</span>
+  </div>
+
+  <div class="wrap">
+    <div class="head">
+      <div>
+        <div class="kick">06 · Tom de voz · aplicado</div>
+        <h1>Régua de WhatsApp</h1>
+        <p class="lead">Sério-humano: firme no fato, respeitoso com a pessoa. Uma ideia por mensagem, um próximo passo óbvio. Toque nos parênteses <span class="var" style="padding:2px 8px;">{{variável}}</span> e substitua antes de enviar. Cada mensagem trata o cliente como alguém que a rede respeita — e, quando cabe, convida à indicação sem simular escala falsa.</p>
+        <svg class="thread-hero" data-thread data-w="280" data-h="34" data-n="8" data-sw="2" aria-hidden="true"></svg>
+      </div>
+      <div class="id" style="display:flex; align-items:center; gap:14px; margin-top:6px;">
+        <svg width="46" height="46" viewBox="0 0 68 68"><rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#0B3D2E"/><path d="M25 25 H43 V43 H25 Z" fill="#07241B"/></svg>
+        <div><div class="nm">Borges Assessoria</div><div class="ds">Rede privada de confiança</div></div>
+      </div>
+    </div>
+
+    <div class="rules">
+      <div class="rule"><h3>Firme no fato</h3><p>Datas, valores e prazos exatos. A pessoa sabe onde está sem precisar decifrar.</p></div>
+      <div class="rule"><h3>Respeitoso na forma</h3><p>Trata por nome, oferece caminho, preserva a dignidade. Cobra sem humilhar.</p></div>
+      <div class="rule"><h3>Curto e humano</h3><p>Uma ideia por mensagem, um próximo passo óbvio. Sem juridiquês, sem emoji em excesso.</p></div>
+    </div>
+
+    <div class="vars">
+      <div class="lbl">Variáveis — substitua antes de enviar</div>
+      <div class="chips">
+        <span class="var">{{nome}} <b>· primeiro nome</b></span>
+        <span class="var">{{parcela}} <b>· ex. 04/12</b></span>
+        <span class="var">{{valor}} <b>· R$ 680,00</b></span>
+        <span class="var">{{venc}} <b>· 28/05</b></span>
+        <span class="var">{{dias}} <b>· nº de dias</b></span>
+        <span class="var">{{restantes}} <b>· parcelas</b></span>
+        <span class="var">{{padrinho}} <b>· quem indicou</b></span>
+        <span class="var">{{link}} <b>· certificado/validação</b></span>
+      </div>
+    </div>
+
+    <!-- EM DIA -->
+    <div class="stage"><span class="dot" style="background:var(--signal-viz);"></span>Em dia · lembretes cordiais</div>
+    <div class="cards">
+      <div class="tpl">
+        <div class="top"><div class="t"><span class="d" style="background:var(--signal-viz);"></span><strong>Lembrete — 3 dias antes</strong></div><span class="when">D-3</span></div>
+        <div class="chat"><div class="bubble">Oi, <span class="ph">{{nome}}</span>! Passando só pra lembrar: sua parcela <b><span class="ph">{{parcela}}</span></b> de <span class="money"><span class="ph">{{valor}}</span></span> vence em <b><span class="ph">{{venc}}</span></b>.<br><br>Quando quiser, dá pra pagar por PIX — se precisar da chave ou do boleto, é só me chamar aqui.<span class="time">09:12</span></div></div>
+        <div class="act"><button class="copy">Copiar texto</button><span class="hint">D-3 · antes do vencimento</span></div>
+      </div>
+      <div class="tpl">
+        <div class="top"><div class="t"><span class="d" style="background:var(--warning);"></span><strong>Vence hoje</strong></div><span class="when">D-0</span></div>
+        <div class="chat"><div class="bubble"><span class="ph">{{nome}}</span>, hoje é o vencimento da parcela <b><span class="ph">{{parcela}}</span></b> de <span class="money"><span class="ph">{{valor}}</span></span>.<br><br>Se já pagou, pode ignorar — me manda o comprovante que eu confirmo. Se ainda não deu, dá tempo tranquilo por PIX.<span class="time">08:30</span></div></div>
+        <div class="act"><button class="copy">Copiar texto</button><span class="hint">D-0 · dia do vencimento</span></div>
+      </div>
+      <div class="tpl">
+        <div class="top"><div class="t"><span class="d" style="background:var(--success);"></span><strong>Pagamento confirmado</strong></div><span class="when">Recebido</span></div>
+        <div class="chat"><div class="bubble">Recebido, <span class="ph">{{nome}}</span>! Parcela <b><span class="ph">{{parcela}}</span></b> de <span class="money"><span class="ph">{{valor}}</span></span> paga. ✅<br><br>Faltam <b><span class="ph">{{restantes}}</span> parcelas</b>. Comprovante em anexo. Obrigado pela pontualidade — é isso que mantém a rede forte.<span class="time">14:07</span></div></div>
+        <div class="act"><button class="copy">Copiar texto</button><span class="hint">após confirmar</span></div>
+      </div>
+      <div class="tpl">
+        <div class="top"><div class="t"><span class="d" style="background:var(--signal-viz);"></span><strong>Boas-vindas — novo membro indicado</strong></div><span class="when">Onboarding</span></div>
+        <div class="chat"><div class="bubble">Oi, <span class="ph">{{nome}}</span>! O <span class="ph">{{padrinho}}</span> indicou você — e a indicação dele já diz muito.<br><br>Bem-vindo à <b>Rede Borges</b>. Aqui a gente trata crédito com respeito e conversa como gente. Quando precisar, é só me chamar por aqui: seu atendimento é sempre com uma pessoa.<span class="time">11:45</span></div></div>
+        <div class="act"><button class="copy">Copiar texto</button><span class="hint">1º contato</span></div>
+      </div>
+    </div>
+
+    <!-- ATRASO -->
+    <div class="stage"><span class="dot" style="background:var(--error);"></span>Em atraso · firme e digno</div>
+    <div class="cards">
+      <div class="tpl">
+        <div class="top"><div class="t"><span class="d" style="background:var(--warning);"></span><strong>Atraso leve</strong></div><span class="when">D+3</span></div>
+        <div class="chat"><div class="bubble">Olá, <span class="ph">{{nome}}</span>. Notei aqui que a parcela <b><span class="ph">{{parcela}}</span></b> de <span class="money"><span class="ph">{{valor}}</span></span>, vencida em <b><span class="ph">{{venc}}</span></b>, ainda consta em aberto.<br><br>Consegue regularizar hoje por PIX? Se surgiu algum imprevisto, me conta que a gente vê o melhor caminho juntos.<span class="time">10:20</span></div></div>
+        <div class="act"><button class="copy">Copiar texto</button><span class="hint">D+3 · primeiro lembrete</span></div>
+      </div>
+      <div class="tpl">
+        <div class="top"><div class="t"><span class="d" style="background:var(--error);"></span><strong>Atraso persistente</strong></div><span class="when">D+15</span></div>
+        <div class="chat"><div class="bubble"><span class="ph">{{nome}}</span>, sua parcela <b><span class="ph">{{parcela}}</span></b> está com <b><span class="ph">{{dias}}</span> dias</b> de atraso — saldo de <span class="money"><span class="ph">{{valor}}</span></span>.<br><br>Prefiro resolver com você por aqui, sem complicar. Consegue pagar até <b><span class="ph">{{venc}}</span></b>, ou quer que a gente combine um parcelamento do valor em aberto?<span class="time">16:02</span></div></div>
+        <div class="act"><button class="copy">Copiar texto</button><span class="hint">D+15 · propor acordo</span></div>
+      </div>
+      <div class="tpl">
+        <div class="top"><div class="t"><span class="d" style="background:var(--signal);"></span><strong>Promessa de pagamento registrada</strong></div><span class="when">Acordo</span></div>
+        <div class="chat"><div class="bubble">Combinado, <span class="ph">{{nome}}</span>. Anotei aqui: você acerta <span class="money"><span class="ph">{{valor}}</span></span> até <b><span class="ph">{{venc}}</span></b>.<br><br>Confio na sua palavra. No dia eu te mando um lembrete leve, e assim que cair eu confirmo por aqui. Qualquer coisa antes disso, me chama.<span class="time">16:40</span></div></div>
+        <div class="act"><button class="copy">Copiar texto</button><span class="hint">após acordo verbal</span></div>
+      </div>
+      <div class="tpl">
+        <div class="top"><div class="t"><span class="d" style="background:var(--error);"></span><strong>Última tratativa amigável</strong></div><span class="when">D+30</span></div>
+        <div class="chat"><div class="bubble"><span class="ph">{{nome}}</span>, quero muito resolver isso do jeito bom. A parcela <b><span class="ph">{{parcela}}</span></b> (<span class="money"><span class="ph">{{valor}}</span></span>) segue em aberto há <b><span class="ph">{{dias}}</span> dias</b>.<br><br>Me responde aqui até <b><span class="ph">{{venc}}</span></b> com o que for possível pra você — mesmo um valor parcial já ajuda a manter tudo em ordem entre a gente.<span class="time">09:05</span></div></div>
+        <div class="act"><button class="copy">Copiar texto</button><span class="hint">D+30 · antes de formalizar</span></div>
+      </div>
+    </div>
+
+    <!-- QUITAÇÃO -->
+    <div class="stage"><span class="dot" style="background:var(--brand);"></span>Quitação · orgulho e indicação</div>
+    <div class="cards">
+      <div class="tpl">
+        <div class="top"><div class="t"><span class="d" style="background:var(--brand);"></span><strong>Contrato quitado + convite</strong></div><span class="when">Vitrine</span></div>
+        <div class="chat"><div class="bubble">Parabéns, <span class="ph">{{nome}}</span> — contrato <b>quitado</b>! 🎉 Todas as parcelas, honradas.<br><br>Segue seu certificado, pode guardar e mostrar: <span class="link"><span class="ph">{{link}}</span></span><br><br>Conhece alguém de confiança que merece fazer parte? Sua indicação é o que faz a Rede Borges crescer com gente certa.<span class="time">15:22</span></div></div>
+        <div class="act"><button class="copy">Copiar texto</button><span class="hint">momento-vitrine</span></div>
+      </div>
+      <div class="tpl">
+        <div class="top"><div class="t"><span class="d" style="background:var(--signal);"></span><strong>Agradecimento por indicação</strong></div><span class="when">Rede</span></div>
+        <div class="chat"><div class="bubble"><span class="ph">{{nome}}</span>, obrigado por indicar o <span class="ph">{{padrinho}}</span> pra Borges. 🙏<br><br>Indicação é confiança em movimento — e é assim que a rede cresce com as pessoas certas. Já estou cuidando bem dele por aqui.<span class="time">13:10</span></div></div>
+        <div class="act"><button class="copy">Copiar texto</button><span class="hint">quando indicam alguém</span></div>
+      </div>
+    </div>
+
+    <div class="footnote">
+      <span class="mono">Borges Assessoria Financeira · CNPJ 63.124.205/0001-07 · borgesassessoriafinanceira@gmail.com · (62) 98487-7843</span><br>
+      Régua de relacionamento — Rede Borges · v3.0. Cobrança é conversa: sério no fato, humano na forma. Nunca ameace, nunca humilhe, nunca simule escala.
+    </div>
+  </div>
+
+  <script src="brand-v3.js"></script>
+  <script>
+    // Copiar texto da bolha (limpo, com quebras de linha, sem os controles)
+    document.querySelectorAll('.tpl').forEach(function(tpl){
+      var btn = tpl.querySelector('.copy');
+      var bubble = tpl.querySelector('.bubble');
+      btn.addEventListener('click', function(){
+        // remove o horário e normaliza <br> em \n
+        var clone = bubble.cloneNode(true);
+        var t = clone.querySelector('.time'); if(t) t.remove();
+        var html = clone.innerHTML.replace(/<br[^>]*>/gi,'\n');
+        var tmp = document.createElement('div'); tmp.innerHTML = html;
+        var text = (tmp.textContent||'').replace(/\n{3,}/g,'\n\n').trim();
+        navigator.clipboard.writeText(text).then(function(){
+          var old = btn.textContent;
+          btn.textContent = 'Copiado ✓'; btn.classList.add('done');
+          setTimeout(function(){ btn.textContent = old; btn.classList.remove('done'); }, 1600);
+        });
+      });
+    });
+  </script>
+</body>
+</html>

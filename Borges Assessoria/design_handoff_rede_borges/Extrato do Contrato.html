@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Extrato do Contrato — Borges Assessoria</title>
+<link rel="stylesheet" href="brand-v3.css">
+<style>
+  body{display:flex; flex-direction:column; align-items:center; padding:30px 16px; gap:18px;}
+  .sheet{width:794px; max-width:100%; background:var(--surface); box-shadow:var(--shadow-lg); border:1px solid var(--line); display:flex; flex-direction:column; overflow:hidden;}
+
+  /* ---- header de marca ---- */
+  .brandbar{background:var(--brand); color:var(--on-brand); padding:28px 48px 24px; display:flex; justify-content:space-between; align-items:flex-start; position:relative; overflow:hidden;}
+  .brandbar .thread{position:absolute; top:8px; left:0; width:100%; height:46px; opacity:.26; color:var(--on-brand-soft);}
+  .brandbar .id{display:flex; align-items:center; gap:14px; position:relative;}
+  .brandbar .id b{font-size:18px; letter-spacing:-.02em; display:block; font-weight:700;}
+  .brandbar .id .desc{font-family:var(--mono); font-size:10.5px; color:var(--on-brand-soft); letter-spacing:.04em; margin-top:2px;}
+  .brandbar .co{text-align:right; font-size:10.5px; color:var(--on-brand-soft); line-height:1.7; position:relative;}
+  .brandbar .co b{color:var(--on-brand); font-weight:600;}
+
+  /* ---- título do documento ---- */
+  .titlerow{padding:30px 48px 22px; display:flex; justify-content:space-between; align-items:flex-start; gap:20px; border-bottom:1px solid var(--line);}
+  .titlerow .kick{font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--signal);}
+  .titlerow h1{font-family:var(--serif); font-weight:600; font-size:32px; letter-spacing:-.02em; margin-top:8px;}
+  .titlerow .meta{font-family:var(--mono); font-size:11.5px; color:var(--ink-faint); margin-top:8px;}
+  .statusbadge{flex-shrink:0; text-align:right;}
+  .statusbadge .pill{display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:700; padding:7px 14px; border-radius:999px; background:var(--surface-2); color:var(--ink-soft);}
+  .statusbadge .pill .dot{width:8px; height:8px; border-radius:50%; background:var(--ink-faint);}
+  .statusbadge .cid{font-family:var(--mono); font-size:11px; color:var(--ink-faint); margin-top:8px;}
+
+  /* ---- faixa de alerta ---- */
+  .alert{margin:22px 48px 0; background:var(--error-bg); border:1px solid #F0D0CD; border-left:3px solid var(--error); border-radius:var(--r-md); padding:13px 18px; display:flex; align-items:center; gap:12px;}
+  .alert .ic{width:26px; height:26px; border-radius:50%; background:var(--error); color:#fff; display:grid; place-items:center; font-weight:700; font-size:15px; flex-shrink:0;}
+  .alert .tx{font-size:13.5px; color:#8A2A2A;}
+  .alert .tx b{color:#6E1414;}
+
+  .body{padding:24px 48px 0;}
+  .sect{margin-top:26px;}
+  .sect > .lbl{font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:12px; display:flex; align-items:center; gap:10px;}
+  .sect > .lbl::after{content:""; flex:1; height:1px; background:var(--line-soft);}
+
+  /* duas colunas dados */
+  .two{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  .infocard{background:var(--surface-2); border:1px solid var(--line); border-radius:var(--r-lg); padding:16px 20px;}
+  .infocard h3{font-size:13px; font-family:var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--signal); margin-bottom:10px;}
+  .dl{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line-soft); font-size:13.5px;}
+  .dl:last-child{border-bottom:none;}
+  .dl .k{color:var(--ink-faint);} .dl .v{font-weight:600; text-align:right; color:var(--ink);}
+
+  /* KPIs resumo */
+  .kpis{display:grid; grid-template-columns:repeat(6,1fr); gap:10px;}
+  .kpi{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-md); padding:13px 14px;}
+  .kpi .kl{font-family:var(--mono); font-size:9px; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-faint); line-height:1.3; min-height:24px;}
+  .kpi .kv{font-size:22px; margin-top:3px; color:var(--ink);}
+  .kpi .ks{font-size:11px; color:var(--ink-faint); margin-top:1px;}
+  .kpi.accent{background:var(--brand); border-color:var(--brand); color:var(--on-brand);}
+  .kpi.accent .kv{color:var(--on-brand);} .kpi.accent .kl{color:var(--on-brand-soft);} .kpi.accent .ks{color:var(--on-brand-soft);}
+  .kpi.danger{background:var(--error-bg); border-color:#F0D0CD;}
+  .kpi.danger .kv{color:var(--error);} .kpi.danger .kl{color:#A9605F;}
+
+  .progress{margin-top:14px;}
+  .progress .ptop{display:flex; justify-content:space-between; font-size:12px; color:var(--ink-faint); margin-bottom:6px;}
+  .progress .ptop b{color:var(--signal);}
+  .progress .track{height:9px; background:var(--surface-2); border-radius:999px; overflow:hidden; border:1px solid var(--line);}
+  .progress .fill{height:100%; width:75%; background:linear-gradient(90deg,var(--signal-viz),var(--signal)); border-radius:999px;}
+
+  /* situação financeira */
+  .fin{display:grid; grid-template-columns:1fr 1fr; gap:0 40px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--r-lg); padding:8px 22px;}
+  .finrow{display:flex; justify-content:space-between; padding:11px 0; border-bottom:1px solid var(--line-soft); font-size:14px;}
+  .finrow .k{color:var(--ink-soft);} .finrow .v{font-weight:600; color:var(--ink);}
+  .fin .finrow:nth-last-child(-n+2){border-bottom:none;}
+  .v.pos{color:var(--signal);} .v.neg{color:var(--error);}
+
+  /* tabelas */
+  table{width:100%; border-collapse:collapse; font-size:13px; border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden;}
+  thead th{font-family:var(--mono); font-size:10px; letter-spacing:.05em; text-transform:uppercase; font-weight:500; color:var(--ink-faint); background:var(--surface-2); text-align:left; padding:11px 14px; border-bottom:1px solid var(--line);}
+  thead th.r{text-align:right;}
+  tbody td{padding:11px 14px; border-top:1px solid var(--line-soft); color:var(--ink);}
+  tbody tr:first-child td{border-top:none;}
+  td.r{text-align:right;}
+  .chip{font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; display:inline-block;}
+  .chip.late{background:var(--error-bg); color:var(--error);}
+  .chip.warn{background:var(--warning-bg); color:var(--warning);}
+  .tbl-late tbody tr{background:var(--error-bg);}
+
+  .foot{margin-top:28px; padding:20px 48px 30px; border-top:1px solid var(--line); background:var(--surface-2); font-size:11px; color:var(--ink-faint); line-height:1.7; position:relative;}
+  .foot .thread{color:var(--signal-viz); opacity:.55; height:20px; width:200px; margin-bottom:10px;}
+  .foot .mono{font-size:11px; color:var(--ink-soft);}
+
+  @media print{
+    body{padding:0;}
+    .sheet{box-shadow:none; width:100%; border:none;}
+    @page{size:A4; margin:0;}
+    .sect, .two, table, .alert{break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn btn-p" onclick="window.print()">Salvar / imprimir PDF</button>
+    <span class="btn btn-s">Extrato do contrato</span>
+  </div>
+
+  <div class="sheet">
+
+    <!-- HEADER DE MARCA -->
+    <div class="brandbar">
+      <svg class="thread" data-thread data-w="794" data-h="46" data-n="12" data-sw="1.6" aria-hidden="true"></svg>
+      <div class="id">
+        <svg width="40" height="40" viewBox="0 0 68 68"><rect x="3" y="3" width="40" height="40" rx="9" fill="#1FB877"/><rect x="25" y="25" width="40" height="40" rx="9" fill="#fff"/><path d="M25 25 H43 V43 H25 Z" fill="#0E5C44"/></svg>
+        <div><b>Borges Assessoria</b><div class="desc">Crédito privado · Gestão de contratos</div></div>
+      </div>
+      <div class="co">
+        <b>Borges Assessoria Financeira</b><br>
+        CNPJ 63.124.205/0001-07<br>
+        borgesassessoriafinanceira@gmail.com<br>
+        Tel/WhatsApp (62) 98487-7843
+      </div>
+    </div>
+
+    <!-- TÍTULO -->
+    <div class="titlerow">
+      <div>
+        <div class="kick">Extrato do contrato</div>
+        <h1>PCL-Nº 49</h1>
+        <div class="meta">Emitido em 19/06/2026 às 13:50</div>
+      </div>
+      <div class="statusbadge">
+        <span class="pill"><span class="dot"></span>Baixado · Prejuízo</span>
+        <div class="cid">ID Cliente 43</div>
+      </div>
+    </div>
+
+    <!-- ALERTA -->
+    <div class="alert">
+      <div class="ic">!</div>
+      <div class="tx"><b>1 parcela em atraso.</b> Maior atraso: <b>209 dias</b> · Saldo devedor atual <b class="num">R$ 680,00</b>.</div>
+    </div>
+
+    <div class="body">
+
+      <!-- DADOS -->
+      <div class="sect">
+        <div class="lbl">Identificação</div>
+        <div class="two">
+          <div class="infocard">
+            <h3>Cliente</h3>
+            <div class="dl"><span class="k">Nome</span><span class="v">Elisangela Maria dos Santos</span></div>
+            <div class="dl"><span class="k">CPF</span><span class="v num">367.850.368-36</span></div>
+            <div class="dl"><span class="k">Telefone</span><span class="v num">(62) 99127-3873</span></div>
+            <div class="dl"><span class="k">ID Cliente</span><span class="v num">43</span></div>
+          </div>
+          <div class="infocard">
+            <h3>Contrato</h3>
+            <div class="dl"><span class="k">Contrato</span><span class="v mono">PCL-Nº 49</span></div>
+            <div class="dl"><span class="k">Contratação</span><span class="v num">22/07/2025</span></div>
+            <div class="dl"><span class="k">Principal</span><span class="v num">R$ 2.000,00</span></div>
+            <div class="dl"><span class="k">Parcelas</span><span class="v num">4× de R$ 680,00</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RESUMO -->
+      <div class="sect">
+        <div class="lbl">Resumo do contrato</div>
+        <div class="kpis">
+          <div class="kpi"><div class="kl">Parcelas totais</div><div class="kv num">4</div></div>
+          <div class="kpi accent"><div class="kl">Parcelas pagas</div><div class="kv num">3<span style="font-size:13px; font-weight:500;">/4</span></div><div class="ks num">75%</div></div>
+          <div class="kpi"><div class="kl">Em aberto</div><div class="kv num">1</div></div>
+          <div class="kpi danger"><div class="kl">Em atraso</div><div class="kv num">1</div><div class="ks">parcela</div></div>
+          <div class="kpi"><div class="kl">Próx. vencimento</div><div class="kv num" style="font-size:15px;">22/11/25</div></div>
+          <div class="kpi danger"><div class="kl">Maior atraso</div><div class="kv num">209<span style="font-size:12px; font-weight:500;">d</span></div></div>
+        </div>
+        <div class="progress">
+          <div class="ptop"><span>Progresso de quitação</span><b class="num">75% quitado</b></div>
+          <div class="track"><div class="fill"></div></div>
+        </div>
+      </div>
+
+      <!-- SITUAÇÃO FINANCEIRA -->
+      <div class="sect">
+        <div class="lbl">Situação financeira</div>
+        <div class="fin">
+          <div class="finrow"><span class="k">Principal contratado</span><span class="v num">R$ 2.000,00</span></div>
+          <div class="finrow"><span class="k">Principal recuperado</span><span class="v num pos">R$ 1.500,00</span></div>
+          <div class="finrow"><span class="k">Principal pendente</span><span class="v num neg">R$ 500,00</span></div>
+          <div class="finrow"><span class="k">Juros contratados</span><span class="v num">R$ 720,00</span></div>
+          <div class="finrow"><span class="k">Juros recebidos</span><span class="v num pos">R$ 540,00</span></div>
+          <div class="finrow"><span class="k">Juros pendentes</span><span class="v num neg">R$ 180,00</span></div>
+          <div class="finrow"><span class="k" style="font-weight:600; color:var(--ink);">Total recebido</span><span class="v num pos" style="font-size:15px;">R$ 2.040,00</span></div>
+          <div class="finrow"><span class="k" style="font-weight:600; color:var(--ink);">Saldo devedor atual</span><span class="v num neg" style="font-size:15px;">R$ 680,00</span></div>
+        </div>
+      </div>
+
+      <!-- HISTÓRICO -->
+      <div class="sect">
+        <div class="lbl">Histórico de pagamentos</div>
+        <table>
+          <thead><tr>
+            <th style="width:32px;">#</th><th>Vencimento</th><th class="r">Valor parcela</th><th>Data pagamento</th><th class="r">Valor pago</th><th>Tipo</th>
+          </tr></thead>
+          <tbody>
+            <tr><td class="num">1</td><td class="num">22/08/2025</td><td class="r num">R$ 680,00</td><td class="num">23/08/2025</td><td class="r num">R$ 680,00</td><td><span class="chip warn">Com atraso</span></td></tr>
+            <tr><td class="num">2</td><td class="num">22/09/2025</td><td class="r num">R$ 680,00</td><td class="num">29/09/2025</td><td class="r num">R$ 680,00</td><td><span class="chip warn">Com atraso</span></td></tr>
+            <tr><td class="num">3</td><td class="num">22/10/2025</td><td class="r num">R$ 680,00</td><td class="num">04/12/2025</td><td class="r num">R$ 680,00</td><td><span class="chip warn">Com atraso</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- PARCELAS EM ATRASO -->
+      <div class="sect">
+        <div class="lbl">Parcelas em aberto · em atraso</div>
+        <table class="tbl-late">
+          <thead><tr>
+            <th style="width:32px;">#</th><th>Vencimento</th><th class="r">Dias atraso</th><th class="r">Valor parcela</th><th class="r">Principal</th><th class="r">Juros</th><th>Status</th>
+          </tr></thead>
+          <tbody>
+            <tr><td class="num">4</td><td class="num">22/11/2025</td><td class="r num" style="color:var(--error); font-weight:700;">209 d</td><td class="r num">R$ 680,00</td><td class="r num">R$ 500,00</td><td class="r num">R$ 180,00</td><td><span class="chip late">Atrasado</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RODAPÉ -->
+    <div class="foot">
+      <svg class="thread" data-thread data-w="200" data-h="20" data-n="6" data-sw="1.4" data-amp="0.3" aria-hidden="true"></svg>
+      Este documento representa a posição do contrato na data de emissão e não constitui documento fiscal ou judicial.<br>
+      <span class="mono">Borges Assessoria Financeira · CNPJ 63.124.205/0001-07 · borgesassessoriafinanceira@gmail.com · (62) 98487-7843</span>
+    </div>
+  </div>
+
+  <script src="brand-v3.js"></script>
+</body>
+</html>
