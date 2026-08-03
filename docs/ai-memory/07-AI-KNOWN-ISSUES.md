@@ -1058,6 +1058,46 @@ Resolvido e publicado (2026-08-01). Falta rodar 1x o item de menu "Analitica: Co
 
 ---
 
+## 2026-08-01 — Timeout de 300s no Efí travava função Vercel sem retornar JSON
+
+### Problema
+Primeiro aviso recebido via `_notificarErroSistema` (canal implementado em 2026-07-31): "Unexpected
+token 'A', "An error o"... is not valid JSON", origem `rotinaVerificarPagamentos > verificarPagamentosEfi`.
+A mensagem por si só não identifica a causa — não dava pra saber se era erro de dado, de API do Efí, ou
+de infraestrutura só lendo o texto do erro.
+
+### Causa raiz
+Diagnóstico via `mcp__plugin_vercel_vercel__get_runtime_errors` (não pelos logs brutos, que já tinham
+expirado a janela padrão) mostrou o erro real: `Vercel Runtime Timeout Error: Task timed out after 300
+seconds` em `/api/efi-check-payments` — já tinha ocorrido 9x desde 2026-06-19, só ficou visível agora
+porque a notificação de erro é recente.
+
+`api/efi-auth.js` (`getEfiToken`/`efiRequest`, módulo compartilhado por 6 arquivos: `efi-charges.js`,
+`efi-check-payments.js`, `efi-pix-avulso.js`, `efi-quitacao.js`, `efi-setup-webhook.js`,
+`efi-test-webhook.js`) fazia `https.request` para o Efí **sem timeout configurado**. Se o Efí não
+respondesse por qualquer instabilidade de rede, a Promise nunca resolvia nem rejeitava — a função Vercel
+ficava pendurada até o limite de `maxDuration` (300s), momento em que a própria Vercel mata a execução e
+devolve uma página de erro em texto puro ("An error occurred...") em vez de JSON. O GAS esperava JSON e,
+ao tentar `JSON.parse()` essa página de erro, gerava a mensagem confusa reportada.
+
+Impacto real era baixo — `verificarPagamentosEfi` é só um fallback de polling (o webhook Efí é o
+mecanismo principal de registro de pagamento) — mas o mesmo bug podia travar silenciosamente qualquer um
+dos outros 5 consumidores do módulo, incluindo a geração de PIX ao criar contrato.
+
+### Solução
+`options.timeout: 20_000` (20s) + `req.on("timeout", () => req.destroy(new Error(...)))` nos dois
+`https.request` de `api/efi-auth.js`. `req.destroy(error)` emite `'error'` com esse error, então o
+`req.on("error", reject)` já existente cobre o reject — sem precisar de handler duplicado. Todos os 6
+consumidores já tinham `try/catch` em volta de `getEfiToken`/`efiRequest`, então o timeout agora vira erro
+JSON limpo e rápido em vez de travar a função inteira por 5 minutos.
+
+### Status
+Resolvido e deployado (2026-08-01). Se investigar timeout/erro de função Vercel de novo, usar
+`mcp__plugin_vercel_vercel__get_runtime_errors` (clusters agregados, não expira como os logs brutos)
+antes de tentar adivinhar a causa pela mensagem de erro que chega no GAS.
+
+---
+
 ## Débitos Técnicos
 
 - `src/main.jsx` com ~6000+ linhas — candidato a modularização futura (Fase 3).

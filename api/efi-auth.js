@@ -21,6 +21,7 @@ export async function getEfiToken() {
       method: "POST",
       pfx: cert,
       passphrase: "",
+      timeout: 20_000,
       headers: {
         Authorization: `Basic ${creds}`,
         "Content-Type": "application/json",
@@ -45,6 +46,7 @@ export async function getEfiToken() {
       });
     });
     req.on("error", reject);
+    req.on("timeout", () => req.destroy(new Error("Efi auth timeout (20s)")));
     req.write(body);
     req.end();
   });
@@ -60,6 +62,7 @@ export async function efiRequest(method, path, body, token, extraHeaders = {}) {
       method,
       pfx: cert,
       passphrase: "",
+      timeout: 20_000,
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
@@ -80,6 +83,7 @@ export async function efiRequest(method, path, body, token, extraHeaders = {}) {
       });
     });
     req.on("error", reject);
+    req.on("timeout", () => req.destroy(new Error("Efi request timeout (20s): " + path)));
     if (bodyStr) req.write(bodyStr);
     req.end();
   });

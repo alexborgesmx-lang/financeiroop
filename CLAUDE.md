@@ -791,6 +791,7 @@ Regras:
 - **Auto-renovação**: GAS re-registra toda segunda-feira às 7h via `_reRegistrarWebhookEfi()` na `rotinaDiaria`
 - **Re-registro manual**: menu GAS → "PIX: Re-registrar Webhook Efí" (ou rodar `reRegistrarWebhookEfiManual()`)
 - **Fallback pagamentos perdidos**: se webhook ficou quebrado por algum período, rodar `verificarPagamentosEfi()` no GAS — faz polling de todos os TXIDs e registra os CONCLUÍDOS
+- **Timeout de 20s em toda chamada HTTPS pro Efí** (`api/efi-auth.js`, `getEfiToken`/`efiRequest`, compartilhado por todos os `api/efi-*.js`) — sem isso, uma resposta travada do Efí prendia a função Vercel até o limite de 300s, que devolve página de erro em texto (não JSON) e quebra quem espera JSON do outro lado (ex: GAS). Ver `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-08-01). Replicar esse padrão em qualquer chamada HTTPS externa nova que não use uma lib com timeout embutido.
 
 **Quitação antecipada via PIX:**
 ```javascript
