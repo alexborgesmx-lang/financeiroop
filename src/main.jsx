@@ -2975,7 +2975,7 @@ function RenegociacaoModal({contrato, parcelas, clientes, propostasRenegociacao,
         <div style={{padding:"12px 20px 16px",borderTop:`1px solid ${BD}`,display:"flex",gap:10,flexShrink:0}}>
           {view==="form"?(
             <>
-              {entradaNum>0&&valorDesejadoNum>0&&(
+              {(entradaNum>0||semEntrada)&&valorDesejadoNum>0&&(
                 <button onClick={enviarPropostaWpp} style={{...BTN2(false),flex:"0 0 auto",padding:"13px 16px",fontSize:13}}>
                   {IcoWpp} Proposta WPP
                 </button>
