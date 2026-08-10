@@ -737,15 +737,28 @@ Soma de VALOR_JUROS das parcelas abertas — indica o lucro potencial se o clien
 
 Diferente do Acordo com Perda (5.6, que encerra o contrato), a Renegociação **mantém o contrato ativo** com um carnê novo — usada quando o cliente não consegue mais pagar o valor original mas quer continuar pagando parcelado.
 
-**Ação:** Alex clica em "Renegociar contrato" no ContratoModal (`podeRenegociar`: contrato com parcelas em aberto e status `ativo_em_atraso`, `em_cobranca`, `pre_prejuizo` ou `acordo_assistido`).
+**Ação:** Alex clica em "Renegociar contrato" no ContratoModal (`podeRenegociar`: contrato com parcelas em aberto e status `ativo`, `ativo_em_dia`, `ativo_em_atraso`, `em_cobranca`, `pre_prejuizo` ou `acordo_assistido` — desde 2026-08-10 disponível também em contratos **em dia**, não só atrasados, para o cliente poder pedir renegociação preventivamente, ex: avisou que vai perder o emprego).
 
-**GAS (`renegociarContrato`):**
+**Entrada obrigatória via PIX (2026-08-06):** diferente de antes, a renegociação não executa mais na hora do clique — vira uma **proposta pendente**, no mesmo padrão da Quitação Antecipada (aba `PROPOSTAS_RENEGOCIACAO`, expira em 48h). Racional: sem prova de comprometimento (dinheiro de verdade batendo antes), o cliente conseguia a única renegociação permitida "de graça", sem sinalizar intenção real de continuar pagando.
+
+1. Alex informa a **Entrada (R$)** e o **valor que o cliente disse que consegue pagar por mês**. Desde 2026-08-10, a entrada mínima deixou de ser um valor fixo (R$200) e passou a ser calculada por contrato: os juros da parcela em aberto mais próxima (1 mês de juros daquele contrato específico), mostrada como texto de apoio no campo.
+2. O sistema calcula sozinho a sugestão de parcelamento: abate a entrada do saldo devedor (capital primeiro, depois juros), divide o restante pelo valor informado arredondando pra cima (`Math.ceil`), e distribui igual entre todas as parcelas — sem teto de quantidade, Alex decide se aceita o resultado ou renegocia um valor de parcela maior com o cliente.
+3. `gerarPropostaRenegociacao` grava a proposta `PENDENTE` e gera o PIX da entrada na Efí (TXID `FOEN...`).
+4. A renegociação só é **efetivada quando a entrada é confirmada paga** — webhook Efí chama `pagamentoRenegociacaoWebhook`, que então executa `renegociarContrato` de verdade.
+
+**"Assumir o risco e dispensar a entrada mínima" (2026-08-10):** checkbox no modal que libera Alex de respeitar o mínimo calculado, decisão caso a caso. Marcada, a entrada pode ser qualquer valor ≥ R$0:
+- Entrada > R$0 (mesmo abaixo do mínimo): segue o fluxo normal acima (proposta pendente + PIX), só sem a trava de mínimo.
+- Entrada = R$0 (campo em branco): não existe PIX de R$0, então o botão vira **"Renegociar sem entrada"** — pula a proposta pendente inteiramente e executa `renegociarContrato` na hora do clique (mesma função do passo 4 acima, só sem esperar confirmação de pagamento). Como é irreversível e sem suporte no Motor de Undo, aparece uma confirmação extra antes de executar. Fica registrado com o prefixo `[SEM ENTRADA - RISCO ASSUMIDO]` na observação da renegociação.
+
+**GAS (`renegociarContrato`, chamada só depois da entrada confirmada):**
 1. Fecha as parcelas em aberto do contrato como `renegociado` (status terminal de parcela — histórico preservado, nunca apagado).
-2. Cria novas parcelas continuando a numeração existente (`ORIGEM_PARCELA = "renegociada"`), com valor/quantidade/1º vencimento definidos por Alex. Total renegociado nunca pode ficar abaixo do capital ainda em aberto; desconto só é permitido nos juros, nunca no principal.
-3. `STATUS_CONTRATO` volta para `ativo_em_dia` e `DATA_RENEGOCIACAO` é gravada.
-4. Score é recalculado (penalização por renegociação ativa).
+2. Cria novas parcelas continuando a numeração existente (`ORIGEM_PARCELA = "renegociada"`), com valor/quantidade/1º vencimento já definidos na proposta. Total renegociado (entrada + novas parcelas) nunca pode ficar abaixo do capital ainda em aberto; desconto só é permitido nos juros, nunca no principal.
+3. Registra o pagamento da entrada em PAGAMENTOS (`TIPO_PAGAMENTO = "entrada_renegociacao"`, sem `ID_PARCELA` — mesmo padrão do abatimento de Acordo Assistido) — sem isso o dinheiro recebido ficaria invisível pro sistema.
+4. `STATUS_CONTRATO` volta para `ativo_em_dia` e `DATA_RENEGOCIACAO` é gravada.
+5. Gera o PIX das novas parcelas automaticamente (best-effort, direto do GAS via `/api/efi-charges` — não depende do Alex estar com o app aberto quando a entrada cair).
+6. Score é recalculado (penalização por renegociação ativa).
 
-**Limite:** no máximo 1 renegociação por contrato — bloqueada se já existir qualquer parcela com `ORIGEM_PARCELA = "renegociada"` (`jaRenegociado` no frontend, validação equivalente no GAS).
+**Limite:** no máximo 1 renegociação por contrato — bloqueada se já existir qualquer parcela com `ORIGEM_PARCELA = "renegociada"` (`jaRenegociado` no frontend, validação equivalente no GAS, `_validarElegibilidadeRenegociacao`).
 
 **Reincidência (2026-07-05, estendido para Acordo Assistido em 2026-07-06):** como o contrato volta para `ativo_em_dia`, se o cliente não pagar a nova parcela ele reentra no ciclo normal de atraso (`ativo_em_atraso`). Como essa já é uma 2ª chance não cumprida, a opção "Ajuizar contrato" fica disponível assim que o contrato renegociado volta a `ativo_em_atraso`, sem esperar os 30 dias que um contrato de 1ª vez levaria até virar `em_cobranca`. A mesma regra vale para um contrato que já passou por Acordo Assistido (5.8) e volta a atrasar depois de retornar à cobrança normal. Ver `docs/ai-memory/02-AI-CREDIT-RULES.md` (seção Renegociação).
 

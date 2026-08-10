@@ -32,6 +32,45 @@ Aberto | Em andamento | Resolvido
 
 ## Registro Ativo
 
+## 2026-08-10 — rotinaDiaria falhou em cascata: "You do not have permission to access the requested document."
+
+### Problema
+Alex recebeu por WhatsApp (via `_notificarErroSistema`) 4+ avisos de erro seguidos às 07:09-07:10, todas com origem em sub-etapas de `rotinaDiaria` (`enviarReguaCobranca`, `atualizarStatusContratos`, `auditarIntegridadeSistema`, `verificarQuitacoesExpiradas`) e a mesma mensagem genérica do Google: `"You do not have permission to access the requested document."` — texto que não existe em nenhum lugar do nosso código (confirmado via grep em `appscript.gs`/`api/*.js`/`main.jsx`), ou seja, é erro nativo do Google, não bug de lógica nossa.
+
+### Causa raiz
+Conta Google do Alex estava com o **Drive 100% cheio**. O Google bloqueia qualquer gravação em Sheets/Docs/Slides (mesmo que a edição não use espaço extra) quando a cota de armazenamento estoura, e devolve um erro genérico de permissão em vez de identificar a causa como "sem espaço". Explica o padrão observado no log de Execuções (Apps Script): as duas primeiras etapas de `rotinaDiaria` (`_reRegistrarWebhookEfi`, `verificarPagamentosEfi`) rodaram normalmente porque não escrevem pesado na planilha logo de cara; as etapas seguintes, que gravam status/log/expiração em massa, foram bloqueadas em sequência.
+
+### Solução
+Alex comprou mais armazenamento Google e rodou `rotinaDiaria` manualmente pelo editor do Apps Script — concluiu em 45s sem erro, confirmando a causa. Nenhuma mudança de código foi necessária.
+
+### Nota para o futuro
+Se `_notificarErroSistema` disparar essa mensagem exata (`"You do not have permission to access the requested document."`) de novo, em qualquer função que grave no Sheets — **checar cota do Google Drive da conta antes de investigar como bug de código.** Não confundir com o gotcha de escopo OAuth (`script.scriptapp`, entrada 2026-07-22 abaixo) — mensagem de erro diferente (aquela cita explicitamente a permissão/escopo faltante).
+
+### Status
+Resolvido (2026-08-10)
+
+---
+
+## 2026-08-07 — Confirmação WPP da Renegociação falhava em silêncio
+
+### Problema
+`pagamentoRenegociacaoWebhook` (renegociação com entrada via PIX, ver `02-AI-CREDIT-RULES.md` e `03-AI-FINANCIAL-CALCULATIONS.md`) enviava a confirmação de WhatsApp pro cliente chamando `_enviarWppRegua(tel, texto)` direto, sem checar o valor de retorno (`true`/`false`) e sem logar em MENSAGENS. Primeiro uso em produção (contrato do Ronan Cássio Covolo da Silva, PCL-210): a renegociação foi processada corretamente (parcelas fechadas, carnê novo criado), mas a mensagem de confirmação não chegou ao cliente — e não havia nenhum rastro em lugar nenhum do sistema (só `Logger.log`, invisível pra qualquer um) pra saber que tinha falhado, muito menos por quê.
+
+Efeito colateral relacionado: o GATILHO `"CONFIRMACAO_RENEGOCIACAO"` também não estava mapeado em `categG` (`src/main.jsx`, aba Régua WPP) — cairia no default vermelho "Erro" mesmo quando o envio desse certo, confundindo ainda mais o diagnóstico (mesmo problema visual que já existia pra qualquer GATILHO não mapeado, ex: `PIX_MANUAL`).
+
+### Impacto
+Cliente não avisado que a renegociação foi concluída e que vai receber PIX das novas parcelas. Sem visibilidade da falha, dependia do Alex notar a ausência da mensagem por conta própria (como aconteceu).
+
+### Solução
+`pagamentoRenegociacaoWebhook` agora: (1) checa o retorno de `_enviarWppRegua`; (2) loga em MENSAGENS via `_logMensagem` com `GATILHO="CONFIRMACAO_RENEGOCIACAO"` e `STATUS_ENVIO` `"ENVIADO"`/`"ERRO_ENVIO"` (mesmo padrão de toda outra mensagem do sistema — fica visível na aba Régua WPP); (3) chama `_notificarErroSistema` se o telefone não for encontrado ou se o envio falhar, avisando o Alex por e-mail (garantido) + WhatsApp (best-effort), mesmo padrão já usado em `enviarReguaCobranca`/`_enviarConfirmacaoPagamento`. `categG` no frontend passou a reconhecer `CONFIRMACAO_RENEGOCIACAO` como categoria "Confirmação" (verde), não mais "Erro" (vermelho) por default.
+
+**Padrão a replicar:** qualquer envio de WhatsApp novo em fluxo automático (sem UI, sem alguém olhando na hora) deve sempre checar o retorno de `_enviarWppRegua`, logar em MENSAGENS via `_logMensagem`, e chamar `_notificarErroSistema` em caso de falha. Nunca disparar `_enviarWppRegua` "solto" só dentro de um `try/catch` com `Logger.log` — isso é invisível em produção.
+
+### Status
+Resolvido (2026-08-07) — ainda não existe um "reenviar confirmação de renegociação perdida" equivalente ao `reenviarConfirmacoesPendentes()` de pagamentos normais; se acontecer de novo, reenviar manualmente pelo WhatsApp do contrato.
+
+---
+
 ## 2026-06-03 — Data um dia antes no Sheets
 
 ### Problema
@@ -1098,8 +1137,158 @@ antes de tentar adivinhar a causa pela mensagem de erro que chega no GAS.
 
 ---
 
+## 2026-08-05 — Botão "Enviar PIX" do ContratoModal podia mandar código de parcela já paga
+
+### Problema
+Alex clicou no botão "Enviar PIX" dentro do modal do contrato (`ContratoModal`, `main.jsx`) e o WhatsApp
+saiu com o código PIX da última parcela — que já constava como paga no sistema — em vez da parcela mais
+antiga em aberto.
+
+### Causa raiz
+`proxParcela` (a parcela-alvo, `main.jsx:4031`) sempre foi calculada certo — é a mais antiga não-terminal.
+O bug estava no código PIX exibido/enviado: `pixCodeToShow = pixCodeNew || pixCodeSaved`. `pixCodeNew` é
+um `useState` preenchido só quando alguém clica em "Gerar PIX" manualmente (`_gerarPix`), e **nunca era
+resetado** quando `proxParcela` mudava. Se o modal ficasse aberto e a parcela-alvo avançasse (ex: a
+parcela que estava sendo cobrada foi paga por outro caminho enquanto o modal seguia aberto — polling de
+`carregar()`/webhook em background), `pixCodeNew` continuava com o código antigo e passava a ser enviado
+junto com os dados (número/valor/vencimento) da nova `proxParcela` — mensagem falando de uma parcela,
+código PIX de outra. `enviarPixManual` (`appscript.gs`) não validava nada: recebia `pixCode` + `idParcela`
+do frontend e só repassava pro WhatsApp, sem checar se o código realmente pertencia àquela parcela.
+
+### Solução
+Duas camadas de defesa, complementares:
+1. **Frontend** (`main.jsx`, perto de `pixCodeToShow`): `useEffect` reseta `pixCodeNew`/`pixOk`/`pixErr`/
+   `pixCopied`/`pixWppOk`/`pixWppErr` sempre que `proxParcela?.ID_PARCELA` muda — fecha a causa raiz.
+2. **Backend** (`enviarPixManual`, `appscript.gs`): antes de enviar, busca a `STATUS` atual do `idParcela`
+   recebido em PARCELAS e bloqueia (retorna erro, não envia WhatsApp) se ela já estiver em
+   `STATUS_TERMINAL` — rede de segurança caso outro bug de frontend volte a mandar dado incoerente. Padrão
+   reaproveitado: `buildColMap` + fallback `STATUS`/`STATUS_PAGAMENTO`, `STATUS_TERMINAL` global (não
+   redefinido localmente).
+
+Mesmo padrão (state de UI que não acompanha o dado-alvo quando ele muda) vale a pena checar em qualquer
+outro componente que gere/exiba um código PIX preso a "a próxima parcela em aberto" — se aparecer de novo
+em outro lugar, é o mesmo tipo de bug.
+
+### Status
+Resolvido e deployado (2026-08-05) — frontend via `vercel deploy --prod`, GAS colado e publicado
+manualmente pelo Alex no editor do Apps Script.
+
+---
+
+## 2026-08-10 — PIX expira aos 30 dias de atraso sem regeneração, e primeira correção usava data errada
+
+### Problema
+Alex reportou que um cliente com parcela vencida há mais de 30 dias tinha um código PIX que "não vale
+mais" — a Efí recusava o pagamento. Investigação revelou uma cadeia de três problemas relacionados,
+todos corrigidos na mesma sessão.
+
+### Causa raiz 1 — nada regenerava o PIX depois que ele expirava
+Cobv Efí normal tem `validadeAposVencimento: 30` (`api/efi-charges.js`/`api/efi-pix-avulso.js`) — aos 30
+dias de atraso a Efí invalida o código. A régua automática (D-5 a D+7) já parou de tocar na parcela bem
+antes disso (7 dias), e o botão de gerar PIX no `ContratoModal` só aparecia quando o campo `EFI_PIX_CODE`
+estava vazio — nunca quando havia um código velho e morto salvo. Ninguém tinha como perceber isso além do
+cliente tentar pagar e reclamar.
+
+### Causa raiz 2 — primeira correção usou `DATA_ACORDO` como se fosse a data real da dívida
+Primeira tentativa de correção tratou parcelas reagendadas (`DATA_ACORDO` futura) como "não vencidas",
+espelhando o critério de `statusEfetivo()` do frontend. Isso causou dois problemas ao testar no contrato
+PCL-Nº143 (Gustavo Augusto, parcela reagendada + parcela atrasada normal no mesmo contrato):
+- A parcela reagendada deixou de ser oferecida pra regeneração (mesmo tendo `DATA_VENCIMENTO` original
+  com dezenas de dias de atraso), e quando regenerada manualmente saiu com o valor base, sem juros/multa
+  — porque `dataVencimento` mandado pra Efí acabou sendo hoje (a `DATA_VENCIMENTO` original, no passado,
+  foi clampada) em vez da data real do débito.
+- Alex esclareceu a regra de negócio: `DATA_ACORDO` é **só o registro da promessa/previsão de pagamento
+  do cliente** — reflete a percepção de honestidade/relacionamento dele com a empresa, não altera a
+  dívida real nem gera efeito algum no sistema. Toda lógica de PIX (expiração, regeneração, cálculo de
+  encargo) deve usar exclusivamente a `DATA_VENCIMENTO` original, sempre.
+
+### Causa raiz 3 — clamping da data pra "hoje" reseta o cálculo dinâmico de mora da Efí
+Mesmo usando a `DATA_VENCIMENTO` certa, regenerar uma cobv vencida exige mandar `calendario.dataDeVencimento`
+hoje-ou-futuro pra Efí (senão a cobv nasceria com a janela de validade já expirada) — isso zera o "relógio"
+que a Efí usa pra calcular multa/juros de mora dinamicamente (payload `valor.multa`/`valor.juros`,
+modalidade 2). Resultado: regenerar uma parcela genuinamente atrasada fazia o cliente pagar só o valor
+base, sem encargo nenhum — o oposto do que deveria acontecer.
+
+Uma iteração intermediária tentou mandar *todas* as parcelas em aberto do contrato pra Efí de uma vez
+(pra cobrir contratos com 2+ parcelas atrasadas simultâneas) — mas isso incluía parcelas com atraso ≤30
+dias, cujo PIX ainda estava válido e calculando mora corretamente de forma dinâmica; regenerá-las sem
+necessidade quebrava esse cálculo (mesmo bug da causa raiz 3, só que numa parcela que não precisava ser
+tocada). Corrigido antes de chegar em produção pro Alex, mas um teste anterior a essa correção deixou a
+parcela 6 do PCL-Nº143 com ~R$43 de mora não capturada (23 dias de atraso na época) — avaliado junto com
+o Alex e decidido **não corrigir**: o esforço de rastrear e ajustar manualmente é maior que o valor em
+jogo. Fica documentado aqui caso o padrão apareça de novo em outro contrato.
+
+### Solução final
+1. **Detecção de PIX expirado** (`ContratoModal`, `main.jsx`) — parcela pendente mais antiga (`proxParcela`)
+   com mais de 30 dias de atraso pela `DATA_VENCIMENTO` original mostra aviso vermelho e troca os botões
+   "Enviar"/"Copiar" por "Gerar novo PIX".
+2. **Botão "Gerar PIX novamente"** — novo item em "Mais ações", sempre disponível quando já existe um
+   código salvo (cobre o caso de o código já ter sido gerado errado antes do fix). Avalia cada parcela em
+   aberto do contrato **independentemente** pela própria `DATA_VENCIMENTO`; só manda pra Efí as que têm
+   mais de 30 dias de atraso — as demais não são tocadas.
+3. **Cálculo de encargo** (`api/efi-charges.js`, `api/efi-pix-avulso.js`) — pra parcela >30 dias, calcula
+   multa (`EFI_MULTA_PCT`) + juros de mora (`EFI_JUROS_DIARIO` × dias) sobre o valor da parcela e embute
+   como `valor.original` fixo, removendo os campos dinâmicos `valor.multa`/`valor.juros` do payload (evita
+   cobrar 2×). Fórmula completa em `docs/ai-memory/03-AI-FINANCIAL-CALCULATIONS.md`.
+4. **Rotina automática** (`_regenerarPixVencidos`, `appscript.gs`, chamada em `rotinaDiaria()` após
+   `enviarReguaCobranca()`) — roda a cada 25 dias de atraso (25, 50, 75...) mantendo o PIX de parcelas
+   abertas sempre válido, silenciosamente (sem mensagem). Usa a mesma `DATA_VENCIMENTO` original, nunca
+   `DATA_ACORDO`. **Gap conhecido, não corrigido**: dispara pela primeira vez aos 25 dias (antes do limite
+   de 30), e nesse disparo o encargo ainda não é embutido (só ativa >30d) — então o primeiro refresh
+   automático perde os 25 dias de mora já acumulados, do mesmo jeito que a causa raiz 3 acima. Consultado
+   com o Alex; ele preferiu manter o limite de 30 dias só pro botão manual e não decidiu ainda se vale a
+   pena estender a correção pra rotina automática — reavaliar se aparecer de novo.
+
+### Status
+Resolvido e deployado (2026-08-10) — frontend via `vercel deploy --prod` (múltiplas iterações no mesmo
+dia), GAS colado e publicado pelo Alex no editor do Apps Script (2 tentativas — a primeira teve uma
+corrupção de 3 caracteres na linha 1 do arquivo ao reabrir no TextEdit, "O dvar ABAS" em vez de "var
+ABAS", causando `SyntaxError` no Apps Script; corrigido e republicado). Testado em produção em dois
+contratos reais (PCL-Nº133/Suzileide, PCL-Nº143/Gustavo) e confirmado funcionando pelo Alex num terceiro
+contrato à parte.
+
+---
+
+## 2026-08-10 — Botão "Proposta WPP" sumia no fluxo "renegociar sem entrada"
+
+### Problema
+Ao implementar a entrada mínima dinâmica + checkbox "Assumir o risco e dispensar a entrada mínima" no
+`RenegociacaoModal` (`src/main.jsx`), o botão "Proposta WPP" desaparecia sempre que o Alex marcava a
+checkbox e deixava o campo Entrada em branco (fluxo "renegociar sem entrada", ver
+`docs/ai-memory/02-AI-CREDIT-RULES.md`). Reportado pelo Alex minutos depois do deploy, com screenshot.
+
+### Causa raiz
+O componente tem a mesma condição de exibição (`entradaNum>0&&valorDesejadoNum>0`) duplicada em dois
+lugares do JSX: uma controla o preview de parcelamento no corpo do modal, outra controla o botão
+"Proposta WPP" no rodapé. Ao adicionar o caminho "sem entrada" (`semEntrada = assumirRisco &&
+entradaNum<=0`), a condição do preview foi corrigida para `(entradaNum>0||semEntrada)&&...`, mas a
+condição do botão WPP — texto idêntico, localização diferente — ficou esquecida com a versão antiga.
+Sintoma enganoso: o campo Entrada mostrava `placeholder={entradaMinima.toFixed(2)}` (ex: "304.00") que
+visualmente parece um valor preenchido, mas o campo estava vazio de verdade — daí a confusão inicial de
+que "marcar a checkbox" quebrava o botão, quando na verdade era o campo vazio (comportamento esperado do
+fluxo "sem entrada") combinado com a condição não corrigida.
+
+### Solução
+Aplicado o mesmo `(entradaNum>0||semEntrada)&&valorDesejadoNum>0` nas duas condições. Commit `f5bb66d`.
+
+### Lição
+Ao corrigir uma condição de exibição em JSX, `grep` pelo texto exato da condição no arquivo inteiro antes
+de considerar a mudança completa — este arquivo específico repete a mesma condição em mais de um lugar
+(corpo do modal + rodapé) para vários botões/blocos condicionais.
+
+### Status
+Resolvido e deployado (2026-08-10), mesmo dia do bug original. Confirmado funcionando pelo Alex.
+
+---
+
 ## Débitos Técnicos
 
+- `_regenerarPixVencidos` (`appscript.gs`) dispara pela primeira vez aos 25 dias de atraso, mas só embute
+  o encargo de mora quando >30 dias — o primeiro refresh automático de cada parcela perde os 25 dias já
+  acumulados (mesma causa raiz do bug 2026-08-10 acima, ainda não estendida pra rotina automática).
+- Contrato PCL-Nº143 (Gustavo Augusto), parcela 6: ~R$43 de mora não capturada por um teste durante o fix
+  de 2026-08-10, antes da correção final — decisão consciente do Alex de não corrigir manualmente (custo
+  de rastrear > valor em jogo).
 - `src/main.jsx` com ~6000+ linhas — candidato a modularização futura (Fase 3).
 - Contratos anteriores à implementação PIX Efí não possuem colunas `EFI_*` preenchidas (sem backfill).
 - Migração Google Sheets → Supabase pendente (Fase 3 do roadmap).
