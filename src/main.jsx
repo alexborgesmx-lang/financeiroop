@@ -2623,7 +2623,7 @@ function ArquivarProcessoModal({contrato, onSucesso, onFechar}){
   );
 }
 
-function RenegociacaoModal({contrato, parcelas, clientes, onConfirmar, onFechar}){
+function RenegociacaoModal({contrato, parcelas, clientes, propostasRenegociacao, onConfirmar, onFechar}){
   const cli = (clientes||[]).find(c=>String(c.ID_CLIENTE)===String(contrato.ID_CLIENTE))||{};
 
   const abertas = useMemo(()=>(parcelas||[]).filter(p=>
@@ -2642,8 +2642,18 @@ function RenegociacaoModal({contrato, parcelas, clientes, onConfirmar, onFechar}
 
   const saldoTotal = capitalFaltante + jurosEmAberto;
 
-  const [novaValorParcela, setNovaValorParcela] = useState("");
-  const [novasParcelasQtd, setNovasParcelasQtd] = useState("");
+  // Proposta PENDENTE já existente para esse contrato (aguardando pagamento da entrada)
+  const propostaExistente = useMemo(()=>(propostasRenegociacao||[]).find(p=>
+    String(p.ID_CONTRATO)===String(contrato.ID_CONTRATO) &&
+    String(p.STATUS||"").toUpperCase()==="PENDENTE"
+  )||null,[propostasRenegociacao,contrato]);
+
+  // "form" | "pix"
+  const [view, setView] = useState(()=>propostaExistente?"pix":"form");
+
+  const [entrada, setEntrada]         = useState("");
+  const [assumirRisco, setAssumirRisco] = useState(false);
+  const [valorDesejado, setValorDesejado] = useState("");
   const [novoVencimento, setNovoVencimento] = useState(()=>{
     if(abertas.length>0){
       const d=parseDate(abertas[0].DATA_VENCIMENTO);
@@ -2655,14 +2665,33 @@ function RenegociacaoModal({contrato, parcelas, clientes, onConfirmar, onFechar}
   const [observacao, setObservacao] = useState("");
   const [loading, setLoading]       = useState(false);
   const [msg, setMsg]               = useState(null);
-  const [pixStatus, setPixStatus]   = useState(null);
+  const msgRef = useRef(null);
+  useEffect(()=>{ if(msg) msgRef.current?.scrollIntoView({behavior:"smooth",block:"nearest"}); },[msg]);
 
-  const valorNum = parseFloat(novaValorParcela)||0;
-  const qtdNum   = parseInt(novasParcelasQtd)||0;
-  const totalRenegociado  = valorNum * qtdNum;
-  const cobreCapital      = totalRenegociado >= capitalFaltante - 0.01;
-  const descontoImplicito = Math.max(0, saldoTotal - totalRenegociado);
-  const canSubmit         = valorNum > 0 && qtdNum > 0 && !!novoVencimento && cobreCapital;
+  // pix flow
+  const [pixCode, setPixCode]           = useState(()=>propostaExistente?.EFI_PIX_CODE_ENTRADA||"");
+  const [propostaId, setPropostaId]     = useState(()=>propostaExistente?.ID_PROPOSTA||"");
+  const [valorEntradaPix, setValorEntradaPix] = useState(()=>parseFloat(propostaExistente?.VALOR_ENTRADA||0));
+  const [sugestaoPix, setSugestaoPix]   = useState(()=>({
+    qtd:   parseInt(propostaExistente?.QTD_PARCELAS_NOVA||0)||0,
+    valor: parseFloat(propostaExistente?.VALOR_PARCELA_NOVA||0)||0
+  }));
+  const [pixCopiado, setPixCopiado]     = useState(false);
+  const [pixWppLoad, setPixWppLoad]     = useState(false);
+  const [pixWppOk, setPixWppOk]         = useState(false);
+
+  const entradaMinima    = abertas.length>0 ? parseFloat(abertas[0].VALOR_JUROS||0) : 0;
+  const entradaNum       = parseFloat(entrada)||0;
+  const valorDesejadoNum = parseFloat(valorDesejado)||0;
+  const entradaSobreCapital = Math.min(entradaNum, capitalFaltante);
+  const entradaSobreJuros   = Math.min(Math.max(0, entradaNum - entradaSobreCapital), jurosEmAberto);
+  const saldoRestante    = Math.max(0, (capitalFaltante-entradaSobreCapital) + (jurosEmAberto-entradaSobreJuros));
+  const qtdSugerida      = valorDesejadoNum>0 ? Math.max(1, Math.ceil(saldoRestante/valorDesejadoNum)) : 0;
+  const valorParcelaFinal= qtdSugerida>0 ? Math.ceil(saldoRestante/qtdSugerida) : 0;
+  const entradaAtendeMinimo = assumirRisco || entradaNum>=entradaMinima;
+  const semEntrada        = assumirRisco && entradaNum<=0;
+  const canSubmitPix       = !semEntrada && entradaNum>0 && entradaAtendeMinimo && entradaNum<saldoTotal && valorDesejadoNum>0 && !!novoVencimento;
+  const canSubmitSemEntrada= semEntrada && valorDesejadoNum>0 && !!novoVencimento;
 
   const enviarPropostaWpp = () => {
     const tel = normTel(cli.TELEFONE_WPP||cli.TELEFONE||"");
@@ -2674,56 +2703,124 @@ function RenegociacaoModal({contrato, parcelas, clientes, onConfirmar, onFechar}
       "📋 Contrato: "+contrato.ID_CONTRATO,
       "💰 Saldo atual: "+fmtR(saldoTotal),"",
       "📝 Proposta de renegociação:",
-      "• "+qtdNum+" parcelas de "+fmtR(valorNum),
-      "• Total a pagar: "+fmtR(totalRenegociado),
-      ...(descontoImplicito>=0.01?["• Desconto aplicado: "+fmtR(descontoImplicito)]:[]),"",
-      "Caso tenha interesse, me confirme para fecharmos o acordo."
+      "• Entrada: "+fmtR(entradaNum),
+      "• "+qtdSugerida+" parcelas de "+fmtR(valorParcelaFinal),"",
+      "Caso tenha interesse, me confirme para eu já te mandar o PIX da entrada e fecharmos o acordo."
     ];
     const url="https://api.whatsapp.com/send?phone=55"+tel+"&text="+encodeURIComponent(lines.join("\n"));
     const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener noreferrer";
     document.body.appendChild(a);a.click();document.body.removeChild(a);
   };
 
-  const confirmar = async () => {
-    if(!canSubmit){
-      setMsg({ok:false,t:!cobreCapital?"O total não cobre o capital em aberto. Considere ajuizamento.":"Preencha todos os campos."});
+  const gerarPix = async () => {
+    if(!canSubmitPix){
+      setMsg({ok:false,t:"Preencha a entrada e o valor de parcela desejado pelo cliente."});
       return;
     }
-    setLoading(true);setMsg(null);setPixStatus(null);
-    const cpf = String(cli.CPF||"").replace(/\D/g,"").padStart(11,"0");
+    setLoading(true);setMsg(null);
 
-    const res = await postAction({action:"renegociarContrato",dados:{
-      idContrato:       contrato.ID_CONTRATO,
-      novaValorParcela: valorNum,
-      novasParcelasQtd: qtdNum,
+    const resP = await postAction({action:"gerarPropostaRenegociacao",dados:{
+      idContrato:               contrato.ID_CONTRATO,
+      idCliente:                contrato.ID_CLIENTE,
+      nomeCliente:               contrato.NOME_CLIENTE,
+      valorEntrada:              entradaNum,
+      novaValorParcelaDesejada:  valorDesejadoNum,
       novoVencimento,
-      descontoJuros:    Math.min(descontoImplicito, jurosEmAberto),
-      dataRenegociacao: hojeStr(),
-      observacao
+      observacao,
+      assumirRisco
     }});
+    if(!resP.ok){setMsg({ok:false,t:resP.erro||"Erro ao criar proposta."});setLoading(false);return;}
 
-    if(!res.ok){setMsg({ok:false,t:res.erro||"Erro ao renegociar."});setLoading(false);return;}
+    setPropostaId(resP.idProposta);
+    setValorEntradaPix(resP.valorEntrada);
+    setSugestaoPix({qtd:resP.qtdSugerida, valor:resP.valorParcelaFinal});
 
-    setPixStatus("gerando");
-    try {
-      const parcelasEfi=(res.parcelas||[]).map(p=>({
-        idParcela:p.idParcela,numParcela:parseInt(p.numParcela),totalParcelas:qtdNum,
-        dataVencimento:p.dataVencimento,valorParcela:p.valorParcela
-      }));
-      if(parcelasEfi.length>0){
-        const efiR=await fetch("/api/efi-charges",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-          idContrato:contrato.ID_CONTRATO,parcelas:parcelasEfi,
-          cliente:{nome:contrato.NOME_CLIENTE||"",cpf}
-        })});
-        const efiD=await efiR.json();
-        if(efiD.ok&&efiD.boletos?.length>0){await postAction({action:"salvarCobrancasEfi",cobracas:efiD.boletos});setPixStatus("ok");}
-        else setPixStatus("erro");
-      }
-    } catch(eEfi){console.warn("PIX renegociacao:",eEfi.message);setPixStatus("erro");}
+    if(resP.jaExistia && resP.pixCopiaECola){
+      setPixCode(resP.pixCopiaECola);
+      setView("pix");
+      setLoading(false);
+      return;
+    }
 
-    setMsg({ok:true,t:`Renegociação concluída! ${res.parcelasEncerradas} parcela(s) encerradas, ${qtdNum} novas criadas.`});
-    setTimeout(()=>onConfirmar(),2000);
+    const cpf = String(cli.CPF||"").replace(/\D/g,"").padStart(11,"0");
+    const resPix = await fetch("/api/efi-quitacao",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        idContrato:    contrato.ID_CONTRATO,
+        idProposta:    resP.idProposta,
+        txidProposta:  resP.txid,
+        valorFinal:    resP.valorEntrada,
+        callbackAction:"salvarPixEntradaRenegociacao",
+        descricaoPix:  "Entrada renegociacao - "+contrato.ID_CONTRATO,
+        cliente:{cpf,nome:contrato.NOME_CLIENTE}
+      })
+    }).then(r=>r.json()).catch(e=>({erro:e.message}));
+
+    if(resPix.ok && resPix.pixCopiaECola){
+      setPixCode(resPix.pixCopiaECola);
+      setView("pix");
+    } else {
+      setMsg({ok:false,t:resPix.erro||"Erro ao gerar PIX na Efí."});
+    }
     setLoading(false);
+  };
+
+  const renegociarSemEntrada = async () => {
+    if(!canSubmitSemEntrada){
+      setMsg({ok:false,t:"Preencha o valor de parcela desejado e a data do novo carnê."});
+      return;
+    }
+    if(!window.confirm("Renegociar SEM entrada, assumindo o risco? As parcelas antigas serão encerradas e um novo carnê será criado imediatamente. Essa ação não pode ser desfeita.")) return;
+    setLoading(true);setMsg(null);
+    const res = await postAction({action:"renegociarContrato",dados:{
+      idContrato:        contrato.ID_CONTRATO,
+      novaValorParcela:  valorParcelaFinal,
+      novasParcelasQtd:  qtdSugerida,
+      novoVencimento,
+      observacao:        "[SEM ENTRADA - RISCO ASSUMIDO] " + observacao
+    }});
+    setLoading(false);
+    if(res.ok){ onConfirmar&&onConfirmar(); }
+    else { setMsg({ok:false,t:res.erro||"Erro ao renegociar."}); }
+  };
+
+  const cancelarPix = async () => {
+    if(!window.confirm("Cancelar a proposta de renegociação pendente? O cliente não poderá mais pagar por esse código.")) return;
+    setLoading(true);
+    await postAction({action:"cancelarPropostaRenegociacao",dados:{
+      idContrato:  contrato.ID_CONTRATO,
+      idCliente:   contrato.ID_CLIENTE,
+      nomeCliente: contrato.NOME_CLIENTE
+    }});
+    setPixCode(""); setPropostaId(""); setValorEntradaPix(0);
+    setView("form"); setLoading(false);
+  };
+
+  const copiarPix = () => {
+    if(!pixCode) return;
+    navigator.clipboard.writeText(pixCode).then(()=>{
+      setPixCopiado(true);
+      setTimeout(()=>setPixCopiado(false), 2500);
+    }).catch(()=>{ const el=document.createElement("textarea");el.value=pixCode;document.body.appendChild(el);el.select();document.execCommand("copy");document.body.removeChild(el);setPixCopiado(true);setTimeout(()=>setPixCopiado(false),2500); });
+  };
+
+  const enviarPixWpp = async () => {
+    if(!pixCode || pixWppLoad) return;
+    setPixWppLoad(true);
+    const res = await postAction({
+      action:      "enviarPixManual",
+      tipo:        "entrada_renegociacao",
+      idCliente:   contrato.ID_CLIENTE,
+      idContrato:  contrato.ID_CONTRATO,
+      nome:        contrato.NOME_CLIENTE || "",
+      telefone:    cli.TELEFONE_WPP || cli.TELEFONE || "",
+      valorParcela: valorEntradaPix,
+      pixCode
+    });
+    if(res.ok){ setPixWppOk(true); setTimeout(()=>setPixWppOk(false), 3000); }
+    else setMsg({ok:false,t:res.erro||"Erro ao enviar PIX via WhatsApp."});
+    setPixWppLoad(false);
   };
 
   return(
@@ -2761,98 +2858,146 @@ function RenegociacaoModal({contrato, parcelas, clientes, onConfirmar, onFechar}
             </div>
           )}
 
-          <div>
-            <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:8}}>{abertas.length} parcela(s) que serão encerradas</div>
-            <div style={{maxHeight:120,overflowY:"auto",border:`1px solid ${BD}`,borderRadius:10,background:BG}}>
-              {abertas.map((p,i)=>(
-                <div key={p.ID_PARCELA||i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",borderBottom:i<abertas.length-1?`1px solid ${BD}`:"none",fontSize:12}}>
-                  <span style={{color:MUTED}}>Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS}</span>
-                  <span style={{fontWeight:700,color:TEXT}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</span>
-                  <span style={{color:MUTED}}>{fmtDt(p.DATA_VENCIMENTO)}</span>
+          {/* ── VIEW: PIX AGUARDANDO ── */}
+          {view==="pix"&&(
+            <>
+              <div style={{padding:16,borderRadius:12,background:GRN+"08",border:`1px solid ${GRN}30`,display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:10,height:10,borderRadius:99,background:GRN,boxShadow:`0 0 0 3px ${GRN}30`,flexShrink:0}}/>
+                  <span style={{fontSize:13,fontWeight:800,color:GRN}}>PIX da entrada gerado — aguardando pagamento do cliente</span>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase"}}>Nova configuração</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-              <div>
-                <label style={LS()}>Valor por parcela (R$)</label>
-                <input type="number" value={novaValorParcela} onChange={e=>setNovaValorParcela(e.target.value)} onPaste={e=>pasteMoeda(e,setNovaValorParcela)} placeholder="0,00" min="0" step="0.01" style={IS()}/>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13}}>
+                  <span style={{color:MUTED}}>Entrada</span>
+                  <strong style={{color:TEXT,fontSize:17}}>{fmtR(valorEntradaPix)}</strong>
+                </div>
+                {sugestaoPix.qtd>0&&(
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12}}>
+                    <span style={{color:MUTED}}>Novo carnê após a entrada</span>
+                    <strong style={{color:TEXT}}>{sugestaoPix.qtd}x de {fmtR(sugestaoPix.valor)}</strong>
+                  </div>
+                )}
+                {pixCode?(
+                  <div>
+                    <span style={{fontSize:10,fontWeight:700,color:MUTED,textTransform:"uppercase"}}>Copia e Cola</span>
+                    <div style={{display:"flex",gap:8,marginTop:4}}>
+                      <div style={{flex:1,background:BG,borderRadius:8,border:`1px solid ${BD}`,padding:"8px 10px",fontSize:10,fontFamily:"monospace",overflowX:"auto",wordBreak:"break-all",color:TEXT,maxHeight:56,overflowY:"hidden"}}>{pixCode}</div>
+                      <button onClick={copiarPix} style={{padding:"8px 14px",borderRadius:8,border:"none",background:pixCopiado?GRN:ACC,color:"#07241B",fontWeight:800,fontSize:11,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>
+                        {pixCopiado?"✓ Copiado!":"Copiar"}
+                      </button>
+                    </div>
+                    <div style={{fontSize:10,color:MUTED,marginTop:4}}>Expira em 48h após a geração</div>
+                  </div>
+                ):(
+                  <div style={{fontSize:12,color:MUTED,fontStyle:"italic"}}>Gerando código PIX...</div>
+                )}
               </div>
-              <div>
-                <label style={LS()}>Quantidade de parcelas</label>
-                <input type="number" value={novasParcelasQtd} onChange={e=>setNovasParcelasQtd(e.target.value)} placeholder="0" min="1" step="1" style={IS()}/>
+              <div style={{fontSize:12,color:MUTED,padding:"8px 12px",borderRadius:8,background:BLU+"08",border:`1px solid ${BLU}20`}}>
+                A renegociação só é efetivada <strong style={{color:TEXT}}>depois que a entrada cai</strong>, confirmada automaticamente pelo webhook da Efí Bank. As parcelas atuais continuam cobráveis normalmente até lá.
               </div>
-            </div>
-            <div>
-              <label style={LS()}>Data do 1º vencimento</label>
-              <input type="date" value={novoVencimento} onChange={e=>setNovoVencimento(e.target.value)} style={IS()}/>
-            </div>
-          </div>
-
-          {valorNum>0&&qtdNum>0&&(
-            <div style={{padding:"14px 16px",borderRadius:12,border:`2px solid ${cobreCapital?PUR:RED}`,background:`${cobreCapital?PUR:RED}08`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <span style={{fontSize:13,fontWeight:700,color:cobreCapital?PUR:RED}}>
-                  {cobreCapital?"Total renegociado":"⚠ Total insuficiente"}
-                </span>
-                <span style={{fontSize:18,fontWeight:900,color:cobreCapital?PUR:RED}}>{fmtR(totalRenegociado)}</span>
-              </div>
-              {!cobreCapital&&(
-                <div style={{fontSize:12,color:RED,fontWeight:500,marginTop:8}}>
-                  Faltam {fmtR(capitalFaltante-totalRenegociado)} para cobrir o capital. Considere ajuizamento se não for possível cobrir o principal.
-                </div>
-              )}
-              {cobreCapital&&descontoImplicito>=0.01&&(
-                <div style={{fontSize:12,color:MUTED,display:"flex",justifyContent:"space-between",marginTop:8}}>
-                  <span>Desconto sobre juros:</span>
-                  <span style={{fontWeight:700,color:ORG}}>{fmtR(descontoImplicito)}</span>
-                </div>
-              )}
-              {cobreCapital&&descontoImplicito<0.01&&(
-                <div style={{fontSize:12,color:PUR,fontWeight:600,display:"flex",alignItems:"center",gap:5,marginTop:8}}>
-                  {IcoCheck} Cobre capital + juros integralmente
-                </div>
-              )}
-            </div>
+              <button onClick={cancelarPix} disabled={loading} style={{alignSelf:"flex-start",padding:"6px 14px",borderRadius:8,border:`1px solid ${RED}40`,background:"transparent",color:RED,fontWeight:700,fontSize:11,cursor:loading?"not-allowed":"pointer"}}>
+                {loading?<IcoSpinner color={RED}/>:"Cancelar proposta"}
+              </button>
+            </>
           )}
 
-          <div>
-            <label style={LS()}>Observação (opcional)</label>
-            <textarea value={observacao} onChange={e=>setObservacao(e.target.value)} rows={2} placeholder="Ex: acordo feito por telefone..." style={{...IS(),resize:"vertical"}}/>
-          </div>
+          {/* ── VIEW: FORM ── */}
+          {view==="form"&&(
+            <>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase",marginBottom:8}}>{abertas.length} parcela(s) que serão encerradas quando a entrada cair</div>
+                <div style={{maxHeight:120,overflowY:"auto",border:`1px solid ${BD}`,borderRadius:10,background:BG}}>
+                  {abertas.map((p,i)=>(
+                    <div key={p.ID_PARCELA||i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",borderBottom:i<abertas.length-1?`1px solid ${BD}`:"none",fontSize:12}}>
+                      <span style={{color:MUTED}}>Parcela {p.NUM_PARCELA}/{p.TOTAL_PARCELAS}</span>
+                      <span style={{fontWeight:700,color:TEXT}}>{fmtR(parseFloat(p.VALOR_PARCELA||0))}</span>
+                      <span style={{color:MUTED}}>{fmtDt(p.DATA_VENCIMENTO)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-          {pixStatus&&(
-            <div style={{padding:"8px 12px",borderRadius:8,fontSize:12,fontWeight:600,
-              background:pixStatus==="ok"?GRN+"10":pixStatus==="erro"?YEL+"10":BLU+"10",
-              color:pixStatus==="ok"?GRN:pixStatus==="erro"?YEL:BLU,
-              display:"flex",alignItems:"center",gap:6}}>
-              {pixStatus==="gerando"&&<IcoSpinner size={11}/>}
-              {pixStatus==="ok"&&IcoCheck}
-              {pixStatus==="gerando"&&"Gerando PIX para as novas parcelas..."}
-              {pixStatus==="ok"&&"PIX gerado para todas as parcelas!"}
-              {pixStatus==="erro"&&"PIX não gerado. Gere manualmente pelo contrato."}
-            </div>
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:MUTED,textTransform:"uppercase"}}>Nova configuração</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <div>
+                    <label style={LS()}>Entrada (R$)</label>
+                    <input type="number" value={entrada} onChange={e=>setEntrada(e.target.value)} onPaste={e=>pasteMoeda(e,setEntrada)} placeholder={entradaMinima>0?entradaMinima.toFixed(2):"0,00"} min="0" step="0.01" style={IS()}/>
+                    <div style={{fontSize:10,color:assumirRisco?MUTED:(entradaNum>0&&!entradaAtendeMinimo?RED:MUTED),marginTop:4}}>
+                      {assumirRisco?"Sem mínimo — deixe em branco para renegociar sem entrada.":`Mínimo sugerido: ${fmtR(entradaMinima)} (juros do mês deste contrato)`}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={LS()}>Valor que o cliente disse que consegue pagar/mês (R$)</label>
+                    <input type="number" value={valorDesejado} onChange={e=>setValorDesejado(e.target.value)} onPaste={e=>pasteMoeda(e,setValorDesejado)} placeholder="0,00" min="0" step="0.01" style={IS()}/>
+                  </div>
+                </div>
+                <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:TEXT,cursor:"pointer"}}>
+                  <input type="checkbox" checked={assumirRisco} onChange={e=>setAssumirRisco(e.target.checked)} style={{width:16,height:16,accentColor:RED}}/>
+                  Assumir o risco e dispensar a entrada mínima
+                </label>
+                <div>
+                  <label style={LS()}>Data do 1º vencimento (novo carnê)</label>
+                  <input type="date" value={novoVencimento} onChange={e=>setNovoVencimento(e.target.value)} style={IS()}/>
+                </div>
+              </div>
+
+              {(entradaNum>0||semEntrada)&&valorDesejadoNum>0&&(
+                <div style={{padding:"14px 16px",borderRadius:12,border:`2px solid ${PUR}`,background:`${PUR}08`}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:MUTED}}>Saldo total</span><strong>{fmtR(saldoTotal)}</strong></div>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:GRN}}>(–) Entrada</span><strong style={{color:GRN}}>− {fmtR(entradaNum)}</strong></div>
+                    <div style={{borderTop:`1px solid ${PUR}20`,paddingTop:8,display:"flex",justifyContent:"space-between",fontSize:13}}>
+                      <span style={{color:MUTED}}>Saldo a parcelar</span><strong>{fmtR(saldoRestante)}</strong>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:15,marginTop:2}}>
+                      <span style={{fontWeight:700}}>Sugestão de parcelamento</span>
+                      <strong style={{color:PUR,fontSize:17}}>{qtdSugerida}x de {fmtR(valorParcelaFinal)}</strong>
+                    </div>
+                    <div style={{fontSize:11,color:MUTED,marginTop:2}}>Sem teto de parcelas — arredondado pra cima e igual entre todas. Se achar longo demais, negocie um valor de parcela maior com o cliente.</div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label style={LS()}>Observação (opcional)</label>
+                <textarea value={observacao} onChange={e=>setObservacao(e.target.value)} rows={2} placeholder="Ex: acordo feito por telefone..." style={{...IS(),resize:"vertical"}}/>
+              </div>
+            </>
           )}
 
           {msg&&(
-            <div style={{padding:"10px 14px",borderRadius:8,fontSize:12,fontWeight:600,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED}}>
+            <div ref={msgRef} style={{padding:"10px 14px",borderRadius:8,fontSize:12,fontWeight:600,background:msg.ok?GRN+"10":RED+"10",color:msg.ok?GRN:RED}}>
               {msg.t}
             </div>
           )}
         </div>
 
         <div style={{padding:"12px 20px 16px",borderTop:`1px solid ${BD}`,display:"flex",gap:10,flexShrink:0}}>
-          {valorNum>0&&qtdNum>0&&canSubmit&&(
-            <button onClick={enviarPropostaWpp} style={{...BTN2(false),flex:"0 0 auto",padding:"13px 16px",fontSize:13}}>
-              {IcoWpp} Proposta WPP
-            </button>
+          {view==="form"?(
+            <>
+              {entradaNum>0&&valorDesejadoNum>0&&(
+                <button onClick={enviarPropostaWpp} style={{...BTN2(false),flex:"0 0 auto",padding:"13px 16px",fontSize:13}}>
+                  {IcoWpp} Proposta WPP
+                </button>
+              )}
+              {semEntrada?(
+                <button onClick={renegociarSemEntrada} disabled={loading||!canSubmitSemEntrada} style={{...BTN1(!canSubmitSemEntrada||loading),flex:1,background:(!canSubmitSemEntrada||loading)?undefined:RED}}>
+                  {loading?<><IcoSpinner size={12}/> Renegociando...</>:<>{IcoAlert} Renegociar sem entrada</>}
+                </button>
+              ):(
+                <button onClick={gerarPix} disabled={loading||!canSubmitPix} style={{...BTN1(!canSubmitPix||loading),flex:1}}>
+                  {loading?<><IcoSpinner size={12}/> Gerando PIX...</>:<>{IcoRepeat} Gerar PIX da Entrada</>}
+                </button>
+              )}
+            </>
+          ):(
+            <>
+              <button onClick={onFechar} style={{...BTN6(),flex:1}}>Fechar</button>
+              {pixCode&&<button onClick={enviarPixWpp} disabled={pixWppLoad} style={{padding:"13px 14px",borderRadius:9999,border:"none",background:pixWppOk?GRN:BLU,color:"#fff",fontWeight:800,fontSize:12,cursor:pixWppLoad?"not-allowed":"pointer",flex:1.5,whiteSpace:"nowrap",display:"flex",alignItems:"center",justifyContent:"center",gap:6,opacity:pixWppLoad?0.7:1}}>
+                {pixWppLoad?<><IcoSpinner size={12}/> Enviando...</>:pixWppOk?<>{IcoCheck} Enviado!</>:<>{IcoWpp} Enviar PIX</>}
+              </button>}
+            </>
           )}
-          <button onClick={confirmar} disabled={loading||!canSubmit} style={{...BTN1(!canSubmit||loading),flex:1}}>
-            {loading?<><IcoSpinner size={12}/> Processando...</>:<>{IcoRepeat} Renegociar</>}
-          </button>
         </div>
       </div>
     </div>
@@ -4029,8 +4174,18 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
   const totalPago = totalPagoParcelas > totalPagoPagamentos ? totalPagoParcelas : totalPagoPagamentos;
   const pendentes = ps.filter(p => !["pago","baixado_como_prejuizo","cancelado","quitacao_antecipada","renegociado"].includes(String(p.STATUS||p.STATUS_PAGAMENTO||"").toLowerCase()));
   const proxParcela = pendentes[0] || null;
+  const _pixVenc = proxParcela ? parseDate(proxParcela.DATA_VENCIMENTO) : null;
+  if (_pixVenc) _pixVenc.setHours(0,0,0,0);
+  const _pixDiasAteVenc = _pixVenc ? Math.round((_pixVenc.getTime()-new Date().setHours(0,0,0,0))/86400000) : null;
   const pixCodeSaved = proxParcela?.EFI_PIX_CODE || "";
-  const pixCodeToShow = pixCodeNew || pixCodeSaved;
+  // cobv gerado com validadeAposVencimento:30 (api/efi-charges.js) — passado esse prazo a Efí
+  // recusa o pagamento mesmo com o código antigo ainda salvo na planilha
+  const pixSalvoExpirado = !!pixCodeSaved && !pixCodeNew && _pixDiasAteVenc !== null && _pixDiasAteVenc < -30;
+  const pixCodeToShow = pixCodeNew || (pixSalvoExpirado ? "" : pixCodeSaved);
+  React.useEffect(()=>{
+    setPixCodeNew("");setPixOk(false);setPixErr("");setPixCopied(false);
+    setPixWppOk(false);setPixWppErr("");
+  },[proxParcela?.ID_PARCELA]);
   const isAcordoAssistido = contrato.STATUS_CONTRATO === "acordo_assistido";
   const isJudicial = contrato.STATUS_CONTRATO === "em_processo_judicial";
   const isEncerradoJudicial = contrato.STATUS_CONTRATO === "encerrado_judicialmente";
@@ -4085,7 +4240,7 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
     : !["baixado_como_prejuizo","quitado","cancelado","recuperado_integralmente","acordo_assistido","em_processo_judicial","encerrado_judicialmente"].includes(contrato.STATUS_CONTRATO);
   const podeBaixar    = !["baixado_como_prejuizo","quitado","cancelado","recuperado_integralmente","recuperado_parcialmente","acordo_assistido","em_processo_judicial","encerrado_judicialmente"].includes(contrato.STATUS_CONTRATO);
   const podeExcluir   = pags.length===0&&!["cancelado","baixado_como_prejuizo","quitado","recuperado_integralmente","recuperado_parcialmente","encerrado_sem_recuperacao","renegociado","acordo_assistido","em_processo_judicial","encerrado_judicialmente"].includes(String(contrato.STATUS_CONTRATO||"").toLowerCase());
-  const podeRenegociar = !jaRenegociado && pendentes.length > 0 && ["ativo_em_atraso","em_cobranca","pre_prejuizo","acordo_assistido"].includes(contrato.STATUS_CONTRATO);
+  const podeRenegociar = !jaRenegociado && pendentes.length > 0 && ["ativo","ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","acordo_assistido"].includes(contrato.STATUS_CONTRATO);
   const podeRecuperar = ["baixado_como_prejuizo","em_recuperacao","recuperado_parcialmente"].includes(contrato.STATUS_CONTRATO);
   const mostrarPrioridadeCob = !["quitado","cancelado","recuperado_integralmente","encerrado_sem_recuperacao","renegociado","baixado_como_prejuizo","acordo_assistido"].includes(String(contrato.STATUS_CONTRATO||"").toLowerCase());
   const prioridadeCob = mostrarPrioridadeCob ? calcPrioridadeCobranca({contrato,parcelasContrato:ps,eventos,cliente:cli}) : null;
@@ -4103,24 +4258,45 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
   const mob = useIsMobile();
 
   const _gerarPix = async () => {
-    if(!proxParcela||pixLoad)return;
+    if(pixLoad)return;
+    // Só regenera parcela com mais de 30 dias de atraso pela DATA_VENCIMENTO original —
+    // DATA_ACORDO (reagendamento) é ignorada de propósito, é só o registro da promessa do
+    // cliente, não muda a dívida real. Parcela com atraso ≤30d não é tocada: o PIX dela ainda
+    // é válido na Efí (validadeAposVencimento:30) e recalcular colocaria a data de hoje no
+    // lugar da original, zerando o juros dinâmico que a própria Efí já vinha calculando certo.
+    const hoje=new Date();hoje.setHours(0,0,0,0);
+    const parcelasVencidas=pendentes.filter(p=>{
+      const dv=parseDate(p.DATA_VENCIMENTO);
+      if(!dv)return false;
+      dv.setHours(0,0,0,0);
+      return Math.round((hoje.getTime()-dv.getTime())/86400000)>30;
+    });
+    if(!parcelasVencidas.length){setPixErr("Nenhuma parcela com mais de 30 dias de atraso — não há PIX pra regenerar.");return;}
     setPixLoad(true);setPixErr("");setPixOk(false);
     const cpf=String(cli?.CPF||"").replace(/\D/g,"").padStart(11,"0");
     try{
-      const parcelaEfi={
-        idParcela:proxParcela.ID_PARCELA,
-        numParcela:parseInt(proxParcela.NUM_PARCELA||0),
-        totalParcelas:parseInt(proxParcela.TOTAL_PARCELAS||0),
-        dataVencimento:proxParcela.DATA_VENCIMENTO,
-        valorParcela:parseFloat(proxParcela.VALOR_PARCELA||0)
-      };
+      const parcelasEfi=parcelasVencidas.map(p=>({
+        idParcela:p.ID_PARCELA,
+        numParcela:parseInt(p.NUM_PARCELA||0),
+        totalParcelas:parseInt(p.TOTAL_PARCELAS||0),
+        dataVencimento:p.DATA_VENCIMENTO,
+        valorParcela:parseFloat(p.VALOR_PARCELA||0)
+      }));
       const r=await fetch("/api/efi-charges",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        idContrato:contrato.ID_CONTRATO,parcelas:[parcelaEfi],
+        idContrato:contrato.ID_CONTRATO,parcelas:parcelasEfi,
         cliente:{nome:contrato.NOME_CLIENTE||cli?.NOME_CLIENTE||"",cpf}
       })});
       const d=await r.json();
-      if(d.ok&&d.boletos?.[0]?.ok){setPixOk(true);const code=d.boletos[0].pixCopiaECola||"";if(code)setPixCodeNew(code);postAction({action:"salvarCobrancasEfi",cobracas:d.boletos});}
-      else{setPixErr((d.boletos?.[0]?.erro)||d.erro||"Erro ao gerar PIX");}
+      const okBoletos=(d.boletos||[]).filter(b=>b.ok);
+      if(d.ok&&okBoletos.length){
+        setPixOk(true);
+        const doProx=okBoletos.find(b=>String(b.idParcela)===String(proxParcela?.ID_PARCELA));
+        const code=(doProx||okBoletos[0]).pixCopiaECola||"";
+        if(code)setPixCodeNew(code);
+        postAction({action:"salvarCobrancasEfi",cobracas:d.boletos});
+      } else {
+        setPixErr((d.boletos?.[0]?.erro)||d.erro||"Erro ao gerar PIX");
+      }
     }catch(e){setPixErr(e.message);}
     setPixLoad(false);
   };
@@ -4345,6 +4521,7 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
               </div>
             )}
 
+            {pixSalvoExpirado&&!pixOk&&<div style={{padding:"8px 12px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:600}}>⚠️ O PIX salvo desta parcela venceu (mais de 30 dias de atraso) — gere um código novo antes de cobrar o cliente.</div>}
             {pixErr&&<div style={{padding:"8px 12px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:600}}>{pixErr}</div>}
             {pixOk&&<div style={{padding:"8px 12px",borderRadius:8,background:GRN+"10",color:GRN,fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:5}}>{IcoCheck} PIX gerado!</div>}
             {sairErr&&<div style={{padding:"8px 12px",borderRadius:8,background:RED+"10",color:RED,fontSize:12,fontWeight:600}}>{sairErr}</div>}
@@ -4368,6 +4545,7 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
                     <button onClick={()=>{setMaisAcoesOpen(false);if(_isContratoQuitado){const _pagsSemAbat=pags.filter(p=>p.TIPO_PAGAMENTO!=="abatimento_acordo_assistido");const _totPag=_pagsSemAbat.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);const _ultD=_pagsSemAbat.reduce((l,p)=>{const d=parseDate(p.DATA_PAGAMENTO);return d&&(!l||d>l)?d:l;},null);gerarComprovante(contrato,ps,cli,_totPag,_ultD);}else{gerarExtratoPDF(contrato,ps,pags,cli,eventos);}}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:TEXT,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoDoc} {_isContratoQuitado?"Comprovante de Quitação":"Extrato do Contrato"}</button>
                     <div style={{height:1,background:BD,margin:"4px 0"}}/>
                     {podeRegistrar&&pendentes.length>0&&!altVencOpen&&<button onClick={_openAltVenc} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:TEXT,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoCal} Alterar vencimento</button>}
+                    {podeRegistrar&&pendentes.length>0&&pixCodeToShow&&<button onClick={()=>{setMaisAcoesOpen(false);_gerarPix();}} disabled={pixLoad} title="Substitui o código PIX salvo por um novo, com a data e o valor recalculados" style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:TEXT,cursor:pixLoad?"default":"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left",opacity:pixLoad?0.6:1}}>{IcoRepeat} Gerar PIX novamente</button>}
                     {podeRegistrar&&pendentes.length>0&&<button onClick={()=>{setMaisAcoesOpen(false);onQuitacaoAntecipada&&onQuitacaoAntecipada(contrato);}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:TEXT,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoZap} Quitar antecipado</button>}
                     {podeRenegociar&&<button onClick={()=>{setMaisAcoesOpen(false);onRenegociar&&onRenegociar(contrato);}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:PUR,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoRepeat} Renegociar contrato</button>}
                     {(podeRegistrar&&podeBaixar)&&<button onClick={()=>{setMaisAcoesOpen(false);onBaixar(contrato);}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:RED,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoAlert} Encerrar contrato</button>}
@@ -4405,8 +4583,8 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
                         ?<button onClick={_copiarPix} title={pixCodeToShow} style={{padding:"14px 14px",borderRadius:12,border:`1.5px solid ${pixCopied?GRN:BD}`,background:pixCopied?GRN+"18":CARD,color:pixCopied?GRN:MUTED,cursor:"pointer",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:4,transition:"all 0.2s",flexShrink:0}}>
                           {pixCopied?IcoCheck:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>}
                         </button>
-                        :<button onClick={_gerarPix} disabled={pixLoad} style={{padding:"14px 16px",borderRadius:12,border:`1.5px solid ${BD}`,background:CARD,color:TEXT,cursor:pixLoad?"default":"pointer",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:5,opacity:pixLoad?0.7:1,whiteSpace:"nowrap"}}>
-                          {pixLoad?<IcoSpinner size={12}/>:null}{pixLoad?"...":"Gerar PIX"}
+                        :<button onClick={_gerarPix} disabled={pixLoad} style={{padding:"14px 16px",borderRadius:12,border:`1.5px solid ${pixSalvoExpirado?RED:BD}`,background:pixSalvoExpirado?RED+"10":CARD,color:pixSalvoExpirado?RED:TEXT,cursor:pixLoad?"default":"pointer",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:5,opacity:pixLoad?0.7:1,whiteSpace:"nowrap"}}>
+                          {pixLoad?<IcoSpinner size={12}/>:null}{pixLoad?"...":(pixSalvoExpirado?"Gerar novo PIX":"Gerar PIX")}
                         </button>
                       }
                     </>
@@ -5933,7 +6111,10 @@ function App() {
     _fetching.current=true;
     const ctrl=new AbortController();
     _abortCtrl.current=ctrl;
-    return fetch(API_URL,{signal:ctrl.signal}).then(r=>r.json()).then(d=>{
+    // cache-busting: /api/sheets tem Cache-Control s-maxage=60 na CDN da Vercel (vercel.json) —
+    // sem isso, "atualizar" podia devolver uma resposta cacheada de até 60s (ou stale até 5min)
+    // em vez de bater no Sheets de novo, mesmo com o fetch sendo disparado corretamente.
+    return fetch(`${API_URL}?_=${Date.now()}`,{signal:ctrl.signal,cache:"no-store"}).then(r=>r.json()).then(d=>{
       setRaw(d);
       try{localStorage.setItem(CACHE_KEY,JSON.stringify({data:d,ts:Date.now()}));}catch(e){}
       setLoading(false);
@@ -5979,6 +6160,7 @@ function App() {
   const padrinhos    = useMemo(()=>raw?.PADRINHOS    || [], [raw]);
   const empregadores = useMemo(()=>raw?.EMPREGADORES || [], [raw]);
   const quitacoes    = useMemo(()=>raw?.QUITACOES    || [], [raw]);
+  const propostasRenegociacao = useMemo(()=>raw?.PROPOSTAS_RENEGOCIACAO || [], [raw]);
   const cliMap = useMemo(()=>new Map((clientes||[]).map(c=>[String(c.ID_CLIENTE),c])), [clientes]);
   const contratosMap = useMemo(()=>new Map((contratos||[]).map(c=>[String(c.ID_CONTRATO),c])), [contratos]);
 
@@ -7086,10 +7268,6 @@ function App() {
                     ))}
                     <button ref={dashCalBtnRef} className="btn-ghost-anim" onClick={()=>{if(dashCalBtnRef.current){const r=dashCalBtnRef.current.getBoundingClientRect();setDashCalPos({top:r.bottom+8,right:window.innerWidth-r.right});}setDashCalOpen(o=>!o);}} style={{padding:"5px 10px",borderRadius:7,border:`1px solid ${BD}`,background:"transparent",color:MUTED,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:5}}>{IcoCal} Personalizado</button>
                   </div>
-                  <div className="flex gap-2 items-center flex-wrap justify-end">
-                    <button className="btn-forest" onClick={()=>setDashNovoModal(true)} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:CARD,color:TEXT,border:`1.5px solid ${BD}`,borderRadius:12,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{IcoCtr} + Novo Contrato</button>
-                    <button className="btn-lime" onClick={()=>setDashRegModal(true)} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:ACC,color:"#07241B",border:"none",borderRadius:12,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✓ Registrar Pagamento</button>
-                  </div>
                 </div>
               </div>
 
@@ -7135,37 +7313,34 @@ function App() {
                 </div>
               </div>
 
-              {/* GRÁFICO + PAINEL DIREITO */}
-              <div className="grid gap-5 items-start" style={{gridTemplateColumns:mob?"1fr":parcelasAtrasadas.length||promAbertas.length?"minmax(0,1fr) 340px":"1fr"}}>
-
-                {/* GRÁFICO */}
-                <div className="chart-card-dash dash-chart" style={{background:CARD,borderRadius:16,padding:mob?"16px":"22px",border:`1px solid ${BD}`,boxShadow:SHD}}>
-                  <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20}}>
-                    <div>
-                      <div style={{fontSize:13,fontWeight:600,color:MUTED,textTransform:"uppercase",letterSpacing:"0.06em"}}>Recebimentos Mensais</div>
-                      <div style={{fontSize:mob?20:26,fontWeight:800,letterSpacing:"0.02em",marginTop:4,color:TEXT}}>{priv(fmtR(chartData[chartData.length-1]?.value||0))}</div>
-                      {(()=>{const prev=chartData[chartData.length-2]?.value||0;const curr=chartData[chartData.length-1]?.value||0;const delta=prev>0?((curr-prev)/prev*100):0;return delta!==0?<div style={{fontSize:12,color:delta>0?GRN:RED,fontWeight:500,marginTop:3}}>{delta>0?"▲":"▼"} {Math.abs(delta).toFixed(1)}% em relação ao mês anterior</div>:null;})()}
-                    </div>
-                    <div style={{display:"flex",gap:4,flexShrink:0}}>
-                      {["3M","6M","1A","Max"].map(p=>(
-                        <button key={p} onClick={()=>setChartPeriodo(p)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${chartPeriodo===p?GRN+"40":BD}`,background:chartPeriodo===p?GRN+"12":"transparent",color:chartPeriodo===p?GRN:MUTED,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{p}</button>
-                      ))}
-                    </div>
+              {/* GRÁFICO */}
+              <div className="chart-card-dash dash-chart" style={{background:CARD,borderRadius:16,padding:mob?"16px":"22px",border:`1px solid ${BD}`,boxShadow:SHD}}>
+                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20}}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600,color:MUTED,textTransform:"uppercase",letterSpacing:"0.06em"}}>Recebimentos Mensais</div>
+                    <div style={{fontSize:mob?20:26,fontWeight:800,letterSpacing:"0.02em",marginTop:4,color:TEXT}}>{priv(fmtR(chartData[chartData.length-1]?.value||0))}</div>
+                    {(()=>{const prev=chartData[chartData.length-2]?.value||0;const curr=chartData[chartData.length-1]?.value||0;const delta=prev>0?((curr-prev)/prev*100):0;return delta!==0?<div style={{fontSize:12,color:delta>0?GRN:RED,fontWeight:500,marginTop:3}}>{delta>0?"▲":"▼"} {Math.abs(delta).toFixed(1)}% em relação ao mês anterior</div>:null;})()}
                   </div>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={chartData} margin={{top:0,right:0,left:-20,bottom:0}}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={BD} vertical={false}/>
-                      <XAxis dataKey="name" tick={{fontSize:11,fill:MUTED}} axisLine={false} tickLine={false}/>
-                      <YAxis tick={{fontSize:10,fill:MUTED}} axisLine={false} tickLine={false} tickFormatter={v=>v>=1000?`R$ ${(v/1000).toFixed(0)}k`:String(v)}/>
-                      <Tooltip contentStyle={{background:CARD,border:`1px solid ${BD}`,borderRadius:8,fontSize:12,color:TEXT}} formatter={v=>[fmtR(v),"Receita"]}/>
-                      <Bar dataKey="value" fill={GRN} radius={[4,4,0,0]}/>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <div style={{display:"flex",gap:4,flexShrink:0}}>
+                    {["3M","6M","1A","Max"].map(p=>(
+                      <button key={p} onClick={()=>setChartPeriodo(p)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${chartPeriodo===p?GRN+"40":BD}`,background:chartPeriodo===p?GRN+"12":"transparent",color:chartPeriodo===p?GRN:MUTED,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{p}</button>
+                    ))}
+                  </div>
                 </div>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={chartData} margin={{top:0,right:0,left:-20,bottom:0}}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={BD} vertical={false}/>
+                    <XAxis dataKey="name" tick={{fontSize:11,fill:MUTED}} axisLine={false} tickLine={false}/>
+                    <YAxis tick={{fontSize:10,fill:MUTED}} axisLine={false} tickLine={false} tickFormatter={v=>v>=1000?`R$ ${(v/1000).toFixed(0)}k`:String(v)}/>
+                    <Tooltip contentStyle={{background:CARD,border:`1px solid ${BD}`,borderRadius:8,fontSize:12,color:TEXT}} formatter={v=>[fmtR(v),"Receita"]}/>
+                    <Bar dataKey="value" fill={GRN} radius={[4,4,0,0]}/>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
 
-                {/* PAINEL DIREITO */}
-                {!mob&&(
-                <div className="flex flex-col gap-4">
+              {/* PAINEL DE STATUS — distribuído em grid abaixo do gráfico */}
+              {!mob&&(
+              <div className="grid gap-4" style={{gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))"}}>
 
                   {/* EM ATRASO */}
                   {parcelasAtrasadas.length>0&&(
@@ -7291,9 +7466,8 @@ function App() {
                   </div>
                   )}
 
-                </div>
-                )}
               </div>
+              )}
             </div>
           );})()}
 
@@ -8430,7 +8604,7 @@ function App() {
             const hoje=new Date();hoje.setHours(0,0,0,0);
             const parseMsgDt=s=>{if(!s)return null;const d=new Date(s);return isNaN(d)?null:d;};
             const fmtMsgDt=s=>{const d=parseMsgDt(s);if(!d)return"—";return d.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).replace(",","");};
-            const categG=g=>{const s=String(g||"").toUpperCase();if(s==="CONFIRMACAO_PAGAMENTO")return{cat:"Confirmação",cor:GRN};if(s.startsWith("PROMESSA"))return{cat:"Promessa",cor:"#A855F7"};if(s==="D0")return{cat:"Vencimento",cor:YEL};if(s==="D-5"||s==="D-1")return{cat:"Pré-cobrança",cor:BLU};if(s.startsWith("D+"))return{cat:"Em atraso",cor:RED};return{cat:"Erro",cor:RED};};
+            const categG=g=>{const s=String(g||"").toUpperCase();if(s==="CONFIRMACAO_PAGAMENTO"||s==="CONFIRMACAO_RENEGOCIACAO")return{cat:"Confirmação",cor:GRN};if(s==="PIX_MANUAL"||s==="PIX_ENTRADA_RENEGOCIACAO")return{cat:"PIX Manual",cor:BLU};if(s.startsWith("PROMESSA"))return{cat:"Promessa",cor:"#A855F7"};if(s==="D0")return{cat:"Vencimento",cor:YEL};if(s==="D-5"||s==="D-1")return{cat:"Pré-cobrança",cor:BLU};if(s.startsWith("D+"))return{cat:"Em atraso",cor:RED};return{cat:"Erro",cor:RED};};
             const isErr=m=>String(m.STATUS_ENVIO||"").startsWith("ERRO");
             const msgsOrd=[...mensagens].sort((a,b)=>{const da=parseMsgDt(a.DATA_ENVIO),db=parseMsgDt(b.DATA_ENVIO);return (db||0)-(da||0);});
             const enviadas=msgsOrd.filter(m=>!isErr(m));
@@ -8553,7 +8727,7 @@ function App() {
       {acordoJudicialModal&&<AcordoJudicialModal contrato={acordoJudicialModal} onSucesso={()=>carregar()} onFechar={()=>setAcordoJudicialModal(null)}/>}
       {quitacaoJudicialModal&&<QuitacaoJudicialModal contrato={quitacaoJudicialModal} onSucesso={()=>carregar()} onFechar={()=>setQuitacaoJudicialModal(null)}/>}
       {arquivarProcessoModal&&<ArquivarProcessoModal contrato={arquivarProcessoModal} onSucesso={()=>carregar()} onFechar={()=>setArquivarProcessoModal(null)}/>}
-      {renegociacaoModal&&<RenegociacaoModal contrato={renegociacaoModal} parcelas={parcelas||[]} clientes={clientes||[]} onConfirmar={()=>{setRenegociacaoModal(null);carregar();}} onFechar={()=>setRenegociacaoModal(null)}/>}
+      {renegociacaoModal&&<RenegociacaoModal contrato={renegociacaoModal} parcelas={parcelas||[]} clientes={clientes||[]} propostasRenegociacao={propostasRenegociacao||[]} onConfirmar={()=>{setRenegociacaoModal(null);carregar();}} onFechar={()=>setRenegociacaoModal(null)}/>}
 
       {/* ── DRAWER DETALHE DE CAPITAL (CARTEIRA) ── */}
       {carteiraDetalheModal&&(
