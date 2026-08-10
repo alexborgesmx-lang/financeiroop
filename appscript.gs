@@ -11,7 +11,8 @@ var ABAS = {
   MENSAGENS:  "MENSAGENS",
   UNDO_LOG:   "UNDO_LOG",
   QUITACOES:    "QUITACOES",
-  CERTIFICADOS: "CERTIFICADOS"
+  CERTIFICADOS: "CERTIFICADOS",
+  PROPOSTAS_RENEGOCIACAO: "PROPOSTAS_RENEGOCIACAO"
 };
 
 var EMAIL_ADMIN = "alexborges.mx@gmail.com";
@@ -659,6 +660,337 @@ function verificarQuitacoesExpiradas() {
   Logger.log("verificarQuitacoesExpiradas: " + n + " proposta(s) expirada(s).");
 }
 
+// ─── RENEGOCIAÇÃO COM ENTRADA OBRIGATÓRIA VIA PIX ────────────────────────────
+// Mesmo esqueleto de QUITAÇÃO ANTECIPADA acima: proposta PENDENTE não mexe em
+// nada até a entrada cair. So depois que o webhook confirma o pagamento e que
+// renegociarContrato() e chamado de verdade (fecha parcelas antigas, cria as
+// novas). Ver docs/ai-memory/02-AI-CREDIT-RULES.md e MANUAL_OPERACIONAL.md 5.9.
+
+function _garantirTabelaPropostasRenegociacao() {
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var aba = ss.getSheetByName(ABAS.PROPOSTAS_RENEGOCIACAO);
+  if (aba) return aba;
+  aba = ss.insertSheet(ABAS.PROPOSTAS_RENEGOCIACAO);
+  var h = [
+    "ID_PROPOSTA","ID_CONTRATO","ID_CLIENTE","NOME_CLIENTE",
+    "DATA_GERACAO","CAPITAL_FALTANTE","JUROS_EM_ABERTO","VALOR_ENTRADA",
+    "SALDO_RESTANTE","VALOR_PARCELA_NOVA","QTD_PARCELAS_NOVA","NOVO_VENCIMENTO",
+    "TXID_ENTRADA","EFI_PIX_CODE_ENTRADA","STATUS","DATA_EXPIRACAO",
+    "DATA_PAGAMENTO_ENTRADA","OBSERVACOES"
+  ];
+  aba.getRange(1,1,1,h.length).setValues([h]);
+  aba.getRange(1,1,1,h.length).setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
+  aba.setFrozenRows(1);
+  Logger.log("Aba PROPOSTAS_RENEGOCIACAO criada.");
+  return aba;
+}
+
+function _txidRenegociacaoEntrada(idContrato) {
+  var num = parseInt(String(idContrato).replace(/\D/g,"")) || 0;
+  return "FOEN" + String(num).padStart(16,"0") + "E" + "00001";
+}
+
+function gerarPropostaRenegociacao(dados) {
+  var abaQ = _garantirTabelaPropostasRenegociacao();
+  var cmQ  = buildColMap(abaQ);
+
+  var idContrato  = String(dados.idContrato  || "").trim();
+  var idCliente   = String(dados.idCliente   || "").trim();
+  var nomeCliente = String(dados.nomeCliente || "").trim();
+  if (!idContrato) throw new Error("idContrato obrigatorio.");
+
+  // Retorna proposta PENDENTE existente sem duplicar
+  var dadosQ = abaQ.getDataRange().getValues();
+  for (var i = 1; i < dadosQ.length; i++) {
+    var idQC = String(dadosQ[i][(cmQ["ID_CONTRATO"]||2)-1]).trim();
+    var stQ  = String(dadosQ[i][(cmQ["STATUS"]     ||15)-1]).trim().toUpperCase();
+    if (idQC === idContrato && stQ === "PENDENTE") {
+      return {
+        idProposta:    String(dadosQ[i][(cmQ["ID_PROPOSTA"]         ||1)-1]).trim(),
+        txid:          String(dadosQ[i][(cmQ["TXID_ENTRADA"]        ||13)-1]).trim(),
+        pixCopiaECola: String(dadosQ[i][(cmQ["EFI_PIX_CODE_ENTRADA"]||14)-1]).trim() || null,
+        capitalFaltante:   parseFloat(dadosQ[i][(cmQ["CAPITAL_FALTANTE"]  ||6)-1])||0,
+        jurosEmAberto:     parseFloat(dadosQ[i][(cmQ["JUROS_EM_ABERTO"]   ||7)-1])||0,
+        valorEntrada:      parseFloat(dadosQ[i][(cmQ["VALOR_ENTRADA"]     ||8)-1])||0,
+        saldoRestante:     parseFloat(dadosQ[i][(cmQ["SALDO_RESTANTE"]    ||9)-1])||0,
+        valorParcelaFinal: parseFloat(dadosQ[i][(cmQ["VALOR_PARCELA_NOVA"]||10)-1])||0,
+        qtdSugerida:       parseInt(dadosQ[i][(cmQ["QTD_PARCELAS_NOVA"]   ||11)-1])||0,
+        jaExistia: true
+      };
+    }
+  }
+
+  // Valida elegibilidade — mesma regra de renegociarContrato (status + nao renegociado antes)
+  var elegibilidade = _validarElegibilidadeRenegociacao(idContrato);
+  if (!idCliente)   idCliente   = elegibilidade.idCliente;
+  if (!nomeCliente) nomeCliente = elegibilidade.nomeCliente;
+
+  var saldo = _saldoDevedorAbertoContrato(idContrato);
+  if (saldo.parcAbertas.length === 0) throw new Error("Nenhuma parcela em aberto para renegociar.");
+  var capitalFaltante = saldo.capitalFaltante;
+  var jurosEmAberto   = saldo.jurosEmAberto;
+
+  var parcelaMaisProxima = null;
+  for (var pIdx = 0; pIdx < saldo.parcAbertas.length; pIdx++) {
+    var pCand = saldo.parcAbertas[pIdx];
+    if (!parcelaMaisProxima || pCand.num < parcelaMaisProxima.num) parcelaMaisProxima = pCand;
+  }
+  var entradaMinima = parcelaMaisProxima ? parcelaMaisProxima.juros : 0;
+  var valorEntrada  = parseFloat(dados.valorEntrada) || 0;
+  var assumirRisco  = dados.assumirRisco === true;
+  if (valorEntrada <= 0) {
+    throw new Error("Entrada deve ser maior que zero — para renegociar sem entrada, use a opcao dedicada (sem PIX).");
+  }
+  if (!assumirRisco && valorEntrada < entradaMinima) {
+    throw new Error("Entrada minima de R$ " + entradaMinima.toFixed(2) + " (juros do mes deste contrato) nao atingida.");
+  }
+  var saldoTotalContrato = capitalFaltante + jurosEmAberto;
+  if (valorEntrada >= saldoTotalContrato) {
+    // Entrada == saldo total geraria "1 parcela de R$0" (novaValorParcela invalido em renegociarContrato)
+    // depois que o pagamento ja foi confirmado — bloquear aqui, antes de gerar qualquer PIX.
+    // Se o cliente quer pagar tudo de uma vez, o caminho correto e Quitacao Antecipada, nao renegociacao.
+    throw new Error("Entrada cobre o saldo total (R$ " + saldoTotalContrato.toFixed(2) + ") — use Quitacao Antecipada em vez de renegociacao.");
+  }
+
+  var novaValorParcelaDesejada = parseFloat(dados.novaValorParcelaDesejada) || 0;
+  if (novaValorParcelaDesejada <= 0) throw new Error("Valor de parcela desejado invalido.");
+
+  // Aloca a entrada: capital primeiro, depois juros — mesma regra de renegociarContrato
+  var entradaSobreCapital = Math.min(valorEntrada, capitalFaltante);
+  var entradaSobreJuros   = Math.min(Math.max(0, valorEntrada - entradaSobreCapital), jurosEmAberto);
+  var saldoRestante = (capitalFaltante - entradaSobreCapital) + (jurosEmAberto - entradaSobreJuros);
+
+  // Sugestao: sem teto de parcelas — arredonda pra cima e distribui igual entre todas
+  var qtdSugerida       = Math.max(1, Math.ceil(saldoRestante / novaValorParcelaDesejada));
+  var valorParcelaFinal = saldoRestante <= 0 ? 0 : Math.ceil(saldoRestante / qtdSugerida);
+
+  var txid   = _txidRenegociacaoEntrada(idContrato);
+  var now    = new Date();
+  var exp    = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+  var idProp = proximoIdSeq(abaQ, "REN");
+  var novoVencimento = String(dados.novoVencimento || "");
+
+  var r = new Array(18).fill("");
+  r[0]  = idProp;       r[1]  = idContrato;   r[2]  = idCliente;         r[3]  = nomeCliente;
+  r[4]  = now;           r[5]  = capitalFaltante; r[6]  = jurosEmAberto;  r[7]  = valorEntrada;
+  r[8]  = saldoRestante; r[9]  = valorParcelaFinal; r[10] = qtdSugerida;  r[11] = novoVencimento;
+  r[12] = txid;          r[13] = "";            r[14] = "PENDENTE";      r[15] = exp;
+  r[16] = "";            r[17] = dados.observacao || "";
+
+  var novaLinha = abaQ.getLastRow() + 1;
+  abaQ.getRange(novaLinha, 1, 1, 18).setValues([r]);
+  abaQ.getRange(novaLinha,  5).setNumberFormat("dd/mm/yyyy hh:mm");
+  abaQ.getRange(novaLinha, 16).setNumberFormat("dd/mm/yyyy");
+  [6,7,8,9,10].forEach(function(c){ abaQ.getRange(novaLinha, c).setNumberFormat("R$ #,##0.00"); });
+
+  registrarEvento({
+    idContrato: idContrato, idCliente: idCliente, nomeCliente: nomeCliente,
+    tipoEvento: "PROPOSTA_RENEGOCIACAO_GERADA",
+    valorTotal: valorEntrada,
+    observacoes: "PIX de entrada gerado. TXID: " + txid +
+                 ". Entrada: R$ " + valorEntrada.toFixed(2) +
+                 ". Sugestao: " + qtdSugerida + "x de R$ " + valorParcelaFinal.toFixed(2)
+  });
+
+  return {
+    idProposta: idProp, txid: txid, pixCopiaECola: null,
+    capitalFaltante: capitalFaltante, jurosEmAberto: jurosEmAberto,
+    valorEntrada: valorEntrada, saldoRestante: saldoRestante,
+    valorParcelaFinal: valorParcelaFinal, qtdSugerida: qtdSugerida,
+    jaExistia: false
+  };
+}
+
+function salvarPixEntradaRenegociacao(dados) {
+  var abaQ   = _garantirTabelaPropostasRenegociacao();
+  var cmQ    = buildColMap(abaQ);
+  var dadosQ = abaQ.getDataRange().getValues();
+  var txidBusca = String(dados.txid || "").trim();
+  for (var i = 1; i < dadosQ.length; i++) {
+    var txidRow = String(dadosQ[i][(cmQ["TXID_ENTRADA"]||13)-1]).trim();
+    var st      = String(dadosQ[i][(cmQ["STATUS"]      ||15)-1]).trim().toUpperCase();
+    if (txidRow === txidBusca && st === "PENDENTE") {
+      abaQ.getRange(i+1, cmQ["EFI_PIX_CODE_ENTRADA"]||14).setValue(dados.pixCopiaECola || "");
+      return;
+    }
+  }
+  if (dados.idProposta) {
+    for (var k = 1; k < dadosQ.length; k++) {
+      if (String(dadosQ[k][(cmQ["ID_PROPOSTA"]||1)-1]).trim() === String(dados.idProposta).trim()) {
+        abaQ.getRange(k+1, cmQ["EFI_PIX_CODE_ENTRADA"]||14).setValue(dados.pixCopiaECola || "");
+        return;
+      }
+    }
+  }
+}
+
+function cancelarPropostaRenegociacao(dados) {
+  var abaQ       = _garantirTabelaPropostasRenegociacao();
+  var cmQ        = buildColMap(abaQ);
+  var dadosQ     = abaQ.getDataRange().getValues();
+  var idContrato = String(dados.idContrato || "").trim();
+  for (var i = 1; i < dadosQ.length; i++) {
+    var idQC = String(dadosQ[i][(cmQ["ID_CONTRATO"]||2)-1]).trim();
+    var st   = String(dadosQ[i][(cmQ["STATUS"]     ||15)-1]).trim().toUpperCase();
+    if (idQC === idContrato && st === "PENDENTE") {
+      abaQ.getRange(i+1, cmQ["STATUS"]||15).setValue("CANCELADO");
+      registrarEvento({
+        idContrato:  idContrato,
+        idCliente:   dados.idCliente   || "",
+        nomeCliente: dados.nomeCliente || "",
+        tipoEvento:  "PROPOSTA_RENEGOCIACAO_CANCELADA",
+        observacoes: "Proposta de renegociacao (entrada PIX) cancelada pelo operador."
+      });
+      return;
+    }
+  }
+}
+
+function pagamentoRenegociacaoWebhook(txid, valor, data) {
+  var txidBase  = String(txid || "").trim().replace(/R[12]$/, "");
+  var chaveTxid = "RENEG_" + txidBase;
+  if (_idem_check(chaveTxid)) {
+    Logger.log("pagamentoRenegociacaoWebhook: DUPLICATA bloqueada. TXID=" + txid);
+    try { _idem_registrar_tentativa_dupla(chaveTxid, "WEBHOOK_EFI_RENEGOCIACAO"); } catch(e_) {}
+    return { duplicata: true };
+  }
+
+  var abaQ   = _garantirTabelaPropostasRenegociacao();
+  var cmQ    = buildColMap(abaQ);
+  var dadosQ = abaQ.getDataRange().getValues();
+
+  var linhaQ = -1; var rowQ = null;
+  for (var i = 1; i < dadosQ.length; i++) {
+    var txidQ = String(dadosQ[i][(cmQ["TXID_ENTRADA"]||13)-1]).trim();
+    var st    = String(dadosQ[i][(cmQ["STATUS"]      ||15)-1]).trim().toUpperCase();
+    if (txidQ === txidBase && st === "PENDENTE") { linhaQ = i+1; rowQ = dadosQ[i]; break; }
+  }
+  if (linhaQ === -1) {
+    Logger.log("pagamentoRenegociacaoWebhook: proposta nao encontrada. TXID=" + txid);
+    return { naoEncontrada: true };
+  }
+
+  var idContrato  = String(rowQ[(cmQ["ID_CONTRATO"] ||2)-1]).trim();
+  var idCliente   = String(rowQ[(cmQ["ID_CLIENTE"]  ||3)-1]).trim();
+  var nomeCliente = String(rowQ[(cmQ["NOME_CLIENTE"]||4)-1]).trim();
+  var valorEntrada       = parseFloat(rowQ[(cmQ["VALOR_ENTRADA"]      ||8)-1]) || 0;
+  var valorParcelaFinal  = parseFloat(rowQ[(cmQ["VALOR_PARCELA_NOVA"] ||10)-1]) || 0;
+  var qtdSugerida        = parseInt(rowQ[(cmQ["QTD_PARCELAS_NOVA"]    ||11)-1]) || 0;
+  var novoVencimento     = String(rowQ[(cmQ["NOVO_VENCIMENTO"]        ||12)-1] || "");
+  var observacaoProposta = String(rowQ[(cmQ["OBSERVACOES"]            ||18)-1] || "");
+
+  // Marcar como PAGO antes de processar (evita corrida)
+  abaQ.getRange(linhaQ, cmQ["STATUS"]||15).setValue("PAGO");
+  abaQ.getRange(linhaQ, cmQ["DATA_PAGAMENTO_ENTRADA"]||17).setValue(new Date()).setNumberFormat("dd/mm/yyyy");
+
+  _idem_reg(chaveTxid, "WEBHOOK_EFI_RENEGOCIACAO", { idContrato: idContrato, idCliente: idCliente, origem: "webhook_efi" });
+
+  var dtPag = data
+    ? Utilities.formatDate(new Date(String(data)), Session.getScriptTimeZone(), "yyyy-MM-dd")
+    : Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+  var resultado;
+  try {
+    resultado = renegociarContrato({
+      idContrato:           idContrato,
+      novaValorParcela:     valorParcelaFinal,
+      novasParcelasQtd:     qtdSugerida,
+      novoVencimento:       novoVencimento,
+      dataRenegociacao:     dtPag,
+      valorEntradaRecebida: valorEntrada,
+      observacao:           observacaoProposta
+    });
+  } catch(eReneg) {
+    Logger.log("pagamentoRenegociacaoWebhook: erro em renegociarContrato: " + eReneg.message);
+    try { _notificarErroSistema("pagamentoRenegociacaoWebhook", "Entrada da renegociacao do contrato " + idContrato + " foi paga (TXID " + txid + ") mas a renegociacao falhou: " + eReneg.message); } catch(eN) {}
+    return { erro: eReneg.message };
+  }
+
+  // WPP avisando o cliente que a entrada caiu e o novo carne foi criado
+  // Loga em MENSAGENS (GATILHO="CONFIRMACAO_RENEGOCIACAO") e notifica o Alex em caso de
+  // falha (_notificarErroSistema) — sem isso a falha ficava só no Logger.log, invisivel
+  // pra qualquer um (achado em producao 2026-08-07: mensagem nao chegou e ninguem soube).
+  try {
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var abaCl = ss.getSheetByName(ABAS.CLIENTES);
+    var cmCl  = buildColMap(abaCl);
+    var dCl   = abaCl.getDataRange().getValues();
+    var tel   = "";
+    for (var c = 1; c < dCl.length; c++) {
+      if (String(dCl[c][(cmCl["ID_CLIENTE"]||1)-1]).trim() === idCliente) {
+        tel = String(dCl[c][(cmCl["TELEFONE_WPP"]||8)-1]||"").replace(/\D/g,"");
+        break;
+      }
+    }
+    var primeiroNome = nomeCliente.split(" ")[0];
+    var texto = primeiroNome + ", recebemos sua entrada de R$ " + valorEntrada.toFixed(2) +
+      " e seu contrato foi renegociado! Novo carne: " + qtdSugerida + "x de R$ " + valorParcelaFinal.toFixed(2) +
+      ". Em breve voce recebe o PIX de cada parcela por aqui.";
+
+    if (!tel) {
+      Logger.log("pagamentoRenegociacaoWebhook: telefone nao encontrado pro cliente " + idCliente);
+      _notificarErroSistema("pagamentoRenegociacaoWebhook",
+        "Renegociacao do contrato " + idContrato + " concluida, mas o cliente " + nomeCliente +
+        " (ID " + idCliente + ") nao tem TELEFONE_WPP cadastrado — confirmacao nao enviada.");
+    } else {
+      var enviouWpp = _enviarWppRegua(tel, texto);
+      _logMensagem({
+        idCliente: idCliente, idContrato: idContrato, telefone: tel,
+        gatilho: "CONFIRMACAO_RENEGOCIACAO", conteudo: texto,
+        status: enviouWpp ? "ENVIADO" : "ERRO_ENVIO"
+      });
+      if (!enviouWpp) {
+        _notificarErroSistema("pagamentoRenegociacaoWebhook",
+          "Renegociacao do contrato " + idContrato + " concluida, mas o WhatsApp de confirmacao pro cliente " +
+          nomeCliente + " falhou ao enviar (Evolution GO). Avisar manualmente.");
+      }
+    }
+  } catch(eWpp) { Logger.log("pagamentoRenegociacaoWebhook WPP err: " + eWpp.message); }
+
+  return { renegociado: true, idContrato: idContrato, parcelas: resultado ? resultado.parcelas : [] };
+}
+
+function verificarPropostasRenegociacaoExpiradas() {
+  var abaQ   = _garantirTabelaPropostasRenegociacao();
+  var cmQ    = buildColMap(abaQ);
+  var dadosQ = abaQ.getDataRange().getValues();
+  var agora  = new Date();
+  var n      = 0;
+  for (var i = 1; i < dadosQ.length; i++) {
+    var st = String(dadosQ[i][(cmQ["STATUS"]||15)-1]).trim().toUpperCase();
+    if (st !== "PENDENTE") continue;
+    var dtExp = dadosQ[i][(cmQ["DATA_EXPIRACAO"]||16)-1];
+    if (!dtExp) continue;
+    var expDate = dtExp instanceof Date ? dtExp : new Date(dtExp);
+    if (expDate < agora) {
+      abaQ.getRange(i+1, cmQ["STATUS"]||15).setValue("EXPIRADO");
+      n++;
+    }
+  }
+  Logger.log("verificarPropostasRenegociacaoExpiradas: " + n + " proposta(s) expirada(s).");
+}
+
+// Teste isolado do bloco de confirmacao WPP (fix 2026-08-07) — manda pro proprio numero do
+// Alex (TEL_ALEX_NOTIFICACOES) e grava com idCliente/idContrato="TESTE" em MENSAGENS.
+// NAO toca em CONTRATOS/PARCELAS/PAGAMENTOS de ninguem — seguro rodar quantas vezes quiser.
+function _testarConfirmacaoRenegociacao() {
+  var tel = _getCfg("TEL_ALEX_NOTIFICACOES") || "5562984877843";
+  var texto = "TESTE — Ronan, recebemos sua entrada de R$ 1500.00 e seu contrato foi renegociado! " +
+    "Novo carne: 11x de R$ 2973.00. Em breve voce recebe o PIX de cada parcela por aqui.";
+  var enviou = _enviarWppRegua(tel, texto);
+  _logMensagem({
+    idCliente: "TESTE", idContrato: "TESTE", telefone: tel,
+    gatilho: "CONFIRMACAO_RENEGOCIACAO", conteudo: texto,
+    status: enviou ? "ENVIADO" : "ERRO_ENVIO"
+  });
+  if (!enviou) {
+    _notificarErroSistema("_testarConfirmacaoRenegociacao", "Teste manual — envio falhou (Evolution GO).");
+  }
+  Logger.log("_testarConfirmacaoRenegociacao: enviou=" + enviou + " tel=" + tel);
+}
+
+// ─── FIM RENEGOCIAÇÃO COM ENTRADA ────────────────────────────────────────────
+
 function corrigirDropdownStatusParcelas() {
   var ss   = SpreadsheetApp.getActiveSpreadsheet();
   var sh   = ss.getSheetByName(ABAS.PARCELAS);
@@ -736,6 +1068,9 @@ function onOpen() {
     .addSeparator()
     .addItem("Quitacao: Criar Aba QUITACOES (rodar 1x)", "_garantirTabelaQuitacoes")
     .addItem("Quitacao: Verificar Expiradas", "verificarQuitacoesExpiradas")
+    .addItem("Renegociacao: Criar Aba PROPOSTAS_RENEGOCIACAO (rodar 1x)", "_garantirTabelaPropostasRenegociacao")
+    .addItem("Renegociacao: Verificar Propostas Expiradas", "verificarPropostasRenegociacaoExpiradas")
+    .addItem("Renegociacao: Testar Confirmacao WPP (envia pro seu numero)", "_testarConfirmacaoRenegociacao")
     .addItem("Corrigir Dropdown STATUS Parcelas (rodar 1x)", "corrigirDropdownStatusParcelas")
     .addToUi();
 }
@@ -947,7 +1282,8 @@ function doGet(e) {
     PADRINHOS:    abaPad  ? toObj(abaPad.getDataRange().getValues())  : [],
     EMPREGADORES: abaEmp  ? toObj(abaEmp.getDataRange().getValues())  : [],
     MENSAGENS:    abaMens ? toObj(abaMens.getDataRange().getValues()) : [],
-    QUITACOES:    (function(){ var aQ=ss.getSheetByName(ABAS.QUITACOES); return aQ?toObj(aQ.getDataRange().getValues()):[];})()
+    QUITACOES:    (function(){ var aQ=ss.getSheetByName(ABAS.QUITACOES); return aQ?toObj(aQ.getDataRange().getValues()):[];})(),
+    PROPOSTAS_RENEGOCIACAO: (function(){ var aR=ss.getSheetByName(ABAS.PROPOSTAS_RENEGOCIACAO); return aR?toObj(aR.getDataRange().getValues()):[];})()
   };
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -1019,6 +1355,10 @@ function doPost(e) {
     else if (body.action === "salvarPixQuitacao")            { salvarPixQuitacao(body.dados||{}); res={ok:true}; }
     else if (body.action === "cancelarPropostaQuitacao")     { cancelarPropostaQuitacao(body.dados||{}); res={ok:true}; }
     else if (body.action === "pagamentoQuitacaoWebhook")     { var rPQW=pagamentoQuitacaoWebhook(body.txid,body.valor,body.data); res={ok:true,contratoQuitado:rPQW?!!rPQW.contratoQuitado:false,duplicata:rPQW?!!rPQW.duplicata:false}; }
+    else if (body.action === "gerarPropostaRenegociacao")    { var rGPR=gerarPropostaRenegociacao(body.dados||{}); res={ok:true,idProposta:rGPR.idProposta,txid:rGPR.txid,pixCopiaECola:rGPR.pixCopiaECola,capitalFaltante:rGPR.capitalFaltante,jurosEmAberto:rGPR.jurosEmAberto,valorEntrada:rGPR.valorEntrada,saldoRestante:rGPR.saldoRestante,valorParcelaFinal:rGPR.valorParcelaFinal,qtdSugerida:rGPR.qtdSugerida,jaExistia:rGPR.jaExistia}; }
+    else if (body.action === "salvarPixEntradaRenegociacao") { salvarPixEntradaRenegociacao(body.dados||{}); res={ok:true}; }
+    else if (body.action === "cancelarPropostaRenegociacao") { cancelarPropostaRenegociacao(body.dados||{}); res={ok:true}; }
+    else if (body.action === "pagamentoRenegociacaoWebhook") { var rPRW=pagamentoRenegociacaoWebhook(body.txid,body.valor,body.data); res={ok:true,renegociado:rPRW?!!rPRW.renegociado:false,duplicata:rPRW?!!rPRW.duplicata:false}; }
     else if (body.action === "dispararReguaCobranca")        { var rReg=enviarReguaCobranca(false); res={ok:true,enviados:rReg?rReg.enviados:0,erros:rReg?rReg.erros:0}; }
     else if (body.action === "marcarEnvioManualRegua")        { marcarEnvioManualRegua(body.idMensagem); res={ok:true}; }
     else if (body.action === "garantirCertificadoQuitacao")  { var dCert=_buscarDadosCertificado(body.idContrato,body.idCliente); var rCert=gerarCertificadoQuitacao({idContrato:body.idContrato,idCliente:body.idCliente,nomeCliente:dCert.nome,cpf:dCert.cpf,datQuitacao:body.datQuitacao||new Date(),totalPago:dCert.totalPago}); res={ok:true,codigo:rCert.codigoValidacao,link:rCert.linkCertificado}; }
@@ -2214,44 +2554,55 @@ function registrarQuitacaoAntecipada(v) {
   return { parcelasQuitadas: selecionadas.length, totalRecebido: totalRecebido, descontoJuros: descontoTotal, contratoQuitado: todasPagas, idUndo: idUndoQuit };
 }
 
-function renegociarContrato(dados) {
-  var ss    = SpreadsheetApp.getActiveSpreadsheet();
-  var abaC  = ss.getSheetByName(ABAS.CONTRATOS);
-  var abaP  = ss.getSheetByName(ABAS.PARCELAS);
-  var cm    = buildColMap(abaC);
-  var cmP   = buildColMap(abaP);
+function _validarElegibilidadeRenegociacao(idContrato) {
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var abaC = ss.getSheetByName(ABAS.CONTRATOS);
+  var cm   = buildColMap(abaC);
 
-  // Localizar contrato
   var rowsC = abaC.getDataRange().getValues();
   var linhaC = -1, rowC = null;
   for (var i = 1; i < rowsC.length; i++) {
-    if (String(rowsC[i][(cm["ID_CONTRATO"]||1)-1]).trim() === String(dados.idContrato).trim()) {
+    if (String(rowsC[i][(cm["ID_CONTRATO"]||1)-1]).trim() === String(idContrato).trim()) {
       linhaC = i + 1; rowC = rowsC[i]; break;
     }
   }
-  if (linhaC === -1) throw new Error("Contrato nao encontrado: " + dados.idContrato);
+  if (linhaC === -1) throw new Error("Contrato nao encontrado: " + idContrato);
 
   var idCliente   = String(rowC[(cm["ID_CLIENTE"]   ||2)-1]);
   var nomeCliente = String(rowC[(cm["NOME_CLIENTE"] ||3)-1]);
   var statusAtual = String(rowC[(cm["STATUS_CONTRATO"]||16)-1]||"").toLowerCase().trim();
 
-  // Validar status elegivel
   var statusElegiveis = ["ativo","ativo_em_dia","ativo_em_atraso","em_cobranca","pre_prejuizo","acordo_assistido"];
   if (statusElegiveis.indexOf(statusAtual) < 0) {
     throw new Error("Contrato nao elegivel para renegociacao. Status atual: " + statusAtual);
   }
 
-  // Ler parcelas e checar renegociacao previa
-  var dadosP    = abaP.getDataRange().getValues();
-  var stCol     = cmP["STATUS"] || cmP["STATUS_PAGAMENTO"];
+  var abaP  = ss.getSheetByName(ABAS.PARCELAS);
+  var cmP   = buildColMap(abaP);
+  var dadosP = abaP.getDataRange().getValues();
   var colOrigem = cmP["ORIGEM_PARCELA"];
-  var parcAbertas = [];
-
   for (var j = 1; j < dadosP.length; j++) {
-    if (String(dadosP[j][(cmP["ID_CONTRATO"]||2)-1]).trim() !== String(dados.idContrato).trim()) continue;
+    if (String(dadosP[j][(cmP["ID_CONTRATO"]||2)-1]).trim() !== String(idContrato).trim()) continue;
     if (colOrigem && String(dadosP[j][colOrigem-1]||"").toLowerCase().trim() === "renegociada") {
       throw new Error("Contrato ja foi renegociado anteriormente (maximo 1 por contrato).");
     }
+  }
+
+  return { abaC: abaC, cm: cm, linhaC: linhaC, rowC: rowC, idCliente: idCliente, nomeCliente: nomeCliente, statusAtual: statusAtual };
+}
+
+function _saldoDevedorAbertoContrato(idContrato) {
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var abaP = ss.getSheetByName(ABAS.PARCELAS);
+  var abaC = ss.getSheetByName(ABAS.CONTRATOS);
+  var cmP  = buildColMap(abaP);
+  var cmC  = buildColMap(abaC);
+  var stCol = cmP["STATUS"] || cmP["STATUS_PAGAMENTO"];
+
+  var dadosP = abaP.getDataRange().getValues();
+  var parcAbertas = [];
+  for (var j = 1; j < dadosP.length; j++) {
+    if (String(dadosP[j][(cmP["ID_CONTRATO"]||2)-1]).trim() !== String(idContrato).trim()) continue;
     var stP = stCol ? String(dadosP[j][stCol-1]).toLowerCase().trim() : "";
     if (!STATUS_TERMINAL[stP]) {
       parcAbertas.push({
@@ -2263,14 +2614,130 @@ function renegociarContrato(dados) {
       });
     }
   }
-  if (parcAbertas.length === 0) throw new Error("Nenhuma parcela em aberto para renegociar.");
 
-  // Calcular totais
   var capitalFaltante = parcAbertas.reduce(function(s,p){ return s + p.principal; }, 0);
   var jurosEmAberto   = parcAbertas.reduce(function(s,p){ return s + p.juros;    }, 0);
-  var colAbat = cm["VALOR_ABATIDO_ASSISTIDO"];
-  if (colAbat) {
-    capitalFaltante = Math.max(0, capitalFaltante - (parseFloat(rowC[colAbat-1]||0)||0));
+
+  var dadosC = abaC.getDataRange().getValues();
+  for (var k = 1; k < dadosC.length; k++) {
+    if (String(dadosC[k][(cmC["ID_CONTRATO"]||1)-1]).trim() === String(idContrato).trim()) {
+      var colAbat = cmC["VALOR_ABATIDO_ASSISTIDO"];
+      if (colAbat) {
+        capitalFaltante = Math.max(0, capitalFaltante - (parseFloat(dadosC[k][colAbat-1]||0)||0));
+      }
+      break;
+    }
+  }
+
+  return { capitalFaltante: capitalFaltante, jurosEmAberto: jurosEmAberto, parcAbertas: parcAbertas };
+}
+
+function _registrarPagamentoEntradaRenegociacao(idContrato, idCliente, nomeCliente, dataPagamento, valorEntrada) {
+  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var abaPag = ss.getSheetByName(ABAS.PAGAMENTOS);
+  var cmPag  = buildColMap(abaPag);
+  var idPag  = proximoIdSeq(abaPag, "PAG");
+  var nc     = abaPag.getLastColumn();
+  var rPag   = new Array(nc).fill("");
+  function sp(h,v) { if (cmPag[h] && cmPag[h] <= nc) rPag[cmPag[h]-1] = v; }
+  sp("ID_PAGAMENTO",   idPag);
+  sp("ID_CONTRATO",    idContrato);
+  sp("ID_CLIENTE",     idCliente);
+  sp("NOME_CLIENTE",   nomeCliente);
+  sp("DATA_PAGAMENTO", dataPagamento);
+  sp("VALOR_PAGO",     valorEntrada);
+  sp("TIPO_PAGAMENTO", "entrada_renegociacao");
+  sp("FORMA_PAGAMENTO", "pix");
+  sp("OBSERVACOES",    "Entrada da renegociacao estrutural, paga via PIX antes da criacao do novo carne.");
+  var ul = abaPag.getLastRow() + 1;
+  abaPag.getRange(ul, 1, 1, nc).setValues([rPag]);
+  if (cmPag["DATA_PAGAMENTO"]) abaPag.getRange(ul, cmPag["DATA_PAGAMENTO"]).setNumberFormat("dd/mm/yyyy");
+  if (cmPag["VALOR_PAGO"])     abaPag.getRange(ul, cmPag["VALOR_PAGO"]).setNumberFormat("R$ #,##0.00");
+}
+
+function _gerarPixParcelasNovas(idContrato, idCliente, parcelasRetorno) {
+  if (!parcelasRetorno || parcelasRetorno.length === 0) return;
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var shP   = ss.getSheetByName(ABAS.PARCELAS);
+  var shCli = ss.getSheetByName(ABAS.CLIENTES);
+  var cmP   = buildColMap(shP);
+  var cmCli = buildColMap(shCli);
+
+  var dCli = shCli.getDataRange().getValues();
+  var cli = { nome: "", cpf: "" };
+  for (var i = 1; i < dCli.length; i++) {
+    if (String(dCli[i][(cmCli["ID_CLIENTE"]||1)-1]||"").trim() === String(idCliente).trim()) {
+      cli.nome = String(dCli[i][(cmCli["NOME"]||2)-1]||"").trim();
+      cli.cpf  = String(dCli[i][(cmCli["CPF"] ||3)-1]||"").replace(/\D/g,"").padStart(11,"0");
+      break;
+    }
+  }
+
+  var vercelUrl = _getCfg("VERCEL_URL") || "https://financeiroop.vercel.app";
+  var payload = JSON.stringify({
+    idContrato: idContrato,
+    parcelas: parcelasRetorno.map(function(p) {
+      return { idParcela: p.idParcela, numParcela: p.numParcela, totalParcelas: parcelasRetorno.length,
+               dataVencimento: p.dataVencimento, valorParcela: p.valorParcela };
+    }),
+    cliente: { nome: cli.nome, cpf: cli.cpf }
+  });
+
+  var resp = UrlFetchApp.fetch(vercelUrl + "/api/efi-charges", {
+    method: "post", contentType: "application/json", payload: payload, muteHttpExceptions: true
+  });
+  if (resp.getResponseCode() !== 200) {
+    Logger.log("_gerarPixParcelasNovas: HTTP " + resp.getResponseCode() + " contrato " + idContrato);
+    return;
+  }
+  var data = JSON.parse(resp.getContentText());
+  if (!data.ok) {
+    Logger.log("_gerarPixParcelasNovas: API erro contrato " + idContrato + ": " + resp.getContentText().slice(0,200));
+    return;
+  }
+
+  var dadosP = shP.getDataRange().getValues();
+  var txCol = cmP["EFI_TXID"], pixCol = cmP["EFI_PIX_CODE"], esCol = cmP["EFI_STATUS"];
+  var linhaById = {};
+  for (var j = 1; j < dadosP.length; j++) linhaById[String(dadosP[j][0]).trim()] = j + 1;
+
+  (data.boletos || []).forEach(function(b) {
+    var p = parcelasRetorno.filter(function(x){ return x.numParcela === b.numParcela; })[0];
+    if (!p) return;
+    var linha = linhaById[p.idParcela];
+    if (!linha) return;
+    if (b.txid          && txCol)  shP.getRange(linha, txCol ).setValue(b.txid);
+    if (b.pixCopiaECola && pixCol) shP.getRange(linha, pixCol).setValue(b.pixCopiaECola);
+    if (esCol)                     shP.getRange(linha, esCol ).setValue(b.status || "ativo");
+  });
+}
+
+function renegociarContrato(dados) {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var abaP  = ss.getSheetByName(ABAS.PARCELAS);
+  var cmP   = buildColMap(abaP);
+
+  var elegibilidade = _validarElegibilidadeRenegociacao(dados.idContrato);
+  var abaC        = elegibilidade.abaC;
+  var cm          = elegibilidade.cm;
+  var linhaC      = elegibilidade.linhaC;
+  var idCliente   = elegibilidade.idCliente;
+  var nomeCliente = elegibilidade.nomeCliente;
+  var statusAtual = elegibilidade.statusAtual;
+
+  var saldo = _saldoDevedorAbertoContrato(dados.idContrato);
+  var parcAbertas     = saldo.parcAbertas;
+  var capitalFaltante  = saldo.capitalFaltante;
+  var jurosEmAberto    = saldo.jurosEmAberto;
+  if (parcAbertas.length === 0) throw new Error("Nenhuma parcela em aberto para renegociar.");
+
+  // Abate a entrada ja paga via PIX (proposta de renegociacao), se houver — capital primeiro, depois juros
+  var valorEntradaRecebida = parseFloat(dados.valorEntradaRecebida) || 0;
+  if (valorEntradaRecebida > 0) {
+    var entradaSobreCapital = Math.min(valorEntradaRecebida, capitalFaltante);
+    var entradaSobreJuros   = Math.min(Math.max(0, valorEntradaRecebida - entradaSobreCapital), jurosEmAberto);
+    capitalFaltante -= entradaSobreCapital;
+    jurosEmAberto   -= entradaSobreJuros;
   }
 
   // Validar parametros recebidos
@@ -2297,6 +2764,7 @@ function renegociarContrato(dados) {
   descontoJuros   = Math.min(Math.max(0, descontoJuros), descontoMax);
 
   var dtRenegStr = Utilities.formatDate(dataReneg, "America/Sao_Paulo", "dd/MM/yyyy");
+  var stCol = cmP["STATUS"] || cmP["STATUS_PAGAMENTO"];
 
   // 1. Fechar parcelas abertas como "renegociado"
   for (var k = 0; k < parcAbertas.length; k++) {
@@ -2368,11 +2836,17 @@ function renegociarContrato(dados) {
     if (cmP["DIFERENCA_PAGA"])  abaP.getRange(ulP, cmP["DIFERENCA_PAGA"],  novasParcelas.length, 1).setNumberFormat("R$ #,##0.00");
   }
 
-  // 5. Atualizar contrato
+  // 5. Registrar o pagamento da entrada (se houve) — sem isso o dinheiro recebido fica invisivel pro sistema
+  if (valorEntradaRecebida > 0) {
+    try { _registrarPagamentoEntradaRenegociacao(dados.idContrato, idCliente, nomeCliente, dataReneg, valorEntradaRecebida); }
+    catch(ePag) { Logger.log("renegociarContrato: erro ao registrar pagamento da entrada: " + ePag.message); }
+  }
+
+  // 6. Atualizar contrato
   setCel(abaC, linhaC, cm, "STATUS_CONTRATO",   "ativo_em_dia");
   setCel(abaC, linhaC, cm, "DATA_RENEGOCIACAO", dataReneg, "dd/mm/yyyy");
 
-  // 6. Registrar evento
+  // 7. Registrar evento
   registrarEvento({
     idContrato: dados.idContrato, idCliente: idCliente, nomeCliente: nomeCliente,
     tipoEvento: "RENEGOCIACAO_ESTRUTURAL",
@@ -2384,9 +2858,14 @@ function renegociarContrato(dados) {
       parcAbertas.length + " parcela(s) encerradas. " +
       novasParcelasQtd + " novas de R$" + novaValorParcela.toFixed(2) + "/mes. " +
       "Capital: R$" + capitalFaltante.toFixed(2) + " | Total: R$" + totalRenegociado.toFixed(2) + "." +
+      (valorEntradaRecebida > 0.01 ? " Entrada recebida: R$" + valorEntradaRecebida.toFixed(2) + "." : "") +
       (descontoJuros > 0.01 ? " Desc.juros: R$" + descontoJuros.toFixed(2) + "." : "") +
       (observacao ? " " + observacao : "")
   });
+
+  // 8. Gerar PIX das novas parcelas automaticamente (best-effort — nao trava a renegociacao se a Efi falhar)
+  try { _gerarPixParcelasNovas(dados.idContrato, idCliente, parcelasRetorno); }
+  catch(ePix) { Logger.log("renegociarContrato: erro ao gerar PIX das novas parcelas: " + ePix.message); }
 
   try { calcularScore(idCliente); }           catch(eS){ Logger.log("renegociar score: "+eS.message); }
   try { calcularMetricasCliente(idCliente); } catch(eM){ Logger.log("renegociar metricas: "+eM.message); }
@@ -2398,6 +2877,7 @@ function renegociarContrato(dados) {
     capitalFaltante:    capitalFaltante,
     totalRenegociado:   totalRenegociado,
     descontoJuros:      descontoJuros,
+    valorEntradaRecebida: valorEntradaRecebida,
     parcelasEncerradas: parcAbertas.length
   };
 }
@@ -4364,12 +4844,14 @@ function rotinaDiaria() {
   try { _reRegistrarWebhookEfi(); } catch(eWh) { Logger.log("Webhook re-reg err: "+eWh.message); _notificarErroSistema("rotinaDiaria > _reRegistrarWebhookEfi", eWh.message); }
   try { verificarPagamentosEfi(); } catch(eEfi) { Logger.log("Efi check err: "+eEfi.message); _notificarErroSistema("rotinaDiaria > verificarPagamentosEfi", eEfi.message); }
   try { enviarReguaCobranca(); } catch(eRegua) { Logger.log("Regua err: "+eRegua.message); _notificarErroSistema("rotinaDiaria > enviarReguaCobranca", eRegua.message); }
+  try { _regenerarPixVencidos(); } catch(ePixVenc) { Logger.log("PixVenc err: "+ePixVenc.message); _notificarErroSistema("rotinaDiaria > _regenerarPixVencidos", ePixVenc.message); }
   try { atualizarStatusParcelas(); } catch(eStP) { Logger.log("Status parcelas err: "+eStP.message); _notificarErroSistema("rotinaDiaria > atualizarStatusParcelas", eStP.message); }
   try { atualizarStatusContratos(); } catch(eStC) { Logger.log("Status contratos err: "+eStC.message); _notificarErroSistema("rotinaDiaria > atualizarStatusContratos", eStC.message); }
   try { verificarPromessasVencidas(); } catch(eProm) { Logger.log("Promessas vencidas err: "+eProm.message); _notificarErroSistema("rotinaDiaria > verificarPromessasVencidas", eProm.message); }
   try { auditarIntegridadeSistema(); } catch(eAud) { Logger.log("Auditoria err: "+eAud.message); _notificarErroSistema("rotinaDiaria > auditarIntegridadeSistema", eAud.message); }
   try { expirarUndosAntigos(); } catch(eUndo) { Logger.log("Undo expire err: "+eUndo.message); _notificarErroSistema("rotinaDiaria > expirarUndosAntigos", eUndo.message); }
   try { verificarQuitacoesExpiradas(); } catch(eQExp) { Logger.log("QuitExp err: "+eQExp.message); _notificarErroSistema("rotinaDiaria > verificarQuitacoesExpiradas", eQExp.message); }
+  try { verificarPropostasRenegociacaoExpiradas(); } catch(eRExp) { Logger.log("RenegExp err: "+eRExp.message); _notificarErroSistema("rotinaDiaria > verificarPropostasRenegociacaoExpiradas", eRExp.message); }
 }
 
 function rotinaRegua() {
@@ -7241,6 +7723,99 @@ function _gerarPixAvulso(idContrato, parcela, cliente) {
   return null;
 }
 
+// Mantém o cobv Efí de parcelas em aberto sempre válido. cobv normal tem validadeAposVencimento:30
+// (api/efi-charges.js / api/efi-pix-avulso.js) — passado esse prazo a Efí recusa o pagamento mesmo com
+// o código antigo ainda salvo na planilha, e a régua (D-5..D+7) já parou de tocar nessas parcelas há
+// muito tempo, então sem isso ninguém percebia até o cliente tentar pagar e falhar. Roda a cada 25 dias
+// de atraso (25, 50, 75...) — como cada regeneração reabre uma nova janela de 30 dias a partir do dia em
+// que rodou, o próximo gatilho (+25) sempre cai uns 5 dias antes da nova janela expirar, sem precisar
+// guardar quando foi a última regeneração.
+function _regenerarPixVencidos() {
+  var startTime = Date.now();
+  var MAX_MS = 90 * 1000;
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var abaC   = ss.getSheetByName(ABAS.CONTRATOS);
+  var abaP   = ss.getSheetByName(ABAS.PARCELAS);
+  var abaCli = ss.getSheetByName(ABAS.CLIENTES);
+  if (!abaC || !abaP || !abaCli) return { refrescados: 0, erros: 0 };
+
+  var cmC = buildColMap(abaC), dC = abaC.getDataRange().getValues();
+  var cmP = buildColMap(abaP), dP = abaP.getDataRange().getValues();
+  var cmCli = buildColMap(abaCli), dCli = abaCli.getDataRange().getValues();
+
+  var ST_SKIP_C = {quitado:1,cancelado:1,baixado_como_prejuizo:1,acordo_assistido:1,
+                    encerrado_sem_recuperacao:1,recuperado_parcialmente:1,recuperado_integralmente:1,em_processo_judicial:1};
+
+  var icId = (cmC["ID_CONTRATO"]||1)-1, icCli = (cmC["ID_CLIENTE"]||2)-1, icSt = (cmC["STATUS_CONTRATO"]||5)-1;
+  var contMap = {};
+  for (var i = 1; i < dC.length; i++) {
+    var idC = String(dC[i][icId]||"").trim(); if (!idC) continue;
+    contMap[idC] = { ID_CLIENTE: String(dC[i][icCli]||"").trim(), STATUS_CONTRATO: String(dC[i][icSt]||"").trim().toLowerCase() };
+  }
+
+  var iCliId = (cmCli["ID_CLIENTE"]||1)-1, iCliNome = (cmCli["NOME"]||2)-1, iCliCpf = (cmCli["CPF"]||3)-1;
+  var cliMap = {};
+  for (var i = 1; i < dCli.length; i++) {
+    var id = String(dCli[i][iCliId]||"").trim(); if (!id) continue;
+    cliMap[id] = { NOME: String(dCli[i][iCliNome]||"").trim(), CPF: String(dCli[i][iCliCpf]||"").replace(/\D/g,"") };
+  }
+
+  var ipId=(cmP["ID_PARCELA"]||1)-1, ipCont=(cmP["ID_CONTRATO"]||2)-1, ipNum=(cmP["NUM_PARCELA"]||3)-1,
+      ipDtV=(cmP["DATA_VENCIMENTO"]||7)-1, ipVal=(cmP["VALOR_PARCELA"]||cmP["VALOR"]||8)-1, ipSt=(cmP["STATUS"]||11)-1,
+      ipPix=cmP["EFI_PIX_CODE"]?cmP["EFI_PIX_CODE"]-1:-1, ipTxid=cmP["EFI_TXID"]?cmP["EFI_TXID"]-1:-1;
+  if (ipPix < 0) return { refrescados: 0, erros: 0 };
+
+  var totalParcMap = {};
+  for (var i = 1; i < dP.length; i++) {
+    var idC2 = String(dP[i][ipCont]||"").trim(); if (!idC2) continue;
+    totalParcMap[idC2] = (totalParcMap[idC2]||0) + 1;
+  }
+
+  var refrescados = 0, erros = 0;
+  for (var i = 1; i < dP.length; i++) {
+    if (Date.now() - startTime > MAX_MS) { Logger.log("_regenerarPixVencidos: orcamento de tempo atingido em " + i + "/" + dP.length); break; }
+
+    var st = String(dP[i][ipSt]||"").trim().toLowerCase();
+    if (STATUS_TERMINAL[st]) continue;
+    var pixAtual = String(dP[i][ipPix]||"").trim();
+    if (!pixAtual) continue; // sem PIX ainda — regua/manual cuidam disso, não é regeneração
+
+    var dtV = dP[i][ipDtV]; if (!dtV) continue;
+
+    // Sempre pela DATA_VENCIMENTO original — DATA_ACORDO (reagendamento) é só o registro da
+    // promessa do cliente, não altera a dívida real nem a data de referência da cobrança.
+    var diasAtraso = -_diffDiasRegua(dtV);
+    if (diasAtraso < 25 || diasAtraso % 25 !== 0) continue;
+
+    var idContrato = String(dP[i][ipCont]||"").trim(); if (!idContrato) continue;
+    var cont = contMap[idContrato]; if (!cont || ST_SKIP_C[cont.STATUS_CONTRATO]) continue;
+    var cli = cliMap[cont.ID_CLIENTE]; if (!cli) continue;
+
+    var dtStr = dtV instanceof Date ? Utilities.formatDate(dtV,"America/Sao_Paulo","yyyy-MM-dd") : String(dtV).split("T")[0];
+    try {
+      var r = _gerarPixAvulso(idContrato, {
+        NUM_PARCELA: dP[i][ipNum], ID_PARCELA: String(dP[i][ipId]||"").trim(),
+        VALOR: parseFloat(dP[i][ipVal]||0), _dtStr: dtStr, _total: totalParcMap[idContrato]||1
+      }, cli);
+      if (r && r.pix) {
+        abaP.getRange(i+1, ipPix+1).setValue(r.pix);
+        if (ipTxid >= 0 && r.txid) abaP.getRange(i+1, ipTxid+1).setValue(r.txid);
+        SpreadsheetApp.flush();
+        refrescados++;
+        Logger.log("_regenerarPixVencidos: PIX refrescado — contrato " + idContrato + " parcela #" + dP[i][ipNum] + " (" + diasAtraso + "d atraso)");
+      } else {
+        erros++;
+      }
+    } catch (e) {
+      erros++;
+      Logger.log("_regenerarPixVencidos err (contrato " + idContrato + "): " + e.message);
+    }
+  }
+
+  if (refrescados > 0 || erros > 0) Logger.log("_regenerarPixVencidos: " + refrescados + " renovado(s), " + erros + " erro(s)");
+  return { refrescados: refrescados, erros: erros };
+}
+
 function _reRegistrarWebhookEfi() {
   var secret    = _getCfg("COBRANCA_SECRET");
   var vercelUrl = _getCfg("VERCEL_URL") || "https://financeiroop.vercel.app";
@@ -7329,17 +7904,50 @@ function enviarPixManual(dados) {
     var idCliente     = dados.idCliente  || "";
     var idContrato    = dados.idContrato || "";
     var idParcela     = dados.idParcela  || "";
+    var tipo          = String(dados.tipo || "parcela");
 
     if (!tel)     return { ok: false, erro: "Telefone ausente" };
     if (!pixCode) return { ok: false, erro: "Código PIX ausente" };
 
+    if (idParcela) {
+      var shP = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("PARCELAS");
+      if (shP) {
+        var cmP = buildColMap(shP);
+        var stColP = cmP["STATUS"] || cmP["STATUS_PAGAMENTO"];
+        var idColP = cmP["ID_PARCELA"];
+        if (stColP && idColP) {
+          var rowsP = shP.getDataRange().getValues();
+          for (var iP = 1; iP < rowsP.length; iP++) {
+            if (String(rowsP[iP][idColP - 1]) === String(idParcela)) {
+              var stP = String(rowsP[iP][stColP - 1] || "").toLowerCase().trim();
+              if (STATUS_TERMINAL[stP]) {
+                return { ok: false, erro: "Parcela " + idParcela + " já está em status terminal (" + stP + ") — PIX não enviado." };
+              }
+              break;
+            }
+          }
+        }
+      }
+    }
+
     var primeiroNome = nome.split(" ")[0];
     var fmtValor     = "R$ " + valor.toFixed(2).replace(".", ",");
-    var msg1 = "Olá " + primeiroNome + "! 😊\n\n" +
-               "Segue o código PIX para pagamento da *Parcela " + numParcela + " de " + totalParcelas + "*:\n\n" +
-               "💰 Valor: *" + fmtValor + "*\n" +
-               "📅 Vencimento: *" + dataVenc + "*\n\n" +
-               "Cole o código abaixo no seu aplicativo bancário:";
+    var msg1, gatilho;
+    if (tipo === "entrada_renegociacao") {
+      msg1 = "Olá " + primeiroNome + "! 😊\n\n" +
+             "Segue o código PIX da *entrada da renegociação* do seu contrato:\n\n" +
+             "💰 Valor: *" + fmtValor + "*\n" +
+             "⏳ Válido por 48h\n\n" +
+             "Cole o código abaixo no seu aplicativo bancário:";
+      gatilho = "PIX_ENTRADA_RENEGOCIACAO";
+    } else {
+      msg1 = "Olá " + primeiroNome + "! 😊\n\n" +
+             "Segue o código PIX para pagamento da *Parcela " + numParcela + " de " + totalParcelas + "*:\n\n" +
+             "💰 Valor: *" + fmtValor + "*\n" +
+             "📅 Vencimento: *" + dataVenc + "*\n\n" +
+             "Cole o código abaixo no seu aplicativo bancário:";
+      gatilho = "PIX_MANUAL";
+    }
 
     var ok1 = _enviarWppRegua(tel, msg1);
     Utilities.sleep(800);
@@ -7348,7 +7956,7 @@ function enviarPixManual(dados) {
     var status = (ok1 && ok2) ? "ENVIADO" : "ERRO_ENVIO";
     _logMensagem({
       idCliente: idCliente, idContrato: idContrato, idParcela: idParcela,
-      telefone:  tel, gatilho: "PIX_MANUAL",
+      telefone:  tel, gatilho: gatilho,
       conteudo:  msg1 + "\n\n" + pixCode.slice(0, 50) + "...",
       status:    status
     });
