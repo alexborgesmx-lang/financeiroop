@@ -2981,7 +2981,7 @@ function RenegociacaoModal({contrato, parcelas, clientes, propostasRenegociacao,
                 </button>
               )}
               {semEntrada?(
-                <button onClick={renegociarSemEntrada} disabled={loading||!canSubmitSemEntrada} style={{...BTN1(!canSubmitSemEntrada||loading),flex:1,background:(!canSubmitSemEntrada||loading)?undefined:RED}}>
+                <button onClick={renegociarSemEntrada} disabled={loading||!canSubmitSemEntrada} style={{...BTN1(!canSubmitSemEntrada||loading),flex:1,background:(!canSubmitSemEntrada||loading)?MUTED:RED}}>
                   {loading?<><IcoSpinner size={12}/> Renegociando...</>:<>{IcoAlert} Renegociar sem entrada</>}
                 </button>
               ):(
