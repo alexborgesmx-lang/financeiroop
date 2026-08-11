@@ -6373,6 +6373,19 @@ function App() {
     }).sort((a,b)=>(b.prioridade?.score||0)-(a.prioridade?.score||0));
   },[clientes,parcelas,contratos,eventos,contratosMap,cliMap]);
 
+  // ── clientes novos (1 único contrato na vida) com a parcela 1 em atraso ──
+  const totalContratosPorCliente=useMemo(()=>{
+    const m=new Map();
+    (contratos||[]).forEach(c=>{
+      const id=String(c.ID_CLIENTE);
+      m.set(id,(m.get(id)||0)+1);
+    });
+    return m;
+  },[contratos]);
+  const isNovoAtraso1=item=>
+    totalContratosPorCliente.get(String(item.ID_CLIENTE))===1 &&
+    item.parcelasAtrasadas.some(p=>parseInt(p.NUM_PARCELA||0)===1);
+
   const cobKpis=useMemo(()=>{
     let critica=0,forte=0,normal=0,elegivelAjuizamento=0,valorRisco=0;
     cobItems.forEach(c=>{
