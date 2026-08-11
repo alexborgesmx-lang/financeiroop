@@ -5078,6 +5078,14 @@ function abrirWhatsApp(telefone, nomeCliente) {
   window.open(`https://wa.me/${numFull}?text=${msg}`,'_blank');
 }
 
+function abrirWhatsAppNovoAtraso1(telefone, nome, dias) {
+  const num = String(telefone||'').replace(/\D/g,'');
+  if(!num || num.length < 10) { alert('Telefone do cliente não cadastrado.'); return; }
+  const numFull = num.startsWith('55') ? num : '55' + num;
+  const msg = encodeURIComponent(`Olá ${nome}, tudo bem? Notei que a 1ª parcela do seu contrato venceu há ${dias} dia${dias>1?'s':''} e ainda não identificamos o pagamento. Pode verificar, por favor? Qualquer dúvida, estou à disposição.`);
+  window.open(`https://wa.me/${numFull}?text=${msg}`,'_blank');
+}
+
 // ─── MOBILE HOOK ─────────────────────────────────────────────────
 function useIsMobile(bp=768){
   const [mob,setMob]=React.useState(()=>window.innerWidth<=bp);
@@ -7688,6 +7696,7 @@ function App() {
                           <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nomeCliente(c)}{scoreBadge(c)}</div>
                           <div style={{fontSize:11,color:MUTED,marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
                             {isNovoAtraso1(c)&&<Badge c={RED}>🆕 1ª parcela</Badge>}
+                            {isNovoAtraso1(c)&&<button onClick={e=>{e.stopPropagation();abrirWhatsAppNovoAtraso1(c.TELEFONE,nomeCliente(c),c.maxAtraso);}} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:9999,border:"none",background:"#25D366",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>WhatsApp</button>}
                             {prioridadeBadge(c.prioridade)}
                             <Badge c={c.maxAtraso>60?RED:c.maxAtraso>30?ORG:YEL}>{c.maxAtraso}d</Badge>
                             <span>{c.qtdContratos} contrato{c.qtdContratos>1?"s":""}</span>
@@ -7718,7 +7727,11 @@ function App() {
                         {cobItemsOrdenados.map(c=>(
                           <TableRow key={c.ID_CLIENTE} onClick={()=>setCobModal(c)} style={{cursor:"pointer"}}>
                             <TableCell className="whitespace-normal">
-                              <div style={{fontWeight:700,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{nomeCliente(c)}{scoreBadge(c)}{isNovoAtraso1(c)&&<Badge c={RED}>🆕 1ª parcela</Badge>}</div>
+                              <div style={{fontWeight:700,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                                {nomeCliente(c)}{scoreBadge(c)}
+                                {isNovoAtraso1(c)&&<Badge c={RED}>🆕 1ª parcela</Badge>}
+                                {isNovoAtraso1(c)&&<button onClick={e=>{e.stopPropagation();abrirWhatsAppNovoAtraso1(c.TELEFONE,nomeCliente(c),c.maxAtraso);}} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:9999,border:"none",background:"#25D366",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>WhatsApp</button>}
+                              </div>
                             </TableCell>
                             <TableCell>{prioridadeBadge(c.prioridade)}</TableCell>
                             <TableCell style={{fontSize:12,color:MUTED,fontWeight:600}}>{c.prioridade?.nivelLabel||"—"}</TableCell>
