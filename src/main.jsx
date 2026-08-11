@@ -7687,6 +7687,7 @@ function App() {
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nomeCliente(c)}{scoreBadge(c)}</div>
                           <div style={{fontSize:11,color:MUTED,marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                            {isNovoAtraso1(c)&&<Badge c={RED}>🆕 1ª parcela</Badge>}
                             {prioridadeBadge(c.prioridade)}
                             <Badge c={c.maxAtraso>60?RED:c.maxAtraso>30?ORG:YEL}>{c.maxAtraso}d</Badge>
                             <span>{c.qtdContratos} contrato{c.qtdContratos>1?"s":""}</span>
@@ -7717,7 +7718,7 @@ function App() {
                         {cobItemsOrdenados.map(c=>(
                           <TableRow key={c.ID_CLIENTE} onClick={()=>setCobModal(c)} style={{cursor:"pointer"}}>
                             <TableCell className="whitespace-normal">
-                              <div style={{fontWeight:700,display:"flex",alignItems:"center",gap:8}}>{nomeCliente(c)}{scoreBadge(c)}</div>
+                              <div style={{fontWeight:700,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{nomeCliente(c)}{scoreBadge(c)}{isNovoAtraso1(c)&&<Badge c={RED}>🆕 1ª parcela</Badge>}</div>
                             </TableCell>
                             <TableCell>{prioridadeBadge(c.prioridade)}</TableCell>
                             <TableCell style={{fontSize:12,color:MUTED,fontWeight:600}}>{c.prioridade?.nivelLabel||"—"}</TableCell>
