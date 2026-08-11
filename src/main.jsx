@@ -7617,10 +7617,11 @@ function App() {
             const cobItemsFiltrados = !cobFiltro ? cobItems
               : cobFiltro.tipo==="banda" ? cobItems.filter(c=>c.prioridade?.banda===cobFiltro.valor)
               : cobFiltro.tipo==="ajuizamento" ? cobItems.filter(c=>c.prioridade?.jaRenegociado||c.prioridade?.jaTeveAcordoAssistido)
+              : cobFiltro.tipo==="novoAtraso1" ? cobItems.filter(isNovoAtraso1)
               : cobItems;
             const toggleFiltro = f => setCobFiltro(cur=>(cur&&cur.tipo===f.tipo&&cur.valor===f.valor)?null:f);
             const filtroAtivo = k => !!cobFiltro && cobFiltro.tipo===k.filtro?.tipo && cobFiltro.valor===k.filtro?.valor;
-            const filtroLabel = !cobFiltro ? "" : cobFiltro.tipo==="banda" ? cobFiltro.valor : "Elegíveis para Ajuizamento";
+            const filtroLabel = !cobFiltro ? "" : cobFiltro.tipo==="banda" ? cobFiltro.valor : cobFiltro.tipo==="novoAtraso1" ? "Novos em Atraso na 1ª Parcela" : "Elegíveis para Ajuizamento";
             const SORT_DEFAULT_DIR = {cliente:"asc",prioridade:"desc",atraso:"desc",valor:"desc"};
             const SORT_LABEL = {cliente:"Cliente",prioridade:"Prioridade",atraso:"Atraso Máx",valor:"Valor"};
             const toggleSort = campo => setCobSort(cur=>!cur||cur.campo!==campo?{campo,dir:SORT_DEFAULT_DIR[campo]}:{campo,dir:cur.dir==="asc"?"desc":"asc"});
@@ -7643,8 +7644,9 @@ function App() {
               </div>
 
               {/* KPIs de Prioridade de Cobrança — Fase 1, calculado 100% no navegador */}
-              <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:14}}>
+              <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(5,1fr)",gap:14}}>
                 {[
+                  {label:"🆕 Novos em Atraso na 1ª Parcela",value:cobItems.filter(isNovoAtraso1).length,color:RED,filtro:{tipo:"novoAtraso1"}},
                   {label:"🔥 Crítica",value:cobKpis.critica,color:RED,filtro:{tipo:"banda",valor:"Crítica"}},
                   {label:"⚠ Forte",value:cobKpis.forte,color:ORG,filtro:{tipo:"banda",valor:"Forte"}},
                   {label:"🟡 Normal",value:cobKpis.normal,color:YEL,filtro:{tipo:"banda",valor:"Normal"}},
