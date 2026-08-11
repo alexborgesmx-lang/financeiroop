@@ -26,9 +26,17 @@ async function upsertCobv(txid, payload, token) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
-  const { idContrato, idQuitacao, txidProposta, valorFinal, cliente } = req.body || {};
+  const {
+    idContrato, idQuitacao, idProposta, txidProposta, valorFinal, cliente,
+    callbackAction = "salvarPixQuitacao", descricaoPix,
+  } = req.body || {};
   if (!idContrato || !valorFinal) {
     return res.status(400).json({ erro: "Dados incompletos: idContrato e valorFinal obrigatorios" });
+  }
+  // buildTxidQuitacao só serve pro formato FOQT — qualquer outro tipo de proposta
+  // (ex: entrada de renegociação, FOEN) precisa mandar o próprio txid já pronto.
+  if (callbackAction !== "salvarPixQuitacao" && !txidProposta) {
+    return res.status(400).json({ erro: "txidProposta obrigatorio para callbackAction diferente de salvarPixQuitacao" });
   }
 
   try {
@@ -39,7 +47,7 @@ export default async function handler(req, res) {
     const nowBR    = new Date(Date.now() - 3 * 60 * 60 * 1000);
     const todayStr = nowBR.toISOString().slice(0, 10);
 
-    // Quitação: prazo de 48h, SEM multa/juros (é uma oferta especial, o desconto já está no valor)
+    // Prazo de 48h, SEM multa/juros (é uma oferta especial, o valor já vem calculado)
     const payload = {
       calendario: { dataDeVencimento: todayStr, validadeAposVencimento: 2 },
       ...(cpf.length === 11 ? { devedor: { cpf, nome: String(cliente?.nome || "") } } : {}),
@@ -47,7 +55,7 @@ export default async function handler(req, res) {
         original: parseFloat(valorFinal).toFixed(2),
       },
       chave: process.env.EFI_PIX_KEY,
-      solicitacaoPagador: `Quitacao antecipada - ${idContrato}`,
+      solicitacaoPagador: descricaoPix || `Quitacao antecipada - ${idContrato}`,
     };
 
     let result = await upsertCobv(txid, payload, token);
@@ -56,14 +64,14 @@ export default async function handler(req, res) {
 
     if (!result) return res.status(500).json({ erro: "cobv_sem_alternativa" });
 
-    // Salvar o código PIX na QUITACOES via GAS
+    // Salvar o código PIX na proposta (QUITACOES ou PROPOSTAS_RENEGOCIACAO) via GAS
     try {
       await fetch(APP_SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "salvarPixQuitacao",
-          dados: { txid: result.txid, idQuitacao, pixCopiaECola: result.pixCopiaECola },
+          action: callbackAction,
+          dados: { txid: result.txid, idQuitacao, idProposta, pixCopiaECola: result.pixCopiaECola },
         }),
         redirect: "follow",
       });

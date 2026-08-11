@@ -271,6 +271,7 @@ Não reverter automaticamente — documentar e aguardar instrução se:
 | `UNDO_LOG` | Motor de undo — operações reversíveis por até 15 min (`registrarUndo`/`reverterOperacao`) |
 | `QUITACOES` | Propostas de quitação antecipada via PIX (`gerarPropostaQuitacaoPix`) — expira em 48h |
 | `CERTIFICADOS` | Certificados públicos de quitação (`gerarCertificadoQuitacao`/`buscarCertificadoPublico`) |
+| `PROPOSTAS_RENEGOCIACAO` | Propostas de renegociação com entrada obrigatória via PIX (`gerarPropostaRenegociacao`) — expira em 48h |
 | `AUDITORIA` | Log da auditoria automática diária de integridade (`auditarIntegridadeSistema`) — criada sob demanda, não faz parte de `ABAS` |
 | `OPERACOES_PROCESSADAS` | Log de idempotência (`_idem_check`/`_idem_reg`) — evita processar o mesmo webhook 2x. Criada sob demanda, não faz parte de `ABAS` |
 
@@ -793,6 +794,34 @@ Regras:
 - **Fallback pagamentos perdidos**: se webhook ficou quebrado por algum período, rodar `verificarPagamentosEfi()` no GAS — faz polling de todos os TXIDs e registra os CONCLUÍDOS
 - **Timeout de 20s em toda chamada HTTPS pro Efí** (`api/efi-auth.js`, `getEfiToken`/`efiRequest`, compartilhado por todos os `api/efi-*.js`) — sem isso, uma resposta travada do Efí prendia a função Vercel até o limite de 300s, que devolve página de erro em texto (não JSON) e quebra quem espera JSON do outro lado (ex: GAS). Ver `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-08-01). Replicar esse padrão em qualquer chamada HTTPS externa nova que não use uma lib com timeout embutido.
 
+**PIX vencido (>30 dias de atraso) — detecção e regeneração (2026-08-10):**
+```javascript
+_regenerarPixVencidos()   // GAS, chamada em rotinaDiaria() após enviarReguaCobranca() — roda a cada 25
+                           // dias de atraso (25, 50, 75...), renova o EFI_PIX_CODE/EFI_TXID de parcelas
+                           // em aberto silenciosamente (sem WhatsApp), pela DATA_VENCIMENTO original
+```
+- Cobv normal tem `validadeAposVencimento: 30` — passado esse prazo a Efí recusa o código antigo. A régua já
+  parou de tocar na parcela bem antes disso (D+7); sem essa rotina, ninguém percebia até o cliente tentar
+  pagar e falhar.
+- **`DATA_ACORDO` (reagendamento) é sempre ignorada** nessa lógica inteira (detecção + regeneração,
+  frontend + GAS) — é só o registro da promessa do cliente, não altera a dívida real. Só `DATA_VENCIMENTO`
+  importa.
+- Frontend (`ContratoModal`, `main.jsx`): aviso vermelho + botão "Gerar novo PIX" quando `proxParcela` tem
+  mais de 30 dias de atraso; botão "Gerar PIX novamente" sempre disponível em "Mais ações" (força
+  regeneração mesmo sem o aviso — cobre o caso do código já ter sido gerado errado antes de um fix).
+  Avalia cada parcela em aberto do contrato independentemente pela própria `DATA_VENCIMENTO`; só regenera
+  as com mais de 30 dias — as demais não são tocadas (regenerar sem necessidade quebraria o cálculo
+  dinâmico de mora que a Efí já vinha fazendo certo nelas).
+- Cálculo de encargo (`api/efi-charges.js`, `api/efi-pix-avulso.js`): regenerar uma cobv vencida exige
+  mandar `calendario.dataDeVencimento` hoje-ou-futuro pra Efí, o que reseta o cálculo dinâmico de
+  multa/juros dela. Pra parcela com >30 dias de atraso, calcula multa (`EFI_MULTA_PCT`) + juros de mora
+  (`EFI_JUROS_DIARIO` × dias reais de atraso) e embute como `valor.original` fixo, removendo os campos
+  dinâmicos do payload (evita cobrar 2×). Fórmula completa em `docs/ai-memory/03-AI-FINANCIAL-CALCULATIONS.md`;
+  histórico do bug (3 causas raiz encadeadas) em `docs/ai-memory/07-AI-KNOWN-ISSUES.md`.
+- **Gap conhecido**: `_regenerarPixVencidos` dispara pela primeira vez aos 25 dias (antes do limite de 30
+  do cálculo de encargo) — o primeiro refresh automático de cada parcela ainda perde os dias de mora já
+  acumulados até então. Não estendido pra rotina automática por decisão do Alex (ver known issues).
+
 **Quitação antecipada via PIX:**
 ```javascript
 gerarPropostaQuitacaoPix(dados)   // calcula principal+juros das parcelas selecionadas, aplica desconto (limitado ao total de juros), grava em QUITACOES, expira em 48h
@@ -812,6 +841,20 @@ _gerarEEnviarCertificado(idContrato, idCliente, nomeCliente, datPagamento)  // g
 ```
 - Link público: `vercel.json` reescreve `/c/:code` → `api/cert.js?c=:code` (página HTML server-side própria, fora do React — chama a action `buscarCertificado` no GAS)
 - Envio WPP deduplicado por `GATILHO="CERTIFICADO_QUITACAO"` em MENSAGENS — nunca reenvia pro mesmo contrato
+
+**Renegociação com entrada obrigatória via PIX (2026-08-06):** mesmo esqueleto de proposta pendente da Quitação Antecipada acima — `renegociarContrato` (5.9 no `MANUAL_OPERACIONAL.md`) só executa depois que a entrada é confirmada paga.
+```javascript
+gerarPropostaRenegociacao(dados)     // valida elegibilidade (_validarElegibilidadeRenegociacao), calcula saldo (_saldoDevedorAbertoContrato), abate a entrada (capital primeiro, depois juros) e sugere qtd/valor de parcela sem teto (arredonda pra cima, igual entre todas); grava em PROPOSTAS_RENEGOCIACAO
+salvarPixEntradaRenegociacao(dados)  // grava o copia-e-cola gerado pela Efí na proposta
+cancelarPropostaRenegociacao(dados)  // status → CANCELADO
+pagamentoRenegociacaoWebhook(txid, valor, data)  // recebido via webhook Efí — protegido por idempotência (chave RENEG_<txidBase>, remove sufixo R1/R2), chama renegociarContrato com os valores congelados na proposta + valorEntradaRecebida, e envia confirmação WPP
+verificarPropostasRenegociacaoExpiradas()  // marca EXPIRADO propostas PENDENTE vencidas — plugada na rotinaDiaria
+```
+- TXID fixo por contrato: `_txidRenegociacaoEntrada(idContrato)` = `FOEN<idContrato zero-padded>E00001` — `parseTxid` em `api/webhook-efi.js` reconhece o prefixo `FOEN`
+- `renegociarContrato` aceita `dados.valorEntradaRecebida` (abate saldo, registra PAGAMENTOS com `TIPO_PAGAMENTO="entrada_renegociacao"` sem `ID_PARCELA`) e gera o PIX das novas parcelas automaticamente via `UrlFetchApp` pro `/api/efi-charges` (mesmo padrão de `gerarPixTodosContratos`) — não depende do frontend estar aberto quando a entrada cai
+- **Nenhum arquivo novo em `api/`** (teto de 12 Serverless Functions no Hobby) — `api/efi-quitacao.js` foi generalizado pra aceitar `callbackAction` (default `"salvarPixQuitacao"`, renegociação usa `"salvarPixEntradaRenegociacao"`) e `descricaoPix`, reaproveitado pelos dois fluxos
+- **Entrada mínima dinâmica (2026-08-10, substitui o piso fixo R$200 original):** calculada por contrato em `gerarPropostaRenegociacao` = `VALOR_JUROS` da parcela em aberto com menor `NUM_PARCELA` (1 mês de juros daquele contrato específico) — sem chave em CONFIGURACOES. Checkbox "Assumir o risco e dispensar a entrada mínima" no `RenegociacaoModal` envia `assumirRisco:true`, que pula essa checagem mas nunca aceita `valorEntrada <= 0`. Entrada `R$0` (checkbox marcado, campo vazio) pula a proposta/PIX inteiramente e chama `renegociarContrato` direto, sem Motor de Undo, com prefixo `"[SEM ENTRADA - RISCO ASSUMIDO] "` na observação
+- Detalhes da fórmula de alocação/arredondamento em `docs/ai-memory/03-AI-FINANCIAL-CALCULATIONS.md`; racional de negócio (por que entrada obrigatória, por que sem teto de parcelas) em `docs/ai-memory/02-AI-CREDIT-RULES.md`
 
 ### ZapSign (assinatura eletrônica)
 - **Token**: hardcoded em `appscript.gs` linha ~16 (`ZAPSIGN_TOKEN`)

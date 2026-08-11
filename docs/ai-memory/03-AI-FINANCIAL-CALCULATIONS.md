@@ -44,6 +44,50 @@ Antecipações devem:
 
 ---
 
+## PIX — Encargos de Mora ao Regenerar Cobrança Vencida (2026-08-10)
+
+Cobv Efí normal (parcela regular, não somente_juros) é criado com `validadeAposVencimento: 30`
+(`api/efi-charges.js`, `api/efi-pix-avulso.js`) — passados 30 dias de atraso a Efí recusa o pagamento
+mesmo com o código antigo ainda salvo na planilha, e a Efí calcula multa/juros de mora **dinamicamente**
+(payload `valor.multa`/`valor.juros`, modalidade 2) em cima de `calendario.dataDeVencimento`.
+
+**O problema**: pra criar/atualizar um cobv, `calendario.dataDeVencimento` precisa ser hoje-ou-futuro
+(uma data no passado faria a cobv nascer com a janela de validade já expirada). Isso significa que toda
+vez que uma parcela vencida é regenerada, a data é adiantada pra hoje — o que reseta o "relógio" que a
+Efí usaria pra calcular a mora dinamicamente. Sem correção, o cliente pagaria só o valor base da parcela,
+sem nenhum encargo, mesmo estando há dezenas de dias em atraso.
+
+**A regra**, aplicada em `api/efi-charges.js` e `api/efi-pix-avulso.js`:
+
+```
+diasAtraso = hoje − DATA_VENCIMENTO original da parcela   (nunca DATA_ACORDO — ver abaixo)
+
+se diasAtraso > 30:
+    multaValor = valorParcela × (EFI_MULTA_PCT / 100)              // 2% (default)
+    jurosValor = valorParcela × (EFI_JUROS_DIARIO / 100) × diasAtraso  // 0,03%/dia (default)
+    valor.original = valorParcela + multaValor + jurosValor        // embute os encargos, valor fixo
+    → NÃO inclui valor.multa/valor.juros dinâmicos (evitaria cobrar 2×)
+senão:
+    valor.original = valorParcela                                  // sem alteração
+    → mantém valor.multa/valor.juros dinâmicos normalmente
+```
+
+`EFI_MULTA_PCT`/`EFI_JUROS_DIARIO` são os MESMOS valores (env vars) que a Efí já usava no cálculo
+dinâmico — a fórmula manual só replica o que a Efí faria, ela não introduz uma taxa nova.
+
+**`DATA_ACORDO` (reagendamento) é sempre ignorada nesse cálculo.** Reagendamento é só o registro da
+promessa do cliente (perceção de honestidade/relacionamento) — não altera a dívida real nem a data de
+referência da cobrança. Isso vale tanto pra detecção de "PIX expirado" no `ContratoModal` quanto pra
+`_regenerarPixVencidos` (rotina automática, `appscript.gs`).
+
+**Escopo da regeneração** — botão "Gerar PIX novamente" (`ContratoModal`, `main.jsx`): avalia cada
+parcela em aberto do contrato independentemente pela própria `DATA_VENCIMENTO`; só regenera as que estão
+com mais de 30 dias de atraso, ignora as demais (o PIX delas ainda é válido na Efí — recalcular sem
+necessidade quebraria o cálculo dinâmico de mora que já estava correto). Detalhes completos e histórico
+do bug em `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-08-10).
+
+---
+
 ## Quitação
 
 Ao quitar um contrato:
@@ -64,6 +108,31 @@ valorFinal    = soma(VALOR_PRINCIPAL) + soma(VALOR_JUROS) − desconto
 O desconto é rateado por parcela proporcionalmente ao juros dela: `descontoParcela = desconto × (jurosParcela / totalJurosSelecionados)`.
 
 **Se um novo canal de quitação antecipada for adicionado**, ele deve calcular o preview com essa mesma fórmula (`gerarPropostaQuitacaoPix` já faz isso) — nunca reimplementar o cálculo de desconto separadamente, para não divergir do valor que `registrarQuitacaoAntecipada` efetivamente grava.
+
+---
+
+## Renegociação — Alocação da Entrada e Sugestão de Parcelamento (2026-08-06)
+
+A entrada obrigatória da Renegociação Estrutural (`gerarPropostaRenegociacao`/`renegociarContrato`, ver `MANUAL_OPERACIONAL.md` 5.9) é dinheiro real recebido, não um desconto — por isso abate o **saldo devedor diretamente**, capital primeiro e só o excedente nos juros (nunca o inverso, mesma regra de nunca descontar principal):
+
+```
+entradaSobreCapital = min(valorEntrada, capitalFaltante)
+entradaSobreJuros   = min(max(0, valorEntrada - entradaSobreCapital), jurosEmAberto)
+capitalFaltante_novo = capitalFaltante - entradaSobreCapital
+jurosEmAberto_novo   = jurosEmAberto   - entradaSobreJuros
+saldoRestante         = capitalFaltante_novo + jurosEmAberto_novo
+```
+
+Sugestão de parcelamento (sem teto de quantidade — decisão consciente, ver `02-AI-CREDIT-RULES.md`), a partir do valor que o cliente disse que consegue pagar por mês:
+
+```
+qtdSugerida       = max(1, ceil(saldoRestante / valorDesejadoPeloCliente))
+valorParcelaFinal = ceil(saldoRestante / qtdSugerida)   // arredonda pra cima, igual entre todas as parcelas
+```
+
+**Guarda-corpo obrigatório:** `valorEntrada` deve ser estritamente menor que o saldo total (`capitalFaltante + jurosEmAberto`), nunca `>=`. Se fosse igual, `saldoRestante` ficaria zero e a fórmula geraria uma "parcela de R$0" — que `renegociarContrato` rejeita (`novaValorParcela <= 0`), só que **depois** da entrada já ter sido confirmada paga pelo webhook, deixando dinheiro recebido sem uma renegociação correspondente. Contrato que teria entrada cobrindo o saldo inteiro deve usar Quitação Antecipada, não Renegociação.
+
+O pagamento da entrada é registrado em PAGAMENTOS com `TIPO_PAGAMENTO = "entrada_renegociacao"` e `ID_PARCELA` vazio — mesmo padrão do `abatimento_acordo_assistido` (não fica preso a uma parcela específica, já que todas as parcelas antigas serão fechadas como `renegociado` de qualquer forma). Consequência: `calcularMetricasCliente` inclui esse valor em `TOTAL_PAGO` (só exclui `abatimento_acordo_assistido`), mas **não** em `LUCRO_TOTAL` — o lucro de juros só é reconhecido quando a parcela correspondente é efetivamente paga com `STATUS = pago`, e a parte de juros que a entrada cobriu já está refletida no `VALOR_JUROS` menor das novas parcelas (`novoJurosParcela = max(0, (totalRenegociado - capitalFaltante_novo) / qtdSugerida)`). Não há double-count nem perda de rastreio, só diferimento — mesmo raciocínio já usado pelo abatimento de Acordo Assistido.
 
 ---
 

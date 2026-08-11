@@ -43,16 +43,35 @@ export default async function handler(req, res) {
 
     const nowBR    = new Date(Date.now() - 3 * 60 * 60 * 1000);
     const todayStr = nowBR.toISOString().slice(0, 10);
-    let dataVenc   = parcela.dataVencimento ? String(parcela.dataVencimento).slice(0, 10) : todayStr;
-    if (dataVenc < todayStr) dataVenc = todayStr;
+    const dataVencRaw = parcela.dataVencimento ? String(parcela.dataVencimento).slice(0, 10) : todayStr;
+    const dataVenc = dataVencRaw < todayStr ? todayStr : dataVencRaw;
+
+    // Mesmo raciocínio de api/efi-charges.js: calendario.dataDeVencimento precisa ser
+    // hoje-ou-futuro, o que reseta o cálculo dinâmico de multa/juros da Efí. Passado 30 dias
+    // de atraso real (DATA_VENCIMENTO original — nunca data de acordo/reagendamento, que é só
+    // registro de promessa, não muda a dívida), calcula o encargo acumulado e embute no valor.
+    const diasAtraso = Math.round(
+      (new Date(todayStr + "T00:00:00Z") - new Date(dataVencRaw + "T00:00:00Z")) / 86400000
+    );
+    const valorBase = parseFloat(parcela.valorParcela || 0);
+    let valorFinal = valorBase;
+    let encargosDinamicos = true;
+    if (diasAtraso > 30) {
+      const multaValor = valorBase * (parseFloat(EFI_MULTA_PCT) / 100);
+      const jurosValor = valorBase * (parseFloat(EFI_JUROS_DIARIO) / 100) * diasAtraso;
+      valorFinal = valorBase + multaValor + jurosValor;
+      encargosDinamicos = false; // já embutido no valor — evita cobrar 2x quando o cliente pagar
+    }
 
     const payload = {
       calendario: { dataDeVencimento: dataVenc, validadeAposVencimento: 30 },
       ...(cpf.length === 11 ? { devedor: { cpf, nome: String(cliente?.nome || "") } } : {}),
       valor: {
-        original: parseFloat(parcela.valorParcela || 0).toFixed(2),
-        multa:  { modalidade: 2, valorPerc: EFI_MULTA_PCT },
-        juros:  { modalidade: 2, valorPerc: EFI_JUROS_DIARIO },
+        original: valorFinal.toFixed(2),
+        ...(encargosDinamicos ? {
+          multa: { modalidade: 2, valorPerc: EFI_MULTA_PCT },
+          juros: { modalidade: 2, valorPerc: EFI_JUROS_DIARIO },
+        } : {}),
       },
       chave: process.env.EFI_PIX_KEY,
       solicitacaoPagador: `Parcela ${parcela.numParcela} de ${parcela.totalParcelas || "?"} - ${idContrato}`,

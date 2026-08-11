@@ -81,6 +81,8 @@ Status terminais (nunca reabrir): `pago`, `quitacao_antecipada`, `baixado_como_p
 
 **Parcelas em Acordo Assistido:** permanecem com status `atrasado` no Sheets. O sistema as exclui da aba Cobrança via filtro pelo STATUS_CONTRATO, não pelo status da parcela.
 
+**`DATA_ACORDO` (reagendamento, 2026-08-10):** data que o cliente prometeu pagar quando não realizou o pagamento na `DATA_VENCIMENTO` original, ou já sabe que não vai conseguir cumpri-la. É **só um registro da previsão/promessa** — pesa na percepção de honestidade e relacionamento do cliente com a empresa, mas **não gera nenhum efeito no sistema**: não altera a dívida real, não é usada em cálculo de atraso, encargo, ou expiração/regeneração de PIX. Toda lógica de cobrança usa exclusivamente a `DATA_VENCIMENTO` original, sempre. Ver `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (entrada 2026-08-10) para o bug causado por uma tentativa incorreta de tratar `DATA_ACORDO` como data efetiva.
+
 ---
 
 ## Pagamento

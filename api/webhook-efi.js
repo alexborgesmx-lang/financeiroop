@@ -2,7 +2,8 @@ const APP_SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbynQKpafDbaBTT-jqs4nCSzbbx8A72MAqDyGxwy86lIt0ykZxeFT8IdlO7zjj0rJEHy7Q/exec";
 
 // txid formats:
-//   Quitação: "FOQT" + contractNum padded 16 + "Q" + "00001" = 26 chars (may have R1/R2 suffix)
+//   Quitação:    "FOQT" + contractNum padded 16 + "Q" + "00001" = 26 chars (may have R1/R2 suffix)
+//   Renegociação:"FOEN" + contractNum padded 16 + "E" + "00001" = 26 chars (may have R1/R2 suffix)
 //   SJ:       "FOPSJ" + contractNum padded 14 + "P" + parcelaNum padded 6 = 26 chars
 //   Normal:   "FOP"  + contractNum padded 16 + "P" + parcelaNum padded 6 = 26 chars
 function parseTxid(txid) {
@@ -12,6 +13,13 @@ function parseTxid(txid) {
     const base = txid.replace(/R[12]$/, "");
     const contractNum = parseInt(base.slice(4, 20));
     if (!isNaN(contractNum)) return { contractNum, isQuitacao: true };
+    return null;
+  }
+  // Renegociação (entrada) — FOEN prefix (may have R1/R2 suffix stripped out by Efí)
+  if (txid.startsWith("FOEN")) {
+    const base = txid.replace(/R[12]$/, "");
+    const contractNum = parseInt(base.slice(4, 20));
+    if (!isNaN(contractNum)) return { contractNum, isRenegociacaoEntrada: true };
     return null;
   }
   if (txid.startsWith("FOPSJ") && txid.length === 26) {
@@ -56,6 +64,13 @@ export default async function handler(req, res) {
         if (parsed.isQuitacao) {
           gasBody = {
             action: "pagamentoQuitacaoWebhook",
+            txid: txid,
+            valor: parseFloat(valor),
+            data: horario,
+          };
+        } else if (parsed.isRenegociacaoEntrada) {
+          gasBody = {
+            action: "pagamentoRenegociacaoWebhook",
             txid: txid,
             valor: parseFloat(valor),
             data: horario,
