@@ -903,7 +903,7 @@ verificarPropostasRenegociacaoExpiradas()  // marca EXPIRADO propostas PENDENTE 
 | Dashboard | KPIs, Em Atraso, últimos pagamentos |
 | Clientes | Lista + ClienteModal (perfil/editar/contratos/todos os dados) |
 | Contratos | Lista + ContratoModal (parcelas com dias de atraso/pagamentos). Botão "Contabilidade" exporta CSV (ID/nome/CPF/RG/e-mail/telefone/CEP/endereço/valor total) por período escolhido, pro contador emitir nota fiscal — mesma lógica do relatório automático do dia 22 (ver "Padrões do GAS") |
-| Cobrança | Parcelas vencidas agrupadas por cliente |
+| Cobrança | Parcelas vencidas agrupadas por cliente. Card KPI clicável "🆕 Novos em Atraso na 1ª Parcela" (2026-08-11) destaca clientes com 1 único contrato na vida cuja `NUM_PARCELA===1` está atrasada — sinal de maior risco (cliente novo que já falhou na primeira cobrança). Badge inline "🆕 1ª parcela" nessas linhas mesmo sem o filtro ativo, mobile e desktop, + botão verde "WhatsApp" que abre `wa.me` com mensagem pronta via `abrirWhatsAppNovoAtraso1` (`main.jsx`, independente da `abrirWhatsApp` legada — essa é código morto, nunca chamada em nenhum outro ponto do arquivo). Lógica deriva 100% client-side (`totalContratosPorCliente` + `isNovoAtraso1`), sem campo novo no Sheets; usa a mesma fonte de atraso (`STATUS` da planilha) que o resto da fila `cobItems`, não `statusEfetivo()`, pra evitar divergência entre o card e a lista geral |
 | Financeiro | Histórico de pagamentos filtrado por período |
 | Carteira | Carteira de crédito: KPIs, distribuição por faixa de atraso, PDD Gerencial v1.0, Resultado Ajustado ao Risco |
 | Perdas & Recuperação | Contratos baixados, acordos, recuperações |
