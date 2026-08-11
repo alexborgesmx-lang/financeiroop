@@ -18,10 +18,9 @@ usa todo dia, sem precisar caçar.
 ## Escopo
 
 Aplica-se à aba **Cobrança** (`tab==="cobranca"` em `src/main.jsx`), reaproveitando a
-infraestrutura já existente: o `useMemo` `cobItems` (linhas ~6334–6374, agrupa parcelas
-atrasadas por cliente), o array de `KpiCard`s clicáveis com filtro (linhas ~7632–7644,
-padrão `toggleFiltro`/`filtroAtivo`/`cobItemsFiltrados`), e a função `abrirWhatsApp`
-(linhas ~5073–5079).
+infraestrutura já existente: o `useMemo` `cobItems` (linhas 6334–6374, agrupa parcelas
+atrasadas por cliente), o array de `KpiCard`s clicáveis com filtro (linhas 7632–7644,
+padrão `toggleFiltro`/`filtroAtivo`/`cobItemsFiltrados`).
 
 ### Fora de escopo
 
@@ -103,10 +102,18 @@ card.
 ### 3. Botão de contato via WhatsApp
 
 Nas linhas marcadas com o badge acima (e apenas nelas — não em todas as linhas da fila),
-um botão verde de WhatsApp que chama `abrirWhatsApp(telefone, nomeCliente)`, adaptado
-para aceitar uma mensagem customizada (hoje a função tem texto fixo; passa a receber um
-parâmetro opcional de mensagem, mantendo o texto atual como default para as outras
-chamadas existentes no arquivo).
+um botão verde de WhatsApp que abre o `wa.me` com o número do cliente e uma mensagem
+pronta.
+
+**Nota de implementação:** existe uma função `abrirWhatsApp(telefone, nomeCliente)`
+(linha 5073) no arquivo, mas ela nunca é chamada em nenhum outro ponto do código — é
+código morto, com uma mensagem fixa de "contrato finalizado com sucesso" que não tem
+relação com esta feature. Estendê-la não traria reuso real (nada mais depende dela) e
+acoplaria uma feature de cobrança a uma função de encerramento de contrato. Em vez
+disso, criar uma função nova e dedicada, `abrirWhatsAppNovoAtraso1(telefone, nome,
+dias)`, replicando o mesmo padrão de normalização de telefone (remove não-dígitos,
+garante prefixo `55`, valida tamanho mínimo, `alert` se telefone ausente/inválido) já
+usado em `abrirWhatsApp` — sem depender dela.
 
 Mensagem sugerida para este caso:
 
