@@ -923,9 +923,15 @@ function pagamentoRenegociacaoWebhook(txid, valor, data) {
       }
     }
     var primeiroNome = nomeCliente.split(" ")[0];
-    var texto = primeiroNome + ", recebemos sua entrada de R$ " + valorEntrada.toFixed(2) +
-      " e seu contrato foi renegociado! Novo carne: " + qtdSugerida + "x de R$ " + valorParcelaFinal.toFixed(2) +
-      ". Em breve voce recebe o PIX de cada parcela por aqui.";
+    var dtPrimeiraParcela = parseDateLocal(novoVencimento);
+    var dtPrimeiraStr     = Utilities.formatDate(dtPrimeiraParcela, "America/Sao_Paulo", "dd/MM/yyyy");
+    var diaVencStr        = String(dtPrimeiraParcela.getDate()).padStart(2, "0");
+    var texto = primeiroNome + ", recebemos sua entrada de R$ " + valorEntrada.toFixed(2).replace(".", ",") +
+      " e a renegociação do seu contrato foi concluída com sucesso. ✅\n\n" +
+      "O novo acordo ficou em *" + qtdSugerida + " parcelas de R$ " + valorParcelaFinal.toFixed(2).replace(".", ",") +
+      "*, com vencimento todo dia *" + diaVencStr + "*, a partir de *" + dtPrimeiraStr + "*.\n\n" +
+      "A partir de agora, os pagamentos voltam à normalidade, porém seguindo os *novos valores e condições acordados*.\n\n" +
+      "Qualquer dúvida, estamos à disposição.";
 
     if (!tel) {
       Logger.log("pagamentoRenegociacaoWebhook: telefone nao encontrado pro cliente " + idCliente);
@@ -975,8 +981,11 @@ function verificarPropostasRenegociacaoExpiradas() {
 // NAO toca em CONTRATOS/PARCELAS/PAGAMENTOS de ninguem — seguro rodar quantas vezes quiser.
 function _testarConfirmacaoRenegociacao() {
   var tel = _getCfg("TEL_ALEX_NOTIFICACOES") || "5562984877843";
-  var texto = "TESTE — Ronan, recebemos sua entrada de R$ 1500.00 e seu contrato foi renegociado! " +
-    "Novo carne: 11x de R$ 2973.00. Em breve voce recebe o PIX de cada parcela por aqui.";
+  var texto = "TESTE — Ronan, recebemos sua entrada de R$ 1500,00 e a renegociação do seu contrato foi " +
+    "concluída com sucesso. ✅\n\nO novo acordo ficou em *11 parcelas de R$ 2973,00*, com vencimento todo " +
+    "dia *05*, a partir de *05/09/2026*.\n\n" +
+    "A partir de agora, os pagamentos voltam à normalidade, porém seguindo os *novos valores e condições acordados*.\n\n" +
+    "Qualquer dúvida, estamos à disposição.";
   var enviou = _enviarWppRegua(tel, texto);
   _logMensagem({
     idCliente: "TESTE", idContrato: "TESTE", telefone: tel,
