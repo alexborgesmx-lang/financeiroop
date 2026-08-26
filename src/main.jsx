@@ -4453,8 +4453,8 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
                 {l:"Total pago até hoje",v:fmtR(totalPago),c:totalPago>0?GRN:MUTED},
                 ...(parseInt(contrato.TOTAL_SOMENTE_JUROS||0)>0?[{
                   l:"Prorrogações usadas",
-                  v:`${contrato.TOTAL_SOMENTE_JUROS}/2`,
-                  c:parseInt(contrato.TOTAL_SOMENTE_JUROS)>=2?RED:YEL
+                  v:`${contrato.TOTAL_SOMENTE_JUROS}`,
+                  c:parseInt(contrato.TOTAL_SOMENTE_JUROS)>=3?RED:YEL
                 }]:[]),
                 ...(pendentes.length===0&&!stLoss?[{
                   l:"Encerramento",
