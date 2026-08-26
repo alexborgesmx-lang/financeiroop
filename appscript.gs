@@ -1063,7 +1063,7 @@ function onOpen() {
     .addItem("Backup: Configurar Trigger Diário (2h)", "configurarTriggerBackup")
     .addItem("Régua: Configurar Trigger Backup (8h)", "configurarTriggerRegua")
     .addItem("Contabilidade: Gerar Relatório Agora (teste)", "testarRelatorioContabilidadeMensal")
-    .addItem("Contabilidade: Configurar Trigger Dia 22 (rodar 1x)", "configurarTriggerRelatorioContabilidade")
+    .addItem("Contabilidade: Configurar Trigger Dia 20 (rodar 1x)", "configurarTriggerRelatorioContabilidade")
     .addItem("Manutenção: Recalcular JUROS_TOTAL histórico", "recalcularTotaisContratosHistorico")
     .addSeparator()
     .addItem("Quitacao: Criar Aba QUITACOES (rodar 1x)", "_garantirTabelaQuitacoes")
@@ -9439,7 +9439,7 @@ function configurarTriggerBackup() {
   SpreadsheetApp.getUi().alert("Trigger de backup configurado: todo dia às 2h.");
 }
 
-// ─── RELATÓRIO MENSAL DE CONTABILIDADE (dia 22) ────────────────────────────
+// ─── RELATÓRIO MENSAL DE CONTABILIDADE (dia 20) ────────────────────────────
 // Mesma lógica/colunas do botão "Contabilidade" da aba Contratos
 // (exportarCSVContabilidade em src/main.jsx) — reimplementada aqui porque o
 // export do frontend roda no navegador (Blob+download) e não pode ser
@@ -9603,10 +9603,10 @@ function configurarTriggerRelatorioContabilidade() {
   });
   ScriptApp.newTrigger("gerarRelatorioContabilidadeMensal")
     .timeBased()
-    .onMonthDay(22)
+    .onMonthDay(20)
     .atHour(8)
     .create();
-  SpreadsheetApp.getUi().alert("Trigger configurado: Relatório de Contabilidade será gerado e enviado todo dia 22 às 8h.");
+  SpreadsheetApp.getUi().alert("Trigger configurado: Relatório de Contabilidade será gerado e enviado todo dia 20 às 8h.");
 }
 
 // Wrapper só pro menu manual — gerarRelatorioContabilidadeMensal() é chamada

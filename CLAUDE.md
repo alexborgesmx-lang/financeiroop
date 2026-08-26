@@ -507,10 +507,10 @@ fazerBackupAutomatico()     // copia a planilha inteira para pasta "FinanceiroOp
 configurarTriggerBackup()   // registra o trigger diário (rodar 1x manual)
 ```
 
-**Relatório Automático de Contabilidade (dia 22, 2026-07-22):** todo dia 22 às 8h, gera o mesmo CSV do botão manual "Contabilidade" (aba Contratos) cobrindo do dia 1 ao dia 22 do mês corrente (corte parcial — contratos feitos depois do dia 22 não entram, complementar via botão manual). Entrega **só por WhatsApp** (sem e-mail) pro Alex e direto pro contador, com link do arquivo no Drive.
+**Relatório Automático de Contabilidade (dia 20, criado 2026-07-22, movido de dia 22 → dia 20 em 2026-08-21):** todo dia 20 às 8h, gera o mesmo CSV do botão manual "Contabilidade" (aba Contratos) cobrindo do dia 1 ao dia 20 do mês corrente (corte parcial — contratos feitos depois do dia 20 não entram, complementar via botão manual). Entrega **só por WhatsApp** (sem e-mail) pro Alex e direto pro contador, com link do arquivo no Drive.
 ```javascript
 gerarRelatorioContabilidadeMensal()          // gera CSV + salva no Drive ("Relatórios Contabilidade", últimas 12) + WhatsApp pros dois
-configurarTriggerRelatorioContabilidade()    // registra o trigger dia 22 às 8h (rodar 1x manual)
+configurarTriggerRelatorioContabilidade()    // registra o trigger dia 20 às 8h (rodar 1x manual)
 testarRelatorioContabilidadeMensal()         // wrapper de teste manual, com alert() de resultado (a função principal não pode chamar getUi() pois roda também via trigger sem UI)
 ```
 Config em CONFIGURACOES: `TEL_ALEX_NOTIFICACOES`, `TEL_CONTADOR`, `ULTIMO_MES_RELATORIO_CONTABIL` (trava de idempotência). Arquivo no Drive compartilhado como `DriveApp.Access.ANYONE_WITH_LINK` — decisão consciente do Alex (simplicidade > restringir por conta Google do contador), CPF/RG/endereço dos clientes ficam expostos a quem tiver o link. Detalhes e gotcha de permissão OAuth (`script.scriptapp` em `appsscript.json`) em `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-07-22).
@@ -901,7 +901,7 @@ verificarPropostasRenegociacaoExpiradas()  // marca EXPIRADO propostas PENDENTE 
 |---|---|
 | Dashboard | KPIs, Em Atraso, últimos pagamentos |
 | Clientes | Lista + ClienteModal (perfil/editar/contratos/todos os dados) |
-| Contratos | Lista + ContratoModal (parcelas com dias de atraso/pagamentos). Botão "Contabilidade" exporta CSV (ID/nome/CPF/RG/e-mail/telefone/CEP/endereço/valor total) por período escolhido, pro contador emitir nota fiscal — mesma lógica do relatório automático do dia 22 (ver "Padrões do GAS") |
+| Contratos | Lista + ContratoModal (parcelas com dias de atraso/pagamentos). Botão "Contabilidade" exporta CSV (ID/nome/CPF/RG/e-mail/telefone/CEP/endereço/valor total) por período escolhido, pro contador emitir nota fiscal — mesma lógica do relatório automático do dia 20 (ver "Padrões do GAS") |
 | Cobrança | Parcelas vencidas agrupadas por cliente. Card KPI clicável "🆕 Novos em Atraso na 1ª Parcela" (2026-08-11) destaca clientes com 1 único contrato na vida cuja `NUM_PARCELA===1` está atrasada — sinal de maior risco (cliente novo que já falhou na primeira cobrança). Badge inline "🆕 1ª parcela" nessas linhas mesmo sem o filtro ativo, mobile e desktop, + botão verde "WhatsApp" que abre `wa.me` com mensagem pronta via `abrirWhatsAppNovoAtraso1` (`main.jsx`, independente da `abrirWhatsApp` legada — essa é código morto, nunca chamada em nenhum outro ponto do arquivo). Lógica deriva 100% client-side (`totalContratosPorCliente` + `isNovoAtraso1`), sem campo novo no Sheets; usa a mesma fonte de atraso (`STATUS` da planilha) que o resto da fila `cobItems`, não `statusEfetivo()`, pra evitar divergência entre o card e a lista geral |
 | Financeiro | Histórico de pagamentos filtrado por período |
 | Carteira | Carteira de crédito: KPIs, distribuição por faixa de atraso, PDD Gerencial v1.0, Resultado Ajustado ao Risco |

@@ -806,6 +806,14 @@ O arquivo CSV compartilhado tem CPF/RG/endereço completo dos clientes do mês. 
 ### Status
 Resolvido/Em produção (2026-07-22) — testado e confirmado funcionando por Alex (CSV correto, WhatsApp chegando pros dois números, link abrindo certo).
 
+### Nota (2026-08-21) — dia do trigger movido de 22 para 20
+A pedido do Alex, `configurarTriggerRelatorioContabilidade()` agora registra `onMonthDay(20)` em vez de `onMonthDay(22)` (código + label do menu + alert atualizados). Editar o código-fonte **não** reagenda um trigger já existente no GAS — triggers são objetos próprios do `ScriptApp`, independentes do código. Alex colou o `appscript.gs` atualizado no editor, publicou nova versão do Web App e rodou o menu "Contabilidade: Configurar Trigger Dia 20 (rodar 1x)" — a função deleta o trigger antigo (`onMonthDay(22)`) pelo nome do handler antes de criar o novo. **Status: concluído e confirmado** — o menu do Sheets já mostra o label "Dia 20" após republicar, evidência de que a nova versão está ativa. Próximo disparo automático real: 20/09/2026 às 8h (dia 20 de agosto já tinha passado quando o trigger foi movido, e o trigger antigo de dia 22 foi removido antes de chegar a disparar).
+
+### Tentativa não concluída (2026-08-21) — antecipar envio de agosto ao contador
+No mesmo dia, Alex pediu para antecipar manualmente o relatório de agosto (corte até 21/08) via WhatsApp pro contador, fora do calendário do trigger. Tentei disparar `testarRelatorioContabilidadeMensal()` clicando no menu do Sheets via automação de navegador — a automação não completou de forma confiável (coordenadas de clique instáveis entre screenshots) e foi abandonada a pedido do Alex. **Confirmado via busca no Drive: nenhum arquivo novo foi criado na pasta "Relatórios Contabilidade" nesse dia — o envio de agosto não saiu.** Não existe hoje nenhuma via de execução do GAS sem passar pela UI do Google (nem `clasp` nem uma `action` no `doPost` expõem essa função) — se precisar antecipar de novo, é rodar manualmente no Sheets: menu FinanceiroOp → "Contabilidade: Gerar Relatório Agora (teste)".
+
+Como parte dessa mesma conversa, foi desenhado (via skill de brainstorming) um botão "Enviar ao Contador" pra aba Contratos do site, que chamaria uma `action` nova no `doPost` (`dispararRelatorioContabilidadeAgora` → `gerarRelatorioContabilidadeMensal(forcar=true)`, reaproveitando o padrão já usado pelo botão "Disparar régua agora"). **O plano foi cancelado pelo Alex antes da implementação** — nenhum código desse botão foi escrito. Se o pedido voltar no futuro, o design já foi validado em conversa (não ficou salvo em spec file) e pode ser refeito rapidamente: mesmo padrão do botão de régua (`main.jsx` ~linha 8661).
+
 ---
 
 ## 2026-07-22 — Badge "Vence Hoje" aparecia em parcela já vencida ontem
