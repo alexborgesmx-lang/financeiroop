@@ -1316,6 +1316,76 @@ resposta bruta da API antes de assumir que é o mesmo bug.
 
 ---
 
+## 2026-08-11 — Qualquer emoji quebra em mensagens de WhatsApp pré-preenchidas (wa.me)
+
+### Problema
+A mensagem de boas-vindas enviada via `wa.me/...?text=...` (ver entrada de feature abaixo) mostrava um
+losango com interrogação no lugar do emoji inicial. Reportado pelo Alex com print, testando em produção
+— trocamos 🎉 por ✅ como primeira tentativa e **continuou quebrado**, o que derrubou a hipótese inicial.
+
+### Causa raiz (confirmada por teste direto, não por documentação de terceiros)
+**Primeira hipótese, testada e refutada:** achamos que era sobre emoji "astral" (fora do Plano Básico
+Multilíngue/BMP, U+10000+, que exige par substituto em UTF-16) — 🎉 é astral. Mas ✅ (U+2705) é BMP e
+quebrou do mesmo jeito, invalidando essa teoria.
+
+**Causa real**, isolada navegando direto para variações de `https://wa.me/<tel>?text=...` e inspecionando
+a URL final de redirecionamento (`https://api.whatsapp.com/send/?...&text=...`):
+- `text=✅ *Pagamento...*` → chegou como `text=%EF%BF%BD *Pagamento...*` (✅ virou U+FFFD, caractere de erro)
+- `text=Teste ✅ meio da frase` (emoji no meio, não na 1ª posição) → **também** quebrou
+- `text=Teste sem emoji, só • bullet e acento á/ó/º` → chegou 100% intacto
+
+Ou seja: não é sobre posição no texto nem sobre BMP/astral — **qualquer caractere com a propriedade
+Unicode `Emoji=Yes` é corrompido pelo próprio serviço de redirecionamento `wa.me`→
+`api.whatsapp.com/send`** (bug do lado do WhatsApp, fora do nosso controle), enquanto texto Unicode
+"normal" (acentos, º, bullet •, cedilha etc., que não carregam essa propriedade) passa ileso. Isso
+provavelmente também explica por que não tinha sido notado antes: nenhuma outra mensagem pré-preenchida
+via `wa.me` no sistema hoje usa emoji de verdade logo de cara — a maioria começa com `*texto em negrito*`.
+
+### Solução
+Removido o emoji das duas mensagens de boas-vindas (`_abrirWppNovo` e `_abrirBoasVindasWpp`, `main.jsx`)
+— nenhum emoji sobrevive ao link `wa.me`, então a correção real é não usar emoji nesse tipo de mensagem,
+não trocar por outro.
+
+### Débito técnico — não corrigido em outros lugares
+Levantamento rápido no arquivo (`ord(ch) > 0xFFFF`, cobre só astrais — o bug real é mais amplo que isso,
+cobre qualquer `Emoji=Yes`) encontrou outros emojis em mensagens pré-preenchidas de WhatsApp fora do
+escopo desta sessão — ex: proposta do Simulador (💰📅📈, `main.jsx` ~linha 5487-5490). Não mexido ainda.
+Se aparecer o mesmo losango quebrado em qualquer outra mensagem de WhatsApp do sistema, é o mesmo bug —
+tirar o emoji, não trocar por outro (nenhum emoji sobrevive a esse link).
+
+### Status
+Resolvido e deployado (2026-08-11) nas duas mensagens de boas-vindas, confirmado por teste direto no
+navegador (não apenas por leitura de documentação) antes do deploy final. Débito técnico documentado
+acima
+para o restante do app.
+
+---
+
+## 2026-08-11 — Botão de boas-vindas personalizado dependia de modal efêmero (feature)
+
+### Contexto
+A mensagem de WhatsApp enviada logo após o PIX cair na conta do cliente ("Enviar boas-vindas pelo
+WhatsApp", modal de sucesso do Novo Contrato) era 100% genérica — vários clientes perguntavam de volta
+se a data de vencimento da 1ª parcela e os valores estavam corretos. Personalizada para incluir valor
+transferido, quantidade de parcelas, valor da parcela e 1º vencimento (`_abrirWppNovo`, `main.jsx`).
+
+### Gap encontrado durante o teste
+O botão só existia nesse modal de sucesso, cujo estado (`contratoOk`) é local e efêmero — se o Alex
+fechasse o modal antes de mandar a mensagem (ex: esperando o cliente assinar no ZapSign primeiro, o que
+pode levar horas), perdia o acesso ao botão sem nenhuma forma de reenviar.
+
+### Solução
+Adicionado `_abrirBoasVindasWpp` + item "Enviar boas-vindas (WhatsApp)" no menu "Mais ações" do
+`ContratoModal` — mesma mensagem, mas lendo os dados direto do contrato já salvo
+(`contrato.VALOR_PRINCIPAL`/`NUM_PARCELAS`, `ps[0].VALOR_PARCELA`/`DATA_VENCIMENTO`) em vez do state
+efêmero do modal de criação. Funciona a qualquer momento depois da criação do contrato, quantas vezes
+precisar.
+
+### Status
+Resolvido e deployado (2026-08-11).
+
+---
+
 ## Débitos Técnicos
 
 - `_regenerarPixVencidos` (`appscript.gs`) dispara pela primeira vez aos 25 dias de atraso, mas só embute

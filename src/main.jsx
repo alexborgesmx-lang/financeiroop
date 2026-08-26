@@ -4069,7 +4069,7 @@ function NovoContrato({contratos,clientes,onSucesso,clienteInicial}){
   const _cliOk=contratoOk?(clientes||[]).find(c=>String(c.ID_CLIENTE||"").trim()===String(contratoOk.clienteId||"").trim()):null;
   const _telOk=contratoOk?String(_cliOk?.TELEFONE_WPP||_cliOk?.TELEFONE||"").replace(/\D/g,""):"";
   const _pmtOk=contratoOk?parseFloat(contratoOk.parcelas?.[0]?.valorParcela||0):0;
-  const _abrirWppNovo=()=>{if(!contratoOk)return;const tel=_telOk?`55${_telOk}`:'';const txt=`🎉 *Pagamento realizado com sucesso!*\n\nO valor já foi transferido para sua conta.\n\n*Informações importantes:*\n\n• Você receberá lembretes automáticos próximos aos vencimentos das parcelas.\n• O código PIX para pagamento será enviado automaticamente nas mensagens de cobrança.\n• Pagamentos realizados em dia aumentam seu *Score Interno*, podendo garantir melhores condições, limites maiores e taxas reduzidas em futuras operações.\n\nAgradecemos pela confiança.\n\n*Borges Assessoria*`;const url=tel?`https://wa.me/${tel}?text=${encodeURIComponent(txt)}`:'https://web.whatsapp.com';window.open(url,'_blank');setContratoOk(null);onSucesso();};
+  const _abrirWppNovo=()=>{if(!contratoOk)return;const tel=_telOk?`55${_telOk}`:'';const txt=`*Pagamento realizado com sucesso!*\n\nO valor de *${_fRc(parseFloat(contratoOk.principal))}* já foi transferido para sua conta.\n\n*Resumo do seu contrato:*\n• Parcelas: *${contratoOk.nParcelas}x* de *${_fRc(_pmtOk)}*\n• 1º vencimento: *${_fDvc(contratoOk.dtVenc)}*\n\n*Informações importantes:*\n\n• Você receberá lembretes automáticos próximos aos vencimentos das parcelas.\n• O código PIX para pagamento será enviado automaticamente nas mensagens de cobrança.\n• Pagamentos realizados em dia aumentam seu *Score Interno*, podendo garantir melhores condições, limites maiores e taxas reduzidas em futuras operações.\n\nAgradecemos pela confiança.\n\n*Borges Assessoria*`;const url=tel?`https://wa.me/${tel}?text=${encodeURIComponent(txt)}`:'https://web.whatsapp.com';window.open(url,'_blank');setContratoOk(null);onSucesso();};
   const _enviarZapSign=async()=>{
     if(!contratoOk||zapLoading)return;
     setZapLoading(true);setZapErro("");
@@ -4311,6 +4311,15 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
     window.open(tel?`https://wa.me/55${tel}`:`https://web.whatsapp.com`,"_blank");
   };
 
+  const _abrirBoasVindasWpp = () => {
+    const p0=ps[0];
+    const tel=normTel(cli?.TELEFONE_WPP||cli?.TELEFONE||"");
+    const nParc=contrato.NUM_PARCELAS||contrato.TOTAL_PARCELAS||ps.length;
+    const txt=`*Pagamento realizado com sucesso!*\n\nO valor de *${fmtR(parseFloat(contrato.VALOR_PRINCIPAL||0))}* já foi transferido para sua conta.\n\n*Resumo do seu contrato:*\n• Parcelas: *${nParc}x* de *${fmtR(parseFloat(p0?.VALOR_PARCELA||0))}*\n• 1º vencimento: *${fmtDt(p0?.DATA_VENCIMENTO)}*\n\n*Informações importantes:*\n\n• Você receberá lembretes automáticos próximos aos vencimentos das parcelas.\n• O código PIX para pagamento será enviado automaticamente nas mensagens de cobrança.\n• Pagamentos realizados em dia aumentam seu *Score Interno*, podendo garantir melhores condições, limites maiores e taxas reduzidas em futuras operações.\n\nAgradecemos pela confiança.\n\n*Borges Assessoria*`;
+    const url=tel?`https://wa.me/55${tel}?text=${encodeURIComponent(txt)}`:`https://web.whatsapp.com?text=${encodeURIComponent(txt)}`;
+    window.open(url,"_blank");
+  };
+
   const _enviarPixWpp = async () => {
     if (!pixCodeToShow || !proxParcela || pixWppLoad) return;
     setPixWppLoad(true); setPixWppOk(false); setPixWppErr("");
@@ -4543,6 +4552,7 @@ function ContratoModal({ contrato, parcelas, pagamentos, clientes, eventos, onRe
                 {maisAcoesOpen&&temAdm&&(
                   <div style={{position:"absolute",bottom:"calc(100% + 4px)",right:16,background:CARD,border:`1px solid ${BD}`,borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.14)",minWidth:200,zIndex:10,overflow:"hidden"}}>
                     <button onClick={()=>{setMaisAcoesOpen(false);if(_isContratoQuitado){const _pagsSemAbat=pags.filter(p=>p.TIPO_PAGAMENTO!=="abatimento_acordo_assistido");const _totPag=_pagsSemAbat.reduce((s,p)=>s+parseFloat(p.VALOR_PAGO||0),0);const _ultD=_pagsSemAbat.reduce((l,p)=>{const d=parseDate(p.DATA_PAGAMENTO);return d&&(!l||d>l)?d:l;},null);gerarComprovante(contrato,ps,cli,_totPag,_ultD);}else{gerarExtratoPDF(contrato,ps,pags,cli,eventos);}}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:TEXT,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoDoc} {_isContratoQuitado?"Comprovante de Quitação":"Extrato do Contrato"}</button>
+                    {ps.length>0&&<button onClick={()=>{setMaisAcoesOpen(false);_abrirBoasVindasWpp();}} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:"#25D366",cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoPhone} Enviar boas-vindas (WhatsApp)</button>}
                     <div style={{height:1,background:BD,margin:"4px 0"}}/>
                     {podeRegistrar&&pendentes.length>0&&!altVencOpen&&<button onClick={_openAltVenc} style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:TEXT,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left"}}>{IcoCal} Alterar vencimento</button>}
                     {podeRegistrar&&pendentes.length>0&&pixCodeToShow&&<button onClick={()=>{setMaisAcoesOpen(false);_gerarPix();}} disabled={pixLoad} title="Substitui o código PIX salvo por um novo, com a data e o valor recalculados" style={{width:"100%",padding:"11px 16px",border:"none",background:"transparent",color:TEXT,cursor:pixLoad?"default":"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,textAlign:"left",opacity:pixLoad?0.6:1}}>{IcoRepeat} Gerar PIX novamente</button>}
