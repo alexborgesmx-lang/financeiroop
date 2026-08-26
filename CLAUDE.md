@@ -888,11 +888,15 @@ verificarPropostasRenegociacaoExpiradas()  // marca EXPIRADO propostas PENDENTE 
 - **Endpoint envio**: `POST /send/text` com body `{ number, text, instanceId }` e header `apikey: <token_instancia>`
 - **ATENÇÃO**: Evolution GO usa **Token da Instância** (por instância), não API key global. Obtido em Instâncias → Configurações no painel.
 - **Configs no Sheets (CONFIGURACOES)**: `EVOLUTION_URL`, `EVOLUTION_KEY` (= Token da Instância), `EVOLUTION_INSTANCE`
-- **Instância atual (desde 2026-07-31)**: `borges-fp`, VPS `76.13.228.217`, porta `32773` — porta e nome de
+- **Instância atual (desde 2026-08-13)**: `borges-fp2`, VPS `76.13.228.217`, porta `32776` — porta e nome de
   instância já mudaram sozinhos mais de uma vez (histórico completo e causa em
-  `docs/ai-memory/07-AI-KNOWN-ISSUES.md`, entrada 2026-07-31). Se a régua parar de enviar, checar primeiro
+  `docs/ai-memory/07-AI-KNOWN-ISSUES.md`, entradas 2026-07-31 e 2026-08-13). Se a régua parar de enviar, checar primeiro
   se a porta do container `evolution-go-oizv-api-1` ainda bate com `EVOLUTION_URL` (Sheets) e
   `EVOLUTION_API_URL` (Vercel) antes de qualquer outro diagnóstico.
+- **Qualquer falha na automação de WhatsApp (régua, confirmação de pagamento, bot de triagem)**: seguir
+  `docs/ai-memory/08-AI-INCIDENT-PROTOCOL-WHATSAPP.md` — protocolo completo de diagnóstico (trigger → regra
+  → dados → infraestrutura Evolution GO) e registro de incidente. Não fazer diagnóstico ad-hoc quando esse
+  protocolo já existe.
 
 ---
 

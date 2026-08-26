@@ -1386,6 +1386,53 @@ Resolvido e deployado (2026-08-11).
 
 ---
 
+## 2026-08-13 — Evolution GO desconectado: 3 causas diferentes com o mesmo sintoma de tela
+
+### Contexto
+Instância WhatsApp (`borges-fp`) apareceu desconectada. Tentativa de reconectar travou em "Aguardando QR
+Code..." — visualmente idêntico ao bug de 2026-07-31 (nome de instância corrompido). Criar instância nova
+com nome diferente (`borges-fp2`, seguindo a lição de 07-31) **também travou do mesmo jeito**, provando
+que dessa vez não era a mesma causa.
+
+### Causa real (achada no log do contêiner, Gerenciador Docker → Logs)
+```
+Failed to create container: failed to upgrade database: failed to check if version table is up to date: pq: sorry, too many clients already
+```
+Postgres do Evolution GO com o pool de conexões esgotado — provavelmente acumulado pelas tentativas
+repetidas de reconectar `borges-fp` e depois `borges-fp2` presas em loop. Resolvido reiniciando a
+aplicação inteira (hPanel → Visão Geral → card "Evolution Go" → menu "⋮" → "Reiniciar" — reinicia API +
+Postgres juntos).
+
+### Efeito colateral do restart — falso alarme de perda de dados
+A porta do contêiner mudou de novo (`32773` → `32776` — 3ª vez que isso acontece, ver entrada de
+2026-07-30/31 e `docs/ai-memory/07-AI-KNOWN-ISSUES.md` mais acima). Acessar o painel pela porta antiga
+logo após o restart mostrava "Nenhuma instância encontrada" — parecia que o restart tinha apagado tudo.
+Não apagou nada; ao acessar pela porta nova, as duas instâncias (`borges-fp`, `borges-fp2`) reapareceram
+intactas.
+
+### Como o erro de porta foi confirmado
+Com o Postgres já limpo, criar instância continuava falhando (erro genérico "Erro ao criar instância").
+Log do contêiner não mostrava nem a tentativa de request. DevTools do navegador (F12) → Console mostrou o
+erro real: `net::ERR_CONNECTION_TIMED_OUT` + `AxiosError: timeout of 30000ms exceeded` numa URL ainda
+apontando pra porta antiga — confirmando que o cliente (navegador) estava desatualizado, não o servidor.
+
+### Solução
+Acessar `http://76.13.228.217:32776/manager` (porta nova), conectar `borges-fp2` (QR funcionou de
+primeira), atualizar `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`/`EVOLUTION_INSTANCE` na Vercel (`vercel env
+rm/add` + `vercel deploy --prod`) e `CONFIGURACOES.EVOLUTION_URL`/`EVOLUTION_KEY`/`EVOLUTION_INSTANCE` no
+Sheets (linhas 26-28). Testado com `curl -X POST .../send/text` → `"message":"success"`, confirmado
+recebido no WhatsApp real.
+
+### Lição — playbook consolidado
+Ver `docs/ai-memory/08-AI-INCIDENT-PROTOCOL-WHATSAPP.md` (Etapa 4) para o passo a passo completo de
+diagnóstico — QR travado tem pelo menos 2 causas distintas (nome de instância corrompido vs. Postgres
+saturado) que exigem correções diferentes, e sempre checar o log do contêiner antes de agir numa delas.
+
+### Status
+Resolvido (2026-08-13). Instância ativa: `borges-fp2`, porta `32776`.
+
+---
+
 ## Débitos Técnicos
 
 - `_regenerarPixVencidos` (`appscript.gs`) dispara pela primeira vez aos 25 dias de atraso, mas só embute
