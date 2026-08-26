@@ -216,7 +216,6 @@ Tempo estimado: 20–30 min.
    ☐ Multa: 2% do principal (cobrada via PIX Efí Bank no campo `multa.valor`), uma vez por contrato, após carência
    ☐ VALOR_PAGO = principal + max(0, juros − desconto)
    ☐ FEE_PRORROGACAO e RECEITA_EXTRA_ATRASO são campos separados — nunca somar ao mesmo destino
-   ☐ somente_juros: máx 2 por contrato (TOTAL_SOMENTE_JUROS)
 
 ☐ 4. Deploy → vercel deploy --prod
 
@@ -442,9 +441,9 @@ normalizarStatusParcela()        // migra variantes legado (paga, quitado, baixa
 - Backward compat: registros antigos têm fee em RECEITA_EXTRA_ATRASO (FEE_PRORROGACAO = 0). Somas financeiras usam `RECEITA_EXTRA_ATRASO + FEE_PRORROGACAO` para cobrir ambos
 
 **Campo `TOTAL_SOMENTE_JUROS` em CONTRATOS:**
-- Contador de quantas vezes o contrato usou `somente_juros` (máx 2)
+- Contador de quantas vezes o contrato usou `somente_juros` — **sem limite** (removido em 2026-08-26; fee de 5% + penalização de score sem teto já cobrem o risco que a trava existia pra evitar — detalhes em `docs/ai-memory/02-AI-CREDIT-RULES.md`)
 - Incrementado em `registrarPagamentoParcial`, decrementado em `reabrirParcelaAPI`
-- Visível no ContratoModal como badge "X/2 prorrogações" (amarelo=1, vermelho=2)
+- Visível no ContratoModal como badge "X prorrogações" (amarelo a partir de 1 uso, vermelho a partir de 3+)
 
 **Módulo Recuperação Judicial (2026-07-04):** `em_processo_judicial` não é status final — é o início de uma fase com duas dimensões independentes: `STATUS_PROCESSO` (situação processual, já existia) e `SITUACAO_FINANCEIRA_JUDICIAL` (situação financeira, novo). Só vira o status terminal `encerrado_judicialmente` quando resolvido. Ações disponíveis:
 ```javascript
