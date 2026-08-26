@@ -7572,14 +7572,17 @@ function App() {
                     <option value="ativo_em_atraso">Em Atraso</option>
                     <option value="em_cobranca">Em Cobrança</option>
                     <option value="pre_prejuizo">Pré-Prejuízo</option>
+                    <option value="acordo_assistido">Acordo Assistido</option>
                     <option value="baixado_como_prejuizo">Baixado</option>
                     <option value="em_recuperacao">Em Recuperação</option>
                     <option value="recuperado_parcialmente">Rec. Parcial</option>
                     <option value="recuperado_integralmente">Recuperado</option>
+                    <option value="encerrado_sem_recuperacao">Encerrado s/ Recuperação</option>
                     <option value="quitado">Quitado</option>
                     <option value="cancelado">Cancelado</option>
                     <option value="renegociado">Renegociado</option>
                     <option value="em_processo_judicial">Em Processo Judicial</option>
+                    <option value="encerrado_judicialmente">Encerrado Judicialmente</option>
                   </select>
                 </div>
                 <div style={{fontSize:13,color:MUTED,textAlign:mob?"right":"inherit"}}><strong>{contratosFiltrados.length}</strong> contrato{contratosFiltrados.length===1?"":"s"}</div>
