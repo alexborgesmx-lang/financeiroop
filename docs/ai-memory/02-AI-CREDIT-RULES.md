@@ -103,18 +103,20 @@ Contratos em `acordo_assistido` seguem regras especiais que **sobrepõem** as re
 
 ---
 
-## Pagamento Somente Juros — Política Formalizada (2026-06-19)
+## Pagamento Somente Juros — Política Formalizada (2026-06-19, revisada 2026-08-26)
 
 O `somente_juros` é uma prorrogação da parcela: cliente paga apenas os juros do mês e o principal é rolado para uma nova parcela criada automaticamente no final do contrato.
 
 ### Regras obrigatórias
 
-1. **Limite de 2 usos por contrato** — 3ª tentativa é bloqueada com erro claro. Campo `TOTAL_SOMENTE_JUROS` em CONTRATOS controla o contador.
+1. **Sem limite de usos por contrato** (removido em 2026-08-26 — ver nota abaixo). Campo `TOTAL_SOMENTE_JUROS` em CONTRATOS continua contando quantas vezes o contrato usou a função, só que sem bloquear.
 2. **Fee de 5% sobre o principal** — cobrado junto com os juros no mesmo pagamento (`vlPago = juros + fee`). Registrado em `FEE_PRORROGACAO` (campo separado de `RECEITA_EXTRA_ATRASO`).
-3. **Penalização no score: -10 pts por uso** — acumulativa sobre todos os contratos do cliente. Score recalculado após cada uso.
-4. **Parcela nova gerada automaticamente** — criada com `ORIGEM_PARCELA = "gerada_por_pagamento_de_juros"` e `ID_PARCELA_ORIGEM` apontando para a parcela original.
+3. **Penalização no score: -10 pts por uso** — acumulativa sobre todos os contratos do cliente, **sem teto**. Score recalculado após cada uso.
+4. **Parcela nova gerada automaticamente** — criada com `ORIGEM_PARCELA = "gerada_por_pagamento_de_juros"` e `ID_PARCELA_ORIGEM` apontando para a parcela original. A parcela nova herda o **mesmo principal e o mesmo juros** da parcela original adiada (`appscript.gs:3788`) — ou seja, o principal continua rendendo juro normalmente enquanto está em aberto, igual um empréstimo comum. Isso é o motivo pelo qual a função nunca reduz o lucro projetado do contrato: `JUROS_TOTAL` soma o juro de todas as parcelas (inclusive as geradas), então sobe a cada uso, nunca cai — o fee de 5% é margem adicional por cima disso.
 
 > **Nota (2026-06-20):** Requisito de score mínimo 60 removido. Qualquer cliente pode usar somente_juros independente do score — preferível receber ao menos os juros a não receber nada.
+
+> **Nota (2026-08-26):** Limite de 2 usos por contrato removido. A regra original existia pra evitar que o cliente criasse hábito de sempre prorrogar, corroendo o lucro do contrato — mas o fee de 5% (regra 2) e a penalização de score sem teto (regra 3), ambos adicionados depois da regra original, já cobrem esse risco de forma proporcional (quanto mais usa, pior fica score/taxa em contratos futuros) em vez de travar seco no 3º uso. Motivador: contrato PCL-106 (Acordo Assistido) já tinha 3 usos históricos, e travar contradiz o princípio da nota de 2026-06-20 ("preferível receber ao menos os juros a não receber nada"). Nenhuma ação retroativa necessária — `TOTAL_SOMENTE_JUROS` é só um contador, não há outro estado bloqueando contratos que já estavam no teto antigo.
 
 ### Contabilidade
 - `RECEITA_EXTRA_ATRASO` = mora/multa de atraso real (zero em somente_juros)
