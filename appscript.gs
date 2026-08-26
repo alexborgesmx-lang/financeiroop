@@ -3719,9 +3719,6 @@ function registrarPagamentoParcial(idParcela, data, valorRecebido, idContrato, n
       break;
     }
   }
-  if (totalSJAtual >= 2) {
-    throw new Error("Limite de 2 prorrogações por contrato atingido. Cliente deve quitar a parcela completa ou formalizar um acordo.");
-  }
   var feeProrrogacao = Math.round(parcelPrinc * 0.05 * 100) / 100;
   // Garantir coluna FEE_PRORROGACAO em PAGAMENTOS
   if (!cmPag["FEE_PRORROGACAO"]) {
