@@ -5181,7 +5181,11 @@ function enviarParaZapSign(docId, idContrato, nomeCliente, emailCliente, telefon
   var data = JSON.parse(resp.getContentText());
   var signers = data.signers || [];
   // index 0 = credor (Alex) — cliente recebe link por email automaticamente
-  return signers[0] ? signers[0].sign_url : "";
+  var credor = signers[0];
+  if (!credor) return "";
+  // sign_url às vezes vem vazio na criação do doc mesmo com sucesso — fallback documentado
+  // pela própria ZapSign: montar o link a partir do token do signatário
+  return credor.sign_url || (credor.token ? "https://app.zapsign.com.br/verificar/" + credor.token : "");
 }
 
 function buscarDadosBoleto(idContrato, idCliente) {

@@ -1289,6 +1289,33 @@ Resolvido e deployado (2026-08-10), mesmo dia do bug original. Confirmado funcio
 
 ---
 
+## 2026-08-11 — Erro falso "Erro ao enviar para ZapSign" com documento já enviado com sucesso
+
+### Problema
+Ao clicar "Enviar para ZapSign" no modal de sucesso do Novo Contrato, o app mostrava "Erro ZapSign: Erro
+ao enviar para ZapSign" — mas o Alex conferiu direto no painel da ZapSign e o documento estava lá,
+enviado corretamente. Achado testando a personalização da mensagem de boas-vindas (ver entrada abaixo).
+
+### Causa raiz
+`enviarParaZapSign` (`appscript.gs`) só lia `signers[0].sign_url` da resposta da API de criação do
+documento. A própria ZapSign documenta que esse campo pode vir vazio/null na resposta de criação **mesmo
+com o documento criado com sucesso** — o workaround oficial é montar o link manualmente a partir do
+`token` do signatário (`https://app.zapsign.com.br/verificar/{token}`). Sem esse fallback, `zapUrl`
+chegava vazio no frontend (`res.ok` verdadeiro, mas `res.zapUrl` falsy) e `_enviarZapSign` (`main.jsx`)
+caía no `else`, mostrando erro genérico apesar do envio ter funcionado.
+
+### Solução
+`enviarParaZapSign` agora retorna `credor.sign_url || (credor.token ? "https://app.zapsign.com.br/verificar/"+credor.token : "")`.
+Isolado nessa função — não mexe em `doPost`, no frontend nem em nenhum outro fluxo.
+
+### Status
+Resolvido, aguardando o Alex colar a nova versão do `appscript.gs` no editor do Apps Script e publicar
+(passo manual, instruído automaticamente após a edição). Se o erro voltar a aparecer com o documento
+presente no painel da ZapSign, é sinal de que `token` também veio vazio — nesse caso, investigar a
+resposta bruta da API antes de assumir que é o mesmo bug.
+
+---
+
 ## Débitos Técnicos
 
 - `_regenerarPixVencidos` (`appscript.gs`) dispara pela primeira vez aos 25 dias de atraso, mas só embute
