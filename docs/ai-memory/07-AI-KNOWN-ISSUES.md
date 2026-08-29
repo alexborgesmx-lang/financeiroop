@@ -77,7 +77,10 @@ régua, sem mexer no status — a rotina diária de "promessas vencidas" ainda p
 `QUEBRADA`. Fechar promessas na renegociação é follow-up separado.
 
 ### Status
-Resolvido — deploy GAS 2026-08-29. Rodar a função de correção histórica 1x após publicar.
+Resolvido — deploy GAS 2026-08-29. `corrigirPromessasQuebradasIndevidamente` rodada 1x:
+9 promessas em contrato quitado avaliadas, 7 corrigidas para CUMPRIDA (incl. PRM00067/Jeovanio),
+6 clientes recalculados. 2 mantidas QUEBRADA (PRM00014, PRM00058) — sem pagamento na janela,
+promessas genuinamente quebradas. Jeovanio: `PROMESSAS_QUEBRADAS` voltou a 0.
 
 ## 2026-08-10 — rotinaDiaria falhou em cascata: "You do not have permission to access the requested document."
 
