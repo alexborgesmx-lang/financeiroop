@@ -9784,21 +9784,67 @@ function recalcularTotaisContratosHistorico() {
   );
   if (resp !== ui.Button.YES) return;
 
-  var ss    = SpreadsheetApp.getActiveSpreadsheet();
-  var abaC  = ss.getSheetByName(ABAS.CONTRATOS);
-  var dados = abaC.getDataRange().getValues();
-  var cm    = buildColMap(abaC);
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var abaC = ss.getSheetByName(ABAS.CONTRATOS);
+  var abaP = ss.getSheetByName(ABAS.PARCELAS);
+  var cm   = buildColMap(abaC);
+  var cmP  = buildColMap(abaP);
+
+  var dadosC = abaC.getDataRange().getValues();
+  var dadosP = abaP.getDataRange().getValues();
+  var cIdP   = (cmP["ID_CONTRATO"]  || 2) - 1;
+  var cVJ    = (cmP["VALOR_JUROS"]  || 10) - 1;
+
+  // Soma juros/contagem de parcelas por contrato numa única passada em PARCELAS —
+  // a versão anterior chamava atualizarTotaisContrato() em loop, que rele CONTRATOS
+  // e PARCELAS inteiros a cada contrato; com a carteira atual isso estourava o
+  // limite de 6min do Apps Script antes de terminar (2026-08-29).
+  var somaPorContrato = {};
+  for (var j = 1; j < dadosP.length; j++) {
+    var idCt = String(dadosP[j][cIdP] || "").trim();
+    if (!idCt) continue;
+    if (!somaPorContrato[idCt]) somaPorContrato[idCt] = { count: 0, jurosTotal: 0 };
+    somaPorContrato[idCt].count++;
+    somaPorContrato[idCt].jurosTotal += parseFloat(dadosP[j][cVJ]) || 0;
+  }
+
+  var cIdC = (cm["ID_CONTRATO"]      || 1) - 1;
+  var cVP  = (cm["VALOR_PRINCIPAL"]  || 6) - 1;
+  var cTX  = (cm["TAXA_JUROS_MENSAL"]|| 8) - 1;
+
+  var nRows = dadosC.length - 1;
+  var numParcelasCol = []; // col 7 = NUM_PARCELAS
+  var blocoCol = [];       // cols 9-14 = TAXA_JUROS_TOTAL, JUROS_TOTAL, VALOR_TOTAL, VALOR_PARCELA, PARCELA_PRINCIPAL, PARCELA_JUROS
   var atualizados = 0;
 
-  for (var i = 1; i < dados.length; i++) {
-    var id = String(dados[i][(cm["ID_CONTRATO"]||1)-1]).trim();
-    if (!id) continue;
-    try {
-      atualizarTotaisContrato(id, ss);
-      atualizados++;
-    } catch(e) {
-      Logger.log("recalcularTotaisContratosHistorico: erro em " + id + " — " + e.message);
+  for (var i = 1; i < dadosC.length; i++) {
+    var id   = String(dadosC[i][cIdC]).trim();
+    var soma = id ? somaPorContrato[id] : null;
+
+    if (!soma || soma.count === 0) {
+      // sem parcelas (ou ID vazio) — preserva os valores já gravados na linha
+      numParcelasCol.push([dadosC[i][6]]);
+      blocoCol.push([dadosC[i][8], dadosC[i][9], dadosC[i][10], dadosC[i][11], dadosC[i][12], dadosC[i][13]]);
+      continue;
     }
+
+    var valorPrincipal = parseFloat(dadosC[i][cVP]) || 0;
+    var taxaMensal      = parseFloat(dadosC[i][cTX]) || 0;
+    var count           = soma.count;
+    var jurosTotal       = soma.jurosTotal;
+    var valorTotal        = valorPrincipal + jurosTotal;
+    var taxaTotal           = taxaMensal * count;
+
+    numParcelasCol.push([count]);
+    blocoCol.push([taxaTotal, jurosTotal, valorTotal, valorTotal / count, valorPrincipal / count, jurosTotal / count]);
+    atualizados++;
+  }
+
+  if (nRows > 0) {
+    abaC.getRange(2, 7, nRows, 1).setValues(numParcelasCol);
+    abaC.getRange(2, 9, nRows, 6).setValues(blocoCol);
+    abaC.getRange(2, 9, nRows, 1).setNumberFormat("0.00%");
+    abaC.getRange(2, 10, nRows, 5).setNumberFormat("R$ #,##0.00");
   }
 
   ui.alert("Concluído", "JUROS_TOTAL/VALOR_TOTAL/NUM_PARCELAS recalculados em " + atualizados + " contratos.", ui.ButtonSet.OK);
