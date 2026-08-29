@@ -1483,6 +1483,39 @@ Resolvido (2026-08-13). Instância ativa: `borges-fp2`, porta `32776`.
 
 ---
 
+## 2026-08-29 — `recalcularTotaisContratosHistorico` estourava "Exceeded maximum execution time"
+
+### Problema
+Primeira execução real da ferramenta (menu GAS → "Manutenção: Recalcular JUROS_TOTAL histórico",
+tentando corrigir o contrato PCL-106) travou aos 6min01s com `Exceeded maximum execution time`
+— mesma categoria de erro da entrada de `rotinaAnalitica` em 2026-08-01, mas em uma função de
+manutenção manual (um clique só), não num trigger automático recorrente.
+
+### Causa raiz
+A função chamava `atualizarTotaisContrato(id, ss)` em loop, uma vez por contrato — e essa
+função interna relia **CONTRATOS inteiro + PARCELAS inteiro do zero a cada chamada**. Com a
+carteira atual (267 contratos, PARCELAS com milhares de linhas), isso virava centenas de
+leituras completas da planilha — o gargalo é I/O do Apps Script, não CPU.
+
+### Solução
+Reescrita pra ler cada aba **uma única vez**: soma juros/contagem de parcelas por contrato em
+memória (mesmo padrão `somaPC` já usado em `auditarIntegridadeSistema`), depois grava tudo em
+2 chamadas `setValues()` em lote (uma coluna, um bloco de 6 colunas) em vez de 7 `setValue()`
+por contrato. `atualizarTotaisContrato` (usada em outros pontos, chamada 1x por operação, nunca
+em loop) não foi tocada — só a função de recálculo em massa.
+
+### Lição — mesmo padrão de outras entradas de timeout nesta sessão
+Qualquer função que processa **todos os contratos/parcelas de uma vez** (automática ou manual)
+deve ler cada aba do Sheets uma única vez e processar em memória — nunca reler a planilha inteira
+dentro de um loop por linha. Ver também a entrada de `backfillAbatimentosAssistidosHistorico`
+(2026-08-29, abaixo) — escrita já seguindo esse padrão desde o início.
+
+### Status
+Resolvido e testado em produção (2026-08-29) — segunda execução completou em segundos,
+recalculando 267 contratos sem erro.
+
+---
+
 ## 2026-08-29 — Contrato PCL-106 (Jessica): investigação de VALOR_TOTAL divergente virou feature nova
 
 ### Problema original

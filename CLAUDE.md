@@ -415,6 +415,12 @@ backfillTotalSomenteJuros()      // popula TOTAL_SOMENTE_JUROS em CONTRATOS cont
 diagnosticarLegado()             // READ-ONLY: conta valores legado; confirma "banco limpo" se tudo zero
 normalizarTipoPagamento()        // migra valores curtos (normal, com_atraso, antecipado) para formas longas
 normalizarStatusParcela()        // migra variantes legado (paga, quitado, baixado) para valores canônicos
+recalcularTotaisContratosHistorico()      // recalcula NUM_PARCELAS/JUROS_TOTAL/VALOR_TOTAL de todos os contratos
+                                          // somando as parcelas reais (1 leitura de cada aba + 2 setValues em lote —
+                                          // reescrito em 2026-08-29 após estourar 6min chamando atualizarTotaisContrato em loop)
+backfillAbatimentosAssistidosHistorico() // reaplica a cascata capital-primeiro (_alocarAbatimentoAssistido) sobre os
+                                          // abatimentos de Acordo Assistido já registrados, em ordem cronológica por
+                                          // contrato — rodar 1x após publicar a mudança de 2026-08-29
 ```
 
 **Campos CLIENTES calculados por `calcularMetricasCliente`:**
@@ -454,6 +460,14 @@ arquivarProcessoJudicial(idContrato, dados)     // encerra o processo; sem recup
 _alocarRecuperacaoJudicial(...)                 // cascata: custo do credor → principal → lucro → reembolso ao devedor
 ```
 Pagamento de parcela `acordo_judicial` passa pelo `registrarPagamentoAPI` normal (auto-detecta `ORIGEM_PARCELA`) — não tem action própria. `CLIENTE_JUDICIALIZADO` nunca é limpo (bloqueio permanente, validado em `criarContrato`). Detalhes completos em `docs/ai-memory/02-AI-CREDIT-RULES.md` e `03-AI-FINANCIAL-CALCULATIONS.md`.
+
+**Acordo Assistido — cascata capital-primeiro (2026-08-29):** cada abatimento assistido é alocado primeiro pro principal do contrato ainda em aberto (histórico inteiro — parcelas pagas integralmente, exceto `somente_juros`, mais abatimentos anteriores); só o excedente depois do principal 100% recuperado é reconhecido como lucro. Mesmo padrão da cascata judicial acima, sem honorários/custas.
+```javascript
+registrarAbatimentoAssistido(idContrato, dados)   // aplica a cascata e grava o pagamento
+_alocarAbatimentoAssistido(valorPago, capitalJaRecuperado, valorPrincipal)  // cascata pura: principal primeiro, sobra vira lucro
+_capitalRecuperadoParcelas(idContrato, dadosP, cmP)  // soma o principal já devolvido via parcelas (exceto somente_juros)
+```
+`VALOR_ABATIDO_ASSISTIDO` (CONTRATOS) guarda só a parte-principal acumulada dos abatimentos (não mais o pagamento cheio); `LUCRO_RECUPERADO_ASSISTIDO` (CONTRATOS, novo) guarda a parte-lucro — **nunca somado a `LUCRO_TOTAL`** operacional, mesmo padrão de `VALOR_RECUPERADO_JUDICIAL_LUCRO`. Por pagamento, `CAPITAL_RECUPERADO_ASSISTIDO`/`LUCRO_RECUPERADO_ASSISTIDO` (PAGAMENTOS) guardam o detalhe individual. Visível no `ContratoModal` como card "Lucro recuperado (Acordo Assistido)" quando > 0, ao lado de "Capital recuperado"/"Capital restante". Motivador: investigação do contrato PCL-106 (Jessica) — detalhes completos em `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-08-29) e fórmula em `docs/ai-memory/03-AI-FINANCIAL-CALCULATIONS.md`.
 
 **Bloqueio Manual de Cliente (2026-07-09):** decisão subjetiva do dono do negócio (ex: cliente usou nome de terceiro em outro contrato) — independente de `CLIENTE_JUDICIALIZADO` (permanente) e `SCORE_BLOQUEADO` (automático). Campos em CLIENTES: `CLIENTE_BLOQUEADO_MANUAL` (`"SIM"`/vazio), `MOTIVO_BLOQUEIO_MANUAL`, `DATA_BLOQUEIO_MANUAL`.
 ```javascript
