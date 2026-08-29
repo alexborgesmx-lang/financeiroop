@@ -337,6 +337,7 @@ function _reverterAbatimentoAssistido(undo, motivo) {
   for (var r=1; r<rows.length; r++) {
     if (String(rows[r][(cm["ID_CONTRATO"]||1)-1]).trim() === undo.idContrato) {
       setCel(abaC,r+1,cm,"VALOR_ABATIDO_ASSISTIDO",parseFloat(p.valorAbatidoAnterior)||0,"R$ #,##0.00");
+      setCel(abaC,r+1,cm,"LUCRO_RECUPERADO_ASSISTIDO",parseFloat(p.lucroRecuperadoAnterior)||0,"R$ #,##0.00");
       break;
     }
   }
@@ -1074,6 +1075,7 @@ function onOpen() {
     .addItem("Contabilidade: Gerar Relatório Agora (teste)", "testarRelatorioContabilidadeMensal")
     .addItem("Contabilidade: Configurar Trigger Dia 20 (rodar 1x)", "configurarTriggerRelatorioContabilidade")
     .addItem("Manutenção: Recalcular JUROS_TOTAL histórico", "recalcularTotaisContratosHistorico")
+    .addItem("Manutenção: Recalcular Abatimentos Assistidos (capital x lucro)", "backfillAbatimentosAssistidosHistorico")
     .addSeparator()
     .addItem("Quitacao: Criar Aba QUITACOES (rodar 1x)", "_garantirTabelaQuitacoes")
     .addItem("Quitacao: Verificar Expiradas", "verificarQuitacoesExpiradas")
@@ -3135,7 +3137,11 @@ function moverParaAcordoAssistido(idContrato, dados) {
 function registrarAbatimentoAssistido(idContrato, dados) {
   var ss   = SpreadsheetApp.getActiveSpreadsheet();
   var abaC = ss.getSheetByName(ABAS.CONTRATOS);
+  var abaP = ss.getSheetByName(ABAS.PARCELAS);
   var cm   = buildColMap(abaC);
+  var cmP  = buildColMap(abaP);
+  _garantirColunasFinanceiroAssistido(abaC, cm);
+  cm = buildColMap(abaC);
   var rows = abaC.getDataRange().getValues();
   var linha = -1; var row = null;
   for (var i = 1; i < rows.length; i++) {
@@ -3144,14 +3150,28 @@ function registrarAbatimentoAssistido(idContrato, dados) {
     }
   }
   if (linha === -1) throw new Error("Contrato nao encontrado: " + idContrato);
-  var valorPago    = parseFloat(dados.valorPago) || 0;
-  var abatidoAtual = parseFloat(row[(cm["VALOR_ABATIDO_ASSISTIDO"]||0)-1]||0) || 0;
-  var novoAbatido  = abatidoAtual + valorPago;
+  var valorPago       = parseFloat(dados.valorPago) || 0;
+  var valorPrincipal  = parseFloat(row[(cm["VALOR_PRINCIPAL"]||6)-1]) || 0;
+  var abatidoAtual    = parseFloat(row[(cm["VALOR_ABATIDO_ASSISTIDO"]||0)-1]||0) || 0;
+  var lucroRecupAtual = parseFloat(row[(cm["LUCRO_RECUPERADO_ASSISTIDO"]||0)-1]||0) || 0;
   var idCli   = String(row[(cm["ID_CLIENTE"]   ||2)-1]);
   var nomeCli = String(row[(cm["NOME_CLIENTE"] ||3)-1]);
-  setCel(abaC, linha, cm, "VALOR_ABATIDO_ASSISTIDO", novoAbatido, "R$ #,##0.00");
+
+  // Cascata capital-primeiro: soma o principal já recuperado via parcelas (exceto somente_juros)
+  // mais os abatimentos anteriores (que já só guardam a parte-principal, com essa mudança).
+  var dadosP = abaP.getDataRange().getValues();
+  var capitalJaRecuperado = _capitalRecuperadoParcelas(idContrato, dadosP, cmP) + abatidoAtual;
+  var alocacao = _alocarAbatimentoAssistido(valorPago, capitalJaRecuperado, valorPrincipal);
+
+  var novoAbatido   = abatidoAtual + alocacao.principalRecuperado;
+  var novoLucroRec  = lucroRecupAtual + alocacao.lucroRecuperado;
+  setCel(abaC, linha, cm, "VALOR_ABATIDO_ASSISTIDO",    novoAbatido,  "R$ #,##0.00");
+  setCel(abaC, linha, cm, "LUCRO_RECUPERADO_ASSISTIDO", novoLucroRec, "R$ #,##0.00");
+
   var abaPag = ss.getSheetByName(ABAS.PAGAMENTOS);
   var cmPag  = buildColMap(abaPag);
+  _garantirColunasPagamentoAssistido(abaPag, cmPag);
+  cmPag = buildColMap(abaPag);
   var idPag  = proximoIdSeq(abaPag, "PAG");
   var nc     = abaPag.getLastColumn();
   var rPag   = new Array(nc).fill("");
@@ -3164,20 +3184,24 @@ function registrarAbatimentoAssistido(idContrato, dados) {
   sp("VALOR_PAGO",     valorPago);
   sp("TIPO_PAGAMENTO", "abatimento_acordo_assistido");
   sp("FORMA_PAGAMENTO",dados.forma||"pix");
-  sp("OBSERVACOES",    dados.observacao||"Abatimento em Acordo Assistido");
+  sp("CAPITAL_RECUPERADO_ASSISTIDO", alocacao.principalRecuperado);
+  sp("LUCRO_RECUPERADO_ASSISTIDO",   alocacao.lucroRecuperado);
+  sp("OBSERVACOES",    dados.observacao||("Abatimento em Acordo Assistido. Capital: R$ "+alocacao.principalRecuperado.toFixed(2)+". Lucro: R$ "+alocacao.lucroRecuperado.toFixed(2)+"."));
   var ul = abaPag.getLastRow()+1;
   abaPag.getRange(ul,1,1,nc).setValues([rPag]);
   if(cmPag["DATA_PAGAMENTO"]) abaPag.getRange(ul,cmPag["DATA_PAGAMENTO"]).setNumberFormat("dd/mm/yyyy");
   if(cmPag["VALOR_PAGO"])     abaPag.getRange(ul,cmPag["VALOR_PAGO"]).setNumberFormat("R$ #,##0.00");
+  if(cmPag["CAPITAL_RECUPERADO_ASSISTIDO"]) abaPag.getRange(ul,cmPag["CAPITAL_RECUPERADO_ASSISTIDO"]).setNumberFormat("R$ #,##0.00");
+  if(cmPag["LUCRO_RECUPERADO_ASSISTIDO"])   abaPag.getRange(ul,cmPag["LUCRO_RECUPERADO_ASSISTIDO"]).setNumberFormat("R$ #,##0.00");
   registrarEvento({
     idContrato: idContrato, idCliente: idCli, nomeCliente: nomeCli,
     tipoEvento: "ABATIMENTO_ACORDO_ASSISTIDO", valorTotal: valorPago,
-    observacoes: "Abatimento de R$ " + valorPago.toFixed(2) + " em Acordo Assistido. Total abatido: R$ " + novoAbatido.toFixed(2)
+    observacoes: "Abatimento de R$ " + valorPago.toFixed(2) + " em Acordo Assistido. Capital: R$ "+alocacao.principalRecuperado.toFixed(2)+". Lucro: R$ "+alocacao.lucroRecuperado.toFixed(2)+". Total abatido (capital): R$ " + novoAbatido.toFixed(2)
   });
   var idUndoAbat = registrarUndo("ABATIMENTO_ASSISTIDO", idContrato, idCli, nomeCli, {
-    idPagamento: idPag, valorPago: valorPago, valorAbatidoAnterior: abatidoAtual
+    idPagamento: idPag, valorPago: valorPago, valorAbatidoAnterior: abatidoAtual, lucroRecuperadoAnterior: lucroRecupAtual
   });
-  return { idUndo: idUndoAbat };
+  return { idUndo: idUndoAbat, alocacao: alocacao };
 }
 
 function sairDoAcordoAssistido(idContrato, destino) {
@@ -9104,6 +9128,63 @@ var _JURI_FIN_COLS = [
   "DATA_ARQUIVAMENTO_PROCESSO","MOTIVO_ARQUIVAMENTO"
 ];
 
+// Cascata de alocação de um abatimento assistido: capital em aberto primeiro, sobra vira lucro
+// (mesmo princípio de _alocarRecuperacaoJudicial, sem honorários/custas — não se aplicam aqui).
+// Lucro recuperado fica separado de LUCRO_TOTAL operacional — mesma decisão já tomada pro caso judicial.
+function _alocarAbatimentoAssistido(valorPago, capitalJaRecuperado, valorPrincipal) {
+  var vPago    = parseFloat(valorPago) || 0;
+  var capJaRec = Math.max(0, parseFloat(capitalJaRecuperado) || 0);
+  var principal = parseFloat(valorPrincipal) || 0;
+  var principalAberto     = Math.max(0, principal - capJaRec);
+  var principalRecuperado = Math.min(vPago, principalAberto);
+  var lucroRecuperado     = Math.max(0, vPago - principalRecuperado);
+  return { principalRecuperado: principalRecuperado, lucroRecuperado: lucroRecuperado };
+}
+
+var _ASSIST_FIN_COLS = ["LUCRO_RECUPERADO_ASSISTIDO"];
+var _ASSIST_PAG_COLS = ["CAPITAL_RECUPERADO_ASSISTIDO","LUCRO_RECUPERADO_ASSISTIDO"];
+
+function _garantirColunasFinanceiroAssistido(abaC, cmC) {
+  _ASSIST_FIN_COLS.forEach(function(col) {
+    if (!cmC[col]) {
+      var nc = abaC.getLastColumn() + 1;
+      abaC.getRange(1, nc).setValue(col).setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
+      cmC[col] = nc;
+    }
+  });
+}
+
+function _garantirColunasPagamentoAssistido(abaPag, cmPag) {
+  _ASSIST_PAG_COLS.forEach(function(col) {
+    if (!cmPag[col]) {
+      var nc = abaPag.getLastColumn() + 1;
+      abaPag.getRange(1, nc).setValue(col).setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
+      cmPag[col] = nc;
+    }
+  });
+}
+
+// Soma o principal já efetivamente recuperado no histórico do contrato: parcelas pagas
+// integralmente (exceto somente_juros, que rola o principal em vez de devolvê-lo) — usado
+// como base pra cascata de _alocarAbatimentoAssistido, tanto no registro quanto no backfill.
+function _capitalRecuperadoParcelas(idContrato, dadosP, cmP) {
+  var cIdP = (cmP["ID_CONTRATO"]||2)-1;
+  var cStP = (cmP["STATUS"]||cmP["STATUS_PAGAMENTO"]||0)-1;
+  var cTpP = (cmP["TIPO_PAGAMENTO"]||0)-1;
+  var cVPp = (cmP["VALOR_PRINCIPAL"]||9)-1;
+  var ST_PAGOS = {pago:1, quitacao_antecipada:1};
+  var total = 0;
+  for (var j = 1; j < dadosP.length; j++) {
+    if (String(dadosP[j][cIdP]).trim() !== String(idContrato).trim()) continue;
+    var stJ = String(dadosP[j][cStP]||"").toLowerCase().trim();
+    var tpJ = String(dadosP[j][cTpP]||"").toLowerCase().trim();
+    if (ST_PAGOS[stJ] && tpJ !== "somente_juros") {
+      total += parseFloat(dadosP[j][cVPp]||0) || 0;
+    }
+  }
+  return total;
+}
+
 var _JURI_PAG_COLS = [
   "CAPITAL_RECUPERADO_JUDICIAL","LUCRO_RECUPERADO_JUDICIAL",
   "HONORARIOS_VALOR","HONORARIOS_PAGO_POR","CUSTAS_VALOR","CUSTAS_PAGO_POR"
@@ -9848,4 +9929,104 @@ function recalcularTotaisContratosHistorico() {
   }
 
   ui.alert("Concluído", "JUROS_TOTAL/VALOR_TOTAL/NUM_PARCELAS recalculados em " + atualizados + " contratos.", ui.ButtonSet.OK);
+}
+
+// ─── MANUTENÇÃO: RECALCULAR ABATIMENTOS ASSISTIDOS (CAPITAL x LUCRO) ──────
+// Reaplica a cascata capital-primeiro (_alocarAbatimentoAssistido) sobre TODOS os pagamentos
+// abatimento_acordo_assistido já registrados, em ordem cronológica por contrato — corrige
+// VALOR_ABATIDO_ASSISTIDO/LUCRO_RECUPERADO_ASSISTIDO em CONTRATOS e
+// CAPITAL_RECUPERADO_ASSISTIDO/LUCRO_RECUPERADO_ASSISTIDO em cada linha de PAGAMENTOS.
+// Rodar 1x depois de publicar a mudança da regra (2026-08-29). Volume esperado é pequeno —
+// só contratos que já passaram por Acordo Assistido — mas mesmo assim lê cada aba uma única vez.
+function backfillAbatimentosAssistidosHistorico() {
+  var ui = SpreadsheetApp.getUi();
+  var resp = ui.alert(
+    "Recalcular Abatimentos Assistidos",
+    "Isso recalcula todos os pagamentos de Acordo Assistido já registrados, separando capital de " +
+    "lucro pela regra nova (capital primeiro, lucro só depois do principal recuperado). Reescreve " +
+    "VALOR_ABATIDO_ASSISTIDO/LUCRO_RECUPERADO_ASSISTIDO em CONTRATOS e " +
+    "CAPITAL_RECUPERADO_ASSISTIDO/LUCRO_RECUPERADO_ASSISTIDO em cada pagamento histórico.\n\nContinuar?",
+    ui.ButtonSet.YES_NO
+  );
+  if (resp !== ui.Button.YES) return;
+
+  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var abaC   = ss.getSheetByName(ABAS.CONTRATOS);
+  var abaP   = ss.getSheetByName(ABAS.PARCELAS);
+  var abaPag = ss.getSheetByName(ABAS.PAGAMENTOS);
+  var cmC    = buildColMap(abaC);
+  var cmP    = buildColMap(abaP);
+  _garantirColunasFinanceiroAssistido(abaC, cmC);
+  cmC = buildColMap(abaC);
+  var cmPag = buildColMap(abaPag);
+  _garantirColunasPagamentoAssistido(abaPag, cmPag);
+  cmPag = buildColMap(abaPag);
+
+  var dadosC   = abaC.getDataRange().getValues();
+  var dadosP   = abaP.getDataRange().getValues();
+  var dadosPag = abaPag.getDataRange().getValues();
+
+  var cIdC = (cmC["ID_CONTRATO"]     ||1)-1;
+  var cVP  = (cmC["VALOR_PRINCIPAL"] ||6)-1;
+
+  var cIdPag = (cmPag["ID_CONTRATO"]     ||3)-1;
+  var cTpPag = (cmPag["TIPO_PAGAMENTO"]  ||0)-1;
+  var cVPago = (cmPag["VALOR_PAGO"]      ||8)-1;
+  var cDtPag = (cmPag["DATA_PAGAMENTO"]  ||6)-1;
+
+  // Agrupa os pagamentos de abatimento_acordo_assistido por contrato, em ordem cronológica
+  var porContrato = {};
+  for (var j = 1; j < dadosPag.length; j++) {
+    var tp = String(dadosPag[j][cTpPag]||"").toLowerCase().trim();
+    if (tp !== "abatimento_acordo_assistido") continue;
+    var idCt = String(dadosPag[j][cIdPag]||"").trim();
+    if (!idCt) continue;
+    if (!porContrato[idCt]) porContrato[idCt] = [];
+    var dtRaw = dadosPag[j][cDtPag];
+    var dtObj = dtRaw instanceof Date ? dtRaw : (dtRaw ? parseDateLocal(dtRaw) : new Date(0));
+    porContrato[idCt].push({ linha: j + 1, data: dtObj, valorPago: parseFloat(dadosPag[j][cVPago]||0)||0 });
+  }
+
+  var linhaPorContrato = {};
+  for (var ci = 1; ci < dadosC.length; ci++) {
+    var idC = String(dadosC[ci][cIdC]||"").trim();
+    if (idC) linhaPorContrato[idC] = ci + 1;
+  }
+
+  var colAbat     = cmC["VALOR_ABATIDO_ASSISTIDO"];
+  var colLucroC   = cmC["LUCRO_RECUPERADO_ASSISTIDO"];
+  var colCapPag   = cmPag["CAPITAL_RECUPERADO_ASSISTIDO"];
+  var colLucroPag = cmPag["LUCRO_RECUPERADO_ASSISTIDO"];
+
+  var contratosAtualizados = 0;
+  var pagamentosAtualizados = 0;
+
+  for (var idContrato in porContrato) {
+    var linhaC = linhaPorContrato[idContrato];
+    if (!linhaC) continue; // pagamento órfão, sem contrato correspondente — ignora
+    var pagamentos = porContrato[idContrato];
+    pagamentos.sort(function(a,b){ return a.data.getTime() - b.data.getTime(); });
+
+    var valorPrincipal   = parseFloat(dadosC[linhaC-1][cVP]||0)||0;
+    var capitalBase      = _capitalRecuperadoParcelas(idContrato, dadosP, cmP);
+    var capitalAcumulado = capitalBase;
+    var lucroAcumulado   = 0;
+
+    for (var k = 0; k < pagamentos.length; k++) {
+      var pg = pagamentos[k];
+      var alocacao = _alocarAbatimentoAssistido(pg.valorPago, capitalAcumulado, valorPrincipal);
+      capitalAcumulado += alocacao.principalRecuperado;
+      lucroAcumulado   += alocacao.lucroRecuperado;
+      if (colCapPag)   abaPag.getRange(pg.linha, colCapPag).setValue(alocacao.principalRecuperado).setNumberFormat("R$ #,##0.00");
+      if (colLucroPag) abaPag.getRange(pg.linha, colLucroPag).setValue(alocacao.lucroRecuperado).setNumberFormat("R$ #,##0.00");
+      pagamentosAtualizados++;
+    }
+
+    var novoAbatido = capitalAcumulado - capitalBase; // só a parte vinda de abatimentos
+    if (colAbat)   abaC.getRange(linhaC, colAbat).setValue(novoAbatido).setNumberFormat("R$ #,##0.00");
+    if (colLucroC) abaC.getRange(linhaC, colLucroC).setValue(lucroAcumulado).setNumberFormat("R$ #,##0.00");
+    contratosAtualizados++;
+  }
+
+  ui.alert("Concluído", "Recalculados " + pagamentosAtualizados + " pagamentos de abatimento em " + contratosAtualizados + " contratos.", ui.ButtonSet.OK);
 }

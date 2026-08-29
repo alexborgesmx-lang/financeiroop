@@ -142,7 +142,7 @@ O pagamento da entrada é registrado em PAGAMENTOS com `TIPO_PAGAMENTO = "entrad
 |---|---|---|
 | Parcela paga (qualquer tipo normal) | **Receita** | Totais de receita no Dashboard, Financeiro, DRE |
 | Extra de atraso (DIFERENCA_RECEBIDA) | **Receita extra** | Receita extra no Dashboard |
-| `abatimento_acordo_assistido` | **Capital Recuperado** | Linha separada no Financeiro — NUNCA soma à receita |
+| `abatimento_acordo_assistido` | **Capital Recuperado (principal) + Lucro Recuperado Assistido (separado, a partir de 2026-08-29)** | `CAPITAL_RECUPERADO_ASSISTIDO`/`LUCRO_RECUPERADO_ASSISTIDO` em PAGAMENTOS — nunca soma a `LUCRO_TOTAL` operacional nem a receita normal (mesmo padrão da recuperação judicial) |
 | `recuperacao_apos_baixa` | **Capital Recuperado** | Linha separada — NUNCA soma à receita |
 | `acordo_com_perda` | **Capital Recuperado** (+ eventual receita no que exceder o capital perdido) | Linha separada |
 | `recuperacao_judicial` | **Capital Recuperado (principal) + Lucro Recuperado Judicial (separado)** | `CAPITAL_RECUPERADO_JUDICIAL`/`LUCRO_RECUPERADO_JUDICIAL` em PAGAMENTOS — nunca soma a `LUCRO_TOTAL` operacional nem a receita normal |
@@ -151,14 +151,42 @@ O pagamento da entrada é registrado em PAGAMENTOS com `TIPO_PAGAMENTO = "entrad
 
 ---
 
-## Cálculo do Abatimento Assistido
+## Cascata de Alocação — Abatimento Assistido (2026-08-29)
+
+Mesmo princípio da Recuperação Judicial abaixo, sem honorários/custas (não se aplicam aqui) —
+implementado em `_alocarAbatimentoAssistido` (appscript.gs). Objetivo: preservar caixa e
+patrimônio investido primeiro — só reconhecer lucro depois do capital 100% recuperado.
 
 ```
-VALOR_ABATIDO_ASSISTIDO_novo = VALOR_ABATIDO_ASSISTIDO_anterior + valor_do_abatimento
+capitalJaRecuperado = Σ VALOR_PRINCIPAL das parcelas do contrato pagas integralmente
+                       (STATUS = pago/quitacao_antecipada, TIPO_PAGAMENTO ≠ somente_juros —
+                       essa exclusão é porque somente_juros rola o principal pra uma parcela
+                       nova em vez de devolvê-lo)
+                     + VALOR_ABATIDO_ASSISTIDO acumulado até agora (só a parte-principal)
+
+principalAberto     = max(0, VALOR_PRINCIPAL − capitalJaRecuperado)
+principalRecuperado = min(valor_do_abatimento, principalAberto)
+lucroRecuperado     = max(0, valor_do_abatimento − principalRecuperado)
+
+VALOR_ABATIDO_ASSISTIDO_novo    = VALOR_ABATIDO_ASSISTIDO_anterior    + principalRecuperado
+LUCRO_RECUPERADO_ASSISTIDO_novo = LUCRO_RECUPERADO_ASSISTIDO_anterior + lucroRecuperado
 capitalRestante = VALOR_PRINCIPAL − VALOR_ABATIDO_ASSISTIDO_novo
 ```
 
-O abatimento reduz o capital devedor diretamente. Nunca é distribuído entre parcelas.
+`capitalJaRecuperado` considera o **histórico inteiro do contrato**, não só a partir da entrada
+em Acordo Assistido — um contrato que já devolveu parte do principal via parcelas normais antes
+da dificuldade começar não "recupera esse principal de novo" antes de gerar lucro reconhecido.
+
+`LUCRO_RECUPERADO_ASSISTIDO` (novo campo em CONTRATOS) **nunca é somado a `LUCRO_TOTAL`**
+operacional — mesma decisão já tomada pra `VALOR_RECUPERADO_JUDICIAL_LUCRO` (ver cascata
+judicial abaixo). `CAPITAL_RECUPERADO_ASSISTIDO`/`LUCRO_RECUPERADO_ASSISTIDO` (novos campos em
+PAGAMENTOS) guardam o detalhe de cada abatimento individual, mesmo padrão de
+`CAPITAL_RECUPERADO_JUDICIAL`/`LUCRO_RECUPERADO_JUDICIAL`.
+
+**Backfill:** `backfillAbatimentosAssistidosHistorico()` (menu Manutenção) reaplica essa cascata
+sobre os abatimentos já registrados antes dessa mudança, em ordem cronológica por contrato —
+necessário rodar 1x depois de publicar, senão os contratos que já tinham abatimento continuam
+com os valores antigos (100% capital, nunca lucro).
 
 ---
 

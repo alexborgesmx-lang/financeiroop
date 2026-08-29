@@ -1483,6 +1483,54 @@ Resolvido (2026-08-13). Instância ativa: `borges-fp2`, porta `32776`.
 
 ---
 
+## 2026-08-29 — Contrato PCL-106 (Jessica): investigação de VALOR_TOTAL divergente virou feature nova
+
+### Problema original
+Alex notou que o card do contrato PCL-106 mostrava `VALOR_TOTAL = R$16.960,00` no topo, mas
+somando manualmente as 8 parcelas visíveis no histórico dava R$13.760,00.
+
+### Primeiro diagnóstico — errado
+Hipótese inicial: `VALOR_TOTAL`/`JUROS_TOTAL` (CONTRATOS) estavam desatualizados em relação à
+soma real de `VALOR_JUROS` das parcelas — o mesmo tipo de bug que a auditoria diária já sabe
+detectar ("VALOR_TOTAL diverge de PRINCIPAL+sum(JUROS)"). `recalcularTotaisContratosHistorico()`
+foi rodado (depois de corrigido — ver entrada de timeout abaixo) e **não mudou nada** no
+contrato da Jessica. Diagnóstico refutado por teste direto, não por suposição.
+
+### Causa raiz real
+`registrarAbatimentoAssistido` sempre tratou 100% de qualquer abatimento como recuperação de
+capital (`VALOR_ABATIDO_ASSISTIDO += valorPago`), nunca reconhecendo lucro mesmo depois do
+principal do contrato já ter sido recuperado. `VALOR_TOTAL` (principal + juros de todas as 8
+parcelas, incluindo as geradas por `somente_juros`) estava matematicamente correto — a
+divergência vinha do abatimento de R$1.600 nunca ter sido refletido nele nem nas parcelas em
+aberto, por ser um mecanismo "fora do carnê" desde o início.
+
+### Decisão — cascata capital-primeiro
+Discutido com o Alex: o sistema já tinha exatamente esse padrão implementado pra Recuperação
+Judicial (`_alocarRecuperacaoJudicial`) — capital primeiro, lucro só depois, guardado separado de
+`LUCRO_TOTAL`. Replicado 1:1 pra Acordo Assistido (`_alocarAbatimentoAssistido`). Detalhes da
+fórmula em `docs/ai-memory/03-AI-FINANCIAL-CALCULATIONS.md`; regras de negócio em
+`docs/ai-memory/02-AI-CREDIT-RULES.md` (seção Acordo Assistido, item 4).
+
+### Bug lateral encontrado e corrigido de graça
+`PagamentoDrop` (widget de abatimento no Dashboard, `main.jsx`) mandava a chave `valor` em vez de
+`valorPago` pro backend — todo abatimento registrado por esse caminho específico sempre gravou
+R$0, silenciosamente (sem erro visível). O caminho usado pelo `ContratoModal` (provavelmente o
+que registrou o abatimento real da Jessica) já usava a chave certa. Corrigido junto por estar
+literalmente na mesma função que a mudança principal já estava tocando.
+
+### Efeito colateral positivo — PREJUIZO_CAPITAL na baixa
+`PREJUIZO_CAPITAL = VALOR_PRINCIPAL − VALOR_ABATIDO_ASSISTIDO` (regra 6 do Acordo Assistido) fica
+mais preciso de graça: antes, um abatimento que já devia contar como lucro reduzia indevidamente
+o prejuízo calculado na baixa, como se fosse capital recuperado. Nenhuma mudança de código
+necessária ali — só reflexo de `VALOR_ABATIDO_ASSISTIDO` agora guardar só a parte-principal real.
+
+### Status
+Implementado (2026-08-29). Backfill (`backfillAbatimentosAssistidosHistorico()`) precisa rodar
+1x depois de publicar, pra corrigir o histórico já registrado (inclusive o caso motivador,
+PCL-106) — sem isso os abatimentos antigos continuam com os valores de antes da mudança.
+
+---
+
 ## Débitos Técnicos
 
 - `_regenerarPixVencidos` (`appscript.gs`) dispara pela primeira vez aos 25 dias de atraso, mas só embute
