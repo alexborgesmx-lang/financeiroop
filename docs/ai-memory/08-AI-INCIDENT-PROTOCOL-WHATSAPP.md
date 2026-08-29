@@ -468,5 +468,8 @@ O primeiro ponto que divergir do comportamento esperado é o candidato à causa 
 ## 15. Histórico de incidentes cobertos por este protocolo
 
 Para o relato completo de cada incidente (prints, logs, diagnóstico passo a passo), ver:
-- `docs/ai-memory/07-AI-KNOWN-ISSUES.md` — entradas de 2026-07-31 e 2026-08-13
+- `docs/ai-memory/07-AI-KNOWN-ISSUES.md` — entradas de 2026-07-31 e 2026-08-13 (infra Evolution GO);
+  2026-08-29 (`ERRO_SEM_PIX` em `PROMESSA_D+1` de contrato quitado — causa de lógica, não infra:
+  `_cancelarPromessasPorContrato` não era chamada ao quitar; classificado como
+  "Seleção de cliente/parcela" + "Deduplicação" na Etapa 12)
 - Memória de sessão `evolution-go-infra` (credenciais e detalhes operacionais da VPS)
