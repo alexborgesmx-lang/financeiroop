@@ -395,9 +395,10 @@ Chaves: `TEMPLATE_D-5`, `TEMPLATE_D-1`, `TEMPLATE_D0`, `TEMPLATE_D+1`, `TEMPLATE
 // Chamado ao final de registrarPagamentoAPI (cobre pagamentos manuais E webhook Efí)
 _enviarConfirmacaoPagamento({idParcela, idContrato, idCliente, nomeCliente, numParcela, totalParcelas, vlPago})
 
-// Cancela PROMESSAS PENDENTE do contrato (status → "CUMPRIDA")
+// Cancela PROMESSAS PENDENTE do contrato (status → "CUMPRIDA" + grava DATA_CUMPRIMENTO)
 _cancelarPromessasPorContrato(idContrato)
 ```
+- **`_cancelarPromessasPorContrato` também é chamada no ramo `todasPagas` de `registrarPagamentoAPI` e `registrarQuitacaoAntecipada`** (2026-08-29) — quando o pagamento quita o contrato, esses caminhos enviam só o certificado e pulam `_enviarConfirmacaoPagamento`, então sem essa chamada extra a promessa ficava `PENDENTE` pra sempre e a régua disparava `PROMESSA_D+1` no dia seguinte contra um contrato sem parcela em aberto (`ERRO_SEM_PIX`). Defesa adicional na régua: o loop de promessas de `enviarReguaCobranca` pula (e resolve) promessa cujo contrato não tem mais parcela fora de `ST_SKIP_P`. Correção histórica: menu GAS → "Régua: Corrigir Promessas Quebradas Indevidamente". Ver `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-08-29).
 - Dedup: bloqueia reenvio só se já existir em MENSAGENS uma linha `GATILHO="CONFIRMACAO_PAGAMENTO"` + `ID_PARCELA` + `STATUS_ENVIO="ENVIADO"` enviada no mesmo dia (ou depois) da `DATA_PAGAMENTO` **vigente** da parcela — não é mais "nunca reenvia" incondicional por `ID_PARCELA`. Helper `_dataPagamentoAtualParcela` + `_apenasData` (appscript.gs ~6602). Motivo: `reabrirParcelaAPI` reseta a parcela mas não limpa MENSAGENS, então uma confirmação antiga (de um pagamento revertido) não pode bloquear o pagamento real seguinte na mesma parcela. Ver `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-07-20).
 - Template: `TEMPLATE_CONFIRMACAO` do CONFIGURACOES; variáveis: `{NOME}`, `{NUM_PARCELA}`, `{TOTAL_PARCELAS}`, `{VALOR_PAGO}`, `{PARCELAS_RESTANTES}`, `{PROXIMO_VENCIMENTO}`
 - Log em MENSAGENS com `GATILHO = "CONFIRMACAO_PAGAMENTO"`

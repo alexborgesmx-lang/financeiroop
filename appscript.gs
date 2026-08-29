@@ -1081,6 +1081,7 @@ function onOpen() {
     .addItem("Renegociacao: Verificar Propostas Expiradas", "verificarPropostasRenegociacaoExpiradas")
     .addItem("Renegociacao: Testar Confirmacao WPP (envia pro seu numero)", "_testarConfirmacaoRenegociacao")
     .addItem("Corrigir Dropdown STATUS Parcelas (rodar 1x)", "corrigirDropdownStatusParcelas")
+    .addItem("Régua: Corrigir Promessas Quebradas Indevidamente", "corrigirPromessasQuebradasIndevidamente")
     .addToUi();
 }
 
@@ -2537,6 +2538,7 @@ function registrarQuitacaoAntecipada(v) {
     setCel(abaC, linhaC, cm, "STATUS_CONTRATO", "quitado");
     setCel(abaC, linhaC, cm, "STATUS_CARTEIRA", "quitada");
     try { _gerarEEnviarCertificado(v.idContrato, idCliente, nomeCliente, dtPag); } catch(eCert) { Logger.log("CertificadoQuitacao err: "+eCert.message); }
+    try { _cancelarPromessasPorContrato(v.idContrato); } catch(eP) { Logger.log("CancelProm err: "+eP.message); }
   }
 
   registrarEvento({
@@ -3398,6 +3400,7 @@ function atualizarStatusContratos() {
     if (parEncontradas > 0 && todasTerminal) {
       abaC.getRange(i+1, cmC["STATUS_CONTRATO"]||16).setValue("quitado");
       if (cmC["STATUS_CARTEIRA"]) abaC.getRange(i+1, cmC["STATUS_CARTEIRA"]).setValue("quitada");
+      try { _cancelarPromessasPorContrato(idC); } catch(eP) { Logger.log("CancelProm err: "+eP.message); }
       count++;
       continue;
     }
@@ -3626,6 +3629,7 @@ function registrarPagamentoAPI(idParcela, data, valor, forma, desconto) {
       }
     }
     try { _gerarEEnviarCertificado(idContrato, idCliente, nomeCliente, dtPag); } catch(eCert) { Logger.log("CertificadoQuitacao err: "+eCert.message); }
+    try { _cancelarPromessasPorContrato(idContrato); } catch(eP) { Logger.log("CancelProm err: "+eP.message); }
   } else if (isJudicial) {
     // Contrato judicial com parcelas do acordo ainda pendentes — mantém em_processo_judicial,
     // nunca recalcula por dias de atraso (aging normal não se aplica à fase judicial).
@@ -4970,6 +4974,94 @@ function verificarPromessasVencidas() {
     var dtP=new Date(dados[i][(cDP||6)-1]);dtP.setHours(0,0,0,0);
     if(dtP<hoje){aba.getRange(i+1,cSt).setValue("QUEBRADA");Logger.log("Promessa vencida: linha "+(i+1));}
   }
+}
+
+// Correção de dados (rodar 1x) — promessas QUEBRADA ou PENDENTE cujo contrato foi quitado
+// e há pagamento na janela [DATA_PREVISTA-2d, DATA_PREVISTA+7d] são, na verdade, promessas
+// cumpridas que o sistema não fechou (bug: quitação pulava _cancelarPromessasPorContrato).
+// Marca CUMPRIDA + DATA_CUMPRIMENTO e recalcula score/métricas dos clientes afetados.
+function corrigirPromessasQuebradasIndevidamente() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var abaProm = ss.getSheetByName(ABAS.PROMESSAS);
+  var abaC    = ss.getSheetByName(ABAS.CONTRATOS);
+  var abaPag  = ss.getSheetByName(ABAS.PAGAMENTOS);
+  if (!abaProm || !abaC || !abaPag) { Logger.log("corrigirPromessasQuebradas: abas ausentes"); return; }
+
+  var cmProm = buildColMap(abaProm);
+  var cmC    = buildColMap(abaC);
+  var cmPag  = buildColMap(abaPag);
+  var dProm  = abaProm.getDataRange().getValues();
+  var dC     = abaC.getDataRange().getValues();
+  var dPag   = abaPag.getDataRange().getValues();
+
+  var iPrCont = (cmProm["ID_CONTRATO"]||2)-1;
+  var iPrCli  = (cmProm["ID_CLIENTE"]||3)-1;
+  var iPrSt   = (cmProm["STATUS_PROMESSA"]||8)-1;
+  var iPrDt   = (cmProm["DATA_PREVISTA_PAGAMENTO"]||6)-1;
+  var iPrCump = cmProm["DATA_CUMPRIMENTO"] ? cmProm["DATA_CUMPRIMENTO"]-1 : -1;
+
+  var iCId  = (cmC["ID_CONTRATO"]||1)-1;
+  var iCSt  = (cmC["STATUS_CONTRATO"]||16)-1;
+  var stContMap = {};
+  for (var i = 1; i < dC.length; i++) {
+    var idC = String(dC[i][iCId]||"").trim();
+    if (idC) stContMap[idC] = String(dC[i][iCSt]||"").toLowerCase().trim();
+  }
+
+  var iPgCont = (cmPag["ID_CONTRATO"]||2)-1;
+  var iPgData = (cmPag["DATA_PAGAMENTO"]||3)-1;
+  var pagsPorContrato = {};
+  for (var p = 1; p < dPag.length; p++) {
+    var idCP = String(dPag[p][iPgCont]||"").trim(); if (!idCP) continue;
+    var dPg  = _parseDataFlex(dPag[p][iPgData]); if (!dPg) continue;
+    (pagsPorContrato[idCP] = pagsPorContrato[idCP] || []).push(dPg);
+  }
+
+  var DIA = 86400000;
+  var corrigidas = [], clientesAfetados = {}, varridas = 0;
+
+  for (var r = 1; r < dProm.length; r++) {
+    var stProm = String(dProm[r][iPrSt]||"").trim().toUpperCase();
+    if (stProm !== "QUEBRADA" && stProm !== "PENDENTE") continue;
+    var idContrato = String(dProm[r][iPrCont]||"").trim();
+    if (stContMap[idContrato] !== "quitado") continue;
+    varridas++;
+    var dtPrev = _parseDataFlex(dProm[r][iPrDt]); if (!dtPrev) continue;
+    var ini = dtPrev.getTime() - 2*DIA, fim = dtPrev.getTime() + 7*DIA;
+    var pagBate = null;
+    (pagsPorContrato[idContrato]||[]).forEach(function(dp){
+      if (dp.getTime() >= ini && dp.getTime() <= fim && !pagBate) pagBate = dp;
+    });
+    if (!pagBate) continue;
+
+    abaProm.getRange(r+1, iPrSt+1).setValue("CUMPRIDA");
+    if (iPrCump >= 0 && !dProm[r][iPrCump])
+      abaProm.getRange(r+1, iPrCump+1).setValue(Utilities.formatDate(pagBate, Session.getScriptTimeZone(), "yyyy-MM-dd"));
+    var idCli = String(dProm[r][iPrCli]||"").trim();
+    if (idCli) clientesAfetados[idCli] = true;
+    corrigidas.push("linha " + (r+1) + " (contrato " + idContrato + ", cliente " + idCli + ")");
+  }
+  SpreadsheetApp.flush();
+
+  var idsCli = Object.keys(clientesAfetados);
+  idsCli.forEach(function(idCli){
+    try { calcularScore(idCli); } catch(e){ Logger.log("Score err "+idCli+": "+e.message); }
+    try { calcularMetricasCliente(idCli); } catch(e){ Logger.log("Metricas err "+idCli+": "+e.message); }
+  });
+
+  var resumo = "Promessas em contrato quitado avaliadas: " + varridas +
+    "\nCorrigidas para CUMPRIDA: " + corrigidas.length +
+    "\nClientes recalculados: " + idsCli.length +
+    (corrigidas.length ? "\n\n" + corrigidas.join("\n") : "");
+  Logger.log(resumo);
+  try { SpreadsheetApp.getUi().alert(resumo); } catch(e) {}
+}
+
+function _parseDataFlex(v) {
+  if (v instanceof Date && !isNaN(v.getTime())) return v;
+  var s = String(v||"").trim(); if (!s) return null;
+  var d = parseDateLocal(s);
+  return (d instanceof Date && !isNaN(d.getTime())) ? d : null;
 }
 
 // dialogNovoContrato, salvarNovoContrato, dialogRegistrarPagamento, salvarPagamentoDialog
@@ -7282,12 +7374,15 @@ function _cancelarPromessasPorContrato(idContrato) {
   var cm    = buildColMap(abaProm);
   var cCont = cm["ID_CONTRATO"]     ? cm["ID_CONTRATO"]-1     : -1;
   var cSt   = cm["STATUS_PROMESSA"] ? cm["STATUS_PROMESSA"]-1 : -1;
+  var cCump = cm["DATA_CUMPRIMENTO"] ? cm["DATA_CUMPRIMENTO"]-1 : -1;
   if (cCont < 0 || cSt < 0) return;
+  var hojeStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
   var dados = abaProm.getDataRange().getValues();
   for (var i = 1; i < dados.length; i++) {
     if (String(dados[i][cCont]||"").trim() !== String(idContrato).trim()) continue;
     if (String(dados[i][cSt] ||"").trim().toUpperCase() !== "PENDENTE") continue;
     abaProm.getRange(i+1, cSt+1).setValue("CUMPRIDA");
+    if (cCump >= 0 && !dados[i][cCump]) abaProm.getRange(i+1, cCump+1).setValue(hojeStr);
   }
 }
 
@@ -8177,7 +8272,8 @@ function enviarReguaCobranca(dryRun) {
       promMap[idCliP].push({
         ID_CONTRATO:    iprCont >= 0 ? String(dProm[i][iprCont]||"").trim() : "",
         DATA_PREVISTA:  iprDt  >= 0 ? dProm[i][iprDt]  : null,
-        VALOR_PROMETIDO:iprVal >= 0 ? parseFloat(dProm[i][iprVal]||0) : 0
+        VALOR_PROMETIDO:iprVal >= 0 ? parseFloat(dProm[i][iprVal]||0) : 0,
+        _row:           i + 1
       });
     }
   }
@@ -8236,23 +8332,48 @@ function enviarReguaCobranca(dryRun) {
     if (cli.PERFIL === "EVASIVO") continue;
     var prom   = promMap[idCliP][0];
     var dtProm = prom.DATA_PREVISTA; if (!dtProm) continue;
+
+    // PIX: primeira parcela aberta do contrato (e serve pra saber se ainda há o que cobrar)
+    var pixP = "";
+    var temParcelaAberta = false;
+    if (prom.ID_CONTRATO) {
+      for (var j = 1; j < dP.length; j++) {
+        if (String(dP[j][ipCont]||"").trim() !== prom.ID_CONTRATO) continue;
+        if (ST_SKIP_P[String(dP[j][ipSt]||"").trim().toLowerCase()]) continue;
+        temParcelaAberta = true;
+        pixP = ipPix >= 0 ? String(dP[j][ipPix]||"").trim() : "";
+        break;
+      }
+    }
+
+    // Contrato sem nenhuma parcela em aberto (quitado/cancelado/renegociado/baixado): não
+    // dispara promessa — evita ERRO_SEM_PIX — e resolve a promessa pendente na hora.
+    var contPromSt = contMap[prom.ID_CONTRATO] ? contMap[prom.ID_CONTRATO].STATUS_CONTRATO : "";
+    if (!temParcelaAberta || contPromSt === "quitado") {
+      var novoStProm = contPromSt === "quitado" ? "CUMPRIDA"
+        : (contPromSt === "cancelado" || contPromSt === "baixado_como_prejuizo" ||
+           contPromSt === "encerrado_sem_recuperacao" || contPromSt === "encerrado_judicialmente") ? "QUEBRADA"
+        : "";
+      if (dryRun) {
+        Logger.log("REGUA [DRY-RUN]: promessa do contrato " + prom.ID_CONTRATO + " (cliente " + idCliP +
+          ") ignorada — sem parcela em aberto" + (novoStProm ? ("; marcaria " + novoStProm) : ""));
+      } else if (novoStProm && abaProm && prom._row > 0 && cmProm["STATUS_PROMESSA"]) {
+        abaProm.getRange(prom._row, cmProm["STATUS_PROMESSA"]).setValue(novoStProm);
+        if (novoStProm === "CUMPRIDA" && cmProm["DATA_CUMPRIMENTO"] &&
+            !abaProm.getRange(prom._row, cmProm["DATA_CUMPRIMENTO"]).getValue()) {
+          abaProm.getRange(prom._row, cmProm["DATA_CUMPRIMENTO"])
+            .setValue(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd"));
+        }
+      }
+      continue;
+    }
+
     var diasP  = _diffDiasRegua(dtProm);
     var gatP   = null;
     if      (diasP ===  1) gatP = "PROMESSA_D-1";
     else if (diasP ===  0) gatP = "PROMESSA_D0";
     else if (diasP === -1) gatP = "PROMESSA_D+1";
     if (!gatP) continue;
-
-    // PIX: primeira parcela aberta do contrato
-    var pixP = "";
-    if (prom.ID_CONTRATO && ipPix >= 0) {
-      for (var j = 1; j < dP.length; j++) {
-        if (String(dP[j][ipCont]||"").trim() !== prom.ID_CONTRATO) continue;
-        if (ST_SKIP_P[String(dP[j][ipSt]||"").trim().toLowerCase()]) continue;
-        pixP = String(dP[j][ipPix]||"").trim();
-        break;
-      }
-    }
 
     eventos.push({
       prior: _GATILHO_PRIOR[gatP], gatilho: gatP,

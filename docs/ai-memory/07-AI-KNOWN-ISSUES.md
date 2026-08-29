@@ -32,6 +32,53 @@ Aberto | Em andamento | Resolvido
 
 ## Registro Ativo
 
+## 2026-08-29 — Régua: `ERRO_SEM_PIX` em `PROMESSA_D+1` de contrato já quitado
+
+### Problema
+Alerta de segurança (`_notificarErroSistema` → e-mail) de `enviarReguaCobranca` às 07:09 de 29/08:
+`1 mensagem(ns) da régua falharam no envio`. A mensagem era `PROMESSA_D+1` para o contrato
+PCL-Nº 214 (cliente 51, Jeovanio), que foi **quitado no dia anterior** (28/08). Sem parcela em
+aberto → sem PIX → `ERRO_SEM_PIX`.
+
+Causa raiz: `_cancelarPromessasPorContrato()` (marca promessas `PENDENTE` do contrato como
+`CUMPRIDA`) só era chamada de dentro de `_enviarConfirmacaoPagamento()`. Quando um pagamento
+**quita o contrato**, os dois caminhos (`registrarPagamentoAPI` linha ~3651
+`if (!todasPagas)`, `registrarQuitacaoAntecipada` bloco `if (todasPagas)`) enviam só o
+certificado e **pulam a confirmação** — então a promessa nunca era fechada. No dia seguinte a
+régua disparava `PROMESSA_D+1` contra um contrato sem nada a cobrar, e em seguida
+`verificarPromessasVencidas` (mesma `rotinaDiaria`, roda depois da régua) marcava a promessa
+como `QUEBRADA` — indevidamente, já que o cliente pagou no dia combinado.
+
+### Impacto
+Nenhum financeiro. Contrato quitado corretamente, certificado entregue. Colateral: promessa
+marcada `QUEBRADA` injustamente (penaliza `PROMESSAS_QUEBRADAS` / score do cliente), alerta
+espúrio, e o cliente recebeu no dia 29 um "pagamento não identificado" depois de já ter pago.
+Recorreria para qualquer cliente com promessa ativa num contrato que depois é quitado
+(pagamento manual, webhook Efí ou quitação antecipada).
+
+### Solução
+1. **Raiz:** `_cancelarPromessasPorContrato(idContrato)` passou a ser chamada também no ramo
+   `todasPagas` de `registrarPagamentoAPI` e `registrarQuitacaoAntecipada`, logo após o
+   certificado. A função agora também grava `DATA_CUMPRIMENTO`.
+2. **Defesa na régua:** o loop de promessas de `enviarReguaCobranca` agora consulta o contrato
+   — se não há nenhuma parcela fora de `ST_SKIP_P` (ou o contrato está `quitado`), não
+   enfileira o disparo e resolve a promessa na hora (`CUMPRIDA` se `quitado`; `QUEBRADA` se
+   `cancelado`/`baixado_como_prejuizo`/`encerrado_*`; senão deixa como está). Respeita `dryRun`
+   (só loga, mesmo padrão do fix de 2026-06-15 "dry-run gravava erros no MENSAGENS").
+3. **Dados históricos:** menu GAS → "Régua: Corrigir Promessas Quebradas Indevidamente"
+   (`corrigirPromessasQuebradasIndevidamente`) — varre promessas `QUEBRADA`/`PENDENTE` em
+   contrato `quitado` com pagamento na janela `[DATA_PREVISTA-2d, DATA_PREVISTA+7d]`, marca
+   `CUMPRIDA` + `DATA_CUMPRIMENTO` e recalcula score/métricas dos clientes afetados. Seguro
+   rodar mais de uma vez.
+
+**Efeito colateral sabido:** promessa cujo contrato não tem mais parcela em aberto mas está
+`renegociado` (ou outro terminal que não `quitado`/`cancelado`/`baixado`) é só ignorada pela
+régua, sem mexer no status — a rotina diária de "promessas vencidas" ainda pode marcá-la
+`QUEBRADA`. Fechar promessas na renegociação é follow-up separado.
+
+### Status
+Resolvido — deploy GAS 2026-08-29. Rodar a função de correção histórica 1x após publicar.
+
 ## 2026-08-10 — rotinaDiaria falhou em cascata: "You do not have permission to access the requested document."
 
 ### Problema
