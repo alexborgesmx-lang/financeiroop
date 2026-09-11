@@ -1390,7 +1390,7 @@ function doPost(e) {
     else if (body.action === "garantirCertificadoQuitacao")  { var dCert=_buscarDadosCertificado(body.idContrato,body.idCliente); var rCert=gerarCertificadoQuitacao({idContrato:body.idContrato,idCliente:body.idCliente,nomeCliente:dCert.nome,cpf:dCert.cpf,datQuitacao:body.datQuitacao||new Date(),totalPago:dCert.totalPago}); res={ok:true,codigo:rCert.codigoValidacao,link:rCert.linkCertificado}; }
     else if (body.action === "buscarCertificado")            { res=Object.assign({ok:true},buscarCertificadoPublico(body.codigo||"")); }
     else { res={erro:"Acao nao reconhecida: "+body.action}; }
-  } catch(err) { res={erro:err.message}; }
+  } catch(err) { Logger.log("doPost ERRO — action=" + (body&&body.action) + " — " + err.message + "\n" + err.stack); res={erro:err.message}; }
   return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
 }
 
