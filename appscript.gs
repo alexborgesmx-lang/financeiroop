@@ -5558,6 +5558,17 @@ function buscarInfoCliente(idCliente) {
   throw new Error("Cliente nao encontrado: " + idCliente);
 }
 
+// Extrai a URL de assinatura do credor (signatário índice 0) de uma resposta JSON já parseada
+// da ZapSign — funciona tanto pra resposta de criação (POST /docs/) quanto de consulta
+// (GET /docs/{token}/), já que o formato do objeto "signers" é o mesmo nos dois.
+function _extrairLinkCredor(data) {
+  var signers = (data && data.signers) || [];
+  var credor = signers[0]; // index 0 = "ALEX MOREIRA BORGES", conforme ordem do payload de criação
+  if (!credor) return "";
+  return credor.sign_url ||
+         (credor.token ? "https://app.zapsign.com.br/verificar/" + credor.token : "");
+}
+
 function enviarParaZapSign(docId, idContrato, nomeCliente, emailCliente, telefoneCliente) {
   var pdfResp = UrlFetchApp.fetch(
     "https://docs.google.com/document/d/" + docId + "/export?format=pdf",
@@ -5603,13 +5614,44 @@ function enviarParaZapSign(docId, idContrato, nomeCliente, emailCliente, telefon
   }
 
   var data = JSON.parse(resp.getContentText());
-  var signers = data.signers || [];
-  // index 0 = credor (Alex) — cliente recebe link por email automaticamente
-  var credor = signers[0];
-  if (!credor) return "";
-  // sign_url às vezes vem vazio na criação do doc mesmo com sucesso — fallback documentado
-  // pela própria ZapSign: montar o link a partir do token do signatário
-  return credor.sign_url || (credor.token ? "https://app.zapsign.com.br/verificar/" + credor.token : "");
+  Logger.log("ZapSign create resp (contrato " + idContrato + "): " + resp.getContentText());
+
+  var docToken = data.token || "";
+  var link = _extrairLinkCredor(data);
+
+  // sign_url E token do signatário às vezes vêm vazios na criação mesmo com sucesso —
+  // a ZapSign materializa os tokens alguns segundos depois. Consultar o documento pelo token.
+  var tentativas = [3000, 5000];
+  for (var i = 0; i < tentativas.length && !link && docToken; i++) {
+    Utilities.sleep(tentativas[i]);
+    try {
+      var g = UrlFetchApp.fetch("https://api.zapsign.com.br/api/v1/docs/" + docToken + "/", {
+        method: "GET",
+        headers: {"Authorization": "Bearer " + ZAPSIGN_TOKEN},
+        muteHttpExceptions: true
+      });
+      Logger.log("ZapSign GET doc " + docToken + " (tentativa " + (i+1) + "): " + g.getContentText());
+      if (g.getResponseCode() >= 200 && g.getResponseCode() < 300) {
+        link = _extrairLinkCredor(JSON.parse(g.getContentText()));
+      }
+    } catch (eg) {
+      Logger.log("ZapSign GET doc " + docToken + " falhou: " + eg.message);
+    }
+  }
+
+  if (!link && docToken) {
+    try {
+      registrarEvento({
+        idContrato: idContrato,
+        nomeCliente: nomeCliente,
+        tipoEvento: "ZAPSIGN_ENVIADO_SEM_LINK",
+        observacoes: "Doc " + docToken + " criado na ZapSign mas link do credor não retornou após 2 " +
+                     "consultas. Resposta de criação: " + resp.getContentText().substring(0, 400)
+      });
+    } catch (eev) { Logger.log("registrarEvento ZAPSIGN_ENVIADO_SEM_LINK falhou: " + eev.message); }
+  }
+
+  return { zapUrl: link, enviado: true, docToken: docToken };
 }
 
 function buscarDadosBoleto(idContrato, idCliente) {
