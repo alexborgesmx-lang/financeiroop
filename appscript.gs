@@ -1326,7 +1326,8 @@ function doPost(e) {
     else if (body.action === "novoContrato")           { var id=criarContrato(body.dados); var dadosBoleto=buscarDadosBoleto(id,body.dados.idCliente||body.dados.clienteId||""); res={ok:true,idContrato:id,parcelas:dadosBoleto.parcelas,cliente:dadosBoleto.cliente}; }
     else if (body.action === "gerarDoc")               { var dRes=gerarDocContrato(body.idContrato,body.idCliente,body.dados); res={ok:true,docUrl:dRes.docUrl||"",docId:dRes.docId||""}; }
     else if (body.action === "pagamentoAutomatico")    { var rAuto=pagamentoAutomatico(body.contractNum,body.numParcela,body.valor,body.data,body.txid||"",body.isSJ||false); res={ok:true,contratoQuitado:rAuto?rAuto.contratoQuitado:false,duplicata:rAuto?!!rAuto.duplicata:false}; }
-    else if (body.action === "enviarZapSign")          { var cliInfo=buscarInfoCliente(body.idCliente); var zRes=enviarParaZapSign(body.docId,body.idContrato,cliInfo.nome,cliInfo.email,cliInfo.telefone); res={ok:true,zapUrl:zRes}; }
+    else if (body.action === "enviarZapSign")          { var cliInfo=buscarInfoCliente(body.idCliente); var zRes=enviarParaZapSign(body.docId,body.idContrato,cliInfo.nome,cliInfo.email,cliInfo.telefone); res={ok:true,zapUrl:zRes.zapUrl,enviado:zRes.enviado,docToken:zRes.docToken}; }
+    else if (body.action === "buscarLinkZapSign")      { res=buscarLinkZapSign(body.docToken); }
     else if (body.action === "baixarContrato")         { var rBaixa=baixarContratoPrejuizo(body.idContrato, body.dados); res={ok:true,idUndo:rBaixa?rBaixa.idUndo:null}; }
     else if (body.action === "excluirContrato")        { excluirContrato(body.idContrato); res={ok:true}; }
     else if (body.action === "recuperacaoAposBaixa")   { var rRecup=registrarRecuperacaoAposBaixa(body.idContrato, body.dados); res={ok:true,idUndo:rRecup?rRecup.idUndo:null}; }
@@ -5652,6 +5653,23 @@ function enviarParaZapSign(docId, idContrato, nomeCliente, emailCliente, telefon
   }
 
   return { zapUrl: link, enviado: true, docToken: docToken };
+}
+
+// Consulta leve — NÃO cria documento nenhum. Usada pelo botão "Buscar o link novamente" da UI
+// quando enviarParaZapSign devolveu enviado:true mas zapUrl vazio.
+function buscarLinkZapSign(docToken) {
+  if (!docToken) return { ok: false, erro: "docToken ausente" };
+  var g = UrlFetchApp.fetch("https://api.zapsign.com.br/api/v1/docs/" + docToken + "/", {
+    method: "GET",
+    headers: {"Authorization": "Bearer " + ZAPSIGN_TOKEN},
+    muteHttpExceptions: true
+  });
+  Logger.log("buscarLinkZapSign " + docToken + ": " + g.getContentText());
+  if (g.getResponseCode() < 200 || g.getResponseCode() >= 300) {
+    return { ok: false, erro: "ZapSign " + g.getResponseCode() };
+  }
+  var link = _extrairLinkCredor(JSON.parse(g.getContentText()));
+  return { ok: true, zapUrl: link, enviado: true, docToken: docToken };
 }
 
 function buscarDadosBoleto(idContrato, idCliente) {
