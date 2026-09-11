@@ -1084,6 +1084,8 @@ function onOpen() {
     .addItem("Renegociacao: Testar Confirmacao WPP (envia pro seu numero)", "_testarConfirmacaoRenegociacao")
     .addItem("Corrigir Dropdown STATUS Parcelas (rodar 1x)", "corrigirDropdownStatusParcelas")
     .addItem("Régua: Corrigir Promessas Quebradas Indevidamente", "corrigirPromessasQuebradasIndevidamente")
+    .addItem("Régua: Corrigir Promessas Órfãs (contratos renegociados/baixados/judiciais)", "corrigirPromessasOrfasReorganizadas")
+    .addItem("Manutenção: Backfill ATRASO_MAX_PRE_RENEGOCIACAO (rodar 1x)", "backfillAtrasoMaxPreRenegociacao")
     .addToUi();
 }
 
@@ -1108,6 +1110,17 @@ function setCel(sheet, row, cm, h, val, fmt) {
   var r = sheet.getRange(row, c);
   r.setValue(val);
   if (fmt) r.setNumberFormat(fmt);
+}
+
+// Garante que uma coluna existe na aba; cria no fim com o mesmo estilo de header do resto
+// e atualiza o colMap in-place. Retorna o indice (1-based) da coluna.
+function _garantirColunaAba(sheet, cm, nomeColuna) {
+  if (cm[nomeColuna]) return cm[nomeColuna];
+  var nc = sheet.getLastColumn() + 1;
+  sheet.getRange(1, nc).setValue(nomeColuna)
+    .setFontWeight("bold").setBackground("#1a1a2e").setFontColor("#ffffff");
+  cm[nomeColuna] = nc;
+  return nc;
 }
 
 function proximoIdSeq(sheet, prefix) {
@@ -1633,24 +1646,27 @@ function recalcularTodosScores() {
   var abaC   = ss.getSheetByName(ABAS.CONTRATOS);
   var abaP   = ss.getSheetByName(ABAS.PARCELAS);
   if (!abaCli || !abaC || !abaP) return;
-  // Ler as 3 abas uma vez só — evita timeout
+  // Ler as abas uma vez só — evita timeout
   var dadosCli = abaCli.getDataRange().getValues();
   var dadosC   = abaC.getDataRange().getValues();
   var dadosP   = abaP.getDataRange().getValues();
+  var abaProm_ = ss.getSheetByName(ABAS.PROMESSAS);
+  var dadosProm_ = abaProm_ ? abaProm_.getDataRange().getValues() : [];
   var count = 0;
   for (var i = 1; i < dadosCli.length; i++) {
     var idCli = String(dadosCli[i][0]).trim();
     if (!idCli) continue;
-    try { calcularScore(idCli, dadosCli, dadosC, dadosP); count++; } catch(e) { Logger.log("Score err " + idCli + ": " + e.message); }
+    try { calcularScore(idCli, dadosCli, dadosC, dadosP, dadosProm_); count++; } catch(e) { Logger.log("Score err " + idCli + ": " + e.message); }
   }
   SpreadsheetApp.getUi().alert("Score recalculado para " + count + " cliente(s).");
 }
 
-function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
+function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP, _dadosProm) {
   var ss     = SpreadsheetApp.getActiveSpreadsheet();
   var abaCli = ss.getSheetByName(ABAS.CLIENTES);
   var abaC   = ss.getSheetByName(ABAS.CONTRATOS);
   var abaP   = ss.getSheetByName(ABAS.PARCELAS);
+  var abaProm= ss.getSheetByName(ABAS.PROMESSAS);
   if (!abaCli || !abaC || !abaP) return null;
 
   var cmCli    = buildColMap(abaCli);
@@ -1659,6 +1675,7 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
   var dadosCli = _dadosCli || abaCli.getDataRange().getValues();
   var dadosC   = _dadosC   || abaC.getDataRange().getValues();
   var dadosP   = _dadosP   || abaP.getDataRange().getValues();
+  var dadosProm = _dadosProm || (abaProm ? abaProm.getDataRange().getValues() : []);
 
   var gv = function(map, row, h) { return map[h] ? row[map[h]-1] : ""; };
   var gn = function(map, row, h) { return parseFloat(gv(map, row, h)||0)||0; };
@@ -1692,10 +1709,14 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
       status:     stColP ? String(dadosP[pi][stColP-1]||"").trim().toLowerCase() : "",
       diasAtraso: parseInt(dadosP[pi][(cmP["DIAS_ATRASO"]||0)-1]||0)||0,
       tipoPag:    String(dadosP[pi][(cmP["TIPO_PAGAMENTO"]||0)-1]||"").trim().toLowerCase(),
+      origem:     String(dadosP[pi][(cmP["ORIGEM_PARCELA"]||0)-1]||"").trim().toLowerCase(),
       idContrato: String(dadosP[pi][(cmP["ID_CONTRATO"]||2)-1]).trim(),
       dtVenc:     dtVobj
     });
   }
+  // Contratos do cliente que passaram por renegociação estrutural (ORIGEM_PARCELA="renegociada")
+  var _renegOrigemCtr = {};
+  parcelas.forEach(function(p){ if (p.origem === "renegociada" && p.idContrato) _renegOrigemCtr[p.idContrato] = true; });
 
   // Construir contratos cruzando PARCELAS → CONTRATOS pelo ID_CONTRATO
   // (evita depender de ID_CLIENTE na aba CONTRATOS, que pode nao existir)
@@ -1712,7 +1733,9 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
     contratos.push({
       id:        idCtrC,
       status:    gs(cmC, dadosC[ci], "STATUS_CONTRATO"),
-      principal: gn(cmC, dadosC[ci], "VALOR_PRINCIPAL")
+      principal: gn(cmC, dadosC[ci], "VALOR_PRINCIPAL"),
+      dataReneg: gv(cmC, dadosC[ci], "DATA_RENEGOCIACAO") || null,
+      atrasoPreReneg: parseInt(gv(cmC, dadosC[ci], "ATRASO_MAX_PRE_RENEGOCIACAO")||0)||0
     });
   }
 
@@ -1730,12 +1753,16 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
     var temAberto = parcelas.some(function(p){ return String(p.idContrato).trim()===String(c.id).trim()&&fn_in(ST_ABERTO,p.status); });
     return !temAberto;
   }).length;
-  var qtdReneg   = contratos.filter(function(c){ return fn_in(ST_RENEG,c.status); }).length;
+  // Renegociacao conta pro score tanto pelo status "renegociado" (acordo com perda) quanto
+  // pela DATA_RENEGOCIACAO preenchida (renegociacao estrutural poe status "ativo_em_dia" e
+  // antes escapava de toda penalidade). Ver 02-AI-CREDIT-RULES.md — renegociar NAO e anistia.
+  var _isRenegC  = function(c){ return fn_in(ST_RENEG,c.status) || !!c.dataReneg || !!_renegOrigemCtr[c.id]; };
+  var qtdReneg   = contratos.filter(_isRenegC).length;
   var temPreju   = contratos.some(function(c){ return fn_in(ST_PREJ,c.status); });
   var temRecup   = contratos.some(function(c){ return fn_in(ST_RECUP,c.status); });
   var temAtivo   = contratos.some(function(c){ return c.status==="ativo_em_dia"; });
   var temAtraso  = contratos.some(function(c){ return fn_in(["ativo_em_atraso","em_cobranca","pre_prejuizo"],c.status); });
-  var temRenegAt = contratos.some(function(c){ return c.status==="renegociado"; });
+  var temRenegAt = contratos.some(_isRenegC);
   var qtdAtivos  = contratos.filter(function(c){ return fn_in(ST_ATIVO.concat(ST_RENEG),c.status); }).length;
   var principalAtivo = contratos.filter(function(c){ return fn_in(ST_ATIVO,c.status); }).reduce(function(s,c){return s+c.principal;},0);
   var maiorValPago   = contratos.filter(function(c){ return fn_in(ST_QUIT,c.status); }).reduce(function(s,c){return Math.max(s,c.principal);},0);
@@ -1764,6 +1791,17 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
     }
   });
 
+  // A renegociacao troca as parcelas atrasadas por status "renegociado" e elas somem do
+  // loop acima. Reincorpora o pior atraso pre-renegociacao (snapshot gravado por
+  // renegociarContrato em ATRASO_MAX_PRE_RENEGOCIACAO) para a nota nao "esquecer" a
+  // inadimplencia. maxAtrasoHist = pior atraso ja visto (atual OU pre-renegociacao);
+  // maxAtrasoDias segue sendo so o atraso ATUAL (usado nos bloqueios de "risco atual").
+  var atrasoPreReneg = 0;
+  contratos.forEach(function(c){ if (c.atrasoPreReneg > atrasoPreReneg) atrasoPreReneg = c.atrasoPreReneg; });
+  var maxAtrasoHist = Math.max(maxAtrasoDias, atrasoPreReneg);
+  var atrGravePreReneg = atrasoPreReneg > 30 ? 1 : 0;
+  var atrGraveHef = atrGraveH + atrGravePreReneg;
+
   var comprometPct = rendaMensal>0 ? Math.min(100,(principalAtivo/rendaMensal)*100) : 50;
 
   // ── BLOCO A: Histórico de contratos (25 pts) ──
@@ -1784,7 +1822,7 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
   ponB += pontEmDia;
   ponB += pctAntec>=30?4:pctAntec>=10?2:0;
   ponB += atrLeveH===0?5:(pctLeve<=20?3:0);
-  ponB += atrGraveH===0?4:(atrGraveH===1?2:0);
+  ponB += atrGraveHef===0?4:(atrGraveHef===1?2:0);
   ponB += qualComun==="boa"?5:qualComun==="regular"?2:0;
   var blocoB = Math.min(30, Math.max(0, ponB));
 
@@ -1827,22 +1865,43 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
   // ── BONIFICAÇÕES (max +10) ──
   var bonus = 0;
   if (qtdAntec>=1)                              bonus += 3;
-  if (qtdQuit>=3&&atrGraveH===0)               bonus += 5;
-  if (mesesCli>12&&atrGraveH===0&&!temPreju)   bonus += 5;
+  if (qtdQuit>=3&&atrGraveHef===0)             bonus += 5;
+  if (mesesCli>12&&atrGraveHef===0&&!temPreju) bonus += 5;
   if (qualComun==="boa")                         bonus += 5;
   if (indicouBons)                               bonus += 3;
   bonus = Math.min(10, bonus);
 
   // ── PENALIZAÇÕES ──
+  // maxAtrasoHist = pior atraso ja registrado (atual OU pre-renegociacao) — a renegociacao
+  // nao apaga a inadimplencia da nota.
   var penal = 0;
-  if      (maxAtrasoDias>30)  penal += 25;
-  else if (maxAtrasoDias>15)  penal += 15;
-  else if (maxAtrasoDias>7)   penal += 10;
-  else if (maxAtrasoDias>0)   penal += 5;
+  if      (maxAtrasoHist>30)  penal += 25;
+  else if (maxAtrasoHist>15)  penal += 15;
+  else if (maxAtrasoHist>7)   penal += 10;
+  else if (maxAtrasoHist>0)   penal += 5;
   if (temRenegAt)             penal += 10;
-  if (qualComun==="ruim"&&maxAtrasoDias>0) penal += 20;
+  if (qualComun==="ruim"&&maxAtrasoHist>0) penal += 20;
   else if (qualComun==="ruim")             penal += 5;
   if (temPreju&&!temRecup)    penal += 30;
+
+  // ── PENALIZAÇÃO POR PROMESSA QUEBRADA ──
+  // calcularScore historicamente ignorava a aba PROMESSAS. Promessa quebrada e sinal forte
+  // de inadimplencia comportamental e a renegociacao passou a marcar as promessas superadas
+  // como QUEBRADA (ver 02-AI-CREDIT-RULES.md). Contagem de vida do cliente.
+  var promQuebradas = 0;
+  try {
+    if (dadosProm && dadosProm.length > 1 && abaProm) {
+      var _cmProm = buildColMap(abaProm);
+      var _ipCliPr = (_cmProm["ID_CLIENTE"]||3)-1;
+      var _ipStPr  = (_cmProm["STATUS_PROMESSA"]||8)-1;
+      for (var _pr = 1; _pr < dadosProm.length; _pr++) {
+        if (String(dadosProm[_pr][_ipCliPr]||"").trim() !== String(idCliente).trim()) continue;
+        if (String(dadosProm[_pr][_ipStPr]||"").trim().toUpperCase() === "QUEBRADA") promQuebradas++;
+      }
+    }
+  } catch(_ePr) { Logger.log("calcularScore promessas: " + _ePr.message); }
+  var penalProm = promQuebradas >= 3 ? 12 : promQuebradas === 2 ? 8 : promQuebradas === 1 ? 4 : 0;
+  penal += penalProm;
 
   var scoreFinal = Math.max(0, Math.min(100, scoreBase + bonus - penal));
 
@@ -1933,8 +1992,10 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
   if (qtdQuit>0)          motivos.push("+"+qtdQuit+" contratos quitados");
   if (totalHist>0)        motivos.push((pctEmDia>=80?"+":"-")+"Em dia: "+pctEmDia.toFixed(0)+"%");
   if (maxAtrasoDias>0)    motivos.push("-Atraso atual: "+maxAtrasoDias+"d");
+  if (atrasoPreReneg>0 && atrasoPreReneg>maxAtrasoDias) motivos.push("-Atraso pre-renegociacao: "+atrasoPreReneg+"d");
   if (temPreju)           motivos.push("-Prejuizo registrado");
   if (qtdReneg>0)         motivos.push("-"+qtdReneg+" renegociacao(oes)");
+  if (penalProm>0)        motivos.push("-"+promQuebradas+" promessa(s) quebrada(s) (-"+penalProm+"pts)");
   if (qualComun==="boa")  motivos.push("+Comunicacao boa");
   if (qualComun==="ruim") motivos.push("-Comunicacao ruim");
   if (indicouBons)        motivos.push("+Indicou bons clientes");
@@ -1960,7 +2021,7 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
   } else if (maxAtrasoDias > 30) {
     renovStatus = "vermelho";
     renovMotivo = "Atraso atual: " + maxAtrasoDias + " dias";
-  } else if (scoreFinal >= 75 && atrGraveH === 0 && qtdReneg === 0) {
+  } else if (scoreFinal >= 75 && atrGraveHef === 0 && qtdReneg === 0) {
     renovStatus = "verde";
     renovMotivo = qtdQuit >= 2
       ? qtdQuit + " contratos quitados — bônus fidelidade aplicado"
@@ -1968,7 +2029,7 @@ function calcularScore(idCliente, _dadosCli, _dadosC, _dadosP) {
   } else if (scoreFinal >= 60) {
     renovStatus = "amarelo";
     var partsRen = [];
-    if (atrGraveH > 0) partsRen.push(atrGraveH + " atraso(s) grave(s) no histórico");
+    if (atrGraveHef > 0) partsRen.push(atrGraveHef + " atraso(s) grave(s) no histórico");
     if (qtdReneg > 0)  partsRen.push(qtdReneg + " renegociação(ões)");
     if (maxAtrasoDias > 0 && maxAtrasoDias <= 30) partsRen.push("atraso atual: " + maxAtrasoDias + "d");
     renovMotivo = (partsRen.length > 0 ? partsRen.join(", ") + ". " : "") + "Analisar antes de aprovar.";
@@ -2399,6 +2460,11 @@ function registrarAcordoComPerda(v) {
                  ". Juros cancelados: R$ "+descontoJuros.toFixed(2)
   });
 
+  try {
+    _resolverPromessasContrato(v.idContrato, "QUEBRADA", new Date(v.data||new Date()),
+      "Acordo com perda em " + Utilities.formatDate(new Date(v.data||new Date()), "America/Sao_Paulo", "dd/MM/yyyy"));
+  } catch(eProm) { Logger.log("registrarAcordoComPerda: erro ao resolver promessas: " + eProm.message); }
+
   try { calcularScore(idCliente); } catch(eScore) { Logger.log("Score err: "+eScore.message); }
   try { calcularMetricasCliente(idCliente); } catch(eMet) { Logger.log("Metricas err: "+eMet.message); }
   var idUndoAcordo = registrarUndo("ACORDO_COM_PERDA", v.idContrato, idCliente, nomeCliente, {
@@ -2604,6 +2670,24 @@ function _validarElegibilidadeRenegociacao(idContrato) {
   return { abaC: abaC, cm: cm, linhaC: linhaC, rowC: rowC, idCliente: idCliente, nomeCliente: nomeCliente, statusAtual: statusAtual };
 }
 
+// Set {idContrato: true} dos contratos que passaram por renegociacao estrutural — detectado
+// por qualquer parcela com ORIGEM_PARCELA = "renegociada". Sinal retroativo confiavel
+// (independe da coluna DATA_RENEGOCIACAO, que nem sempre existia). Mesmo criterio de
+// `jaRenegociado` no frontend.
+function _contratosComRenegociacao(dadosP, cmP) {
+  var out = {};
+  var cCont = (cmP["ID_CONTRATO"]||2)-1;
+  var cOrig = cmP["ORIGEM_PARCELA"] ? cmP["ORIGEM_PARCELA"]-1 : -1;
+  if (cOrig < 0) return out;
+  for (var j = 1; j < dadosP.length; j++) {
+    if (String(dadosP[j][cOrig]||"").toLowerCase().trim() === "renegociada") {
+      var idc = String(dadosP[j][cCont]||"").trim();
+      if (idc) out[idc] = true;
+    }
+  }
+  return out;
+}
+
 function _saldoDevedorAbertoContrato(idContrato) {
   var ss   = SpreadsheetApp.getActiveSpreadsheet();
   var abaP = ss.getSheetByName(ABAS.PARCELAS);
@@ -2765,6 +2849,19 @@ function renegociarContrato(dados) {
   if (novasParcelasQtd <= 0) throw new Error("Quantidade de parcelas invalida.");
   if (!novoVencimento)       throw new Error("Primeiro vencimento nao informado.");
 
+  // Guard: a 1a parcela renegociada nunca pode nascer vencida. Se a data informada ja
+  // passou (proposta gerada dias antes, dia preferido do cliente ja no passado no mes
+  // corrente, etc.) avanca mes a mes preservando o dia ate cair em data futura — senao a
+  // parcela ja nasce em atraso e a Efi recusa gerar o cobv (validadeAposVencimento).
+  var _hojeReneg = new Date(); _hojeReneg.setHours(0, 0, 0, 0);
+  var _dtVenc1   = parseDateLocal(novoVencimento);
+  var _vencAjustado = false;
+  while (_dtVenc1 < _hojeReneg) {
+    _dtVenc1 = new Date(_dtVenc1.getFullYear(), _dtVenc1.getMonth() + 1, _dtVenc1.getDate(), 12, 0, 0);
+    _vencAjustado = true;
+  }
+  if (_vencAjustado) novoVencimento = Utilities.formatDate(_dtVenc1, "America/Sao_Paulo", "yyyy-MM-dd");
+
   var totalRenegociado = novaValorParcela * novasParcelasQtd;
   if (totalRenegociado < capitalFaltante - 0.01) {
     throw new Error(
@@ -2779,12 +2876,29 @@ function renegociarContrato(dados) {
   var dtRenegStr = Utilities.formatDate(dataReneg, "America/Sao_Paulo", "dd/MM/yyyy");
   var stCol = cmP["STATUS"] || cmP["STATUS_PAGAMENTO"];
 
+  // Snapshot do pior atraso das parcelas que serao roladas: depois de virarem status
+  // "renegociado" elas somem dos loops de atraso do calcularScore — sem esse registro a
+  // renegociacao "apagaria" a inadimplencia da nota. Ver 02/03-AI-*.md e Parte C do plano.
+  var _dadosPreReneg = abaP.getDataRange().getValues();
+  var _cDtVpre = (cmP["DATA_VENCIMENTO"] || 0) - 1;
+  var _cDApre  = (cmP["DIAS_ATRASO"]     || 0) - 1;
+  var piorAtrasoRolado = 0;
+
   // 1. Fechar parcelas abertas como "renegociado"
   for (var k = 0; k < parcAbertas.length; k++) {
     var pa = parcAbertas[k];
     if (stCol) abaP.getRange(pa.linha, stCol).setValue("renegociado");
     setCel(abaP, pa.linha, cmP, "OBSERVACOES",
       "Renegociado em " + dtRenegStr + (observacao ? ". " + observacao : ""));
+    var _rowPre = _dadosPreReneg[pa.linha - 1] || [];
+    var _daGrav = _cDApre >= 0 ? (parseInt(_rowPre[_cDApre] || 0) || 0) : 0;
+    var _daCalc = 0;
+    if (_cDtVpre >= 0 && _rowPre[_cDtVpre]) {
+      var _dvPre = _rowPre[_cDtVpre] instanceof Date ? _rowPre[_cDtVpre] : parseDateLocal(_rowPre[_cDtVpre]);
+      _daCalc = Math.max(0, Math.floor((_hojeReneg.getTime() - _dvPre.getTime()) / 86400000));
+    }
+    var _daRolado = Math.max(_daGrav, _daCalc);
+    if (_daRolado > piorAtrasoRolado) piorAtrasoRolado = _daRolado;
   }
 
   // 2. Descobrir max NUM_PARCELA e proximo ID (continua sequencia existente)
@@ -2857,7 +2971,23 @@ function renegociarContrato(dados) {
 
   // 6. Atualizar contrato
   setCel(abaC, linhaC, cm, "STATUS_CONTRATO",   "ativo_em_dia");
+  _garantirColunaAba(abaC, cm, "DATA_RENEGOCIACAO");
   setCel(abaC, linhaC, cm, "DATA_RENEGOCIACAO", dataReneg, "dd/mm/yyyy");
+
+  // 6b. Acumula o pior atraso pre-renegociacao (max com o que ja houver — reincidencia)
+  if (piorAtrasoRolado > 0) {
+    var _cAtrPre = _garantirColunaAba(abaC, cm, "ATRASO_MAX_PRE_RENEGOCIACAO");
+    var _atrPreAnt = parseInt(abaC.getRange(linhaC, _cAtrPre).getValue() || 0) || 0;
+    if (piorAtrasoRolado > _atrPreAnt) abaC.getRange(linhaC, _cAtrPre).setValue(piorAtrasoRolado);
+  }
+
+  // 6c. Resolve promessas pendentes do contrato. A renegociacao superou o carne antigo, mas
+  // a promessa NAO foi paga como prometida (o cliente renegociou em vez de cumprir) — marca
+  // QUEBRADA pra o score/metricas contarem como negativo. Ver 02-AI-CREDIT-RULES.md.
+  try {
+    _resolverPromessasContrato(dados.idContrato, "QUEBRADA", dataReneg,
+      "Renegociacao estrutural em " + dtRenegStr);
+  } catch(eProm) { Logger.log("renegociarContrato: erro ao resolver promessas: " + eProm.message); }
 
   // 7. Registrar evento
   registrarEvento({
@@ -2873,6 +3003,8 @@ function renegociarContrato(dados) {
       "Capital: R$" + capitalFaltante.toFixed(2) + " | Total: R$" + totalRenegociado.toFixed(2) + "." +
       (valorEntradaRecebida > 0.01 ? " Entrada recebida: R$" + valorEntradaRecebida.toFixed(2) + "." : "") +
       (descontoJuros > 0.01 ? " Desc.juros: R$" + descontoJuros.toFixed(2) + "." : "") +
+      (_vencAjustado ? " 1o vencimento ajustado p/ " + Utilities.formatDate(_dtVenc1, "America/Sao_Paulo", "dd/MM/yyyy") + " (data informada ja vencida)." : "") +
+      (piorAtrasoRolado > 0 ? " Pior atraso rolado: " + piorAtrasoRolado + "d (preservado p/ score)." : "") +
       (observacao ? " " + observacao : "")
   });
 
@@ -2985,6 +3117,10 @@ function baixarContratoPrejuizo(idContrato, dados) {
   });
   var idCli = String(row[(cm["ID_CLIENTE"]||2)-1]);
   atualizarCampoCliente(idCli, "STATUS_CLIENTE", "bloqueado");
+  try {
+    _resolverPromessasContrato(idContrato, "QUEBRADA", new Date(dados.data||new Date()),
+      "Contrato baixado como prejuizo em " + Utilities.formatDate(new Date(dados.data||new Date()), "America/Sao_Paulo", "dd/MM/yyyy"));
+  } catch(eProm) { Logger.log("baixarContratoPrejuizo: erro ao resolver promessas: " + eProm.message); }
   try { calcularScore(idCli); } catch(eScore) { Logger.log("Score err: "+eScore.message); }
   try { calcularMetricasCliente(idCli); } catch(eMet) { Logger.log("Metricas err: "+eMet.message); }
   var idUndoBaixa = registrarUndo("BAIXA_PREJUIZO", idContrato, idCli, String(row[(cm["NOME_CLIENTE"]||3)-1]), {
@@ -4971,7 +5107,7 @@ function _atualizarScoresDiario() {
   while (idx < ativos.length) {
     if (Date.now() - inicio > LIMITE_MS) break;
     var idCliLote = ativos[idx];
-    try { calcularScore(idCliLote, dadosCli, dadosC, dadosP); count++; } catch(e) {
+    try { calcularScore(idCliLote, dadosCli, dadosC, dadosP, dadosProm); count++; } catch(e) {
       Logger.log("Score err " + idCliLote + ": " + e.message);
     }
     try { calcularMetricasCliente(idCliLote, dadosCli, dadosC, dadosP, dadosPag, dadosProm); } catch(e) {
@@ -4992,11 +5128,37 @@ function verificarPromessasVencidas() {
   var dados=aba.getDataRange().getValues();
   var cDP=cm["DATA_PREVISTA_PAGAMENTO"];
   var cSt=cm["STATUS_PROMESSA"];
+  var cCt=cm["ID_CONTRATO"];
+  var cCump=cm["DATA_CUMPRIMENTO"];
+
+  // Mapa ID_CONTRATO -> STATUS_CONTRATO (lowercase) pra nao marcar QUEBRADA cega uma
+  // promessa cujo contrato ja saiu do estado cobravel (quitado/renegociado/etc.).
+  var stContMap={};
+  try{
+    var abaC=ss.getSheetByName(ABAS.CONTRATOS);
+    if(abaC){
+      var cmC=buildColMap(abaC);var dC=abaC.getDataRange().getValues();
+      var iCId=(cmC["ID_CONTRATO"]||1)-1;var iCSt=(cmC["STATUS_CONTRATO"]||16)-1;
+      for(var c=1;c<dC.length;c++){var idc=String(dC[c][iCId]||"").trim();if(idc)stContMap[idc]=String(dC[c][iCSt]||"").trim().toLowerCase();}
+    }
+  }catch(eC){Logger.log("verificarPromessasVencidas: mapa contratos falhou "+eC.message);}
+  var ST_QUITADO={quitado:1};
+  var hojeStr=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),"yyyy-MM-dd");
+
   for(var i=1;i<dados.length;i++){
     var st=String(dados[i][(cSt||8)-1]||"").trim();
     if(st!=="PENDENTE")continue;
     var dtP=new Date(dados[i][(cDP||6)-1]);dtP.setHours(0,0,0,0);
-    if(dtP<hoje){aba.getRange(i+1,cSt).setValue("QUEBRADA");Logger.log("Promessa vencida: linha "+(i+1));}
+    if(dtP>=hoje)continue;
+    var stC=cCt?stContMap[String(dados[i][cCt-1]||"").trim()]:"";
+    if(ST_QUITADO[stC]){
+      aba.getRange(i+1,cSt).setValue("CUMPRIDA");
+      if(cCump&&!dados[i][cCump-1])aba.getRange(i+1,cCump).setValue(hojeStr);
+      Logger.log("Promessa vencida linha "+(i+1)+" -> CUMPRIDA (contrato quitado)");
+    }else{
+      aba.getRange(i+1,cSt).setValue("QUEBRADA");
+      Logger.log("Promessa vencida: linha "+(i+1)+(stC?(" (contrato "+stC+")"):""));
+    }
   }
 }
 
@@ -5079,6 +5241,143 @@ function corrigirPromessasQuebradasIndevidamente() {
     (corrigidas.length ? "\n\n" + corrigidas.join("\n") : "");
   Logger.log(resumo);
   try { SpreadsheetApp.getUi().alert(resumo); } catch(e) {}
+}
+
+// Correção de dados (rodar 1x após o deploy de 2026-09-01) — promessas PENDENTE deixadas
+// órfãs por fluxos que fecham/reorganizam o contrato SEM resolver a promessa
+// (renegociação estrutural, acordo com perda, baixa, judicial). Marca QUEBRADA (o cliente
+// não cumpriu a promessa como prometida — negativo pro score) e recalcula os clientes.
+// Contrato quitado NÃO entra aqui — é caso de corrigirPromessasQuebradasIndevidamente.
+function corrigirPromessasOrfasReorganizadas() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var abaProm = ss.getSheetByName(ABAS.PROMESSAS);
+  var abaC    = ss.getSheetByName(ABAS.CONTRATOS);
+  if (!abaProm || !abaC) { Logger.log("corrigirPromessasOrfas: abas ausentes"); return; }
+
+  var cmProm = buildColMap(abaProm);
+  var cmC    = buildColMap(abaC);
+  var dProm  = abaProm.getDataRange().getValues();
+  var dC     = abaC.getDataRange().getValues();
+
+  var iPrCont = (cmProm["ID_CONTRATO"]||2)-1;
+  var iPrCli  = (cmProm["ID_CLIENTE"]||3)-1;
+  var iPrSt   = (cmProm["STATUS_PROMESSA"]||8)-1;
+  var iPrDtP  = cmProm["DATA_PROMESSA"] ? cmProm["DATA_PROMESSA"]-1 : -1;
+  var iPrObs  = cmProm["OBSERVACAO"] ? cmProm["OBSERVACAO"]-1 : -1;
+
+  var iCId    = (cmC["ID_CONTRATO"]||1)-1;
+  var iCSt    = (cmC["STATUS_CONTRATO"]||16)-1;
+  var contInfo = {};
+  for (var i = 1; i < dC.length; i++) {
+    var idC = String(dC[i][iCId]||"").trim(); if (!idC) continue;
+    contInfo[idC] = { status: String(dC[i][iCSt]||"").toLowerCase().trim() };
+  }
+
+  // Contratos que passaram por renegociação estrutural — sinal retroativo confiável
+  // (ORIGEM_PARCELA="renegociada"), independe da coluna DATA_RENEGOCIACAO.
+  var abaP  = ss.getSheetByName(ABAS.PARCELAS);
+  var renegMap = abaP ? _contratosComRenegociacao(abaP.getDataRange().getValues(), buildColMap(abaP)) : {};
+
+  // Estados em que uma promessa PENDENTE nao faz mais sentido (exceto quitado)
+  var ST_ORFA = {
+    renegociado:1, baixado_como_prejuizo:1, cancelado:1,
+    em_processo_judicial:1, encerrado_judicialmente:1, encerrado_sem_recuperacao:1,
+    recuperado_integralmente:1, recuperado_parcialmente:1, em_recuperacao:1
+  };
+
+  var corrigidas = [], clientesAfetados = {}, varridas = 0;
+  for (var r = 1; r < dProm.length; r++) {
+    var stProm = String(dProm[r][iPrSt]||"").trim().toUpperCase();
+    if (stProm !== "PENDENTE") continue;
+    var idContrato = String(dProm[r][iPrCont]||"").trim();
+    var info = contInfo[idContrato]; if (!info) continue;
+    varridas++;
+
+    // Órfã se: contrato em estado terminal/reorganizado, OU passou por renegociação
+    // estrutural (carnê antigo substituído — a promessa era sobre a dívida antiga).
+    var orfa = ST_ORFA[info.status] || !!renegMap[idContrato];
+    if (!orfa) continue;
+
+    abaProm.getRange(r+1, iPrSt+1).setValue("QUEBRADA");
+    if (iPrObs >= 0) {
+      var obsAt = String(dProm[r][iPrObs]||"").trim();
+      var mot = "Correcao 2026-09: contrato " + (info.status || "reorganizado");
+      abaProm.getRange(r+1, iPrObs+1).setValue(obsAt ? (obsAt + " | " + mot) : mot);
+    }
+    var idCli = String(dProm[r][iPrCli]||"").trim();
+    if (idCli) clientesAfetados[idCli] = true;
+    corrigidas.push("linha " + (r+1) + " (contrato " + idContrato + " [" + info.status + "], cliente " + idCli + ")");
+  }
+  SpreadsheetApp.flush();
+
+  var idsCli = Object.keys(clientesAfetados);
+  idsCli.forEach(function(idCli){
+    try { calcularScore(idCli); } catch(e){ Logger.log("Score err "+idCli+": "+e.message); }
+    try { calcularMetricasCliente(idCli); } catch(e){ Logger.log("Metricas err "+idCli+": "+e.message); }
+  });
+
+  var resumo = "Promessas PENDENTE avaliadas: " + varridas +
+    "\nMarcadas QUEBRADA (órfãs de contrato reorganizado): " + corrigidas.length +
+    "\nClientes recalculados: " + idsCli.length +
+    (corrigidas.length ? "\n\n" + corrigidas.join("\n") : "");
+  Logger.log(resumo);
+  try { SpreadsheetApp.getUi().alert(resumo); } catch(e) {}
+}
+
+// Backfill (rodar 1x) — reconstrói CONTRATOS.ATRASO_MAX_PRE_RENEGOCIACAO nos contratos que
+// já foram renegociados antes do deploy de 2026-09-01, a partir do DIAS_ATRASO das parcelas
+// que ficaram com status "renegociado". Sem isso, o score desses clientes continua sem
+// "lembrar" a inadimplência que a renegociação escondeu.
+function backfillAtrasoMaxPreRenegociacao() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var abaC = ss.getSheetByName(ABAS.CONTRATOS);
+  var abaP = ss.getSheetByName(ABAS.PARCELAS);
+  if (!abaC || !abaP) { Logger.log("backfillAtrasoPreReneg: abas ausentes"); return; }
+  var cmC = buildColMap(abaC);
+  var cmP = buildColMap(abaP);
+  var _cAtr = _garantirColunaAba(abaC, cmC, "ATRASO_MAX_PRE_RENEGOCIACAO");
+  var dC = abaC.getDataRange().getValues();
+  var dP = abaP.getDataRange().getValues();
+
+  var iCId   = (cmC["ID_CONTRATO"]||1)-1;
+  var ipCont = (cmP["ID_CONTRATO"]||2)-1;
+  var ipSt   = (cmP["STATUS"]||cmP["STATUS_PAGAMENTO"]||11)-1;
+  var ipDtV  = (cmP["DATA_VENCIMENTO"]||7)-1;
+  var ipDA   = cmP["DIAS_ATRASO"] ? cmP["DIAS_ATRASO"]-1 : -1;
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+
+  // pior atraso das parcelas fechadas como "renegociado" por contrato — qualquer contrato
+  // com uma parcela nesse status passou por renegociacao estrutural (nao depende de
+  // STATUS_CONTRATO nem de DATA_RENEGOCIACAO, que nem sempre estao preenchidos).
+  var piorPorContrato = {};
+  for (var j = 1; j < dP.length; j++) {
+    var st = String(dP[j][ipSt]||"").toLowerCase().trim();
+    if (st !== "renegociado") continue;
+    var idc = String(dP[j][ipCont]||"").trim(); if (!idc) continue;
+    var daGrav = ipDA >= 0 ? (parseInt(dP[j][ipDA]||0)||0) : 0;
+    var daCalc = 0;
+    var dv = dP[j][ipDtV];
+    if (dv) { var dvo = dv instanceof Date ? dv : parseDateLocal(dv); daCalc = Math.max(0, Math.floor((hoje.getTime()-dvo.getTime())/86400000)); }
+    var da = Math.max(daGrav, daCalc);
+    if (!piorPorContrato[idc] || da > piorPorContrato[idc]) piorPorContrato[idc] = da;
+  }
+
+  var linhaPorContrato = {};
+  for (var i = 1; i < dC.length; i++) {
+    var idCr = String(dC[i][iCId]||"").trim();
+    if (idCr) linhaPorContrato[idCr] = i + 1;
+  }
+
+  var n = 0;
+  Object.keys(piorPorContrato).forEach(function(idC){
+    var linha = linhaPorContrato[idC]; if (!linha) return;
+    var pior = piorPorContrato[idC] || 0;
+    var atual = parseInt(abaC.getRange(linha, _cAtr).getValue()||0)||0;
+    if (pior > atual) { abaC.getRange(linha, _cAtr).setValue(pior); n++; }
+  });
+  var msg = "Backfill ATRASO_MAX_PRE_RENEGOCIACAO: " + n + " contrato(s) atualizados.";
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg + "\n\nRode 'Recalcular Todos os Scores' em seguida."); } catch(e) {}
 }
 
 function _parseDataFlex(v) {
@@ -7391,23 +7690,48 @@ function _jaEnviouHoje(idCliente) {
   return false;
 }
 
-function _cancelarPromessasPorContrato(idContrato) {
+// Resolve todas as promessas PENDENTE de um contrato com um status de destino explicito.
+//   novoStatus: "CUMPRIDA" (cliente pagou / contrato quitado)
+//             | "QUEBRADA" (contrato renegociado/baixado/judicializado — promessa NAO foi
+//                           honrada como prometida; conta como negativo no score/metricas)
+//             | "CANCELADA" (promessa superada sem juizo de valor)
+// So mexe em linha PENDENTE — nunca reescreve promessa ja terminal.
+// dataRef: Date usada em DATA_CUMPRIMENTO quando novoStatus === "CUMPRIDA".
+// motivo: texto curto anexado a OBSERVACAO pra rastreabilidade.
+// Retorna a quantidade de promessas alteradas.
+function _resolverPromessasContrato(idContrato, novoStatus, dataRef, motivo) {
   var ss      = SpreadsheetApp.getActiveSpreadsheet();
   var abaProm = ss.getSheetByName(ABAS.PROMESSAS);
-  if (!abaProm || abaProm.getLastRow() < 2) return;
+  if (!abaProm || abaProm.getLastRow() < 2) return 0;
   var cm    = buildColMap(abaProm);
-  var cCont = cm["ID_CONTRATO"]     ? cm["ID_CONTRATO"]-1     : -1;
-  var cSt   = cm["STATUS_PROMESSA"] ? cm["STATUS_PROMESSA"]-1 : -1;
+  var cCont = cm["ID_CONTRATO"]      ? cm["ID_CONTRATO"]-1      : -1;
+  var cSt   = cm["STATUS_PROMESSA"]  ? cm["STATUS_PROMESSA"]-1  : -1;
   var cCump = cm["DATA_CUMPRIMENTO"] ? cm["DATA_CUMPRIMENTO"]-1 : -1;
-  if (cCont < 0 || cSt < 0) return;
-  var hojeStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
-  var dados = abaProm.getDataRange().getValues();
+  var cObs  = cm["OBSERVACAO"]       ? cm["OBSERVACAO"]-1       : -1;
+  if (cCont < 0 || cSt < 0) return 0;
+  var st      = String(novoStatus || "CUMPRIDA").trim().toUpperCase();
+  var dRef    = dataRef instanceof Date ? dataRef : new Date();
+  var refStr  = Utilities.formatDate(dRef, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  var dados   = abaProm.getDataRange().getValues();
+  var n       = 0;
   for (var i = 1; i < dados.length; i++) {
     if (String(dados[i][cCont]||"").trim() !== String(idContrato).trim()) continue;
     if (String(dados[i][cSt] ||"").trim().toUpperCase() !== "PENDENTE") continue;
-    abaProm.getRange(i+1, cSt+1).setValue("CUMPRIDA");
-    if (cCump >= 0 && !dados[i][cCump]) abaProm.getRange(i+1, cCump+1).setValue(hojeStr);
+    abaProm.getRange(i+1, cSt+1).setValue(st);
+    if (st === "CUMPRIDA" && cCump >= 0 && !dados[i][cCump])
+      abaProm.getRange(i+1, cCump+1).setValue(refStr);
+    if (motivo && cObs >= 0) {
+      var obsAtual = String(dados[i][cObs]||"").trim();
+      abaProm.getRange(i+1, cObs+1).setValue(obsAtual ? (obsAtual + " | " + motivo) : motivo);
+    }
+    n++;
   }
+  return n;
+}
+
+// Wrapper historico — quando o contrato quita, a promessa vira CUMPRIDA (cliente pagou).
+function _cancelarPromessasPorContrato(idContrato) {
+  return _resolverPromessasContrato(idContrato, "CUMPRIDA", new Date(), null);
 }
 
 // Trunca um Date para meia-noite local — DATA_PAGAMENTO é sempre gravada ao
@@ -8223,6 +8547,7 @@ function enviarReguaCobranca(dryRun) {
   var icId   = (cmC["ID_CONTRATO"]   ||1)-1;
   var icCli  = (cmC["ID_CLIENTE"]    ||2)-1;
   var icSt   = (cmC["STATUS_CONTRATO"]||5)-1;
+  var icDtRe = cmC["DATA_RENEGOCIACAO"] ? cmC["DATA_RENEGOCIACAO"]-1 : -1;
 
   // Índices PARCELAS
   var ipId   = (cmP["ID_PARCELA"]    ||1)-1;
@@ -8253,9 +8578,10 @@ function enviarReguaCobranca(dryRun) {
   for (var i = 1; i < dC.length; i++) {
     var idC = String(dC[i][icId]||"").trim(); if (!idC) continue;
     contMap[idC] = {
-      ID_CONTRATO:     idC,
-      ID_CLIENTE:      String(dC[i][icCli]||"").trim(),
-      STATUS_CONTRATO: String(dC[i][icSt] ||"").trim().toLowerCase()
+      ID_CONTRATO:      idC,
+      ID_CLIENTE:       String(dC[i][icCli]||"").trim(),
+      STATUS_CONTRATO:  String(dC[i][icSt] ||"").trim().toLowerCase(),
+      DATA_RENEGOCIACAO: icDtRe >= 0 ? dC[i][icDtRe] : null
     };
   }
 
@@ -8286,6 +8612,7 @@ function enviarReguaCobranca(dryRun) {
     var iprCli  = cmProm["ID_CLIENTE"]              ? cmProm["ID_CLIENTE"]-1              : -1;
     var iprCont = cmProm["ID_CONTRATO"]             ? cmProm["ID_CONTRATO"]-1             : -1;
     var iprDt   = cmProm["DATA_PREVISTA_PAGAMENTO"] ? cmProm["DATA_PREVISTA_PAGAMENTO"]-1 : -1;
+    var iprDtP  = cmProm["DATA_PROMESSA"]           ? cmProm["DATA_PROMESSA"]-1           : -1;
     var iprVal  = cmProm["VALOR_PROMETIDO"]         ? cmProm["VALOR_PROMETIDO"]-1         : -1;
     var iprSt   = cmProm["STATUS_PROMESSA"]         ? cmProm["STATUS_PROMESSA"]-1         : -1;
     for (var i = 1; i < dProm.length; i++) {
@@ -8296,6 +8623,7 @@ function enviarReguaCobranca(dryRun) {
       promMap[idCliP].push({
         ID_CONTRATO:    iprCont >= 0 ? String(dProm[i][iprCont]||"").trim() : "",
         DATA_PREVISTA:  iprDt  >= 0 ? dProm[i][iprDt]  : null,
+        DATA_PROMESSA:  iprDtP >= 0 ? dProm[i][iprDtP] : null,
         VALOR_PROMETIDO:iprVal >= 0 ? parseFloat(dProm[i][iprVal]||0) : 0,
         _row:           i + 1
       });
@@ -8351,11 +8679,43 @@ function enviarReguaCobranca(dryRun) {
   }
 
   // Promessas
+  // Estados de contrato em que a promessa nao deve mais gerar cobranca automatica.
+  var ST_PROM_NAO_COBRAVEL = {
+    quitado:1, cancelado:1, renegociado:1, baixado_como_prejuizo:1,
+    em_processo_judicial:1, encerrado_judicialmente:1, encerrado_sem_recuperacao:1,
+    recuperado_integralmente:1, recuperado_parcialmente:1, em_recuperacao:1
+  };
+  var _renegMapRegua = _contratosComRenegociacao(dP, cmP);
   for (var idCliP in promMap) {
     var cli = cliMap[idCliP]; if (!cli || !cli.TELEFONE_WPP) continue;
     if (cli.PERFIL === "EVASIVO") continue;
     var prom   = promMap[idCliP][0];
     var dtProm = prom.DATA_PREVISTA; if (!dtProm) continue;
+
+    var contPromObj = contMap[prom.ID_CONTRATO] || null;
+    var contPromSt  = contPromObj ? contPromObj.STATUS_CONTRATO : "";
+
+    // Acordo Assistido: contrato fora da fila de cobranca por regra de negocio
+    // (02-AI-CREDIT-RULES.md) — nao dispara promessa e nao mexe no status dela (o contrato
+    // pode voltar a cobranca normal via sairDoAcordoAssistido).
+    if (contPromSt === "acordo_assistido") {
+      if (dryRun) Logger.log("REGUA [DRY-RUN]: promessa do contrato " + prom.ID_CONTRATO + " ignorada — acordo_assistido");
+      continue;
+    }
+
+    // Promessa superada por renegociacao: o carne antigo nao existe mais. Marca QUEBRADA
+    // (o cliente renegociou em vez de cumprir — negativo pro score, ver 02-AI-CREDIT-RULES.md)
+    // e nao dispara. Sinal: contrato com parcela ORIGEM_PARCELA="renegociada" e — se houver
+    // DATA_RENEGOCIACAO — a renegociacao no mesmo dia ou depois da promessa.
+    var _dtReneg = contPromObj && contPromObj.DATA_RENEGOCIACAO
+      ? (contPromObj.DATA_RENEGOCIACAO instanceof Date ? contPromObj.DATA_RENEGOCIACAO : parseDateLocal(contPromObj.DATA_RENEGOCIACAO))
+      : null;
+    var _dtPromFeita = prom.DATA_PROMESSA
+      ? (prom.DATA_PROMESSA instanceof Date ? prom.DATA_PROMESSA : parseDateLocal(prom.DATA_PROMESSA))
+      : null;
+    var _dRe = _apenasData(_dtReneg), _dPr = _apenasData(_dtPromFeita);
+    var supersedidaPorReneg = !!_renegMapRegua[prom.ID_CONTRATO] &&
+      (!_dRe || !_dPr || _dRe.getTime() >= _dPr.getTime());
 
     // PIX: primeira parcela aberta do contrato (e serve pra saber se ainda há o que cobrar)
     var pixP = "";
@@ -8370,17 +8730,21 @@ function enviarReguaCobranca(dryRun) {
       }
     }
 
-    // Contrato sem nenhuma parcela em aberto (quitado/cancelado/renegociado/baixado): não
-    // dispara promessa — evita ERRO_SEM_PIX — e resolve a promessa pendente na hora.
-    var contPromSt = contMap[prom.ID_CONTRATO] ? contMap[prom.ID_CONTRATO].STATUS_CONTRATO : "";
-    if (!temParcelaAberta || contPromSt === "quitado") {
+    // Contrato fora do estado cobravel (quitado/renegociado/baixado/judicial), sem parcela
+    // em aberto, ou promessa superada por renegociacao: nao dispara — resolve a promessa na
+    // hora com o status coerente e segue. Se nao tem parcela aberta mas o contrato ainda
+    // esta num estado ambiguo (ex: pagamento direto na planilha antes do atualizarStatus),
+    // apenas nao dispara e deixa PENDENTE — nao arrisca marcar QUEBRADA indevida.
+    var _promNaoCobravel = ST_PROM_NAO_COBRAVEL[contPromSt] || supersedidaPorReneg;
+    if (_promNaoCobravel || !temParcelaAberta) {
       var novoStProm = contPromSt === "quitado" ? "CUMPRIDA"
-        : (contPromSt === "cancelado" || contPromSt === "baixado_como_prejuizo" ||
-           contPromSt === "encerrado_sem_recuperacao" || contPromSt === "encerrado_judicialmente") ? "QUEBRADA"
+        : _promNaoCobravel ? "QUEBRADA"
         : "";
+      var _motivoProm = supersedidaPorReneg ? "Regua: promessa superada por renegociacao"
+        : ("Regua: contrato " + (contPromSt || "sem parcela em aberto"));
       if (dryRun) {
         Logger.log("REGUA [DRY-RUN]: promessa do contrato " + prom.ID_CONTRATO + " (cliente " + idCliP +
-          ") ignorada — sem parcela em aberto" + (novoStProm ? ("; marcaria " + novoStProm) : ""));
+          ") ignorada — " + _motivoProm + (novoStProm ? ("; marcaria " + novoStProm) : "; mantem PENDENTE"));
       } else if (novoStProm && abaProm && prom._row > 0 && cmProm["STATUS_PROMESSA"]) {
         abaProm.getRange(prom._row, cmProm["STATUS_PROMESSA"]).setValue(novoStProm);
         if (novoStProm === "CUMPRIDA" && cmProm["DATA_CUMPRIMENTO"] &&
@@ -8388,7 +8752,18 @@ function enviarReguaCobranca(dryRun) {
           abaProm.getRange(prom._row, cmProm["DATA_CUMPRIMENTO"])
             .setValue(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd"));
         }
+        if (cmProm["OBSERVACAO"]) {
+          var _obsProm = String(abaProm.getRange(prom._row, cmProm["OBSERVACAO"]).getValue()||"").trim();
+          abaProm.getRange(prom._row, cmProm["OBSERVACAO"]).setValue(_obsProm ? (_obsProm + " | " + _motivoProm) : _motivoProm);
+        }
       }
+      continue;
+    }
+
+    // Parcela aberta existe mas ainda sem PIX gerado: nao e falha — pula em silencio
+    // (a proxima passada da regua, ou o ramo de parcela normal, gera o codigo).
+    if (!pixP) {
+      Logger.log("REGUA: promessa do contrato " + prom.ID_CONTRATO + " sem PIX na 1a parcela aberta — pulando sem erro");
       continue;
     }
 
@@ -8940,6 +9315,11 @@ function ajuizarContrato(idContrato, dados) {
       }
     }
   }
+
+  try {
+    _resolverPromessasContrato(idContrato, "QUEBRADA", new Date(),
+      "Contrato ajuizado em " + Utilities.formatDate(new Date(), "America/Sao_Paulo", "dd/MM/yyyy"));
+  } catch(eProm) { Logger.log("ajuizarContrato: erro ao resolver promessas: " + eProm.message); }
 
   registrarEvento({
     idContrato: idContrato,

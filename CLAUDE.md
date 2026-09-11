@@ -395,10 +395,12 @@ Chaves: `TEMPLATE_D-5`, `TEMPLATE_D-1`, `TEMPLATE_D0`, `TEMPLATE_D+1`, `TEMPLATE
 // Chamado ao final de registrarPagamentoAPI (cobre pagamentos manuais E webhook Efí)
 _enviarConfirmacaoPagamento({idParcela, idContrato, idCliente, nomeCliente, numParcela, totalParcelas, vlPago})
 
-// Cancela PROMESSAS PENDENTE do contrato (status → "CUMPRIDA" + grava DATA_CUMPRIMENTO)
-_cancelarPromessasPorContrato(idContrato)
+// Resolve PROMESSAS PENDENTE do contrato com status de destino explícito
+_resolverPromessasContrato(idContrato, novoStatus, dataRef, motivo)  // "CUMPRIDA" | "QUEBRADA" | "CANCELADA"
+_cancelarPromessasPorContrato(idContrato)  // wrapper: _resolverPromessasContrato(id, "CUMPRIDA", hoje)
 ```
 - **`_cancelarPromessasPorContrato` também é chamada no ramo `todasPagas` de `registrarPagamentoAPI` e `registrarQuitacaoAntecipada`** (2026-08-29) — quando o pagamento quita o contrato, esses caminhos enviam só o certificado e pulam `_enviarConfirmacaoPagamento`, então sem essa chamada extra a promessa ficava `PENDENTE` pra sempre e a régua disparava `PROMESSA_D+1` no dia seguinte contra um contrato sem parcela em aberto (`ERRO_SEM_PIX`). Defesa adicional na régua: o loop de promessas de `enviarReguaCobranca` pula (e resolve) promessa cujo contrato não tem mais parcela fora de `ST_SKIP_P`. Correção histórica: menu GAS → "Régua: Corrigir Promessas Quebradas Indevidamente". Ver `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-08-29).
+- **Promessas órfãs de contrato renegociado/baixado/judicial (2026-09-01)** — `renegociarContrato`, `registrarAcordoComPerda`, `baixarContratoPrejuizo` e `ajuizarContrato` chamam `_resolverPromessasContrato(id, "QUEBRADA", ...)` (a promessa não foi cumprida — o cliente renegociou/quebrou em vez de pagar). A régua (`enviarReguaCobranca`, ramo de promessa) e `verificarPromessasVencidas` passaram a checar o `STATUS_CONTRATO` / `DATA_RENEGOCIACAO` antes de disparar ou marcar `QUEBRADA` cega. Limpeza histórica: menu GAS → **"Régua: Corrigir Promessas Órfãs (contratos renegociados/baixados/judiciais)"** (`corrigirPromessasOrfasReorganizadas`). `renegociarContrato` também: (a) grava `CONTRATOS.ATRASO_MAX_PRE_RENEGOCIACAO` (snapshot do pior atraso das parcelas roladas — o `calcularScore` usa pra não anistiar a inadimplência) e (b) avança `novoVencimento` pra frente se cair no passado. Score: renegociação estrutural (`DATA_RENEGOCIACAO` preenchida) passou a disparar as mesmas penalidades do `acordoComPerda`, e `calcularScore` agora penaliza promessa `QUEBRADA` (−4/−8/−12). Ver `07-AI-KNOWN-ISSUES.md` e `02-AI-CREDIT-RULES.md` (2026-09-01).
 - Dedup: bloqueia reenvio só se já existir em MENSAGENS uma linha `GATILHO="CONFIRMACAO_PAGAMENTO"` + `ID_PARCELA` + `STATUS_ENVIO="ENVIADO"` enviada no mesmo dia (ou depois) da `DATA_PAGAMENTO` **vigente** da parcela — não é mais "nunca reenvia" incondicional por `ID_PARCELA`. Helper `_dataPagamentoAtualParcela` + `_apenasData` (appscript.gs ~6602). Motivo: `reabrirParcelaAPI` reseta a parcela mas não limpa MENSAGENS, então uma confirmação antiga (de um pagamento revertido) não pode bloquear o pagamento real seguinte na mesma parcela. Ver `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-07-20).
 - Template: `TEMPLATE_CONFIRMACAO` do CONFIGURACOES; variáveis: `{NOME}`, `{NUM_PARCELA}`, `{TOTAL_PARCELAS}`, `{VALOR_PAGO}`, `{PARCELAS_RESTANTES}`, `{PROXIMO_VENCIMENTO}`
 - Log em MENSAGENS com `GATILHO = "CONFIRMACAO_PAGAMENTO"`
@@ -421,6 +423,11 @@ recalcularTotaisContratosHistorico()      // recalcula NUM_PARCELAS/JUROS_TOTAL/
 backfillAbatimentosAssistidosHistorico() // reaplica a cascata capital-primeiro (_alocarAbatimentoAssistido) sobre os
                                           // abatimentos de Acordo Assistido já registrados, em ordem cronológica por
                                           // contrato — rodar 1x após publicar a mudança de 2026-08-29
+corrigirPromessasOrfasReorganizadas()     // marca QUEBRADA promessas PENDENTE de contratos renegociados/baixados/
+                                          // judiciais que ficaram órfãs; recalcula score/métricas — rodar 1x (2026-09-01)
+backfillAtrasoMaxPreRenegociacao()        // reconstrói CONTRATOS.ATRASO_MAX_PRE_RENEGOCIACAO nos contratos já
+                                          // renegociados a partir do DIAS_ATRASO das parcelas "renegociado" — rodar 1x
+                                          // depois recalcular score (2026-09-01)
 ```
 
 **Campos CLIENTES calculados por `calcularMetricasCliente`:**

@@ -32,6 +32,143 @@ Aberto | Em andamento | Resolvido
 
 ## Registro Ativo
 
+## 2026-09-01 — Régua "Sem PIX" em promessa órfã de renegociação + score anistiava renegociação
+
+### Problema
+A régua das 07:10 de 01/09 registrou `PROMESSA_D-1` para **PCL-204 / Maria Luiza Diniz** com
+status `Sem PIX` (`ERRO_SEM_PIX`) — único erro do dia. Investigação revelou 3 problemas
+encadeados:
+
+1. **Promessas órfãs (classe de bug):** `renegociarContrato` e ~9 outros fluxos que
+   fecham/reorganizam contrato (`registrarAcordoComPerda`, `baixarContratoPrejuizo`,
+   `ajuizarContrato`, fluxos judiciais) **nunca resolviam** as promessas PENDENTE do
+   contrato. No PCL-204, Alex reagendou 2 parcelas (cada reagendamento cria linha PENDENTE em
+   PROMESSAS), depois o contrato foi renegociado — as 2 promessas ficaram PENDENTE com
+   `DATA_PREVISTA = 02/09`. A régua tentou disparar `PROMESSA_D-1`, leu o `EFI_PIX_CODE`
+   (vazio) da 1ª parcela nova e logou `ERRO_SEM_PIX`. A 1ª parcela nova nasceu vencida
+   (`novoVencimento` 08/08, 3 semanas antes da renegociação) — a Efí recusa cobv vencida.
+2. **Régua sem auto-cura no ramo de promessa:** a defesa de 2026-08-29 só pulava/resolvia a
+   promessa quando o contrato não tinha **nenhuma** parcela aberta ou estava `quitado`. Um
+   contrato renegociado tem parcelas novas abertas + status `ativo_em_dia` → defesa não
+   dispara.
+3. **Score anistiava a renegociação estrutural:** `calcularScore` nunca lia a aba PROMESSAS
+   (promessa quebrada = efeito ZERO na nota). E `renegociarContrato` fecha as parcelas
+   atrasadas como `renegociado` (fora de `ST_PAGOS` e `ST_ABERTO` → somem dos loops de
+   atraso) e põe o contrato em `ativo_em_dia` (não `renegociado`, e o score nunca lia
+   `DATA_RENEGOCIACAO`) → nenhuma penalidade de renegociação disparava. Um cliente 60 dias
+   atrasado ficava, pós-renegociação, com `maxAtrasoDias = 0` e sem histórico de atraso grave.
+
+### Impacto
+`ERRO_SEM_PIX` recorrente na régua (também PCL-214 em 29/08). Promessas de contratos
+renegociados marcadas `QUEBRADA` cega por `verificarPromessasVencidas` (parte das 48 QUEBRADA
+de 01/09). Score infla para clientes que renegociaram — decisão de crédito futura sobre nota
+enganosa. Sem perda de dado.
+
+### Solução (deployada 2026-09-01)
+**Promessas / régua:**
+- Novo helper `_resolverPromessasContrato(idContrato, novoStatus, dataRef, motivo)` —
+  `_cancelarPromessasPorContrato` virou wrapper (`"CUMPRIDA"`).
+- `renegociarContrato` / `registrarAcordoComPerda` / `baixarContratoPrejuizo` /
+  `ajuizarContrato` chamam `_resolverPromessasContrato(..., "QUEBRADA", ...)` (a promessa
+  não foi paga como prometida — o cliente renegociou/quebrou em vez de cumprir).
+- `renegociarContrato`: guard que avança `novoVencimento` mês a mês se cair no passado
+  (1ª parcela nunca nasce vencida).
+- `enviarReguaCobranca` — ramo de promessa: resolve + pula (sem `ERRO_SEM_PIX`) quando o
+  contrato está em estado não-cobrável (`ST_PROM_NAO_COBRAVEL`) OU `DATA_RENEGOCIACAO` é
+  posterior à `DATA_PROMESSA` (promessa superada). `pixP` vazio → pula em silêncio.
+- `verificarPromessasVencidas` — mapa `ID_CONTRATO → STATUS_CONTRATO`: contrato `quitado` →
+  `CUMPRIDA`; demais estados não-cobráveis não marcam mais `QUEBRADA` cega sem contexto.
+- Limpeza 1x: menu GAS → **"Régua: Corrigir Promessas Órfãs (contratos
+  renegociados/baixados/judiciais)"** (`corrigirPromessasOrfasReorganizadas`).
+- **Detecção de renegociação estrutural** usa `ORIGEM_PARCELA = "renegociada"` em qualquer
+  parcela do contrato (`_contratosComRenegociacao`) — sinal retroativo confiável. A coluna
+  `CONTRATOS.DATA_RENEGOCIACAO` era gravada por `setCel` sem garantir a coluna primeiro
+  (no-op silencioso se a coluna não existisse) — `renegociarContrato` agora chama
+  `_garantirColunaAba` antes. Não depender só de `DATA_RENEGOCIACAO` para contratos antigos.
+
+**Score (muda o modelo de crédito — ver `02-AI-CREDIT-RULES.md`):**
+- `calcularScore` considera renegociação por `DATA_RENEGOCIACAO` preenchida (não só status
+  `renegociado`) → renegociação estrutural passa a disparar as **mesmas** penalidades do
+  `acordoComPerda` (−10 fixo, −3 BLOCO A, BLOCO D, −2 BLOCO E, bloqueio se atraso atual >30d).
+- Novo campo `CONTRATOS.ATRASO_MAX_PRE_RENEGOCIACAO` — snapshot do pior atraso das parcelas
+  roladas, gravado por `renegociarContrato`. `calcularScore` usa
+  `max(maxAtrasoDias, ATRASO_MAX_PRE_RENEGOCIACAO)` na penalização por atraso e no histórico
+  de atraso grave. Backfill 1x: menu GAS → **"Manutenção: Backfill
+  ATRASO_MAX_PRE_RENEGOCIACAO"** (`backfillAtrasoMaxPreRenegociacao`), depois recalcular score.
+- `calcularScore` passa a ler PROMESSAS: penalização por promessa quebrada (contagem de vida)
+  −4 / −8 / −12 pts para 1 / 2 / 3+.
+
+### Verificação em produção (2026-09-01)
+GAS publicado + rodadas as 4 funções 1x (Corrigir Promessas Quebradas Indevidamente →
+Corrigir Promessas Órfãs → Backfill ATRASO_MAX_PRE_RENEGOCIACAO → Recalcular Todos os Scores).
+Conferido via `/api/sheets`:
+- PCL-204: 2 promessas órfãs → `QUEBRADA`; `ATRASO_MAX_PRE_RENEGOCIACAO = 54`; score da
+  Maria Luiza (ID 123) caiu de ~70 para **3** / Bloqueado, motivos mostram os 3 mecanismos
+  novos (`-Atraso pre-renegociacao: 54d | -1 renegociacao(oes) | -3 promessa(s) quebrada(s)`).
+- Promessas PENDENTE: 6 → 4 (as 4 restantes são de contratos normais). Quebradas: 48 → 50.
+- **17 clientes** com contrato renegociado, **16 ficaram `SCORE_BLOQUEADO`** (vários score 0).
+- **Gotcha achado no deploy:** a coluna `CONTRATOS.DATA_RENEGOCIACAO` nunca existiu — a
+  detecção de renegociação estrutural passou a usar `ORIGEM_PARCELA = "renegociada"` em
+  qualquer parcela (`_contratosComRenegociacao`), sinal retroativo confiável.
+
+### Follow-up aberto — decadência da penalização
+O Alex decidiu (2026-09-01) que a penalização permanente por renegociação não é boa: o
+registro fica permanente, mas a penalização no score deve decair com comportamento
+comprovado pós-renegociação. Curva e decisões de interação (blocos A/D/E, double-count,
+backfill de `DATA_RENEGOCIACAO` via EVENTOS) documentadas em `02-AI-CREDIT-RULES.md`
+(seção "PENDENTE — decadência da penalização de renegociação"). Estado interino: **deixar
+como está**, retomar com brainstorming da curva depois.
+
+### Status
+Resolvido (bug operacional + régua). Score = follow-up aberto (decadência da penalização).
+
+## 2026-08-29 — Mobile: app abre com dados desatualizados (meses) até uma ação manual
+
+### Problema
+No navegador do celular, ao reabrir o app Alex via valores/status de meses atrás (parcelas já
+pagas como em aberto, clientes já aprovados como pendentes). Só atualizava depois de clicar em
+abas/opções por um tempo.
+
+Causa raiz: no celular a aba **nunca é encerrada** — o navegador a congela e restaura da memória
+(bfcache) ao reabrir, **sem remontar o React**. O carregamento de dados (`src/main.jsx`,
+`carregar()` + effects) dependia de 3 gatilhos que todos falham nesse cenário:
+1. `useEffect` de montagem — roda 1x só; aba restaurada não remonta.
+2. `setInterval(120s)` — timers ficam suspensos em aba congelada.
+3. `visibilitychange` — não dispara de forma confiável na restauração de bfcache no iOS
+   Safari / Chrome Android. Faltava `pageshow`.
+
+Agravante: se um `fetch` era interrompido no meio (aba congela durante o carregamento), a
+promise nunca resolvia e `_fetching.current` ficava preso em `true` — a partir daí todo
+`carregar()` não-forçado virava no-op silencioso permanente.
+
+### Impacto
+Decisão de negócio tomada sobre dado errado no celular (ver saldo/atraso desatualizado). Sem
+perda de dado — só leitura stale.
+
+### Solução (deployado 2026-08-29)
+`src/main.jsx`, função `carregar()` + o `useEffect` de listeners:
+- **Timeout de 25s** no fetch (`setTimeout(()=>ctrl.abort(),25000)`) — garante que a promise
+  sempre resolve; `timedOut` classifica timeout como falha real (libera a splash de carga
+  inicial), abort por requisição substituída não mexe em `loading`.
+- **Guarda anti-trava:** se `_fetching.current` está `true` há mais de 30s
+  (`_fetchStartedAt` ref), considera abandonado e prossegue.
+- **`done()` com guard de identidade** (`_abortCtrl.current===ctrl`) — um fetch substituído não
+  zera as refs do fetch novo.
+- **Listeners novos:** `window` `pageshow` (`if(e.persisted) carregar(true)` — **fix central**
+  do bfcache), `focus` e `visibilitychange` → `carregar(true)` com throttle de 30s
+  (`_ultimaAtMs` ref, evita thrash ao alternar janelas), `online` → `carregar(true)`.
+- O `setInterval` **mantém** o gate `document.visibilityState==="visible"` e chama
+  `carregar(false,true)` (silent) — a otimização "não faz polling com aba oculta" (memória
+  `project-cache-improvements`) continua valendo.
+- Estado `refreshing` (separado de `loading`) → indicador "Atualizando…" agora aparece também
+  no mobile (antes era só ponto verde estático).
+
+### Status
+Resolvido — deployado. Verificação funcional no browser confirmou os 4 handlers disparando o
+refetch e o cache stale sendo atualizado; verificação final é reabrir no celular real.
+
+---
+
 ## 2026-08-29 — Régua: `ERRO_SEM_PIX` em `PROMESSA_D+1` de contrato já quitado
 
 ### Problema

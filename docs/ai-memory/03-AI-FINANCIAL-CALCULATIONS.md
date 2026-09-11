@@ -132,6 +132,18 @@ valorParcelaFinal = ceil(saldoRestante / qtdSugerida)   // arredonda pra cima, i
 
 **Guarda-corpo obrigatório:** `valorEntrada` deve ser estritamente menor que o saldo total (`capitalFaltante + jurosEmAberto`), nunca `>=`. Se fosse igual, `saldoRestante` ficaria zero e a fórmula geraria uma "parcela de R$0" — que `renegociarContrato` rejeita (`novaValorParcela <= 0`), só que **depois** da entrada já ter sido confirmada paga pelo webhook, deixando dinheiro recebido sem uma renegociação correspondente. Contrato que teria entrada cobrindo o saldo inteiro deve usar Quitação Antecipada, não Renegociação.
 
+**Snapshot de atraso pré-renegociação (2026-09-01):** antes de fechar as parcelas abertas como `renegociado`, `renegociarContrato` calcula o pior atraso entre elas e acumula em `CONTRATOS.ATRASO_MAX_PRE_RENEGOCIACAO`:
+
+```
+piorAtrasoRolado = max, sobre as parcelas que serão fechadas como "renegociado", de
+                   max(DIAS_ATRASO gravado, floor((hoje − DATA_VENCIMENTO) / 1 dia))
+ATRASO_MAX_PRE_RENEGOCIACAO_novo = max(ATRASO_MAX_PRE_RENEGOCIACAO_anterior, piorAtrasoRolado)
+```
+
+Serve só ao `calcularScore` (`max(atraso atual, ATRASO_MAX_PRE_RENEGOCIACAO)` na penalização por atraso — ver `02-AI-CREDIT-RULES.md`). Não entra em nenhum cálculo financeiro (saldo, lucro, prejuízo). Backfill de contratos já renegociados: `backfillAtrasoMaxPreRenegociacao()` (menu Manutenção) reconstrói o campo a partir do `DIAS_ATRASO` das parcelas com status `renegociado`.
+
+**Guard de 1º vencimento no passado (2026-09-01):** se `novoVencimento` recebido cair antes de hoje (proposta gerada dias antes, dia preferido do cliente já passado no mês), `renegociarContrato` avança mês a mês preservando o dia até cair em data futura — a 1ª parcela renegociada nunca nasce vencida (senão a Efí recusa gerar o cobv e a parcela entra em atraso no mesmo dia).
+
 O pagamento da entrada é registrado em PAGAMENTOS com `TIPO_PAGAMENTO = "entrada_renegociacao"` e `ID_PARCELA` vazio — mesmo padrão do `abatimento_acordo_assistido` (não fica preso a uma parcela específica, já que todas as parcelas antigas serão fechadas como `renegociado` de qualquer forma). Consequência: `calcularMetricasCliente` inclui esse valor em `TOTAL_PAGO` (só exclui `abatimento_acordo_assistido`), mas **não** em `LUCRO_TOTAL` — o lucro de juros só é reconhecido quando a parcela correspondente é efetivamente paga com `STATUS = pago`, e a parte de juros que a entrada cobriu já está refletida no `VALOR_JUROS` menor das novas parcelas (`novoJurosParcela = max(0, (totalRenegociado - capitalFaltante_novo) / qtdSugerida)`). Não há double-count nem perda de rastreio, só diferimento — mesmo raciocínio já usado pelo abatimento de Acordo Assistido.
 
 ---

@@ -68,6 +68,29 @@ Nenhuma renegociação pode apagar dados históricos.
 
 **Cálculo automático de parcelamento, sem teto (2026-08-06):** em vez do Alex digitar valor e quantidade de parcela livremente, ele informa a entrada e o valor que o cliente disse que consegue pagar por mês — o sistema calcula a quantidade de parcelas necessária (arredondando o valor de cada parcela pra cima, igual entre todas) para cobrir o saldo restante. Decisão consciente de **não** impor um teto de parcelas: o objetivo é deixar visível pro Alex quando um valor de parcela proposto pelo cliente implica um prazo longo demais (ex: 68 parcelas), pra ele negociar um valor maior em vez do sistema simplesmente bloquear ou aceitar sem mostrar a implicação.
 
+**Renegociação NÃO é anistia no score (2026-09-01):** até então, a renegociação estrutural funcionava como perdão quase total no `calcularScore` — as parcelas atrasadas roladas viravam status `renegociado` (invisível aos loops de atraso), o contrato ficava `ativo_em_dia`, e o score nunca lia `DATA_RENEGOCIACAO`. O cliente segue com o novo carnê normalmente, mas o motor de score passa a registrar a inadimplência que aconteceu:
+- **Penalidade de renegociação** (mesma do `acordoComPerda`): `calcularScore` detecta renegociação por status `renegociado` **OU** `DATA_RENEGOCIACAO` preenchida → −10 fixo, −3 no BLOCO A, BLOCO D reduzido, −2 no BLOCO E, bloqueio de crédito se houver atraso atual > 30 dias, renovação "vermelho".
+- **Atraso pré-renegociação preservado:** `renegociarContrato` grava `CONTRATOS.ATRASO_MAX_PRE_RENEGOCIACAO` (maior atraso entre as parcelas roladas, acumulado com o que já houver em reincidências). `calcularScore` usa `max(atraso atual, ATRASO_MAX_PRE_RENEGOCIACAO)` na penalização por atraso e conta como atraso grave histórico se > 30d. Os **bloqueios de "risco atual"** (linha ~1926) seguem usando só o atraso atual — um cliente que renegociou e voltou a pagar em dia não fica bloqueado permanentemente, só perde pontos.
+- **Promessa quebrada penaliza:** `calcularScore` passou a ler a aba PROMESSAS. Cada promessa `QUEBRADA` do cliente (contagem de vida) desconta −4 (1 quebrada), −8 (2), −12 (3+). A renegociação/baixa/ajuizamento marca as promessas pendentes do contrato como `QUEBRADA` (não `CUMPRIDA`) — o cliente não honrou a promessa como prometida.
+
+Detalhes de implementação e histórico em `07-AI-KNOWN-ISSUES.md` (2026-09-01); fórmula do snapshot de atraso em `03-AI-FINANCIAL-CALCULATIONS.md`.
+
+**PENDENTE — decadência da penalização de renegociação (decisão do Alex, 2026-09-01):** a penalização de renegociação hoje é **permanente** (igual ao acordo com perda). O Alex decidiu que isso deve mudar: o *registro* da renegociação fica permanente (EVENTOS, detecção de reincidência, ajuizamento antecipado), mas a *penalização no score* deve ser **temporária e decrescente**, guiada por comportamento comprovado pós-renegociação — "o passado importa, mas o comportamento recente importa mais". Direção acordada:
+
+- Âncora em **parcelas do carnê renegociado pagas em dia** (não calendário puro — cliente que renegocia e some não deve "envelhecer" a marca): 0 pagas → −10; 3 → −7; 6 → −4; 9 → −2; 12+ ou carnê quitado → 0.
+- Nova inadimplência pós-renegociação (parcela nova atrasada agora, ou paga com >7d) → penalização renovada e agravada, zera o contador de recuperação.
+- Trava: só começa a decair após `DATA_RENEGOCIACAO + 90 dias` (impede renegociar com entrada gorda e "recuperar" na hora).
+- `ATRASO_MAX_PRE_RENEGOCIACAO` sai do bloco de penalização aguda (−25) e vira só marca de atraso grave histórico (−4 bloco B), que já envelhece pela lógica normal.
+- Promessas quebradas: contar só as dos últimos 12 meses para a penalização (registro fica permanente).
+
+**Decisões ainda a travar antes de implementar** (é mudança de regra de crédito, exige spec + brainstorming):
+1. Backfill de `DATA_RENEGOCIACAO` a partir do evento `RENEGOCIACAO_ESTRUTURAL` em EVENTOS (coluna nunca existiu; 17 contratos renegociados atuais sem a data).
+2. Interação com bloco A (`qtdReneg===0?3:...`) e bloco D — decaem junto com o −10 ou ficam fixos? (risco de dupla contagem).
+3. Bloco E (`temRenegAt?0:2`) volta ao normal quando a penalização zera? (provável que sim — é risco atual).
+4. Curva exata — linear por parcela ou degraus da tabela.
+
+Estado interino (decisão do Alex, 2026-09-01): **deixar como está** (16 clientes renegociados ficaram `SCORE_BLOQUEADO`, vários score 0 — só bloqueia crédito novo, não afeta cobrança dos ativos). Retomar depois com brainstorming da curva.
+
 ---
 
 ## Recuperação
