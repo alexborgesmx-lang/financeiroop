@@ -8519,6 +8519,30 @@ function App() {
             const taxaRecorrencia=clientesComContrato.length>0?(clientesRecorrentes.length/clientesComContrato.length*100):0;
             const top5=todosClientes.map(c=>{const vol=todosContratos.filter(ct=>String(ct.ID_CLIENTE)===String(c.ID_CLIENTE)).reduce((s,ct)=>s+parseFloat(ct.VALOR_PRINCIPAL||0),0);const qtd=todosContratos.filter(ct=>String(ct.ID_CLIENTE)===String(c.ID_CLIENTE)).length;return{...c,vol,qtd};}).sort((a,b)=>b.vol-a.vol).slice(0,5);
             const contratosPorMes=Array.from({length:12},(_,i)=>{const hoje=new Date();const dt=new Date(hoje.getFullYear(),hoje.getMonth()-(11-i),1);const ini=new Date(dt.getFullYear(),dt.getMonth(),1,0,0,0);const fim=new Date(dt.getFullYear(),dt.getMonth()+1,0,23,59,59);const cs=todosContratos.filter(c=>{const d=parseDate(c.DATA_EMPRESTIMO);return d&&d>=ini&&d<=fim;});return{name:dt.toLocaleDateString("pt-BR",{month:"short"}).replace(".",""),qtd:cs.length,vol:cs.reduce((s,c)=>s+parseFloat(c.VALOR_PRINCIPAL||0),0)};});
+            // Situação de cada contrato em qualquer fechamento de mês: quando entrou (DATA_EMPRESTIMO) e,
+            // se já saiu do bucket "ativo/circulando" hoje, quando saiu — mesma lógica de associação de
+            // _ST_ATIVOS, aplicada no ponto do tempo certo (não só "agora"). Base compartilhada por
+            // capitalCirculacaoPorMes (saldo de principal) e contratosAtivosPorMes (contagem de contratos)
+            // logo abaixo, pra nunca divergir entre os dois gráficos.
+            const contratosComSaida=todosContratos.map(c=>{
+              const hoje=new Date();
+              const dCriacao=parseDate(c.DATA_EMPRESTIMO);
+              const stContrato=String(c.STATUS_CONTRATO||"").toLowerCase();
+              let dataSaidaContrato=null;
+              if(stContrato==="em_processo_judicial"||stContrato==="encerrado_judicialmente"){
+                dataSaidaContrato=parseDate(c.DATA_AJUIZAMENTO)||hoje;
+              } else if(["baixado_como_prejuizo","recuperado_integralmente","encerrado_sem_recuperacao"].includes(stContrato)){
+                dataSaidaContrato=parseDate(c.DATA_BAIXA_PREJUIZO)||hoje;
+              } else if(stContrato==="cancelado"){
+                dataSaidaContrato=dCriacao; // sem data de cancelamento rastreada — nunca conta como circulando/ativo
+              } else if(stContrato==="quitado"){
+                // reforço além da checagem por parcela: usa a data do último pagamento do contrato
+                // (cobre parcelas antigas com DATA_PAGAMENTO ausente por qualidade de dado legado)
+                const datasPag=todasParcelas.filter(p=>String(p.ID_CONTRATO)===String(c.ID_CONTRATO)).map(p=>parseDate(p.DATA_PAGAMENTO)).filter(Boolean);
+                dataSaidaContrato=datasPag.length?new Date(Math.max(...datasPag.map(d=>d.getTime()))):hoje;
+              }
+              return{c,dCriacao,dataSaidaContrato};
+            });
             // Capital em circulação por mês: saldo de principal ainda em aberto no fechamento de cada mês
             // (não é volume liberado/originado — é o saldo devedor de principal que ainda não tinha saído de circulação naquela data)
             const capitalCirculacaoPorMes=Array.from({length:12},(_,i)=>{
@@ -8526,25 +8550,8 @@ function App() {
               const dt=new Date(hoje.getFullYear(),hoje.getMonth()-(11-i),1);
               const fimMes=new Date(dt.getFullYear(),dt.getMonth()+1,0,23,59,59);
               let total=0;
-              todosContratos.forEach(c=>{
-                const dCriacao=parseDate(c.DATA_EMPRESTIMO);
+              contratosComSaida.forEach(({c,dCriacao,dataSaidaContrato})=>{
                 if(!dCriacao||dCriacao>fimMes)return; // contrato ainda não existia no fechamento desse mês
-                // Contrato como um todo pode ter saído da "circulação normal" (foi pra balde judicial/baixado/cancelado) —
-                // mesma lógica de associação de _ST_ATIVOS, mas aplicada no ponto do tempo certo, não só "agora"
-                const stContrato=String(c.STATUS_CONTRATO||"").toLowerCase();
-                let dataSaidaContrato=null;
-                if(stContrato==="em_processo_judicial"||stContrato==="encerrado_judicialmente"){
-                  dataSaidaContrato=parseDate(c.DATA_AJUIZAMENTO)||hoje;
-                } else if(["baixado_como_prejuizo","recuperado_integralmente","encerrado_sem_recuperacao"].includes(stContrato)){
-                  dataSaidaContrato=parseDate(c.DATA_BAIXA_PREJUIZO)||hoje;
-                } else if(stContrato==="cancelado"){
-                  dataSaidaContrato=dCriacao; // sem data de cancelamento rastreada — nunca conta como circulando
-                } else if(stContrato==="quitado"){
-                  // reforço além da checagem por parcela: usa a data do último pagamento do contrato
-                  // (cobre parcelas antigas com DATA_PAGAMENTO ausente por qualidade de dado legado)
-                  const datasPag=todasParcelas.filter(p=>String(p.ID_CONTRATO)===String(c.ID_CONTRATO)).map(p=>parseDate(p.DATA_PAGAMENTO)).filter(Boolean);
-                  dataSaidaContrato=datasPag.length?new Date(Math.max(...datasPag.map(d=>d.getTime()))):hoje;
-                }
                 if(dataSaidaContrato&&dataSaidaContrato<=fimMes)return; // já tinha saído da circulação até esse fechamento
                 todasParcelas.forEach(p=>{
                   if(String(p.ID_CONTRATO)!==String(c.ID_CONTRATO))return;
@@ -8562,6 +8569,16 @@ function App() {
                 });
               });
               return{name:dt.toLocaleDateString("pt-BR",{month:"short"}).replace(".",""),vol:total};
+            });
+            // Contratos ativos por mês: quantidade de contratos que ainda estavam no bucket "ativo"
+            // (mesmo critério de _ST_ATIVOS, aplicado no fechamento de cada mês) — não confundir com
+            // "novos contratos criados no mês" (contratosPorMes, usado no gráfico fixo mais abaixo)
+            const contratosAtivosPorMes=Array.from({length:12},(_,i)=>{
+              const hoje=new Date();
+              const dt=new Date(hoje.getFullYear(),hoje.getMonth()-(11-i),1);
+              const fimMes=new Date(dt.getFullYear(),dt.getMonth()+1,0,23,59,59);
+              const qtd=contratosComSaida.filter(({dCriacao,dataSaidaContrato})=>dCriacao&&dCriacao<=fimMes&&(!dataSaidaContrato||dataSaidaContrato>fimMes)).length;
+              return{name:dt.toLocaleDateString("pt-BR",{month:"short"}).replace(".",""),qtd};
             });
             const taxaMedia=(()=>{if(!contratosAtivosG.length)return 0;return contratosAtivosG.reduce((s,c)=>s+parseFloat(c.TAXA_JUROS_MENSAL||0),0)/contratosAtivosG.length*100;})();
             const jurosPorMes=Array.from({length:12},(_,i)=>{const hoje=new Date();const dt=new Date(hoje.getFullYear(),hoje.getMonth()-(11-i),1);const ini=new Date(dt.getFullYear(),dt.getMonth(),1,0,0,0);const fim=new Date(dt.getFullYear(),dt.getMonth()+1,0,23,59,59);const pags=todosPagamentos.filter(p=>{const d=parseDate(p.DATA_PAGAMENTO);return d&&d>=ini&&d<=fim;});const v=pags.reduce((s,pag)=>{const parc=todasParcelas.find(p=>String(p.ID_PARCELA)===String(pag.ID_PARCELA));const j=parc?Math.max(0,parseFloat(parc.VALOR_JUROS||0)-parseFloat(parc.DESCONTO_APLICADO||0)):0;return s+j+parseFloat(pag.RECEITA_EXTRA_ATRASO||0)+parseFloat(pag.FEE_PRORROGACAO||0);},0);return{name:dt.toLocaleDateString("pt-BR",{month:"short"}).replace(".",""),value:v};});
@@ -8596,8 +8613,8 @@ function App() {
                     </div>
                   );})}
                 </div>
-                <GestaoChartPanel chartKey="contratos_ativos" title="Novos contratos por mês" sub="Quantidade de contratos criados em cada mês — últimos 12 meses">
-                  <GestaoChart data={contratosPorMes} dataKey="qtd" label="contratos" isMoney={false}/>
+                <GestaoChartPanel chartKey="contratos_ativos" title="Contratos ativos por mês" sub="Quantidade de contratos com status ativo no último dia de cada mês — últimos 12 meses">
+                  <GestaoChart data={contratosAtivosPorMes} dataKey="qtd" label="contratos ativos" isMoney={false}/>
                 </GestaoChartPanel>
                 <GestaoChartPanel chartKey="capital_circulacao" title="Capital em circulação por mês" sub="Saldo de principal ainda em aberto no fechamento de cada mês — últimos 12 meses">
                   <GestaoChart data={capitalCirculacaoPorMes} dataKey="vol" label="em circulação" isMoney={true}/>
