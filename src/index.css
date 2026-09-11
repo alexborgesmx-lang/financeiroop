@@ -218,6 +218,10 @@
   input[type="email"], input[type="tel"], select, textarea {
     font-size: 16px !important;
   }
+  /* tira o flash cinza/azul no toque de botões e áreas clicáveis (Android/iOS) */
+  button, a, [role="button"], [onclick] {
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 
 /* ── Accessibility ───────────────────────────────────────────────── */

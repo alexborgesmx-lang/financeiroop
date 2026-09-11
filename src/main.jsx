@@ -5135,6 +5135,7 @@ function BottomNav({tab,setTab}){
 
 // ─── SIMULADOR DE CONTRATO ───────────────────────────────────────
 function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contratos}){
+  const mob=useIsMobile();
   const calcPMT=(pv,i,n)=>{if(!n)return 0;return(pv+pv*i*n)/n;};
   const [clienteSel,setClienteSel]=useState(null);
   const [buscaCli,setBuscaCli]=useState("");
@@ -5340,7 +5341,7 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
       </div>
 
       {/* INPUTS */}
-      <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:SHD,padding:28,display:"flex",flexDirection:"column",gap:28}}>
+      <div style={{background:CARD,borderRadius:16,border:`1px solid ${BD}`,boxShadow:SHD,padding:mob?16:28,display:"flex",flexDirection:"column",gap:mob?20:28}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
           <div>
             <h2 style={{fontSize:18,fontWeight:900,margin:"0 0 2px"}}>Simulador de Contrato</h2>
@@ -5408,14 +5409,14 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
       </div>
 
       {/* COMPARADOR DE CENÁRIOS */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:mob?6:10}}>
         {cenariosBase.map(p=>{
           const isCur=p===prazo;
           const pmtC=calcPMT(valor,i,p);
           const totC=pmtC*p;
           const jurC=totC-valor;
           return(
-            <div key={p} onClick={()=>setPrazo(p)} style={{background:isCur?GRN+"18":CARD,border:`1.5px solid ${isCur?GRN:BD}`,borderRadius:12,padding:"14px 16px",cursor:"pointer",transition:"all 0.15s"}}>
+            <div key={p} onClick={()=>setPrazo(p)} style={{background:isCur?GRN+"18":CARD,border:`1.5px solid ${isCur?GRN:BD}`,borderRadius:12,padding:mob?"12px 9px":"14px 16px",cursor:"pointer",transition:"all 0.15s"}}>
               <div style={{fontSize:10,fontWeight:800,textTransform:"uppercase",color:isCur?GRN:MUTED,marginBottom:6,letterSpacing:"0.04em"}}>{p}x{isCur?" · atual":""}</div>
               <div style={{fontSize:16,fontWeight:900,color:isCur?GRN:TEXT,marginBottom:2}}>{fmtR(pmtC)}<span style={{fontSize:9,fontWeight:600,color:MUTED}}>/mês</span></div>
               <div style={{fontSize:10,color:MUTED,marginBottom:1}}>Total: {fmtR(totC)}</div>
@@ -5426,7 +5427,7 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
       </div>
 
       {/* RESULTADO */}
-      <div style={{background:CARD,borderRadius:16,border:`1px solid ${GRN}30`,boxShadow:SHD,padding:28}}>
+      <div style={{background:CARD,borderRadius:16,border:`1px solid ${GRN}30`,boxShadow:SHD,padding:mob?16:28}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
           <div style={{gridColumn:"1/-1",background:GRN+"12",borderRadius:12,padding:"20px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div>
@@ -5515,9 +5516,9 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
       </div>
 
       {/* RENTABILIDADE DO CREDOR */}
-      <div style={{background:CARD,borderRadius:16,border:`1px solid ${GRN}20`,boxShadow:SHD,padding:24}}>
+      <div style={{background:CARD,borderRadius:16,border:`1px solid ${GRN}20`,boxShadow:SHD,padding:mob?16:24}}>
         <div style={{fontSize:11,fontWeight:800,textTransform:"uppercase",letterSpacing:"0.06em",color:GRN,marginBottom:16}}>Rentabilidade do Credor</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:mob?6:12}}>
           {[
             {l:"Juros recebidos",v:fmtR(juros),c:GRN},
             {l:`Rentabilidade (${prazo}m)`,v:`${rentPct.toFixed(1)}%`,c:GRN},
@@ -5577,6 +5578,7 @@ function SimuladorContrato({simInicial,onClear,onAbrirContrato,clientes,contrato
 
 // ─── INTELIGÊNCIA ────────────────────────────────────────────────
 function InteligenciaView({ clientes, contratos, padrinhos, empregadores }) {
+  const mob = useIsMobile();
   const n = v => parseFloat(v||0)||0;
 
   const kpis = useMemo(() => {
@@ -5697,14 +5699,14 @@ function InteligenciaView({ clientes, contratos, padrinhos, empregadores }) {
   if(!clientes.length) return <div style={{padding:60,textAlign:"center",color:MUTED}}>Carregando dados...</div>;
 
   return (
-    <div style={{padding:"24px 28px",maxWidth:1100,margin:"0 auto"}}>
+    <div style={{padding:mob?"16px 12px":"24px 28px",maxWidth:1100,margin:"0 auto"}}>
       <div style={{marginBottom:24}}>
         <h1 style={{fontSize:22,fontWeight:900,color:TEXT,margin:"0 0 4px",letterSpacing:"-0.02em"}}>Inteligência</h1>
         <p style={{fontSize:13,color:MUTED,margin:0}}>Análise estratégica da operação de crédito · dados históricos completos desde o início</p>
       </div>
 
       {/* KPIs */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:28}}>
+      <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)",gap:12,marginBottom:28}}>
         <KpiBox label="Lucro Total" value={fmtR(kpis.lucro)} sub="juros recebidos" cor={GRN}/>
         <KpiBox label="Prejuízo Total" value={fmtR(kpis.prejuizo)} sub="capital perdido" cor={kpis.prejuizo>0?RED:MUTED}/>
         <KpiBox label="LTV — Valor Gerado" value={fmtR(kpis.ltv)} sub="lucro total menos prejuízo" cor={kpis.ltv>=0?GRN:RED}/>
@@ -5714,7 +5716,7 @@ function InteligenciaView({ clientes, contratos, padrinhos, empregadores }) {
       </div>
 
       {/* Top/Bottom Clientes */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:24}}>
+      <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:mob?12:20,marginBottom:24}}>
         <Card>
           <SecH title="Melhores clientes" sub="Por LTV líquido (lucro − prejuízo)"/>
           <Tbl cols={[
@@ -6120,17 +6122,31 @@ function App() {
   const [selPagDetalhe, setSelPagDetalhe] = useState(null);
 
   const [ultimaAt, setUltimaAt] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const _fetching = useRef(false);
+  const _fetchStartedAt = useRef(0);
+  const _ultimaAtMs = useRef(0);
   const _abortCtrl = useRef(null);
   const CACHE_KEY = "fp_data_v2";
   const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 
-  const carregar=(force=false)=>{
-    if(!force&&_fetching.current)return Promise.resolve();
+  const carregar=(force=false,silent=false)=>{
+    // guarda anti-trava: se um fetch anterior "congelou" (aba do celular suspensa no meio da
+    // requisição), a promise nunca resolve e _fetching.current ficaria preso em true pra sempre,
+    // fazendo todo carregar() não-forçado virar no-op silencioso. Após 30s consideramos abandonado.
+    const stuck=_fetching.current&&(Date.now()-_fetchStartedAt.current>30000);
+    if(!force&&_fetching.current&&!stuck)return Promise.resolve();
     if(_abortCtrl.current)_abortCtrl.current.abort();
     _fetching.current=true;
+    _fetchStartedAt.current=Date.now();
+    if(!silent)setRefreshing(true);
     const ctrl=new AbortController();
     _abortCtrl.current=ctrl;
+    // timeout de 25s: garante que a promise SEMPRE resolve (evita a trava descrita acima) mesmo
+    // se o navegador não rejeitar um fetch pendente ao voltar de um estado suspenso.
+    let timedOut=false;
+    const to=setTimeout(()=>{timedOut=true;try{ctrl.abort();}catch(e){}},25000);
+    const done=()=>{ clearTimeout(to); if(_abortCtrl.current===ctrl){ _fetching.current=false; _abortCtrl.current=null; setRefreshing(false); } };
     // cache-busting: /api/sheets tem Cache-Control s-maxage=60 na CDN da Vercel (vercel.json) —
     // sem isso, "atualizar" podia devolver uma resposta cacheada de até 60s (ou stale até 5min)
     // em vez de bater no Sheets de novo, mesmo com o fetch sendo disparado corretamente.
@@ -6138,12 +6154,14 @@ function App() {
       setRaw(d);
       try{localStorage.setItem(CACHE_KEY,JSON.stringify({data:d,ts:Date.now()}));}catch(e){}
       setLoading(false);
+      _ultimaAtMs.current=Date.now();
       setUltimaAt(new Date());
-      _fetching.current=false;
-      _abortCtrl.current=null;
+      done();
     }).catch(e=>{
-      if(e.name!=="AbortError")setLoading(false);
-      _fetching.current=false;
+      // timeout conta como falha real (libera a splash de carga inicial); só o abort por
+      // requisição substituída/desmontagem é que não mexe em loading.
+      if(e.name!=="AbortError"||timedOut)setLoading(false);
+      done();
     });
   };
 
@@ -6163,10 +6181,27 @@ function App() {
   },[]);
   useEffect(()=>()=>{if(_abortCtrl.current)_abortCtrl.current.abort();},[]);
   useEffect(()=>{
-    const tick=()=>{if(document.visibilityState==="visible")carregar();};
+    // polling normal — mantém o gate de visibilidade (não consome quota do GAS com a aba oculta)
+    const tick=()=>{if(document.visibilityState==="visible")carregar(false,true);};
+    // "acordar": no celular a aba é restaurada da memória (bfcache) sem remontar o React nem
+    // disparar o effect de montagem; sem estes listeners o app fica preso no cache antigo até
+    // uma ação manual. Força recarga, mas com throttle de 30s pra não thrashear (ex: alt-tab).
+    const wake=()=>{if(Date.now()-_ultimaAtMs.current>30000)carregar(true);};
+    const onVisible=()=>{if(document.visibilityState==="visible")wake();};
+    const onPageShow=(e)=>{if(e&&e.persisted)carregar(true);}; // restauração de bfcache — fix central
+    const onOnline=()=>carregar(true);
     const id=setInterval(tick,120000);
-    document.addEventListener("visibilitychange",tick);
-    return()=>{clearInterval(id);document.removeEventListener("visibilitychange",tick);};
+    document.addEventListener("visibilitychange",onVisible);
+    window.addEventListener("pageshow",onPageShow);
+    window.addEventListener("focus",wake);
+    window.addEventListener("online",onOnline);
+    return()=>{
+      clearInterval(id);
+      document.removeEventListener("visibilitychange",onVisible);
+      window.removeEventListener("pageshow",onPageShow);
+      window.removeEventListener("focus",wake);
+      window.removeEventListener("online",onOnline);
+    };
   },[]);
 
   const clientes  = useMemo(()=>raw?.CLIENTES  || raw?.clientes  || [], [raw]);
@@ -7224,10 +7259,10 @@ function App() {
             }
           </div>
           <div style={{display:"flex",alignItems:"center",gap:mob?8:12}}>
-            {!mob&&ultimaAt&&<span style={{fontSize:11,color:MUTED,display:"flex",alignItems:"center",gap:5}}>{loading?<><span style={{width:8,height:8,borderRadius:"50%",border:`2px solid ${GRN}`,borderTopColor:"transparent",display:"inline-block",animation:"spin 0.8s linear infinite"}}/>Atualizando...</>:<><span style={{width:7,height:7,borderRadius:"50%",background:GRN,display:"inline-block"}}/>Atualizado às {ultimaAt.toLocaleTimeString('pt-BR')}</>}</span>}
-            {mob&&loading&&<span style={{width:8,height:8,borderRadius:"50%",border:`2px solid ${GRN}`,borderTopColor:"transparent",display:"inline-block",animation:"spin 0.8s linear infinite"}}/>}
-            {mob&&!loading&&ultimaAt&&<span style={{width:7,height:7,borderRadius:"50%",background:GRN,display:"inline-block"}}/>}
-            <button onClick={carregar} disabled={loading} title="Atualizar dados" style={{background:BG,border:`1px solid ${BD}`,padding:"6px 8px",borderRadius:8,cursor:loading?"not-allowed":"pointer",color:MUTED,display:"flex",alignItems:"center",opacity:loading?0.5:1}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+            {!mob&&ultimaAt&&<span style={{fontSize:11,color:MUTED,display:"flex",alignItems:"center",gap:5}}>{(loading||refreshing)?<><span style={{width:8,height:8,borderRadius:"50%",border:`2px solid ${GRN}`,borderTopColor:"transparent",display:"inline-block",animation:"spin 0.8s linear infinite"}}/>Atualizando...</>:<><span style={{width:7,height:7,borderRadius:"50%",background:GRN,display:"inline-block"}}/>Atualizado às {ultimaAt.toLocaleTimeString('pt-BR')}</>}</span>}
+            {mob&&(loading||refreshing)&&<span style={{width:8,height:8,borderRadius:"50%",border:`2px solid ${GRN}`,borderTopColor:"transparent",display:"inline-block",animation:"spin 0.8s linear infinite"}}/>}
+            {mob&&!loading&&!refreshing&&ultimaAt&&<span style={{width:7,height:7,borderRadius:"50%",background:GRN,display:"inline-block"}}/>}
+            <button onClick={()=>carregar(true)} disabled={loading} title="Atualizar dados" style={{background:BG,border:`1px solid ${BD}`,padding:"6px 8px",borderRadius:8,cursor:loading?"not-allowed":"pointer",color:MUTED,display:"flex",alignItems:"center",opacity:loading?0.5:1}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
             <button onClick={()=>setPrivacy(p=>!p)} title={privacy?"Mostrar números":"Ocultar números"} style={{background:privacy?RED+"12":BG,border:`1px solid ${privacy?RED+"40":BD}`,padding:"6px 8px",borderRadius:8,cursor:"pointer",color:privacy?RED:MUTED,display:"flex",alignItems:"center"}}>{privacy?IcoEyeOff:IcoEye}</button>
             <button onClick={toggleDark} title={darkMode?"Modo claro":"Modo noturno"} style={{background:BG,border:`1px solid ${BD}`,padding:"6px 8px",borderRadius:8,cursor:"pointer",color:MUTED,display:"flex",alignItems:"center"}}>
               {darkMode
@@ -7870,7 +7905,8 @@ function App() {
                     ))}
                   </div>
                 )}
-                <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
+                <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+                <table style={{width:"100%",minWidth:mob?640:"100%",borderCollapse:"collapse",textAlign:"left"}}>
                   <thead><tr style={{background:GRN+"10",fontSize:11,color:GRN,fontWeight:700,textTransform:"uppercase"}}><th style={{padding:"10px 18px"}}>Data</th><th>Cliente</th><th>Tipo</th><th>Valor Original</th><th>Valor Pago</th><th>Diferença</th></tr></thead>
                   <tbody>
                     {pagsFiltrados.length===0
@@ -7892,6 +7928,7 @@ function App() {
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
             </div>
@@ -7996,7 +8033,8 @@ function App() {
                         </div>
                       ))}
                     </div>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                    <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+                    <table style={{width:"100%",minWidth:mob?520:"100%",borderCollapse:"collapse",fontSize:12}}>
                       <thead>
                         <tr style={{background:ORG+"15"}}>
                           {["Faixa","Contratos","Principal","% PDD","Provisão"].map(h=>(
@@ -8023,6 +8061,7 @@ function App() {
                         </tr>
                       </tbody>
                     </table>
+                    </div>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:BG,borderRadius:10,border:`1px solid ${BD}`,flexWrap:"wrap",gap:8}}>
                       <div style={{fontSize:11,color:MUTED}}><span style={{fontWeight:700,color:TEXT}}>PDD Gerencial v1.0</span> · Base: Jun/2026 · 216 contratos analisados · 1,42% perda histórica líquida</div>
                       <div style={{fontSize:11,color:YEL,fontWeight:600}}>Próxima revisão: 50 contratos encerrados ou Dez/2026</div>
