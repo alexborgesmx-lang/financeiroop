@@ -32,6 +32,56 @@ Aberto | Em andamento | Resolvido
 
 ## Registro Ativo
 
+## 2026-09-09/11 — ZapSign: retry do link + 2 falhas silenciosas descobertas na investigação
+
+### Problema
+Recorrência prevista na entrada de 2026-08-11 abaixo: contrato PCL-288 (Nathalia Custodio Nunes
+Paixão) mostrou de novo "Erro ZapSign: Erro ao enviar para ZapSign" com o documento já criado com
+sucesso na ZapSign — dessa vez `token` do signatário credor também veio vazio na resposta de
+criação, não só `sign_url` (o fallback de 2026-08-11 não cobria esse caso).
+
+### Causa raiz
+Sob carga, a ZapSign materializa `sign_url`/`token` do signatário **depois** da resposta de
+criação do documento — não é garantido que nenhum dos dois já esteja pronto na resposta síncrona
+do `POST /docs/`.
+
+### Solução
+`enviarParaZapSign` (`appscript.gs`) agora tenta `GET /docs/{token}/` (espera 3s, depois mais 5s)
+antes de desistir. Se ainda assim não vier, grava evento `ZAPSIGN_ENVIADO_SEM_LINK` em EVENTOS em
+vez de falhar silenciosamente. Contrato de retorno muda de string pra objeto `{zapUrl, enviado,
+docToken}`. Nova action `buscarLinkZapSign(docToken)` — consulta pura, nunca cria documento —
+alimenta o botão "Buscar o link novamente" no estado amarelo do `NovoContrato` (`main.jsx`), que
+substitui o erro vermelho falso quando o documento foi criado com sucesso mas o link ainda não
+materializou. Detalhes completos em `docs/superpowers/specs/2026-09-09-zapsign-link-retry-design.md`
+e `docs/superpowers/plans/2026-09-09-zapsign-link-retry.md`.
+
+### Dois bugs pré-existentes achados testando o fix em produção (não causados por ele)
+
+**1. `gerarDoc` falhando em silêncio total.** No teste real em produção, `gerarDocContrato`
+lançou uma exceção — mas o `.then(d=>{if(d.ok)...})` em `criar()` (`main.jsx`) só tratava o
+caminho de sucesso. Sem `else`, nada acontecia: `docUrl`/`docId` ficavam vazios pra sempre, e como
+os botões "Abrir no Google Docs" e "Enviar para ZapSign" são condicionados a eles, os dois
+**desapareciam do modal sem nenhuma mensagem de erro** — o campo `docErro` já existia no JSX pra
+exibir isso, mas nada nunca escrevia nele. Fix: grava `docErro` no caminho de falha (resposta do
+GAS e catch de rede) + novo botão "Tentar gerar documento novamente" (`_gerarDocRetry`) que reusa
+o payload original (`contratoOk._dadosDoc`) sem precisar recriar o contrato inteiro.
+
+**2. `doPost` engolindo a exceção real sem logar.** O `catch(err){res={erro:err.message}}` global
+de `doPost` nunca chamava `Logger.log` — toda falha (inclusive a do item 1) virava `{erro:...}`
+normalmente, e a execução aparecia como **"Concluído"** nas Execuções do Apps Script mesmo tendo
+lançado exceção internamente. Isso tornou o diagnóstico ao vivo impossível (não dava pra saber
+*por que* `gerarDocContrato` tinha falhado). Fix: `Logger.log` no catch com action + mensagem +
+stack trace, pra qualquer falha futura de qualquer action ficar visível nas Execuções.
+
+### Status
+Resolvido, deployado e **confirmado funcionando em produção pelo Alex** (2026-09-11, contrato de
+teste real: doc gerado, ZapSign enviado, "funcionou perfeitamente"). A causa raiz específica de
+por que `gerarDocContrato` falhou na primeira tentativa desse dia não foi capturada (o log da
+exceção só passou a existir depois do fix do item 2) — se acontecer de novo, o `Logger.log` agora
+vai mostrar o motivo exato nas Execuções do Apps Script.
+
+---
+
 ## 2026-09-01 — Régua "Sem PIX" em promessa órfã de renegociação + score anistiava renegociação
 
 ### Problema
@@ -1496,10 +1546,9 @@ caía no `else`, mostrando erro genérico apesar do envio ter funcionado.
 Isolado nessa função — não mexe em `doPost`, no frontend nem em nenhum outro fluxo.
 
 ### Status
-Resolvido, aguardando o Alex colar a nova versão do `appscript.gs` no editor do Apps Script e publicar
-(passo manual, instruído automaticamente após a edição). Se o erro voltar a aparecer com o documento
-presente no painel da ZapSign, é sinal de que `token` também veio vazio — nesse caso, investigar a
-resposta bruta da API antes de assumir que é o mesmo bug.
+Resolvido em 2026-08-11. **Recorrência confirmada em 2026-09-09** (`token` também veio vazio,
+exatamente o cenário previsto acima) — ver entrada 2026-09-09/11 no topo deste arquivo pro fix
+definitivo (retry com `GET /docs/{token}/` + estado amarelo no frontend em vez do erro falso).
 
 ---
 

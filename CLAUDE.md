@@ -882,6 +882,23 @@ verificarPropostasRenegociacaoExpiradas()  // marca EXPIRADO propostas PENDENTE 
 - **Token**: hardcoded em `appscript.gs` linha ~16 (`ZAPSIGN_TOKEN`)
 - **Ambiente**: produção (`sandbox: false`)
 - Fluxo: exporta contrato Google Docs como PDF → envia para ZapSign → retorna link de assinatura do credor
+- **Retry de link + evento de falha (2026-09-09):** `sign_url`/`token` do signatário credor às vezes vêm
+  vazios na resposta de criação (ZapSign materializa depois, assíncrono sob carga). `enviarParaZapSign`
+  tenta `GET /docs/{token}/` (3s, 5s) antes de desistir; sem sucesso, grava evento
+  `ZAPSIGN_ENVIADO_SEM_LINK` em EVENTOS. Retorna objeto `{zapUrl, enviado, docToken}` (não mais string).
+  Action `buscarLinkZapSign(docToken)` — consulta pura, nunca cria documento — alimenta o botão "Buscar
+  o link novamente" do estado amarelo no `NovoContrato` (`main.jsx`), que substitui o erro vermelho
+  falso quando o documento já foi criado com sucesso. Ponto de entrada único: só `_enviarZapSign`/
+  `_buscarLinkZapSign` no `NovoContrato` chamam essas actions — sem botão ZapSign em nenhum outro
+  componente. Ver `docs/ai-memory/07-AI-KNOWN-ISSUES.md` (2026-09-09/11).
+- **`gerarDoc` falhando em silêncio (2026-09-09):** achado testando o retry acima — o `.then(d=>{...})`
+  de `criar()` (`NovoContrato`) só tratava sucesso; sem `else`, uma falha de `gerarDocContrato` deixava
+  `docUrl`/`docId` vazios pra sempre e os botões condicionados a eles ("Abrir no Google Docs", "Enviar
+  para ZapSign") simplesmente desapareciam, sem erro visível. Agora grava `docErro` (usado pelo bloco de
+  erro que já existia no JSX) e oferece botão "Tentar gerar documento novamente" (`_gerarDocRetry`, reusa
+  `contratoOk._dadosDoc` sem recriar o contrato). `doPost` também ganhou `Logger.log` no catch global —
+  antes engolia qualquer exceção sem registrar nada, e a execução aparecia "Concluído" nas Execuções do
+  Apps Script mesmo tendo falhado por dentro.
 
 ### Google Forms (cadastro de clientes)
 - Trigger `onFormSubmit` no GAS processa o formulário e cria linha em CLIENTES
